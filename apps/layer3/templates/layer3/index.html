@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}Layer 3: {{ layer.name }} - 데이터 품질 모니터링{% endblock %}
+
+{% block extra_css %}
+<style>
+    .layer-header {
+        background: {{ layer.color }};
+        color: white;
+        padding: 32px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+    }
+
+    .layer-header-content {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+
+    .layer-badge {
+        width: 64px;
+        height: 64px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 800;
+    }
+
+    .layer-info h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .layer-info p {
+        opacity: 0.9;
+        font-size: 14px;
+    }
+
+    .content-placeholder {
+        background: white;
+        border-radius: 12px;
+        padding: 48px;
+        text-align: center;
+        border: 1px solid var(--border-color);
+    }
+
+    .content-placeholder h2 {
+        margin-bottom: 16px;
+        color: var(--text-primary);
+    }
+
+    .content-placeholder p {
+        color: var(--text-secondary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="layer-header">
+    <div class="layer-header-content">
+        <div class="layer-badge">{{ layer.number }}</div>
+        <div class="layer-info">
+            <h1>{{ layer.name }}</h1>
+            <p>{{ layer.name_en }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="content-placeholder">
+    <h2>Layer 3 대시보드</h2>
+    <p>비즈니스 로직 위반 및 관련 없는 데이터 검증<br>LLM을 이용한 값 검증, '검토 필요' 태그 부착</p>
+</div>
+{% endblock %}

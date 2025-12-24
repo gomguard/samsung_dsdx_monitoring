@@ -1,0 +1,449 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{% if mode == 'create' %}회원 등록{% else %}회원 수정{% endif %} - 관리자{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-container {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 32px 24px;
+    }
+
+    .form-header {
+        margin-bottom: 32px;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: var(--text-secondary, #64748b);
+        text-decoration: none;
+        margin-bottom: 16px;
+        transition: color 0.2s;
+    }
+
+    .back-link:hover {
+        color: #0d9488;
+    }
+
+    .back-link svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .form-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary, #1e293b);
+    }
+
+    .form-subtitle {
+        font-size: 14px;
+        color: var(--text-secondary, #64748b);
+        margin-top: 4px;
+    }
+
+    .form-card {
+        background: white;
+        border-radius: 12px;
+        padding: 32px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-section {
+        margin-bottom: 28px;
+    }
+
+    .form-section:last-child {
+        margin-bottom: 0;
+    }
+
+    .form-section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary, #1e293b);
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group:last-child {
+        margin-bottom: 0;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-primary, #1e293b);
+        margin-bottom: 8px;
+    }
+
+    .form-label .required {
+        color: #dc2626;
+        margin-left: 2px;
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 12px 16px;
+        font-size: 15px;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        transition: all 0.2s;
+        outline: none;
+    }
+
+    .form-input:focus {
+        border-color: #0d9488;
+        box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+    }
+
+    .form-input::placeholder {
+        color: #94a3b8;
+    }
+
+    .form-input:disabled {
+        background: #f1f5f9;
+        color: #64748b;
+        cursor: not-allowed;
+    }
+
+    .form-hint {
+        font-size: 13px;
+        color: var(--text-secondary, #64748b);
+        margin-top: 6px;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .checkbox-input {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        accent-color: #0d9488;
+    }
+
+    .checkbox-label {
+        font-size: 14px;
+        color: var(--text-primary, #1e293b);
+        cursor: pointer;
+    }
+
+    .checkbox-desc {
+        font-size: 13px;
+        color: var(--text-secondary, #64748b);
+        margin-left: 32px;
+        margin-top: 4px;
+    }
+
+    /* 에러 메시지 */
+    .alert {
+        padding: 16px 20px;
+        border-radius: 8px;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .alert svg {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+
+    .alert-error {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .alert-content {
+        flex: 1;
+    }
+
+    .alert-list {
+        margin: 8px 0 0 0;
+        padding-left: 20px;
+    }
+
+    .alert-list li {
+        margin-bottom: 4px;
+    }
+
+    /* 버튼 */
+    .form-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 32px;
+        padding-top: 24px;
+        border-top: 1px solid #e2e8f0;
+    }
+
+    .btn {
+        padding: 12px 24px;
+        font-size: 15px;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-primary {
+        color: white;
+        background: #0d9488;
+        border: none;
+    }
+
+    .btn-primary:hover {
+        background: #0f766e;
+    }
+
+    .btn-secondary {
+        color: var(--text-secondary, #64748b);
+        background: white;
+        border: 1px solid #e2e8f0;
+    }
+
+    .btn-secondary:hover {
+        background: #f8fafc;
+        border-color: #cbd5e1;
+    }
+
+    .locked-account-warning {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px;
+        background: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        color: #991b1b;
+    }
+
+    .locked-account-warning svg {
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+
+    .locked-account-warning strong {
+        display: block;
+        margin-bottom: 4px;
+    }
+
+    .locked-account-warning p {
+        font-size: 13px;
+        margin: 0;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="form-header">
+        <a href="{% url 'accounts:admin_dashboard' %}" class="back-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="19" y1="12" x2="5" y2="12"/>
+                <polyline points="12,19 5,12 12,5"/>
+            </svg>
+            회원 관리로 돌아가기
+        </a>
+        <h1 class="form-title">{% if mode == 'create' %}회원 등록{% else %}회원 수정{% endif %}</h1>
+        <p class="form-subtitle">
+            {% if mode == 'create' %}
+                새로운 회원을 등록합니다. 등록된 회원은 모니터링 시스템에 접근할 수 있습니다.
+            {% else %}
+                "{{ edit_user.username }}" 회원의 정보를 수정합니다.
+            {% endif %}
+        </p>
+    </div>
+
+    {% if messages %}
+        <div class="alert alert-error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <div class="alert-content">
+                <strong>입력 오류</strong>
+                <ul class="alert-list">
+                    {% for message in messages %}
+                        <li>{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="form-card">
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="form-section">
+                <h3 class="form-section-title">계정 정보</h3>
+
+                <div class="form-group">
+                    <label class="form-label" for="username">
+                        아이디 <span class="required">*</span>
+                    </label>
+                    {% if mode == 'create' %}
+                        <input type="text" id="username" name="username" class="form-input"
+                               placeholder="영문, 숫자 조합"
+                               value="{{ form_data.username|default:'' }}" required>
+                        <p class="form-hint">로그인에 사용되는 고유 아이디입니다.</p>
+                    {% else %}
+                        <input type="text" id="username" class="form-input"
+                               value="{{ edit_user.username }}" disabled>
+                        <p class="form-hint">아이디는 변경할 수 없습니다.</p>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="email">이메일</label>
+                    <input type="email" id="email" name="email" class="form-input"
+                           placeholder="example@domain.com"
+                           value="{% if mode == 'create' %}{{ form_data.email|default:'' }}{% else %}{{ edit_user.email }}{% endif %}">
+                </div>
+
+                {% if mode == 'create' %}
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="password">
+                            비밀번호 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="password" name="password" class="form-input"
+                               placeholder="8자 이상" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="password_confirm">
+                            비밀번호 확인 <span class="required">*</span>
+                        </label>
+                        <input type="password" id="password_confirm" name="password_confirm" class="form-input"
+                               placeholder="비밀번호 재입력" required>
+                    </div>
+                </div>
+                {% else %}
+                <div class="form-group">
+                    <label class="form-label" for="new_password">새 비밀번호</label>
+                    <input type="password" id="new_password" name="new_password" class="form-input"
+                           placeholder="변경 시에만 입력 (8자 이상)">
+                    <p class="form-hint">비밀번호를 변경하려면 입력하세요. 비워두면 기존 비밀번호가 유지됩니다.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">기본 정보</h3>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="last_name">성</label>
+                        <input type="text" id="last_name" name="last_name" class="form-input"
+                               placeholder="홍"
+                               value="{% if mode == 'create' %}{{ form_data.last_name|default:'' }}{% else %}{{ edit_user.last_name }}{% endif %}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="first_name">이름</label>
+                        <input type="text" id="first_name" name="first_name" class="form-input"
+                               placeholder="길동"
+                               value="{% if mode == 'create' %}{{ form_data.first_name|default:'' }}{% else %}{{ edit_user.first_name }}{% endif %}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3 class="form-section-title">권한 설정</h3>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="is_staff" name="is_staff" class="checkbox-input"
+                               {% if mode == 'create' %}{% if form_data.is_staff %}checked{% endif %}{% else %}{% if edit_user.is_staff %}checked{% endif %}{% endif %}>
+                        <label class="checkbox-label" for="is_staff">관리자 권한</label>
+                    </div>
+                    <p class="checkbox-desc">관리자는 회원 관리 페이지에 접근하고 모든 페이지를 볼 수 있습니다.</p>
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="can_access_dx" name="can_access_dx" class="checkbox-input"
+                               {% if mode == 'create' %}{% if form_data.can_access_dx %}checked{% endif %}{% else %}{% if edit_user.profile.can_access_dx %}checked{% endif %}{% endif %}>
+                        <label class="checkbox-label" for="can_access_dx">DX 접근 권한</label>
+                    </div>
+                    <p class="checkbox-desc">DX (TV/HHP Retail) 모니터링 페이지에 접근할 수 있습니다.</p>
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="can_access_ds" name="can_access_ds" class="checkbox-input"
+                               {% if mode == 'create' %}{% if form_data.can_access_ds %}checked{% endif %}{% else %}{% if edit_user.profile.can_access_ds %}checked{% endif %}{% endif %}>
+                        <label class="checkbox-label" for="can_access_ds">DS 접근 권한</label>
+                    </div>
+                    <p class="checkbox-desc">DS (Global Price Tracking) 모니터링 페이지에 접근할 수 있습니다.</p>
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="is_active" name="is_active" class="checkbox-input"
+                               {% if mode == 'create' %}checked{% else %}{% if edit_user.is_active %}checked{% endif %}{% endif %}>
+                        <label class="checkbox-label" for="is_active">계정 활성화</label>
+                    </div>
+                    <p class="checkbox-desc">비활성화된 계정은 로그인할 수 없습니다.</p>
+                </div>
+
+                {% if mode == 'edit' and edit_user.profile.is_locked %}
+                <div class="form-group">
+                    <div class="locked-account-warning">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        <div>
+                            <strong>계정이 잠겨 있습니다</strong>
+                            <p>비밀번호를 5회 이상 틀려 계정이 잠겼습니다. (실패 횟수: {{ edit_user.profile.failed_login_attempts }}회)</p>
+                        </div>
+                    </div>
+                    <div class="checkbox-group" style="margin-top: 12px;">
+                        <input type="checkbox" id="unlock_account" name="unlock_account" class="checkbox-input">
+                        <label class="checkbox-label" for="unlock_account">계정 잠금 해제</label>
+                    </div>
+                    <p class="checkbox-desc">체크하면 잠금을 해제하고 실패 횟수를 초기화합니다.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    {% if mode == 'create' %}회원 등록{% else %}변경사항 저장{% endif %}
+                </button>
+                <a href="{% url 'accounts:admin_dashboard' %}" class="btn btn-secondary">취소</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

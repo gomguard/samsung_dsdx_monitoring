@@ -1,0 +1,19 @@
+from django.urls import path
+from . import views
+from .api import views as api_views
+
+app_name = 'main'
+
+urlpatterns = [
+    # Pages
+    path('', views.index, name='index'),
+    path('dx/', views.dx_dashboard, name='dx_dashboard'),
+    path('ds/', views.ds_dashboard, name='ds_dashboard'),
+
+    # API
+    path('api/dashboard/', api_views.dashboard_stats, name='api_dashboard'),
+    path('api/dx/dashboard/', api_views.dx_dashboard_stats, name='api_dx_dashboard'),
+    path('api/ds/dashboard/', api_views.ds_dashboard_stats, name='api_ds_dashboard'),
+    path('api/schedule/', api_views.collection_schedule, name='api_schedule'),
+    path('api/health/', api_views.health_check, name='api_health'),
+]

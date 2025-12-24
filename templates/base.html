@@ -1,0 +1,92 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}데이터 품질 모니터링{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/common.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                </div>
+                <span>Trusted Data</span>
+            </a>
+            <div class="nav-links">
+                {% if '/dx/' in request.path %}
+                    <!-- DX Navigation -->
+                    <a href="/dx/" class="nav-link {% if request.path == '/dx/' %}active{% endif %}">DX 대시보드</a>
+                    <a href="/dx/layer1/" class="nav-link {% if '/dx/layer1/' in request.path %}active{% endif %}">Layer 1</a>
+                    <a href="/dx/layer2/" class="nav-link {% if '/dx/layer2/' in request.path %}active{% endif %}">Layer 2</a>
+                    <a href="/dx/layer3/" class="nav-link {% if '/dx/layer3/' in request.path %}active{% endif %}">Layer 3</a>
+                    <a href="/dx/layer4/" class="nav-link {% if '/dx/layer4/' in request.path %}active{% endif %}">Layer 4</a>
+                    <a href="/dx/layer5/" class="nav-link {% if '/dx/layer5/' in request.path %}active{% endif %}">Layer 5</a>
+                {% elif '/ds/' in request.path %}
+                    <!-- DS Navigation -->
+                    <a href="/ds/" class="nav-link {% if request.path == '/ds/' %}active{% endif %}">DS 대시보드</a>
+                    <a href="/ds/layer1/" class="nav-link {% if '/ds/layer1/' in request.path %}active{% endif %}">Layer 1</a>
+                    <a href="/ds/layer2/" class="nav-link {% if '/ds/layer2/' in request.path %}active{% endif %}">Layer 2</a>
+                    <a href="/ds/layer3/" class="nav-link {% if '/ds/layer3/' in request.path %}active{% endif %}">Layer 3</a>
+                    <a href="/ds/layer4/" class="nav-link {% if '/ds/layer4/' in request.path %}active{% endif %}">Layer 4</a>
+                    <a href="/ds/layer5/" class="nav-link {% if '/ds/layer5/' in request.path %}active{% endif %}">Layer 5</a>
+                {% else %}
+                    <!-- Main Navigation -->
+                    <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">홈</a>
+                    <a href="/dx/" class="nav-link">DX Retail</a>
+                    <a href="/ds/" class="nav-link">DS Retail</a>
+                {% endif %}
+            </div>
+
+            <!-- User Menu -->
+            <div class="nav-user">
+                {% if user.is_authenticated %}
+                    {% if user.is_staff %}
+                        <a href="{% url 'accounts:admin_dashboard' %}" class="nav-link nav-admin {% if '/accounts/admin/' in request.path %}active{% endif %}">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            </svg>
+                            회원관리
+                        </a>
+                    {% endif %}
+                    <span class="nav-username">{{ user.username }}</span>
+                    <a href="{% url 'accounts:logout' %}" class="nav-link nav-logout">로그아웃</a>
+                {% else %}
+                    <a href="{% url 'accounts:login' %}" class="nav-link">로그인</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="footer-container">
+            <p>5단계 방어 체계를 통한 데이터 품질 확보 전략</p>
+            {% if user.is_authenticated %}
+            <p class="session-timer">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align: middle; margin-right: 4px;">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12,6 12,12 16,14"/>
+                </svg>
+                세션 만료: <span id="session-countdown">60:00</span>
+            </p>
+            {% endif %}
+        </div>
+    </footer>
+
+    <script src="{% static 'js/common.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

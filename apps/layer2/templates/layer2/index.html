@@ -1,0 +1,1692 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Layer 2: {{ layer.name }} - 데이터 품질 모니터링{% endblock %}
+
+{% block extra_css %}
+<style>
+    .layer-header {
+        background: {{ layer.color }};
+        color: white;
+        padding: 32px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+    }
+
+    .layer-header-content {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+
+    .layer-badge {
+        width: 64px;
+        height: 64px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 800;
+    }
+
+    .layer-info h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .layer-info p {
+        opacity: 0.9;
+        font-size: 14px;
+    }
+
+    /* 조회 조건 섹션 */
+    .filter-section {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        padding: 20px 24px;
+        margin-bottom: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .filter-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .filter-group label {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+
+    .filter-input {
+        padding: 10px 14px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 14px;
+        min-width: 150px;
+    }
+
+    .filter-input:focus {
+        outline: none;
+        border-color: {{ layer.color }};
+    }
+
+    .search-btn {
+        padding: 10px 24px;
+        background: {{ layer.color }};
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+
+    .search-btn:hover {
+        opacity: 0.9;
+    }
+
+    .filter-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .current-info {
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+
+    .current-info strong {
+        color: {{ layer.color }};
+    }
+
+    /* 요약 카드 그리드 */
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    @media (max-width: 1024px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .summary-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--border-color);
+        transition: box-shadow 0.2s;
+    }
+
+    .summary-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .summary-card .label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .summary-card .value {
+        font-size: 32px;
+        font-weight: 700;
+    }
+
+    .summary-card .value.ok { color: var(--color-ok); }
+    .summary-card .value.warning { color: var(--color-warning); }
+    .summary-card .value.critical { color: var(--color-critical); }
+
+    /* 검증 유형 섹션 */
+    .validation-section {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+
+    .validation-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .validation-header:hover {
+        background: var(--bg-primary);
+    }
+
+    .validation-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .validation-icon {
+        font-size: 24px;
+    }
+
+    .validation-name {
+        font-weight: 600;
+        font-size: 16px;
+    }
+
+    .validation-name-en {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .validation-stats {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .validation-count {
+        font-weight: 700;
+        font-size: 18px;
+    }
+
+    .toggle-icon {
+        font-size: 12px;
+        color: var(--text-secondary);
+        transition: transform 0.2s;
+    }
+
+    .toggle-icon.expanded {
+        transform: rotate(90deg);
+    }
+
+    /* 테이블 컨테이너 */
+    .tables-container {
+        display: none;
+        padding: 16px 24px;
+        background: var(--bg-primary);
+    }
+
+    .tables-container.show {
+        display: block;
+    }
+
+    /* 테이블 아이템 */
+    .table-item {
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .table-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .table-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .table-header:hover {
+        background: var(--bg-primary);
+    }
+
+    .table-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .table-name {
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .table-stats {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .table-count {
+        font-weight: 700;
+        font-size: 16px;
+    }
+
+    /* 리테일러/상세 컨테이너 */
+    .detail-container {
+        display: none;
+        padding: 12px 20px 16px;
+        background: var(--bg-primary);
+        border-top: 1px solid var(--border-color);
+    }
+
+    .detail-container.show {
+        display: block;
+    }
+
+    /* 리테일러 그리드 */
+    .retailer-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+
+    @media (max-width: 1024px) {
+        .retailer-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 640px) {
+        .retailer-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .retailer-card {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        border: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .retailer-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .retailer-card.ok {
+        border-left: 4px solid var(--color-ok);
+    }
+
+    .retailer-card.warning {
+        border-left: 4px solid var(--color-warning);
+    }
+
+    .retailer-card.critical {
+        border-left: 4px solid var(--color-critical);
+    }
+
+    .retailer-card.error {
+        border-left: 4px solid #9ca3af;
+        opacity: 0.7;
+    }
+
+    .retailer-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+
+    .retailer-name {
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .retailer-issue-count {
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    .retailer-detail {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .retailer-fields {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+    }
+
+    .field-badge {
+        font-size: 11px;
+        padding: 3px 6px;
+        border-radius: 4px;
+        background: var(--bg-primary);
+    }
+
+    .field-badge.has-issue {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .field-badge.ok {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    /* 버튼 스타일 */
+    .retailer-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .btn-rule, .btn-detail {
+        flex: 1;
+        padding: 6px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-rule {
+        background: #f0f9ff;
+        color: #0369a1;
+        border-color: #bae6fd;
+    }
+
+    .btn-rule:hover {
+        background: #e0f2fe;
+        border-color: #7dd3fc;
+    }
+
+    .btn-detail {
+        background: #fef2f2;
+        color: #dc2626;
+        border-color: #fecaca;
+    }
+
+    .btn-detail:hover {
+        background: #fee2e2;
+        border-color: #fca5a5;
+    }
+
+    /* 검증규칙 모달 테이블 */
+    .rule-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .rule-table th, .rule-table td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .rule-table th {
+        background: var(--bg-secondary);
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .rule-table tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .rule-field {
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .rule-pattern {
+        font-family: monospace;
+        background: #f1f5f9;
+        padding: 4px 8px;
+        border-radius: 3px;
+        font-size: 12px;
+        white-space: pre-line;
+        display: inline-block;
+        text-align: left;
+        line-height: 1.6;
+    }
+
+    /* 모달 */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.2s;
+    }
+
+    .modal-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 1000px;
+        max-height: 80vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transform: scale(0.9);
+        transition: transform 0.2s;
+    }
+
+    .modal-overlay.show .modal-content {
+        transform: scale(1);
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .modal-title {
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .modal-subtitle {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .modal-close {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+    }
+
+    .modal-close:hover {
+        background: #e5e7eb;
+    }
+
+    .modal-body {
+        padding: 24px;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .modal-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .modal-table th,
+    .modal-table td {
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-table th {
+        background: var(--bg-primary);
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+    }
+
+    .modal-table tr:hover td {
+        background: #f9fafb;
+    }
+
+    .modal-table .null-value {
+        color: var(--color-critical);
+        font-weight: 600;
+    }
+
+    .modal-loading {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-secondary);
+    }
+
+    /* 샘플 에러 테이블 */
+    .sample-errors {
+        margin-top: 16px;
+        border-top: 1px solid var(--border-color);
+        padding-top: 16px;
+    }
+
+    .sample-errors h4 {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        color: var(--text-secondary);
+    }
+
+    .error-table {
+        width: 100%;
+        font-size: 12px;
+        border-collapse: collapse;
+    }
+
+    .error-table th,
+    .error-table td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .error-table th {
+        background: var(--bg-primary);
+        font-weight: 600;
+    }
+
+    .error-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .error-table tr:hover td {
+        background: #f9fafb;
+    }
+
+    .error-value {
+        color: var(--color-critical);
+        font-family: monospace;
+        font-size: 11px;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* 상태 배지 */
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .status-badge.ok {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    .status-badge.warning {
+        background: #fef3c7;
+        color: #d97706;
+    }
+
+    .status-badge.critical {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .status-badge.error {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    /* 수집률 바 */
+    .rate-bar {
+        height: 6px;
+        background: #e5e7eb;
+        border-radius: 3px;
+        margin-top: 8px;
+        overflow: hidden;
+    }
+
+    .rate-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.3s;
+    }
+
+    .rate-bar-fill.ok { background: var(--color-ok); }
+    .rate-bar-fill.warning { background: var(--color-warning); }
+    .rate-bar-fill.critical { background: var(--color-critical); }
+
+    /* 로딩 */
+    .loading {
+        text-align: center;
+        padding: 60px;
+        color: var(--text-secondary);
+    }
+
+    .loading-spinner {
+        width: 48px;
+        height: 48px;
+        border: 3px solid var(--border-color);
+        border-top-color: {{ layer.color }};
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 16px;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="layer-header">
+    <div class="layer-header-content">
+        <div class="layer-badge">{{ layer.number }}</div>
+        <div class="layer-info">
+            <h1>{{ layer.name }}</h1>
+            <p>{{ layer.name_en }} - DX 데이터 품질 모니터링</p>
+        </div>
+    </div>
+</div>
+
+<!-- 조회 조건 -->
+<div class="filter-section">
+    <div class="filter-left">
+        <div class="filter-group">
+            <label for="target-date">조회 날짜</label>
+            <input type="date" id="target-date" class="filter-input">
+        </div>
+        <button class="search-btn" onclick="handleSearch()">조회</button>
+    </div>
+    <div class="filter-right">
+        <span class="current-info" id="current-info"></span>
+    </div>
+</div>
+
+<!-- DX 요약 카드 -->
+<div class="summary-grid" id="dx-summary">
+    <div class="summary-card">
+        <div class="label">총 이슈</div>
+        <div class="value" id="dx-totalIssues">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">🔍 NULL 검증</div>
+        <div class="value" id="dx-nullIssues">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">📋 형식 검증</div>
+        <div class="value" id="dx-formatIssues">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">🔄 중복 검증</div>
+        <div class="value" id="dx-duplicateIssues">-</div>
+    </div>
+</div>
+
+<!-- DX 검증 결과 -->
+<div id="dx-validation-container">
+    <div class="loading">
+        <div class="loading-spinner"></div>
+        <p>데이터 로딩 중...</p>
+    </div>
+</div>
+
+<!-- 상세 데이터 모달 -->
+<div class="modal-overlay" id="detail-modal" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="modal-title">리테일러 상세</div>
+                <div class="modal-subtitle" id="modal-subtitle">NULL 검증 오류 데이터</div>
+            </div>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body">
+            <div class="modal-loading">데이터 로딩 중...</div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="rule-modal" onclick="closeRuleModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="rule-modal-title">형식 검증 규칙</div>
+                <div class="modal-subtitle" id="rule-modal-subtitle">필드별 검증 규칙</div>
+            </div>
+            <button class="modal-close" onclick="closeRuleModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="rule-modal-body">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let dxData = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        initDatePicker();
+        fetchDXStats();
+    });
+
+    function initDatePicker() {
+        const dateInput = document.getElementById('target-date');
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlDate = urlParams.get('date');
+
+        if (urlDate) {
+            dateInput.value = urlDate;
+        } else {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            dateInput.value = yesterday.toISOString().split('T')[0];
+        }
+
+        const today = new Date();
+        dateInput.max = today.toISOString().split('T')[0];
+    }
+
+    function handleSearch() {
+        dxData = null;
+        document.getElementById('dx-validation-container').innerHTML = `
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <p>데이터 로딩 중...</p>
+            </div>`;
+        fetchDXStats();
+    }
+
+    function getSelectedDate() {
+        return document.getElementById('target-date').value;
+    }
+
+    // ==================== DX ====================
+    function fetchDXStats() {
+        const date = getSelectedDate();
+
+        fetch(`/dx/layer2/api/stats/?date=${date}`)
+            .then(response => response.json())
+            .then(data => {
+                dxData = data;
+                renderDXSummary(data);
+                renderDXValidationTypes(data);
+                updateCurrentInfo(data.date);
+            })
+            .catch(error => {
+                console.error('DX Error:', error);
+                document.getElementById('dx-validation-container').innerHTML =
+                    '<div class="loading"><p style="color: var(--color-critical);">DX 데이터 로딩 실패</p></div>';
+            });
+    }
+
+    function renderDXSummary(data) {
+        console.log('API Response:', data);
+        console.log('Summary:', data.summary);
+        const summary = data.summary;
+
+        document.getElementById('dx-totalIssues').textContent = summary.total_issues.toLocaleString();
+        document.getElementById('dx-totalIssues').className = `value ${summary.overall_status.toLowerCase()}`;
+
+        document.getElementById('dx-nullIssues').textContent = summary.null_issues.toLocaleString();
+        document.getElementById('dx-nullIssues').className = `value ${getStatusClass(summary.null_issues)}`;
+
+        document.getElementById('dx-formatIssues').textContent = summary.format_issues.toLocaleString();
+        document.getElementById('dx-formatIssues').className = `value ${getStatusClass(summary.format_issues)}`;
+
+        document.getElementById('dx-duplicateIssues').textContent = summary.duplicate_issues.toLocaleString();
+        document.getElementById('dx-duplicateIssues').className = `value ${getStatusClass(summary.duplicate_issues)}`;
+    }
+
+    function renderDXValidationTypes(data) {
+        const container = document.getElementById('dx-validation-container');
+
+        if (!data.validation_types || data.validation_types.length === 0) {
+            container.innerHTML = '<div class="loading"><p>검증 데이터 없음</p></div>';
+            return;
+        }
+
+        let html = '';
+
+        data.validation_types.forEach((vType, vIdx) => {
+            html += `
+                <div class="validation-section">
+                    <div class="validation-header" onclick="toggleValidation(${vIdx})">
+                        <div class="validation-title">
+                            <span class="validation-icon">${vType.icon}</span>
+                            <div>
+                                <div class="validation-name">${vType.type_name}</div>
+                                <div class="validation-name-en">${vType.type_name_en}</div>
+                            </div>
+                        </div>
+                        <div class="validation-stats">
+                            <span class="validation-count ${vType.status.toLowerCase()}">${vType.total_issues.toLocaleString()}건</span>
+                            <span class="status-badge ${vType.status.toLowerCase()}">${vType.status}</span>
+                            <span class="toggle-icon" id="toggle-dx-v-${vIdx}">▶</span>
+                        </div>
+                    </div>
+                    <div class="tables-container" id="dx-tables-${vIdx}">
+                        ${renderDXTables(vType, vIdx)}
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function renderDXTables(vType, vIdx) {
+        if (!vType.tables || vType.tables.length === 0) {
+            return '<p style="padding: 20px; color: var(--text-secondary);">테이블 데이터 없음</p>';
+        }
+
+        let html = '';
+
+        vType.tables.forEach((table, tIdx) => {
+            html += `
+                <div class="table-item">
+                    <div class="table-header" onclick="toggleTable(${vIdx}, ${tIdx})">
+                        <div class="table-info">
+                            <span class="table-name">${table.table_name}</span>
+                            <span style="font-size: 12px; color: var(--text-secondary);">
+                                (${(table.total_records || table.total_checked || 0).toLocaleString()}건 검사)
+                            </span>
+                        </div>
+                        <div class="table-stats">
+                            <span class="table-count ${table.status.toLowerCase()}">${table.total_issues.toLocaleString()}건</span>
+                            <span class="status-badge ${table.status.toLowerCase()}">${table.status}</span>
+                            <span class="toggle-icon" id="toggle-dx-t-${vIdx}-${tIdx}">▶</span>
+                        </div>
+                    </div>
+                    <div class="detail-container" id="dx-detail-${vIdx}-${tIdx}">
+                        ${renderDXTableDetail(vType, table)}
+                    </div>
+                </div>
+            `;
+        });
+
+        return html;
+    }
+
+    function renderDXTableDetail(vType, table) {
+        let html = '';
+        const tableName = table.table_name;
+
+        // NULL 검증 - 리테일러별 상세
+        if (vType.type === 'null' && table.retailers) {
+            html += '<div class="retailer-grid">';
+            table.retailers.forEach(retailer => {
+                const hasIssue = (retailer.records_with_null || 0) > 0;
+                const totalCount = retailer.total || 0;
+                const nullCount = retailer.records_with_null || 0;
+                html += `
+                    <div class="retailer-card ${(retailer.status || 'ok').toLowerCase()}"
+                         onclick="openDetailModal('null', '${tableName}', '${retailer.retailer}', ${nullCount})"
+                         ${!hasIssue ? 'style="cursor: default;"' : ''}>
+                        <div class="retailer-header">
+                            <span class="retailer-name">${retailer.retailer}</span>
+                            <span class="retailer-issue-count ${(retailer.status || 'ok').toLowerCase()}">${nullCount}건</span>
+                        </div>
+                        <div class="retailer-detail">
+                            총 ${totalCount.toLocaleString()}건 중 필수값 NULL 레코드
+                        </div>
+                        <div class="retailer-fields">
+                            ${renderNullFieldsDetail(retailer.fields_detail)}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+        // 형식 검증 - 리테일러별 (TV/HHP Retail과 YouTube 동일한 형태)
+        if (vType.type === 'format' && table.retailers) {
+            html += '<div class="retailer-grid">';
+            table.retailers.forEach(retailer => {
+                const hasIssue = (retailer.issue_count || 0) > 0;
+                const totalCount = retailer.total || 0;
+                const issueCount = retailer.issue_count || 0;
+                html += `
+                    <div class="retailer-card ${(retailer.status || 'ok').toLowerCase()}">
+                        <div class="retailer-header">
+                            <span class="retailer-name">${retailer.retailer}</span>
+                            <span class="retailer-issue-count ${(retailer.status || 'ok').toLowerCase()}">${issueCount}건</span>
+                        </div>
+                        <div class="retailer-detail">
+                            총 ${totalCount.toLocaleString()}건 중 형식 오류 레코드
+                        </div>
+                        <div class="retailer-actions">
+                            <button class="btn-rule" onclick="event.stopPropagation(); openRuleModal('${tableName}', '${retailer.retailer}')">검증규칙</button>
+                            ${hasIssue ? `<button class="btn-detail" onclick="event.stopPropagation(); openDetailModal('format', '${tableName}', '${retailer.retailer}', ${issueCount})">상세보기</button>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+        // 중복 검증 - 리테일러별 중복
+        if (vType.type === 'duplicate' && table.retailers) {
+            html += '<div class="retailer-grid">';
+            table.retailers.forEach(retailer => {
+                const dupGroups = retailer.duplicate_groups || 0;
+                const hasIssue = dupGroups > 0;
+                html += `
+                    <div class="retailer-card ${(retailer.status || 'ok').toLowerCase()}"
+                         onclick="openDetailModal('duplicate', '${tableName}', '${retailer.retailer}', ${dupGroups})"
+                         ${!hasIssue ? 'style="cursor: default;"' : ''}>
+                        <div class="retailer-header">
+                            <span class="retailer-name">${retailer.retailer}</span>
+                            <span class="retailer-issue-count ${(retailer.status || 'ok').toLowerCase()}">${dupGroups}건</span>
+                        </div>
+                        <div class="retailer-detail">중복 그룹 수</div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+        if (!html) {
+            html = '<p style="padding: 20px; color: var(--text-secondary);">상세 데이터 없음</p>';
+        }
+
+        return html;
+    }
+
+    // ==================== 공통 함수 ====================
+    function getStatusClass(count) {
+        if (count === 0) return 'ok';
+        if (count <= 10) return 'warning';
+        return 'critical';
+    }
+
+    function renderNullFieldsDetail(fieldsDetail) {
+        if (!fieldsDetail) return '';
+        return Object.entries(fieldsDetail).map(([field, count]) => {
+            const safeCount = count || 0;
+            const hasIssue = safeCount > 0;
+            return `<span class="field-badge ${hasIssue ? 'has-issue' : 'ok'}">${field}: ${safeCount}</span>`;
+        }).join('');
+    }
+
+    function toggleValidation(vIdx) {
+        const container = document.getElementById(`dx-tables-${vIdx}`);
+        const icon = document.getElementById(`toggle-dx-v-${vIdx}`);
+
+        if (container.classList.contains('show')) {
+            container.classList.remove('show');
+            icon.classList.remove('expanded');
+        } else {
+            container.classList.add('show');
+            icon.classList.add('expanded');
+        }
+    }
+
+    function toggleTable(vIdx, tIdx) {
+        const container = document.getElementById(`dx-detail-${vIdx}-${tIdx}`);
+        const icon = document.getElementById(`toggle-dx-t-${vIdx}-${tIdx}`);
+
+        if (container.classList.contains('show')) {
+            container.classList.remove('show');
+            icon.classList.remove('expanded');
+        } else {
+            container.classList.add('show');
+            icon.classList.add('expanded');
+        }
+    }
+
+    function updateCurrentInfo(date) {
+        document.getElementById('current-info').innerHTML = `<strong>${date}</strong> DX 검증 현황`;
+    }
+
+    // ==================== 모달 함수 ====================
+    function openDetailModal(type, tableName, retailer, count) {
+        if (count === 0) return;
+
+        const modal = document.getElementById('detail-modal');
+        const title = document.getElementById('modal-title');
+        const subtitle = document.getElementById('modal-subtitle');
+        const body = document.getElementById('modal-body');
+
+        const typeNames = {
+            'null': 'NULL 검증',
+            'format': '형식 검증',
+            'duplicate': '중복 검증'
+        };
+
+        title.textContent = `${retailer} - ${typeNames[type]} 오류`;
+        subtitle.textContent = `${tableName} | ${count}건의 오류 데이터`;
+        body.innerHTML = '<div class="modal-loading">데이터 로딩 중...</div>';
+
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+
+        // API 호출 - 타입별로 다른 API 사용
+        const date = getSelectedDate();
+        // tableName에서 table 파라미터 변환 (YouTube -> youtube, TV Retail -> tv_retail)
+        const tableParam = tableName === 'YouTube' ? 'youtube' :
+                           tableName === 'TV Retail' ? 'tv_retail' :
+                           tableName === 'HHP Retail' ? 'hhp_retail' : tableName.toLowerCase();
+
+        let apiUrl;
+        if (type === 'null') {
+            apiUrl = `/dx/layer2/api/null-detail/?table=${tableParam}&retailer=${retailer}&date=${date}`;
+        } else if (type === 'format') {
+            apiUrl = `/dx/layer2/api/format-detail/?table=${tableParam}&retailer=${retailer}&date=${date}`;
+        } else if (type === 'duplicate') {
+            apiUrl = `/dx/layer2/api/anomaly-detail/?table=${tableParam}&retailer=${retailer}&date=${date}`;
+        } else {
+            apiUrl = `/dx/layer2/api/detail/?type=${type}&table=${tableParam}&retailer=${retailer}&date=${date}`;
+        }
+
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                renderModalTable(type, data, tableParam);
+            })
+            .catch(error => {
+                console.error('Detail Error:', error);
+                body.innerHTML = '<div class="modal-loading" style="color: var(--color-critical);">데이터 로딩 실패</div>';
+            });
+    }
+
+    function formatDateTime(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return dateStr;
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = date.getHours();
+        const ampm = hours < 12 ? '오전' : '오후';
+
+        return `${year}-${month}-${day} ${ampm}`;
+    }
+
+    function formatDateOnly(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return dateStr;
+
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+
+        return `${year}-${month}-${day}`;
+    }
+
+    function renderModalTable(type, data, tableParam) {
+        const body = document.getElementById('modal-body');
+
+        // API 응답에서 레코드 배열 찾기 (타입별로 다른 구조)
+        let records;
+        if (type === 'duplicate') {
+            // duplicate는 results.duplicates 구조
+            records = data.results?.duplicates || [];
+        } else {
+            // null, format은 records 또는 results
+            records = data.records || data.results || [];
+        }
+
+        if (records.length === 0) {
+            body.innerHTML = '<div class="modal-loading">데이터가 없습니다.</div>';
+            return;
+        }
+
+        let html = '<table class="modal-table"><thead><tr>';
+
+        // 타입별, 테이블별 컬럼 설정
+        if (type === 'null') {
+            // YouTube는 URL 없음
+            if (tableParam === 'youtube') {
+                html += '<th>ID</th><th>Item</th><th>NULL 필드</th><th>수집일</th>';
+            } else {
+                html += '<th>ID</th><th>Item</th><th>NULL 필드</th><th>수집일</th><th>URL</th>';
+            }
+        } else if (type === 'format') {
+            // YouTube 형식 오류는 다른 컬럼 구조
+            if (tableParam === 'youtube') {
+                html += '<th>No</th><th>ID</th><th>식별자</th><th>오류 필드</th><th>오류 값</th><th>규칙</th><th>위배 사유</th>';
+            } else {
+                html += '<th>No</th><th>ID</th><th>Item</th><th>오류 필드</th><th>오류 값</th><th>규칙</th><th>위배 사유</th><th>수집일</th><th>URL</th>';
+            }
+        } else if (type === 'duplicate') {
+            html += '<th>No</th><th>Item</th><th>시간대</th><th>중복사유</th><th>ID</th><th>Page Type</th><th>수집시각</th><th>Rank</th><th>URL</th>';
+        }
+
+        html += '</tr></thead><tbody>';
+
+        let rowNumber = 0;  // 형식 오류 순번용
+        records.forEach((record, recordIdx) => {
+            if (type === 'null') {
+                html += '<tr>';
+                // crawl_datetime 또는 collected_at 둘 다 지원
+                const collectedAt = record.crawl_datetime || record.collected_at;
+
+                // YouTube는 URL 없음
+                if (tableParam === 'youtube') {
+                    html += `
+                        <td>${record.id || '-'}</td>
+                        <td>${record.item || '-'}</td>
+                        <td class="null-value">${record.null_fields?.join(', ') || '-'}</td>
+                        <td>${formatDateOnly(collectedAt)}</td>
+                    `;
+                } else {
+                    const urlLink = record.product_url
+                        ? `<a href="${record.product_url}" target="_blank" style="color: #2563eb;">바로가기</a>`
+                        : '-';
+                    html += `
+                        <td>${record.id || '-'}</td>
+                        <td>${record.item || '-'}</td>
+                        <td class="null-value">${record.null_fields?.join(', ') || '-'}</td>
+                        <td>${formatDateTime(collectedAt)}</td>
+                        <td>${urlLink}</td>
+                    `;
+                }
+                html += '</tr>';
+            } else if (type === 'format') {
+                // 형식 오류는 errors 배열의 각 오류마다 별도 행으로 표시 (rowspan 사용)
+                const errors = record.errors || [];
+                if (errors.length === 0) return;
+
+                rowNumber++;  // 레코드 순번 증가
+                const rowspan = errors.length;
+
+                errors.forEach((err, errIdx) => {
+                    html += '<tr>';
+
+                    if (tableParam === 'youtube') {
+                        const identifier = record.keyword || record.video_id || record.comment_type || '-';
+                        if (errIdx === 0) {
+                            html += `
+                                <td rowspan="${rowspan}" style="text-align: center; font-weight: 500;">${rowNumber}</td>
+                                <td rowspan="${rowspan}">${record.id}</td>
+                                <td rowspan="${rowspan}">${identifier}</td>
+                            `;
+                        }
+                        html += `
+                            <td class="null-value">${err.field || '-'}</td>
+                            <td>${err.value || '-'}</td>
+                            <td>${err.rule || '-'}</td>
+                            <td>${err.reason || '-'}</td>
+                        `;
+                    } else {
+                        // TV/HHP Retail 형식 오류
+                        const urlLink = record.product_url
+                            ? `<a href="${record.product_url}" target="_blank" style="color: #2563eb;">바로가기</a>`
+                            : '-';
+                        const collectedAt = record.crawl_datetime || record.collected_at;
+                        if (errIdx === 0) {
+                            html += `
+                                <td rowspan="${rowspan}" style="text-align: center; font-weight: 500;">${rowNumber}</td>
+                                <td rowspan="${rowspan}">${record.id}</td>
+                                <td rowspan="${rowspan}">${record.item || '-'}</td>
+                            `;
+                        }
+                        html += `
+                            <td class="null-value">${err.field || '-'}</td>
+                            <td>${err.value || '-'}</td>
+                            <td>${err.rule || '-'}</td>
+                            <td>${err.reason || '-'}</td>
+                        `;
+                        if (errIdx === 0) {
+                            html += `
+                                <td rowspan="${rowspan}">${formatDateTime(collectedAt)}</td>
+                                <td rowspan="${rowspan}">${urlLink}</td>
+                            `;
+                        }
+                    }
+
+                    html += '</tr>';
+                });
+            } else if (type === 'duplicate') {
+                // 중복 그룹: 각 그룹의 records를 펼쳐서 표시
+                rowNumber++;
+                const dupRecords = record.records || [];
+                const rowspan = dupRecords.length;
+
+                dupRecords.forEach((rec, recIdx) => {
+                    html += '<tr>';
+                    const urlLink = rec.product_url
+                        ? `<a href="${rec.product_url}" target="_blank" style="color: #2563eb;">바로가기</a>`
+                        : '-';
+                    const rank = rec.main_rank || rec.bsr_rank || '-';
+
+                    if (recIdx === 0) {
+                        // 첫 행에만 그룹 정보 표시 (item, 시간대, 중복사유)
+                        html += `
+                            <td rowspan="${rowspan}" style="text-align: center; font-weight: 500;">${rowNumber}</td>
+                            <td rowspan="${rowspan}">${record.item || '-'}</td>
+                            <td rowspan="${rowspan}">${record.period || '-'}</td>
+                            <td rowspan="${rowspan}" style="color: #dc2626; font-size: 12px;">${record.reason || '-'}</td>
+                        `;
+                    }
+                    // 개별 레코드 정보 (ID, page_type, 수집시각, rank, URL)
+                    html += `
+                        <td>${rec.id || '-'}</td>
+                        <td>${rec.page_type || '-'}</td>
+                        <td>${formatDateTime(rec.crawl_datetime)}</td>
+                        <td>${rank}</td>
+                        <td>${urlLink}</td>
+                    `;
+                    html += '</tr>';
+                });
+            }
+        });
+
+        html += '</tbody></table>';
+
+        const total = data.total || records.length;
+        if (total > records.length) {
+            html += `<p style="margin-top: 16px; color: var(--text-secondary); font-size: 13px;">
+                총 ${total.toLocaleString()}건 중 ${records.length}건 표시
+            </p>`;
+        }
+
+        body.innerHTML = html;
+    }
+
+    function closeModal(event) {
+        if (event && event.target !== event.currentTarget) return;
+
+        const modal = document.getElementById('detail-modal');
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+
+    // 검증규칙 모달
+    function openRuleModal(tableName, retailer) {
+        const modal = document.getElementById('rule-modal');
+        const title = document.getElementById('rule-modal-title');
+        const subtitle = document.getElementById('rule-modal-subtitle');
+        const body = document.getElementById('rule-modal-body');
+
+        title.textContent = `${retailer} - 형식 검증 규칙`;
+        subtitle.textContent = `${tableName} | 필드별 검증 규칙`;
+
+        // 테이블/리테일러별 검증 규칙 정의
+        const rules = getValidationRules(tableName, retailer);
+
+        let html = '<table class="rule-table"><thead><tr>';
+        html += '<th>필드명</th><th>검증 규칙</th><th>허용 패턴/값</th>';
+        html += '</tr></thead><tbody>';
+
+        rules.forEach(rule => {
+            html += `<tr>
+                <td class="rule-field">${rule.field}</td>
+                <td>${rule.description}</td>
+                <td><span class="rule-pattern">${rule.pattern}</span></td>
+            </tr>`;
+        });
+
+        html += '</tbody></table>';
+        body.innerHTML = html;
+
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeRuleModal(event) {
+        if (event && event.target !== event.currentTarget) return;
+
+        const modal = document.getElementById('rule-modal');
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+
+    function getValidationRules(tableName, retailer) {
+        // =============== TV Retail - Amazon 규칙 ===============
+        // 형식 검증만! (값이 있을 때 형식이 맞는지 검사, NULL 여부는 NULL 검증에서 별도로 함)
+        const amazonTvRules = [
+            { field: 'item', description: '알파벳+숫자만 허용', pattern: '^[A-Za-z0-9]+$' },
+            { field: 'account_name', description: '허용값만', pattern: 'Amazon' },
+            { field: 'page_type', description: '허용값만', pattern: 'main | bsr' },
+            { field: 'product_url', description: 'http:// 또는 https:// 시작', pattern: '^https?://.*' },
+            { field: 'main_rank', description: '1~400 범위 정수', pattern: '1 ~ 400' },
+            { field: 'bsr_rank', description: '1~100 범위 정수', pattern: '1 ~ 100' },
+            { field: 'final_sku_price', description: '$금액 형식 또는 허용 문구', pattern: `$숫자
+"No featured offers available"
+"Currently unavailable."
+"Price higher than typical"
+"To see our price, add this item to your cart."
+"See price in cart"` },
+            { field: 'original_sku_price', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'count_of_reviews', description: '숫자 (쉼표 허용)', pattern: '^[\\d,]+$' },
+            { field: 'star_rating', description: '0.0~5.0 또는 허용 문구', pattern: `0.0 ~ 5.0
+"No customer reviews"` },
+            { field: 'count_of_star_ratings', description: '숫자 또는 허용 문구', pattern: `^[\\d,]+$
+"No customer reviews"` },
+            { field: 'screen_size', description: '숫자 + inches 형식', pattern: '숫자 inches (예: 50 inches, 32.5 inches)' },
+            { field: 'detailed_review_content', description: '1- 로 시작 또는 허용 문구', pattern: `"1-..."
+"No customer reviews"` },
+            { field: 'number_of_units_purchased_past_month', description: '숫자 (쉼표, + 허용)', pattern: '^[\\d,+]+$' },
+            { field: 'available_quantity_for_purchase', description: '숫자 또는 허용 문구', pattern: `^[\\d,]+$
+"In Stock"` },
+            { field: 'sku_popularity', description: '허용값만', pattern: '"Amazon\'s Choice"' },
+            { field: 'retailer_membership_discounts', description: 'Prime members로 시작', pattern: '"Prime members..."' },
+            { field: 'rank_1', description: '# 로 시작', pattern: '"#..."' },
+            { field: 'rank_2', description: '# 로 시작', pattern: '"#..."' },
+            { field: 'summarized_review_content', description: 'Customers 로 시작', pattern: '"Customers..."' },
+            // 크로스 필드 논리 검증
+            { field: 'star_rating ↔ count_of_star_ratings', description: '논리적 일관성', pattern: 'star_rating 값이 있으면 count_of_star_ratings도 있어야 함' },
+            { field: 'page_type ↔ main_rank', description: '논리적 일관성', pattern: 'page_type=main이면 main_rank 필수' },
+            { field: 'page_type ↔ bsr_rank', description: '논리적 일관성', pattern: 'page_type=bsr이면 bsr_rank 필수' },
+            { field: 'final_sku_price ↔ original_sku_price', description: '가격 논리', pattern: 'final_sku_price ≤ original_sku_price' },
+            // 참조 무결성 검증
+            { field: 'item (참조 무결성)', description: 'tv_item_mst 참조', pattern: 'tv_item_mst.item에 등록 필수' }
+        ];
+
+        // =============== TV Retail - Bestbuy 규칙 ===============
+        const bestbuyTvRules = [
+            { field: 'item', description: '알파벳+숫자만 허용', pattern: '^[A-Za-z0-9]+$' },
+            { field: 'account_name', description: '허용값만', pattern: 'Bestbuy' },
+            { field: 'page_type', description: '허용값만', pattern: 'main | bsr | promotion' },
+            { field: 'product_url', description: 'http:// 또는 https:// 시작', pattern: '^https?://.*' },
+            { field: 'main_rank', description: '1~400 범위 정수', pattern: '1 ~ 400' },
+            { field: 'bsr_rank', description: '1~100 범위 정수', pattern: '1 ~ 100' },
+            { field: 'final_sku_price', description: '$금액 형식 또는 허용 문구', pattern: '$숫자 또는 "See price in cart"' },
+            { field: 'original_sku_price', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'count_of_reviews', description: '숫자 (쉼표 허용)', pattern: '^[\\d,]+$' },
+            { field: 'star_rating', description: '0.0~5.0 또는 허용 문구', pattern: `0.0 ~ 5.0
+"Not yet reviewed"` },
+            { field: 'count_of_star_ratings', description: '숫자 또는 허용 문구', pattern: `^[\\d,]+$
+"Not yet reviewed"` },
+            { field: 'screen_size', description: '숫자 + inches 형식', pattern: '숫자 inches (예: 50 inches, 32.5 inches)' },
+            { field: 'detailed_review_content', description: 'review1 - 로 시작', pattern: '"review1 - ..."' },
+            { field: 'savings', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'offer', description: '숫자', pattern: '^\\d+$' },
+            { field: 'retailer_sku_name_similar', description: '||| 구분자 3개 필요', pattern: 'value1|||value2|||value3|||value4' },
+            { field: 'recommendation_intent', description: '추천 형식', pattern: '"숫자% would recommend to a friend"' },
+            // 크로스 필드 논리 검증
+            { field: 'star_rating ↔ count_of_star_ratings', description: '논리적 일관성', pattern: 'star_rating 값이 있으면 count_of_star_ratings도 있어야 함' },
+            { field: 'page_type ↔ main_rank', description: '논리적 일관성', pattern: 'page_type=main이면 main_rank 필수' },
+            { field: 'page_type ↔ bsr_rank', description: '논리적 일관성', pattern: 'page_type=bsr이면 bsr_rank 필수' },
+            { field: 'page_type ↔ promotion_rank', description: '논리적 일관성', pattern: 'page_type=promotion이면 promotion_rank 필수' },
+            { field: 'final_sku_price ↔ original_sku_price', description: '가격 논리', pattern: 'final_sku_price ≤ original_sku_price' },
+            // 참조 무결성 검증
+            { field: 'item (참조 무결성)', description: 'tv_item_mst 참조', pattern: 'tv_item_mst.item에 등록 필수' }
+        ];
+
+        // =============== TV Retail - Walmart 규칙 ===============
+        const walmartTvRules = [
+            { field: 'item', description: '알파벳+숫자만 허용', pattern: '^[A-Za-z0-9]+$' },
+            { field: 'account_name', description: '허용값만', pattern: 'Walmart' },
+            { field: 'page_type', description: '허용값만', pattern: 'main | bsr' },
+            { field: 'product_url', description: 'http:// 또는 https:// 시작', pattern: '^https?://.*' },
+            { field: 'main_rank', description: '1~400 범위 정수', pattern: '1 ~ 400' },
+            { field: 'bsr_rank', description: '1~100 범위 정수', pattern: '1 ~ 100' },
+            { field: 'final_sku_price', description: '$금액 형식 또는 허용 문구', pattern: `$숫자
+"Not Available"
+"See price in cart"
+$숫자/month
+$숫자/undefined` },
+            { field: 'original_sku_price', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'count_of_reviews', description: '숫자 (쉼표 허용)', pattern: '^[\\d,]+$' },
+            { field: 'star_rating', description: '0.0~5.0 또는 허용 문구', pattern: `0.0 ~ 5.0
+"No ratings yet"` },
+            { field: 'count_of_star_ratings', description: '숫자 또는 허용 문구', pattern: `^[\\d,]+$
+"No ratings yet"` },
+            { field: 'screen_size', description: '숫자 + inches 형식', pattern: '숫자 inches (예: 50 inches, 32.5 inches)' },
+            { field: 'detailed_review_content', description: 'review1- 로 시작', pattern: '"review1-..."' },
+            { field: 'offer', description: '숫자', pattern: '^\\d+$' },
+            { field: 'retailer_membership_discounts', description: '허용값만', pattern: '"Walmart Plus" 또는 "Save with W+..."' },
+            { field: 'available_quantity_for_purchase', description: '숫자 (쉼표 허용)', pattern: '^[\\d,]+$' },
+            { field: 'number_of_ppl_purchased_yesterday', description: '숫자 (쉼표, + 허용)', pattern: '^[\\d,+]+$' },
+            { field: 'number_of_ppl_added_to_carts', description: '숫자 (쉼표, + 허용)', pattern: '^[\\d,+]+$' },
+            { field: 'savings', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'discount_type', description: '허용값만', pattern: '"Price when purchased online"' },
+            // 크로스 필드 논리 검증
+            { field: 'star_rating ↔ count_of_star_ratings', description: '논리적 일관성', pattern: 'star_rating 값이 있으면 count_of_star_ratings도 있어야 함' },
+            { field: 'page_type ↔ main_rank', description: '논리적 일관성', pattern: 'page_type=main이면 main_rank 필수' },
+            { field: 'page_type ↔ bsr_rank', description: '논리적 일관성', pattern: 'page_type=bsr이면 bsr_rank 필수' },
+            { field: 'final_sku_price ↔ original_sku_price', description: '가격 논리', pattern: 'final_sku_price ≤ original_sku_price' },
+            // 참조 무결성 검증
+            { field: 'item (참조 무결성)', description: 'tv_item_mst 참조', pattern: 'tv_item_mst.item에 등록 필수' }
+        ];
+
+        // =============== HHP Retail - Amazon 규칙 ===============
+        const amazonHhpRules = [
+            { field: 'item', description: '알파벳+숫자만 허용', pattern: '^[A-Za-z0-9]+$' },
+            { field: 'account_name', description: '허용값만', pattern: 'Amazon' },
+            { field: 'page_type', description: '허용값만', pattern: 'main | bsr' },
+            { field: 'product_url', description: 'http:// 또는 https:// 시작', pattern: '^https?://.*' },
+            { field: 'main_rank', description: '1~300 범위 정수', pattern: '1 ~ 300' },
+            { field: 'bsr_rank', description: '1~100 범위 정수', pattern: '1 ~ 100' },
+            { field: 'final_sku_price', description: '$금액 형식 또는 허용 문구', pattern: `$숫자
+"No featured offers available"
+"Currently unavailable."
+"Price higher than typical"
+"To see our price, add this item to your cart."
+"See price in cart"` },
+            { field: 'original_sku_price', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'count_of_reviews', description: '숫자 (쉼표 허용)', pattern: '^[\\d,]+$' },
+            { field: 'star_rating', description: '0.0~5.0 또는 허용 문구', pattern: '0.0 ~ 5.0 또는 "No customer reviews"' },
+            { field: 'count_of_star_ratings', description: '숫자 또는 허용 문구', pattern: '^[\\d,]+$ 또는 "No customer reviews"' },
+            { field: 'detailed_review_content', description: 'review1 - 로 시작 또는 허용 문구', pattern: '"review1 - ..." 또는 "No customer reviews"' },
+            { field: 'number_of_units_purchased_past_month', description: '숫자 (쉼표, + 허용)', pattern: '^[\\d,+]+$' },
+            { field: 'available_quantity_for_purchase', description: '숫자 (쉼표 허용)', pattern: '^[\\d,]+$' },
+            { field: 'sku_popularity', description: '허용값만', pattern: '"Amazon\'s Choice"' },
+            { field: 'trade_in', description: 'Save up to $ 로 시작', pattern: '"Save up to $..."' },
+            { field: 'retailer_membership_discounts', description: 'Or Prime members로 시작', pattern: '"Or Prime members..."' },
+            { field: 'rank_1', description: '# 로 시작', pattern: '"#..."' },
+            { field: 'rank_2', description: '# 로 시작', pattern: '"#..."' },
+            { field: 'summarized_review_content', description: 'Customers 로 시작', pattern: '"Customers..."' },
+            // 크로스 필드 논리 검증
+            { field: 'star_rating ↔ count_of_star_ratings', description: '논리적 일관성', pattern: 'star_rating 값이 있으면 count_of_star_ratings도 있어야 함' },
+            { field: 'page_type ↔ main_rank', description: '논리적 일관성', pattern: 'page_type=main이면 main_rank 필수' },
+            { field: 'page_type ↔ bsr_rank', description: '논리적 일관성', pattern: 'page_type=bsr이면 bsr_rank 필수' },
+            { field: 'final_sku_price ↔ original_sku_price', description: '가격 논리', pattern: 'final_sku_price ≤ original_sku_price' },
+            // 참조 무결성 검증
+            { field: 'item (참조 무결성)', description: 'hhp_item_mst 참조', pattern: 'hhp_item_mst.item에 등록 필수' }
+        ];
+
+        // =============== HHP Retail - Bestbuy 규칙 ===============
+        const bestbuyHhpRules = [
+            { field: 'item', description: '알파벳+숫자만 허용', pattern: '^[A-Za-z0-9]+$' },
+            { field: 'account_name', description: '허용값만', pattern: 'Bestbuy' },
+            { field: 'page_type', description: '허용값만', pattern: 'main | bsr | trend' },
+            { field: 'product_url', description: 'http:// 또는 https:// 시작', pattern: '^https?://.*' },
+            { field: 'main_rank', description: '1~300 범위 정수', pattern: '1 ~ 300' },
+            { field: 'bsr_rank', description: '1~100 범위 정수', pattern: '1 ~ 100' },
+            { field: 'trend_rank', description: '1~10 범위 정수', pattern: '1 ~ 10' },
+            { field: 'final_sku_price', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'original_sku_price', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'count_of_reviews', description: '숫자 (쉼표 허용)', pattern: '^[\\d,]+$' },
+            { field: 'star_rating', description: '0.0~5.0 또는 허용 문구', pattern: `0.0 ~ 5.0
+"Not yet reviewed"` },
+            { field: 'count_of_star_ratings', description: '숫자 또는 허용 문구', pattern: `^[\\d,]+$
+"Not yet reviewed"` },
+            { field: 'detailed_review_content', description: 'review1 - 로 시작', pattern: '"review1 - ..."' },
+            { field: 'savings', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'offer', description: '숫자', pattern: '^\\d+$' },
+            { field: 'sku_status', description: '허용값만', pattern: '"Sponsored"' },
+            { field: 'trade_in', description: 'Check your trade-in value. 로 시작', pattern: '"Check your trade-in value. ..."' },
+            { field: 'retailer_sku_name_similar', description: '||| 구분자 3개 필요', pattern: 'value1|||value2|||value3|||value4' },
+            { field: 'recommendation_intent', description: '추천 형식', pattern: '"숫자% would recommend to a friend"' },
+            // 크로스 필드 논리 검증
+            { field: 'star_rating ↔ count_of_star_ratings', description: '논리적 일관성', pattern: 'star_rating 값이 있으면 count_of_star_ratings도 있어야 함' },
+            { field: 'page_type ↔ main_rank', description: '논리적 일관성', pattern: 'page_type=main이면 main_rank 필수' },
+            { field: 'page_type ↔ bsr_rank', description: '논리적 일관성', pattern: 'page_type=bsr이면 bsr_rank 필수' },
+            { field: 'page_type ↔ trend_rank', description: '논리적 일관성', pattern: 'page_type=trend이면 trend_rank 필수' },
+            { field: 'final_sku_price ↔ original_sku_price', description: '가격 논리', pattern: 'final_sku_price ≤ original_sku_price' },
+            // 참조 무결성 검증
+            { field: 'item (참조 무결성)', description: 'hhp_item_mst 참조', pattern: 'hhp_item_mst.item에 등록 필수' }
+        ];
+
+        // =============== HHP Retail - Walmart 규칙 ===============
+        const walmartHhpRules = [
+            { field: 'item', description: '알파벳+숫자만 허용', pattern: '^[A-Za-z0-9]+$' },
+            { field: 'account_name', description: '허용값만', pattern: 'Walmart' },
+            { field: 'page_type', description: '허용값만', pattern: 'main | bsr' },
+            { field: 'product_url', description: 'http:// 또는 https:// 시작', pattern: '^https?://.*' },
+            { field: 'main_rank', description: '1~300 범위 정수', pattern: '1 ~ 300' },
+            { field: 'bsr_rank', description: '1~100 범위 정수', pattern: '1 ~ 100' },
+            { field: 'final_sku_price', description: '$금액 형식 또는 허용 문구', pattern: `$숫자
+"Not Available"
+$숫자/month
+$숫자/undefined` },
+            { field: 'original_sku_price', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'count_of_reviews', description: '숫자 (쉼표 허용)', pattern: '^[\\d,]+$' },
+            { field: 'star_rating', description: '0.0~5.0 또는 허용 문구', pattern: `0.0 ~ 5.0
+"No ratings yet"` },
+            { field: 'count_of_star_ratings', description: '숫자 또는 허용 문구', pattern: `^[\\d,]+$
+"No ratings yet"` },
+            { field: 'detailed_review_content', description: 'review1 - 로 시작', pattern: '"review1 - ..."' },
+            { field: 'offer', description: '숫자', pattern: '^\\d+$' },
+            { field: 'retailer_membership_discounts', description: 'Save with W+ 로 시작', pattern: '"Save with W+..."' },
+            { field: 'available_quantity_for_purchase', description: '숫자 (쉼표 허용)', pattern: '^[\\d,]+$' },
+            { field: 'number_of_ppl_purchased_yesterday', description: '숫자 (쉼표, + 허용)', pattern: '^[\\d,+]+$' },
+            { field: 'number_of_ppl_added_to_carts', description: '숫자 (쉼표, + 허용)', pattern: '^[\\d,+]+$' },
+            { field: 'savings', description: '$금액 형식', pattern: '$숫자' },
+            { field: 'discount_type', description: '허용값만', pattern: '"Price when purchased online"' },
+            // 크로스 필드 논리 검증
+            { field: 'star_rating ↔ count_of_star_ratings', description: '논리적 일관성', pattern: 'star_rating 값이 있으면 count_of_star_ratings도 있어야 함' },
+            { field: 'page_type ↔ main_rank', description: '논리적 일관성', pattern: 'page_type=main이면 main_rank 필수' },
+            { field: 'page_type ↔ bsr_rank', description: '논리적 일관성', pattern: 'page_type=bsr이면 bsr_rank 필수' },
+            { field: 'final_sku_price ↔ original_sku_price', description: '가격 논리', pattern: 'final_sku_price ≤ original_sku_price' },
+            // 참조 무결성 검증
+            { field: 'item (참조 무결성)', description: 'hhp_item_mst 참조', pattern: 'hhp_item_mst.item에 등록 필수' }
+        ];
+
+        // =============== YouTube 규칙 ===============
+        const youtubeLogsRules = [
+            { field: 'keyword', description: 'active 키워드만 허용', pattern: 'youtube_keywords.status = active' },
+            { field: 'status', description: '허용값만', pattern: 'completed | failed' },
+            { field: 'videos_collected', description: '0 이상 정수', pattern: '>= 0' },
+            { field: 'comments_collected', description: '0 이상 정수', pattern: '>= 0' },
+            { field: 'execution_time_seconds', description: '양의 실수', pattern: '>= 0.0' },
+            { field: 'created_at', description: '유효한 타임스탬프', pattern: 'TIMESTAMP' }
+        ];
+
+        const youtubeVideosRules = [
+            { field: 'video_id', description: 'YouTube 비디오 ID', pattern: '11자 영숫자' },
+            { field: 'keyword', description: 'active 키워드만 허용', pattern: 'youtube_keywords.status = active' },
+            { field: 'channel_id', description: 'YouTube 채널 ID', pattern: 'UC로 시작하는 24자' },
+            { field: 'channel_custom_url', description: '@ 시작', pattern: '@채널명' },
+            { field: 'category', description: '허용값만', pattern: 'TV | HHP' },
+            { field: 'view_count', description: '양의 정수', pattern: '>= 0' },
+            { field: 'like_count', description: '양의 정수', pattern: '>= 0' },
+            { field: 'comment_count', description: '양의 정수', pattern: '>= 0' },
+            { field: 'engagement_rate', description: '0 이상 실수', pattern: '>= 0.0' },
+            { field: 'product_sentiment_score', description: '-5.0~5.0 범위', pattern: '-5.0 ~ 5.0' },
+            { field: 'published_at', description: 'created_at 이전', pattern: 'published_at <= created_at' },
+            { field: 'duration', description: 'ISO 8601 형식', pattern: 'PT#H#M#S' }
+        ];
+
+        const youtubeCommentsRules = [
+            { field: 'comment_id', description: 'YouTube 댓글 ID', pattern: '영숫자 문자열' },
+            { field: 'video_id', description: 'youtube_videos 참조', pattern: 'FK: youtube_videos.video_id' },
+            { field: 'comment_type', description: '허용값만', pattern: 'top_level | reply' },
+            { field: 'parent_comment_id', description: 'reply인 경우 부모ID 필수', pattern: 'top_level이면 빈값, reply면 comment_id' },
+            { field: 'author_channel_id', description: 'YouTube 채널 ID', pattern: 'UC로 시작하는 24자' },
+            { field: 'like_count', description: '0 이상 정수', pattern: '>= 0' },
+            { field: 'reply_count', description: '0 이상 정수', pattern: '>= 0' },
+            { field: 'published_at', description: '유효한 타임스탬프', pattern: 'TIMESTAMP' }
+        ];
+
+        // =============== Market 규칙 ===============
+        const marketTrendRules = [
+            { field: 'keyword', description: 'market_mst 등록 키워드', pattern: 'market_mst.analysis_type = trend' },
+            { field: 'total_article_number', description: '0 또는 양의 정수', pattern: '>= 0' },
+            { field: 'calendar_week', description: 'W로 시작 (W1~W52)', pattern: 'W1 ~ W52' }
+        ];
+
+        const marketCompProductRules = [
+            { field: 'samsung_series_name', description: 'market_mst 등록 시리즈', pattern: `market_mst.analysis_type = competitor
+content_type = samsung` },
+            { field: 'comp_brand', description: 'market_mst 등록 브랜드', pattern: `market_mst.analysis_type = competitor
+content_type = comp` },
+            { field: 'calender_week', description: 'w로 시작 (w1~w52)', pattern: 'w1 ~ w52' },
+            { field: 'category', description: '허용값만', pattern: 'TV | HHP' }
+        ];
+
+        const marketCompEventRules = [
+            { field: 'comp_brand', description: 'market_comp_product 참조', pattern: '최신 배치의 comp_brand' },
+            { field: 'comp_sku_name', description: 'market_comp_product 참조', pattern: '최신 배치의 comp_series_name' },
+            { field: 'calender_week', description: 'w로 시작 (w1~w52)', pattern: 'w1 ~ w52' },
+            { field: 'category', description: '허용값만', pattern: 'TV | HHP' }
+        ];
+
+        const marketForecastRules = [
+            { field: 'product_name', description: 'openai_keywords 등록 제품', pattern: 'openai_keywords.product_name (is_active=true)' },
+            { field: 'event', description: 'openai_event_mst 등록 이벤트', pattern: 'openai_event_mst.event_name (소문자+언더스코어)' },
+            { field: 'metric_type', description: '고정값', pattern: 'Forecasted_NA_sales_change' },
+            { field: 'event_offset', description: '0~9 범위 정수', pattern: '0 ~ 9' },
+            { field: 'event_value', description: '숫자 (소수점, 음수 허용)', pattern: '^-?[0-9]+\\.?[0-9]*$' },
+            { field: 'week', description: 'w + 숫자 형식', pattern: '^w[0-9]{1,2}$ (예: w1, w52)' },
+            { field: 'crawled_at', description: '날짜 형식', pattern: 'YYYY-MM-DD' }
+        ];
+
+        // 테이블 및 리테일러별 규칙 반환
+        if (tableName === 'TV Retail') {
+            const retailerLower = retailer.toLowerCase();
+            if (retailerLower === 'amazon') return amazonTvRules;
+            if (retailerLower === 'bestbuy') return bestbuyTvRules;
+            if (retailerLower === 'walmart') return walmartTvRules;
+            return amazonTvRules; // 기본값
+        } else if (tableName === 'HHP Retail') {
+            const retailerLower = retailer.toLowerCase();
+            if (retailerLower === 'amazon') return amazonHhpRules;
+            if (retailerLower === 'bestbuy') return bestbuyHhpRules;
+            if (retailerLower === 'walmart') return walmartHhpRules;
+            return amazonHhpRules; // 기본값
+        } else if (tableName === 'YouTube') {
+            if (retailer === 'Logs') return youtubeLogsRules;
+            if (retailer === 'Videos') return youtubeVideosRules;
+            if (retailer === 'Comments') return youtubeCommentsRules;
+        } else if (tableName === 'Market') {
+            if (retailer === 'Trend') return marketTrendRules;
+            if (retailer === 'Comp Product') return marketCompProductRules;
+            if (retailer === 'Comp Event') return marketCompEventRules;
+            if (retailer === 'Forecast') return marketForecastRules;
+        }
+
+        return [];
+    }
+
+    // ESC 키로 모달 닫기
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+            closeRuleModal();
+        }
+    });
+</script>
+{% endblock %}

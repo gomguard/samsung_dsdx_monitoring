@@ -1,0 +1,618 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}DX Retail - 데이터 품질 모니터링{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Dashboard Header */
+    .dashboard-header {
+        background: linear-gradient(135deg, {{ data_source.color }} 0%, #0a7c71 100%);
+        border-radius: 20px;
+        padding: 40px;
+        color: white;
+        margin-bottom: 32px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .dashboard-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 60%;
+        height: 200%;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 50%;
+    }
+
+    .header-content {
+        position: relative;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .header-info {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+
+    .header-icon {
+        width: 72px;
+        height: 72px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .header-icon svg {
+        width: 40px;
+        height: 40px;
+    }
+
+    .header-text h1 {
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .header-text p {
+        font-size: 16px;
+        opacity: 0.9;
+    }
+
+    .header-back {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        color: white;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .header-back:hover {
+        background: rgba(255, 255, 255, 0.25);
+    }
+
+    .header-back svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Stats Summary */
+    .stats-summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        margin-bottom: 32px;
+    }
+
+    @media (max-width: 1024px) {
+        .stats-summary {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 640px) {
+        .stats-summary {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        padding: 24px;
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 36px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+    }
+
+    .stat-label {
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+
+    .stat-value.success { color: #059669; }
+    .stat-value.warning { color: #d97706; }
+    .stat-value.danger { color: #dc2626; }
+
+    /* Layer Grid */
+    .section-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 24px;
+    }
+
+    .layer-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 20px;
+        margin-bottom: 32px;
+    }
+
+    @media (max-width: 1200px) {
+        .layer-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .layer-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .layer-card {
+        background: white;
+        border-radius: 16px;
+        border: 2px solid var(--border-color);
+        overflow: hidden;
+        transition: all 0.3s;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
+
+    .layer-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+        border-color: transparent;
+    }
+
+    .layer-header {
+        padding: 24px;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .layer-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 50%;
+    }
+
+    .layer-number {
+        font-size: 48px;
+        font-weight: 700;
+        opacity: 0.3;
+        position: absolute;
+        top: 10px;
+        right: 20px;
+    }
+
+    .layer-icon {
+        width: 48px;
+        height: 48px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 16px;
+        position: relative;
+    }
+
+    .layer-icon svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .layer-name {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 4px;
+        position: relative;
+    }
+
+    .layer-name-en {
+        font-size: 11px;
+        opacity: 0.8;
+        position: relative;
+    }
+
+    .layer-body {
+        padding: 20px 24px 24px;
+    }
+
+    .layer-description {
+        font-size: 13px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        margin-bottom: 16px;
+    }
+
+    .layer-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .status-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 20px;
+    }
+
+    .status-badge.success {
+        background: #ecfdf5;
+        color: #059669;
+    }
+
+    .status-badge.warning {
+        background: #fffbeb;
+        color: #d97706;
+    }
+
+    .status-badge.danger {
+        background: #fef2f2;
+        color: #dc2626;
+    }
+
+    .status-badge.pending {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .layer-arrow {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--bg-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s;
+    }
+
+    .layer-card:hover .layer-arrow {
+        transform: translateX(4px);
+    }
+
+    .layer-arrow svg {
+        width: 16px;
+        height: 16px;
+        color: var(--text-secondary);
+    }
+
+    /* Tables Section */
+    .tables-section {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        padding: 24px;
+        margin-bottom: 32px;
+    }
+
+    .tables-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+    }
+
+    .table-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: var(--bg-primary);
+        border-radius: 12px;
+        transition: all 0.2s;
+    }
+
+    .table-item:hover {
+        background: var(--bg-secondary);
+    }
+
+    .table-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .table-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .table-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .table-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 2px;
+    }
+
+    .table-count {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    /* Loading Animation */
+    .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--border-color);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header -->
+<div class="dashboard-header">
+    <div class="header-content">
+        <div class="header-info">
+            <div class="header-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"/>
+                    <polyline points="17 2 12 7 7 2"/>
+                </svg>
+            </div>
+            <div class="header-text">
+                <h1>{{ data_source.name }}</h1>
+                <p>{{ data_source.name_en }} - 미국 TV/휴대폰 리테일 데이터 모니터링</p>
+            </div>
+        </div>
+        <a href="/" class="header-back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            데이터 소스 선택
+        </a>
+    </div>
+</div>
+
+<!-- Stats Summary -->
+<div class="stats-summary">
+    <div class="stat-card">
+        <div class="stat-value" id="totalTables">-</div>
+        <div class="stat-label">전체 테이블</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value success" id="passedLayers">-</div>
+        <div class="stat-label">통과 레이어</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value warning" id="warningLayers">-</div>
+        <div class="stat-label">경고 레이어</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value danger" id="failedLayers">-</div>
+        <div class="stat-label">실패 레이어</div>
+    </div>
+</div>
+
+<!-- 5 Layer Grid -->
+<h2 class="section-title">5단계 검증 레이어</h2>
+<div class="layer-grid">
+    {% for layer in layers %}
+    <a href="{{ layer.url }}" class="layer-card">
+        <div class="layer-header" style="background: {{ layer.color }};">
+            <div class="layer-number">{{ layer.number }}</div>
+            <div class="layer-icon">
+                {% if layer.icon == 'server' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                    <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                    <line x1="6" y1="6" x2="6.01" y2="6"/>
+                    <line x1="6" y1="18" x2="6.01" y2="18"/>
+                </svg>
+                {% elif layer.icon == 'cog' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+                {% elif layer.icon == 'search' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="M21 21l-4.35-4.35"/>
+                </svg>
+                {% elif layer.icon == 'brain' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-1 2.65V12a4 4 0 0 1-6 3.46V12a4 4 0 0 1-1-2.65V6a4 4 0 0 1 4-4z"/>
+                    <path d="M8 14v4a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-4"/>
+                </svg>
+                {% elif layer.icon == 'user-check' %}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="8.5" cy="7" r="4"/>
+                    <polyline points="17 11 19 13 23 9"/>
+                </svg>
+                {% endif %}
+            </div>
+            <div class="layer-name">{{ layer.name }}</div>
+            <div class="layer-name-en">{{ layer.name_en }}</div>
+        </div>
+        <div class="layer-body">
+            <div class="layer-description">{{ layer.description }}</div>
+            <div class="layer-status">
+                <span class="status-badge pending" id="layer{{ layer.number }}Status">
+                    <span class="status-dot"></span>
+                    <span>확인 중...</span>
+                </span>
+                <span class="layer-arrow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                </span>
+            </div>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+
+<!-- Monitoring Tables -->
+<div class="tables-section">
+    <h2 class="section-title">모니터링 대상 테이블</h2>
+    <div class="tables-grid">
+        <div class="table-item">
+            <div class="table-icon" style="background: #dbeafe; color: #2563eb;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="7" width="20" height="15" rx="2" ry="2"/>
+                    <polyline points="17 2 12 7 7 2"/>
+                </svg>
+            </div>
+            <div class="table-info">
+                <div class="table-name">TV Retail</div>
+                <div class="table-count">Amazon, Bestbuy, Walmart</div>
+            </div>
+        </div>
+        <div class="table-item">
+            <div class="table-icon" style="background: #fce7f3; color: #db2777;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                    <line x1="12" y1="18" x2="12.01" y2="18"/>
+                </svg>
+            </div>
+            <div class="table-info">
+                <div class="table-name">HHP Retail</div>
+                <div class="table-count">Amazon, Bestbuy, Walmart</div>
+            </div>
+        </div>
+        <div class="table-item">
+            <div class="table-icon" style="background: #fef3c7; color: #d97706;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/>
+                    <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>
+                </svg>
+            </div>
+            <div class="table-info">
+                <div class="table-name">YouTube Data</div>
+                <div class="table-count">Video, Comments</div>
+            </div>
+        </div>
+        <div class="table-item">
+            <div class="table-icon" style="background: #ddd6fe; color: #7c3aed;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+            </div>
+            <div class="table-info">
+                <div class="table-name">Sentiment</div>
+                <div class="table-count">Review Analysis</div>
+            </div>
+        </div>
+        <div class="table-item">
+            <div class="table-icon" style="background: #d1fae5; color: #059669;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"/>
+                    <line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+            </div>
+            <div class="table-info">
+                <div class="table-name">Market Share</div>
+                <div class="table-count">Brand Rankings</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Fetch dashboard stats
+    fetchDashboardStats();
+});
+
+async function fetchDashboardStats() {
+    try {
+        const response = await fetch('/api/dx/dashboard/');
+        if (response.ok) {
+            const data = await response.json();
+            updateDashboardStats(data);
+        }
+    } catch (error) {
+        console.error('Failed to fetch dashboard stats:', error);
+    }
+}
+
+function updateDashboardStats(data) {
+    // Update summary stats
+    document.getElementById('totalTables').textContent = data.total_tables || 5;
+    document.getElementById('passedLayers').textContent = data.passed_layers || 0;
+    document.getElementById('warningLayers').textContent = data.warning_layers || 0;
+    document.getElementById('failedLayers').textContent = data.failed_layers || 0;
+
+    // Update layer statuses
+    if (data.layer_status) {
+        for (let i = 1; i <= 5; i++) {
+            const status = data.layer_status[`layer${i}`] || 'pending';
+            updateLayerStatus(i, status);
+        }
+    }
+}
+
+function updateLayerStatus(layerNum, status) {
+    const statusEl = document.getElementById(`layer${layerNum}Status`);
+    if (!statusEl) return;
+
+    statusEl.className = `status-badge ${status}`;
+
+    const labels = {
+        'success': '정상',
+        'warning': '경고',
+        'danger': '이상',
+        'pending': '대기'
+    };
+
+    statusEl.innerHTML = `
+        <span class="status-dot"></span>
+        <span>${labels[status] || '대기'}</span>
+    `;
+}
+</script>
+{% endblock %}
