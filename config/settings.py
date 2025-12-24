@@ -39,8 +39,6 @@ INSTALLED_APPS = [
     'apps.ds_layer1',
     'apps.ds_layer2',
     'apps.ds_layer3',
-    'apps.ds_layer4',
-    'apps.ds_layer5',
 ]
 
 MIDDLEWARE = [

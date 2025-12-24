@@ -398,7 +398,7 @@ def dx_dashboard_stats(request):
 
 def ds_dashboard_stats(request):
     """DS 대시보드 통계 API - 글로벌 가격 추적 모니터링"""
-    from apps.common.db import get_ds_connection
+    from apps.ds_layer1.api.views import layer_stats as ds_layer1_stats
 
     date_str = request.GET.get('date')
 
@@ -418,85 +418,51 @@ def ds_dashboard_stats(request):
         'layer_status': {}
     }
 
-    # DS 테이블 목록
-    DS_TABLES = [
-        'crawl_amazon_com', 'crawl_bestbuy_com', 'crawl_danawa_co_kr',
-        'crawl_currys_co_uk', 'crawl_mediamarkt_de', 'crawl_fnac_com',
-        'crawl_mediaworld_it', 'crawl_mediamarkt_es', 'crawl_coolblue_nl',
-        'crawl_mediamarkt_pl', 'crawl_amazon_co_jp', 'crawl_jbhifi_com_au',
-        'crawl_amazon_in', 'crawl_courts_com_sg', 'crawl_powerbuy_co_th',
-        'crawl_amazon_ca', 'crawl_amazon_com_mx'
-    ]
-
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        # Layer 1: ds_layer1 API 결과 기반으로 상태 판단
+        # 내부적으로 layer_stats 호출
+        from django.test import RequestFactory
+        factory = RequestFactory()
+        fake_request = factory.get(f'/api/ds/layer1/stats/?date={target_date}')
+        layer1_response = ds_layer1_stats(fake_request)
+        layer1_data = layer1_response.content.decode('utf-8')
+        import json
+        layer1_json = json.loads(layer1_data)
 
-        # Layer 1: 수집량 체크
-        total_collected = 0
-        tables_with_data = 0
+        # Layer 1 상태 판단: 전체 완료율 기반
+        total_completion_rate = layer1_json.get('summary', {}).get('total_completion_rate', 0)
 
-        for table in DS_TABLES[:5]:  # 샘플로 5개만 체크
-            try:
-                cursor.execute(f"""
-                    SELECT COUNT(*) FROM {table}
-                    WHERE DATE(crawl_strdatetime) = %s
-                """, (target_date,))
-                count = cursor.fetchone()[0] or 0
-                total_collected += count
-                if count > 0:
-                    tables_with_data += 1
-            except:
-                pass
+        # 각 리테일러 상태 카운트
+        results = layer1_json.get('results', [])
+        success_count = sum(1 for r in results if r.get('status') == 'success')
+        warning_count = sum(1 for r in results if r.get('status') == 'warning')
+        danger_count = sum(1 for r in results if r.get('status') == 'danger')
+        pending_count = sum(1 for r in results if r.get('status') in ['pending', 'collecting'])
 
-        if tables_with_data >= 4:
+        # Layer 1 상태 결정
+        if total_completion_rate >= 95:
             data['layer_status']['layer1'] = 'success'
             data['passed_layers'] += 1
-        elif tables_with_data >= 2:
+        elif total_completion_rate >= 80:
             data['layer_status']['layer1'] = 'warning'
+            data['warning_layers'] += 1
+        elif pending_count == len(results):
+            # 모든 리테일러가 대기/수집 중이면 pending
+            data['layer_status']['layer1'] = 'pending'
             data['warning_layers'] += 1
         else:
             data['layer_status']['layer1'] = 'danger'
             data['failed_layers'] += 1
 
-        # Layer 2: NULL/형식 체크 (샘플 테이블로 체크)
-        try:
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN title IS NULL OR title = '' THEN 1 END) as null_title,
-                    COUNT(CASE WHEN retailprice IS NULL OR retailprice = '' THEN 1 END) as null_price
-                FROM crawl_amazon_com
-                WHERE DATE(crawl_strdatetime) = %s
-            """, (target_date,))
-            result = cursor.fetchone()
-            total = result[0] if result else 0
-            null_count = (result[1] or 0) + (result[2] or 0) if result else 0
-
-            null_rate = (null_count / total * 100) if total > 0 else 0
-            if null_rate < 5:
-                data['layer_status']['layer2'] = 'success'
-                data['passed_layers'] += 1
-            elif null_rate < 10:
-                data['layer_status']['layer2'] = 'warning'
-                data['warning_layers'] += 1
-            else:
-                data['layer_status']['layer2'] = 'danger'
-                data['failed_layers'] += 1
-        except:
-            data['layer_status']['layer2'] = 'pending'
-            data['warning_layers'] += 1
-
-        # Layer 3-5: 기본 pending 상태
+        # Layer 2-5: 기본 pending 상태 (아직 구현 안됨)
+        data['layer_status']['layer2'] = 'pending'
+        data['warning_layers'] += 1
         data['layer_status']['layer3'] = 'pending'
         data['warning_layers'] += 1
         data['layer_status']['layer4'] = 'pending'
         data['warning_layers'] += 1
         data['layer_status']['layer5'] = 'pending'
         data['warning_layers'] += 1
-
-        cursor.close()
-        conn.close()
 
     except Exception as e:
         data['error'] = str(e)

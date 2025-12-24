@@ -19,13 +19,13 @@ def get_dx_connection():
 
 def get_ds_connection():
     """DS MySQL 연결"""
-    import MySQLdb
-    return MySQLdb.connect(
+    import pymysql
+    return pymysql.connect(
         host=DB_CONFIG_V2['host'],
         port=DB_CONFIG_V2['port'],
         user=DB_CONFIG_V2['user'],
-        passwd=DB_CONFIG_V2['password'],
-        db=DB_CONFIG_V2['database'],
+        password=DB_CONFIG_V2['password'],
+        database=DB_CONFIG_V2['database'],
         charset='utf8mb4'
     )
 

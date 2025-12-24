@@ -1,9 +1,1160 @@
 {% extends 'base.html' %}
+{% load static %}
+
 {% block title %}DS Layer 2 - 형식/NULL 검수{% endblock %}
+
+{% block extra_css %}
+<style>
+    .layer-header {
+        background: linear-gradient(135deg, {{ layer.color }} 0%, #0f2647 100%);
+        border-radius: 20px;
+        padding: 32px 40px;
+        color: white;
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .layer-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 60%;
+        height: 200%;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 50%;
+    }
+
+    .header-content {
+        position: relative;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .header-info {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .layer-number {
+        width: 56px;
+        height: 56px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 700;
+    }
+
+    .header-text h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .header-text p {
+        font-size: 14px;
+        opacity: 0.9;
+    }
+
+    .header-badge {
+        padding: 8px 16px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        font-size: 13px;
+    }
+
+    .controls-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .date-selector {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: white;
+        padding: 12px 20px;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+    }
+
+    .date-selector label {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .date-selector input[type="date"] {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 14px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: {{ layer.color }};
+        color: white;
+    }
+
+    .btn-primary:hover {
+        opacity: 0.9;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    @media (max-width: 1024px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .summary-card {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        padding: 20px;
+    }
+
+    .summary-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .summary-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .summary-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .summary-icon svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .summary-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .summary-value.success { color: #059669; }
+    .summary-value.warning { color: #d97706; }
+    .summary-value.danger { color: #dc2626; }
+
+    .error-summary {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .error-summary-title {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 16px;
+        color: var(--text-primary);
+    }
+
+    .validation-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        background: white;
+        padding: 8px;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+    }
+
+    .tab-btn {
+        flex: 1;
+        padding: 12px 24px;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+        background: var(--bg-secondary);
+    }
+
+    .tab-btn.active {
+        background: {{ layer.color }};
+        color: white;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    .error-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+
+    .error-grid.format-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    @media (max-width: 1024px) {
+        .error-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .error-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .error-item {
+        background: var(--bg-primary);
+        padding: 16px;
+        border-radius: 12px;
+        text-align: center;
+    }
+
+    .error-item.danger-bg {
+        background: #fef2f2;
+    }
+
+    .error-item.warning-bg {
+        background: #fffbeb;
+    }
+
+    .error-item.success-bg {
+        background: #ecfdf5;
+    }
+
+    .error-name {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+    }
+
+    .error-value {
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    .error-desc {
+        font-size: 11px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .table-section {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .table-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .table-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .retailer-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .retailer-table th,
+    .retailer-table td {
+        padding: 14px 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .retailer-table th {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        background: var(--bg-primary);
+    }
+
+    .retailer-table td {
+        font-size: 13px;
+        color: var(--text-primary);
+    }
+
+    .retailer-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .retailer-table tbody tr {
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .retailer-table tbody tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .retailer-name {
+        font-weight: 600;
+    }
+
+    .country-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        background: var(--bg-secondary);
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .error-count {
+        font-weight: 600;
+    }
+
+    .error-count.has-error {
+        color: #dc2626;
+    }
+
+    .error-count.no-error {
+        color: #059669;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .status-badge.success { background: #ecfdf5; color: #059669; }
+    .status-badge.warning { background: #fffbeb; color: #d97706; }
+    .status-badge.danger { background: #fef2f2; color: #dc2626; }
+    .status-badge.pending { background: #f3f4f6; color: #6b7280; }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 60px;
+        color: var(--text-secondary);
+    }
+
+    .loading-spinner {
+        width: 24px;
+        height: 24px;
+        border: 3px solid var(--border-color);
+        border-top-color: {{ layer.color }};
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 12px;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .hidden { display: none !important; }
+
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 20px;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 16px;
+        max-width: 1200px;
+        width: 100%;
+        max-height: 90vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .modal-subtitle {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .modal-close {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        color: var(--text-secondary);
+    }
+
+    .modal-close:hover {
+        background: var(--border-color);
+    }
+
+    .modal-body {
+        padding: 24px;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .error-type-selector {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+    }
+
+    .error-type-selector button {
+        padding: 8px 16px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .error-type-selector button.active {
+        background: {{ layer.color }};
+        color: white;
+        border-color: {{ layer.color }};
+    }
+
+    .detail-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .detail-table th,
+    .detail-table td {
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .detail-table th {
+        background: var(--bg-primary);
+        font-weight: 600;
+        color: var(--text-secondary);
+        position: sticky;
+        top: 0;
+    }
+
+    .detail-table td {
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .detail-table td.title-cell {
+        max-width: 400px;
+    }
+
+    .detail-table a {
+        color: #2563eb;
+        text-decoration: none;
+    }
+
+    .detail-table a:hover {
+        text-decoration: underline;
+    }
+
+    .detail-table img.thumb {
+        width: 40px;
+        height: 40px;
+        object-fit: cover;
+        border-radius: 4px;
+    }
+
+    .null-value {
+        color: #dc2626;
+        font-style: italic;
+    }
+
+    .pagination {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .pagination button {
+        padding: 8px 16px;
+        border: 1px solid var(--border-color);
+        background: white;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 13px;
+    }
+
+    .pagination button:hover:not(:disabled) {
+        background: var(--bg-secondary);
+    }
+
+    .pagination button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .pagination span {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div style="padding: 40px; text-align: center;">
-    <h1>DS Layer 2 - 형식/NULL 검수</h1>
-    <p>준비 중입니다.</p>
-    <a href="/ds/" style="color: #1a365d;">DS 대시보드로 돌아가기</a>
+<div class="layer-header">
+    <div class="header-content">
+        <div class="header-info">
+            <div class="layer-number">{{ layer.number }}</div>
+            <div class="header-text">
+                <h1>{{ layer.name }}</h1>
+                <p>{{ layer.name_en }} - {{ layer.description }}</p>
+            </div>
+        </div>
+        <div class="header-badge">
+            DS Retail - Global Price Tracking
+        </div>
+    </div>
 </div>
+
+<div class="controls-bar">
+    <div class="date-selector">
+        <label>조회 날짜</label>
+        <input type="date" id="targetDate">
+        <button class="btn btn-primary" onclick="loadData()">조회</button>
+    </div>
+</div>
+
+<div class="summary-grid">
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">전체 리테일러</span>
+            <div class="summary-icon" style="background: #dbeafe; color: #2563eb;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalTables">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">전체 레코드</span>
+            <div class="summary-icon" style="background: #fef3c7; color: #d97706;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="21" x2="9" y2="9"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalRecords">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">비정상 건수</span>
+            <div class="summary-icon" style="background: #fef2f2; color: #dc2626;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/>
+                    <line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value danger" id="totalError">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">품질 상태</span>
+            <div class="summary-icon" style="background: #d1fae5; color: #059669;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="overallStatus">-</div>
+    </div>
+</div>
+
+<div class="validation-tabs">
+    <button class="tab-btn active" data-tab="null" onclick="switchTab('null')">NULL 검증</button>
+    <button class="tab-btn" data-tab="format" onclick="switchTab('format')">형식 검증</button>
+</div>
+
+<div id="nullTab" class="tab-content active">
+    <div class="error-summary">
+        <div class="error-summary-title">NULL 검증 현황</div>
+        <div class="error-grid null-grid">
+            <div class="error-item danger-bg">
+                <div class="error-name">Title NULL</div>
+                <div class="error-value danger" id="titleNull">-</div>
+                <div class="error-desc">제품명 누락</div>
+            </div>
+            <div class="error-item danger-bg">
+                <div class="error-name">ImageURL NULL</div>
+                <div class="error-value danger" id="imageurlNull">-</div>
+                <div class="error-desc">이미지 URL 누락</div>
+            </div>
+            <div class="error-item warning-bg">
+                <div class="error-name">부분 NULL</div>
+                <div class="error-value warning" id="partialNull">-</div>
+                <div class="error-desc">가격/판매자 일부만 NULL</div>
+            </div>
+            <div class="error-item success-bg">
+                <div class="error-name">정상</div>
+                <div class="error-value success" id="validCountNull">-</div>
+                <div class="error-desc">완전 정상 + 전체 NULL</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-section">
+        <div class="table-header">
+            <div class="table-title">리테일러별 NULL 검증 현황</div>
+        </div>
+        <div class="loading hidden" id="nullTableLoading">
+            <div class="loading-spinner"></div>
+            데이터를 불러오는 중...
+        </div>
+        <div id="nullTableContent"></div>
+    </div>
+</div>
+
+<div id="formatTab" class="tab-content">
+    <div class="error-summary">
+        <div class="error-summary-title">형식 검증 현황</div>
+        <div class="error-grid format-grid">
+            <div class="error-item warning-bg">
+                <div class="error-name">ImageURL 형식오류</div>
+                <div class="error-value warning" id="imageurlInvalid">-</div>
+                <div class="error-desc">https://로 시작하지 않음</div>
+            </div>
+            <div class="error-item success-bg">
+                <div class="error-name">정상</div>
+                <div class="error-value success" id="validCountFormat">-</div>
+                <div class="error-desc">형식 검증 통과</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-section">
+        <div class="table-header">
+            <div class="table-title">리테일러별 형식 검증 현황</div>
+        </div>
+        <div class="loading hidden" id="formatTableLoading">
+            <div class="loading-spinner"></div>
+            데이터를 불러오는 중...
+        </div>
+        <div id="formatTableContent"></div>
+    </div>
+</div>
+
+<div class="table-section hidden">
+    <div class="table-header">
+        <div class="table-title">리테일러별 품질 현황</div>
+    </div>
+    <div class="loading" id="tableLoading">
+        <div class="loading-spinner"></div>
+        데이터를 불러오는 중...
+    </div>
+    <div id="tableContent"></div>
+</div>
+
+<div id="detailModal" class="modal-overlay hidden" onclick="closeModalOnOverlay(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="modalTitle">비정상 데이터 상세</div>
+                <div class="modal-subtitle" id="modalSubtitle"></div>
+            </div>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="error-type-selector" id="errorTypeSelector"></div>
+            <div class="loading" id="modalLoading">
+                <div class="loading-spinner"></div>
+                데이터를 불러오는 중...
+            </div>
+            <div id="modalContent"></div>
+        </div>
+        <div class="modal-footer">
+            <span id="modalInfo"></span>
+            <div class="pagination">
+                <button onclick="prevPage()" id="prevBtn" disabled>이전</button>
+                <span id="pageInfo">1 / 1</span>
+                <button onclick="nextPage()" id="nextBtn" disabled>다음</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let statsData = null;
+let currentTableName = '';
+let currentErrorType = 'title_null';
+let currentPage = 1;
+let totalPages = 1;
+let currentRetailerData = {};
+let currentTab = 'null';
+
+document.addEventListener('DOMContentLoaded', function() {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    document.getElementById('targetDate').value = yesterday.toISOString().split('T')[0];
+    loadData();
+});
+
+function switchTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === tab + 'Tab');
+    });
+}
+
+async function loadData() {
+    const date = document.getElementById('targetDate').value;
+    document.getElementById('nullTableLoading').classList.remove('hidden');
+    document.getElementById('formatTableLoading').classList.remove('hidden');
+    document.getElementById('nullTableContent').innerHTML = '';
+    document.getElementById('formatTableContent').innerHTML = '';
+
+    try {
+        const response = await fetch(`/ds/layer2/api/stats/?date=${date}`);
+        statsData = await response.json();
+        updateSummary(statsData);
+        renderNullTable(statsData);
+        renderFormatTable(statsData);
+    } catch (error) {
+        console.error('Error loading data:', error);
+        document.getElementById('nullTableContent').innerHTML = '<div class="loading">데이터 로드 실패</div>';
+        document.getElementById('formatTableContent').innerHTML = '<div class="loading">데이터 로드 실패</div>';
+    }
+
+    document.getElementById('nullTableLoading').classList.add('hidden');
+    document.getElementById('formatTableLoading').classList.add('hidden');
+}
+
+function updateSummary(data) {
+    if (data.summary) {
+        document.getElementById('totalTables').textContent = data.summary.total_tables || 0;
+        document.getElementById('totalRecords').textContent = (data.summary.total_records || 0).toLocaleString();
+        document.getElementById('totalError').textContent = (data.summary.total_error || 0).toLocaleString();
+
+        const status = data.summary.status || 'pending';
+        const statusEl = document.getElementById('overallStatus');
+        statusEl.textContent = getStatusLabel(status);
+        statusEl.className = 'summary-value ' + status;
+
+        // NULL 검증 탭
+        document.getElementById('titleNull').textContent = (data.summary.title_null || 0).toLocaleString();
+        document.getElementById('imageurlNull').textContent = (data.summary.imageurl_null || 0).toLocaleString();
+        document.getElementById('partialNull').textContent = (data.summary.partial_null || 0).toLocaleString();
+        const validNullTotal = (data.summary.valid || 0) + (data.summary.all_null || 0);
+        document.getElementById('validCountNull').textContent = validNullTotal.toLocaleString();
+
+        // 형식 검증 탭
+        document.getElementById('imageurlInvalid').textContent = (data.summary.imageurl_invalid || 0).toLocaleString();
+        const validFormatTotal = data.summary.total_records - (data.summary.imageurl_invalid || 0);
+        document.getElementById('validCountFormat').textContent = validFormatTotal.toLocaleString();
+    }
+}
+
+function renderNullTable(data) {
+    const container = document.getElementById('nullTableContent');
+
+    if (!data.results || data.results.length === 0) {
+        container.innerHTML = '<div class="loading">데이터가 없습니다.</div>';
+        return;
+    }
+
+    let html = `
+        <table class="retailer-table">
+            <thead>
+                <tr>
+                    <th>No</th>
+                    <th>리테일러</th>
+                    <th>지역</th>
+                    <th>국가</th>
+                    <th>전체</th>
+                    <th>Title NULL</th>
+                    <th>Image NULL</th>
+                    <th>부분 NULL</th>
+                    <th>정상</th>
+                    <th>상태</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const item of data.results) {
+        const nullError = item.title_null + (item.imageurl_null || 0) + item.partial_null;
+        const nullStatus = item.total === 0 ? 'pending' : nullError === 0 ? 'success' : nullError < item.total * 0.05 ? 'warning' : 'danger';
+        const validTotal = item.valid + item.all_null;
+        html += `
+            <tr onclick="openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.title_null}, ${item.imageurl_null || 0}, ${item.partial_null})" title="클릭하여 상세 보기">
+                <td>${item.no}</td>
+                <td><span class="retailer-name">${item.retailer}</span></td>
+                <td>${item.region}</td>
+                <td><span class="country-badge">${item.country}</span></td>
+                <td>${item.total.toLocaleString()}</td>
+                <td class="error-count ${item.title_null > 0 ? 'has-error' : 'no-error'}">${item.title_null}</td>
+                <td class="error-count ${(item.imageurl_null || 0) > 0 ? 'has-error' : 'no-error'}">${item.imageurl_null || 0}</td>
+                <td class="error-count ${item.partial_null > 0 ? 'has-error' : 'no-error'}">${item.partial_null}</td>
+                <td class="error-count no-error">${validTotal.toLocaleString()}</td>
+                <td>
+                    <span class="status-badge ${nullStatus}">
+                        <span class="status-dot"></span>
+                        ${getStatusLabel(nullStatus)}
+                    </span>
+                </td>
+            </tr>
+        `;
+    }
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function renderFormatTable(data) {
+    const container = document.getElementById('formatTableContent');
+
+    if (!data.results || data.results.length === 0) {
+        container.innerHTML = '<div class="loading">데이터가 없습니다.</div>';
+        return;
+    }
+
+    let html = `
+        <table class="retailer-table">
+            <thead>
+                <tr>
+                    <th>No</th>
+                    <th>리테일러</th>
+                    <th>지역</th>
+                    <th>국가</th>
+                    <th>전체</th>
+                    <th>Image 형식오류</th>
+                    <th>정상</th>
+                    <th>상태</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const item of data.results) {
+        const formatError = item.imageurl_invalid;
+        const formatStatus = item.total === 0 ? 'pending' : formatError === 0 ? 'success' : formatError < item.total * 0.05 ? 'warning' : 'danger';
+        const validTotal = item.total - formatError;
+        html += `
+            <tr onclick="openFormatDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.imageurl_invalid})" title="클릭하여 상세 보기">
+                <td>${item.no}</td>
+                <td><span class="retailer-name">${item.retailer}</span></td>
+                <td>${item.region}</td>
+                <td><span class="country-badge">${item.country}</span></td>
+                <td>${item.total.toLocaleString()}</td>
+                <td class="error-count ${formatError > 0 ? 'has-error' : 'no-error'}">${formatError}</td>
+                <td class="error-count no-error">${validTotal.toLocaleString()}</td>
+                <td>
+                    <span class="status-badge ${formatStatus}">
+                        <span class="status-dot"></span>
+                        ${getStatusLabel(formatStatus)}
+                    </span>
+                </td>
+            </tr>
+        `;
+    }
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function getStatusLabel(status) {
+    const labels = {
+        'success': '정상',
+        'warning': '경고',
+        'danger': '이상',
+        'pending': '대기',
+        'error': '오류'
+    };
+    return labels[status] || '확인필요';
+}
+
+function openNullDetail(tableName, retailerName, country, titleNull, imageurlNull, partialNull) {
+    currentTableName = tableName;
+    currentPage = 1;
+    currentRetailerData = { title_null: titleNull, imageurl_null: imageurlNull, partial_null: partialNull };
+
+    if (titleNull > 0) {
+        currentErrorType = 'title_null';
+    } else if (imageurlNull > 0) {
+        currentErrorType = 'imageurl_null';
+    } else if (partialNull > 0) {
+        currentErrorType = 'partial_null';
+    } else {
+        currentErrorType = 'title_null';
+    }
+
+    document.getElementById('modalTitle').textContent = `${retailerName} (${country}) - NULL 검증`;
+    document.getElementById('modalSubtitle').textContent = `테이블: ${tableName}`;
+    document.getElementById('detailModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    renderNullErrorTypeSelector();
+    loadDetailData();
+}
+
+function openFormatDetail(tableName, retailerName, country, imageurlInvalid) {
+    currentTableName = tableName;
+    currentPage = 1;
+    currentRetailerData = { imageurl_invalid: imageurlInvalid };
+    currentErrorType = 'imageurl_invalid';
+
+    document.getElementById('modalTitle').textContent = `${retailerName} (${country}) - 형식 검증`;
+    document.getElementById('modalSubtitle').textContent = `테이블: ${tableName}`;
+    document.getElementById('detailModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    renderFormatErrorTypeSelector();
+    loadDetailData();
+}
+
+function renderNullErrorTypeSelector() {
+    const container = document.getElementById('errorTypeSelector');
+    const errorTypes = [
+        { key: 'title_null', label: 'Title NULL', count: currentRetailerData.title_null },
+        { key: 'imageurl_null', label: 'Image NULL', count: currentRetailerData.imageurl_null },
+        { key: 'partial_null', label: '부분 NULL', count: currentRetailerData.partial_null }
+    ];
+
+    let html = '';
+    for (const et of errorTypes) {
+        const isActive = et.key === currentErrorType;
+        html += `<button class="${isActive ? 'active' : ''}" onclick="selectErrorType('${et.key}')">${et.label} (${et.count})</button>`;
+    }
+
+    container.innerHTML = html;
+}
+
+function renderFormatErrorTypeSelector() {
+    const container = document.getElementById('errorTypeSelector');
+    const html = `<button class="active">Image 형식오류 (${currentRetailerData.imageurl_invalid})</button>`;
+    container.innerHTML = html;
+}
+
+function selectErrorType(errorType) {
+    currentErrorType = errorType;
+    currentPage = 1;
+    renderNullErrorTypeSelector();
+    loadDetailData();
+}
+
+async function loadDetailData() {
+    const date = document.getElementById('targetDate').value;
+    document.getElementById('modalLoading').classList.remove('hidden');
+    document.getElementById('modalContent').innerHTML = '';
+
+    try {
+        const response = await fetch(`/ds/layer2/api/detail/?table=${currentTableName}&error_type=${currentErrorType}&date=${date}&page=${currentPage}&page_size=50`);
+        const data = await response.json();
+
+        if (data.error) {
+            document.getElementById('modalContent').innerHTML = `<div class="loading">${data.error}</div>`;
+        } else {
+            renderDetailTable(data);
+            totalPages = data.total_pages;
+            updatePagination(data);
+        }
+    } catch (error) {
+        console.error('Error loading detail:', error);
+        document.getElementById('modalContent').innerHTML = '<div class="loading">데이터 로드 실패</div>';
+    }
+
+    document.getElementById('modalLoading').classList.add('hidden');
+}
+
+function renderDetailTable(data) {
+    if (data.data.length === 0) {
+        document.getElementById('modalContent').innerHTML = '<div class="loading">비정상 데이터가 없습니다.</div>';
+        return;
+    }
+
+    let html = `
+        <table class="detail-table">
+            <thead>
+                <tr>
+                    <th>이미지</th>
+                    <th>제품명</th>
+                    <th>가격</th>
+                    <th>Ships From</th>
+                    <th>Sold By</th>
+                    <th>링크</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const item of data.data) {
+        const imgSrc = item.imageurl && item.imageurl.startsWith('https://') ? item.imageurl : '';
+        html += `
+            <tr>
+                <td>${imgSrc ? `<img src="${imgSrc}" class="thumb" onerror="this.style.display='none'">` : '<span class="null-value">무효</span>'}</td>
+                <td class="title-cell" title="${item.title}">${item.title || '<span class="null-value">NULL</span>'}</td>
+                <td>${item.retailprice || '<span class="null-value">NULL</span>'}</td>
+                <td>${item.ships_from || '<span class="null-value">NULL</span>'}</td>
+                <td>${item.sold_by || '<span class="null-value">NULL</span>'}</td>
+                <td>${item.producturl ? `<a href="${item.producturl}" target="_blank">보기</a>` : '-'}</td>
+            </tr>
+        `;
+    }
+
+    html += '</tbody></table>';
+    document.getElementById('modalContent').innerHTML = html;
+}
+
+function updatePagination(data) {
+    const typeLabels = { title_null: 'Title NULL', imageurl_null: 'Image NULL', imageurl_invalid: 'Image 형식오류', partial_null: '부분 NULL' };
+    document.getElementById('modalInfo').textContent = `${typeLabels[currentErrorType]}: ${data.total_count.toLocaleString()}건`;
+    document.getElementById('pageInfo').textContent = `${currentPage} / ${data.total_pages}`;
+    document.getElementById('prevBtn').disabled = currentPage <= 1;
+    document.getElementById('nextBtn').disabled = currentPage >= data.total_pages;
+}
+
+function prevPage() {
+    if (currentPage > 1) {
+        currentPage--;
+        loadDetailData();
+    }
+}
+
+function nextPage() {
+    if (currentPage < totalPages) {
+        currentPage++;
+        loadDetailData();
+    }
+}
+
+function closeModal() {
+    document.getElementById('detailModal').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+function closeModalOnOverlay(event) {
+    if (event.target === event.currentTarget) {
+        closeModal();
+    }
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeModal();
+    }
+});
+</script>
 {% endblock %}

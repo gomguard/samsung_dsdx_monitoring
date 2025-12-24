@@ -22,8 +22,6 @@ urlpatterns = [
     path('ds/layer1/', include('apps.ds_layer1.urls')),
     path('ds/layer2/', include('apps.ds_layer2.urls')),
     path('ds/layer3/', include('apps.ds_layer3.urls')),
-    path('ds/layer4/', include('apps.ds_layer4.urls')),
-    path('ds/layer5/', include('apps.ds_layer5.urls')),
 
     # 기존 URL (하위 호환)
     path('layer1/', include('apps.layer1.urls')),

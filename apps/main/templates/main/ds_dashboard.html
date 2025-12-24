@@ -143,14 +143,14 @@
 
     .layer-grid {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 20px;
         margin-bottom: 32px;
     }
 
-    @media (max-width: 1200px) {
+    @media (max-width: 1024px) {
         .layer-grid {
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
         }
     }
 
@@ -455,8 +455,8 @@
     </div>
 </div>
 
-<!-- 5 Layer Grid -->
-<h2 class="section-title">5단계 검증 레이어</h2>
+<!-- 3 Layer Grid -->
+<h2 class="section-title">3단계 검증 레이어</h2>
 <div class="layer-grid">
     {% for layer in layers %}
     <a href="{{ layer.url }}" class="layer-card">
@@ -516,38 +516,24 @@
 
 <!-- Monitoring Tables by Region -->
 <div class="tables-section">
-    <h2 class="section-title">글로벌 리테일러 현황</h2>
+    <h2 class="section-title">글로벌 리테일러 현황 (17개)</h2>
 
     <!-- Americas -->
     <div class="region-group">
-        <div class="region-title">Americas (미주)</div>
+        <div class="region-title">Americas (미주) - 2개</div>
         <div class="tables-grid">
             <div class="table-item">
-                <div class="table-icon" style="background: #f97316;">US</div>
+                <div class="table-icon" style="background: #f97316;">USA</div>
                 <div class="table-info">
-                    <div class="table-name">Amazon US</div>
-                    <div class="table-country">미국</div>
+                    <div class="table-name">Amazon USA</div>
+                    <div class="table-country">미국 (오하이오)</div>
                 </div>
             </div>
             <div class="table-item">
-                <div class="table-icon" style="background: #0066ff;">US</div>
+                <div class="table-icon" style="background: #0066ff;">USA</div>
                 <div class="table-info">
-                    <div class="table-name">Bestbuy US</div>
-                    <div class="table-country">미국</div>
-                </div>
-            </div>
-            <div class="table-item">
-                <div class="table-icon" style="background: #ef4444;">CA</div>
-                <div class="table-info">
-                    <div class="table-name">Amazon CA</div>
-                    <div class="table-country">캐나다</div>
-                </div>
-            </div>
-            <div class="table-item">
-                <div class="table-icon" style="background: #22c55e;">MX</div>
-                <div class="table-info">
-                    <div class="table-name">Amazon MX</div>
-                    <div class="table-country">멕시코</div>
+                    <div class="table-name">BestBuy USA</div>
+                    <div class="table-country">미국 (오하이오)</div>
                 </div>
             </div>
         </div>
@@ -555,55 +541,83 @@
 
     <!-- Europe -->
     <div class="region-group">
-        <div class="region-title">Europe (유럽)</div>
+        <div class="region-title">Europe (유럽) - 11개</div>
         <div class="tables-grid">
             <div class="table-item">
-                <div class="table-icon" style="background: #1e40af;">UK</div>
+                <div class="table-icon" style="background: #1e40af;">GB</div>
                 <div class="table-info">
-                    <div class="table-name">Currys UK</div>
-                    <div class="table-country">영국</div>
+                    <div class="table-name">Amazon GB</div>
+                    <div class="table-country">영국 (런던)</div>
+                </div>
+            </div>
+            <div class="table-item">
+                <div class="table-icon" style="background: #3b82f6;">GB</div>
+                <div class="table-info">
+                    <div class="table-name">Currys GB</div>
+                    <div class="table-country">영국 (런던)</div>
                 </div>
             </div>
             <div class="table-item">
                 <div class="table-icon" style="background: #dc2626;">DE</div>
                 <div class="table-info">
+                    <div class="table-name">Amazon DE</div>
+                    <div class="table-country">독일 (프랑크푸르트)</div>
+                </div>
+            </div>
+            <div class="table-item">
+                <div class="table-icon" style="background: #ef4444;">DE</div>
+                <div class="table-info">
                     <div class="table-name">MediaMarkt DE</div>
-                    <div class="table-country">독일</div>
+                    <div class="table-country">독일 (프랑크푸르트)</div>
                 </div>
             </div>
             <div class="table-item">
                 <div class="table-icon" style="background: #2563eb;">FR</div>
                 <div class="table-info">
+                    <div class="table-name">Amazon FR</div>
+                    <div class="table-country">프랑스 (파리)</div>
+                </div>
+            </div>
+            <div class="table-item">
+                <div class="table-icon" style="background: #3b82f6;">FR</div>
+                <div class="table-info">
                     <div class="table-name">Fnac FR</div>
-                    <div class="table-country">프랑스</div>
+                    <div class="table-country">프랑스 (파리)</div>
                 </div>
             </div>
             <div class="table-item">
                 <div class="table-icon" style="background: #16a34a;">IT</div>
                 <div class="table-info">
-                    <div class="table-name">MediaWorld IT</div>
-                    <div class="table-country">이탈리아</div>
+                    <div class="table-name">Amazon IT</div>
+                    <div class="table-country">이탈리아 (밀라노)</div>
                 </div>
             </div>
             <div class="table-item">
                 <div class="table-icon" style="background: #f59e0b;">ES</div>
                 <div class="table-info">
-                    <div class="table-name">MediaMarkt ES</div>
+                    <div class="table-name">Amazon ES</div>
                     <div class="table-country">스페인</div>
                 </div>
             </div>
             <div class="table-item">
                 <div class="table-icon" style="background: #6366f1;">NL</div>
                 <div class="table-info">
+                    <div class="table-name">Amazon NL</div>
+                    <div class="table-country">네덜란드 (파리)</div>
+                </div>
+            </div>
+            <div class="table-item">
+                <div class="table-icon" style="background: #818cf8;">NL</div>
+                <div class="table-info">
                     <div class="table-name">Coolblue NL</div>
-                    <div class="table-country">네덜란드</div>
+                    <div class="table-country">네덜란드 (파리)</div>
                 </div>
             </div>
             <div class="table-item">
                 <div class="table-icon" style="background: #8b5cf6;">PL</div>
                 <div class="table-info">
-                    <div class="table-name">MediaMarkt PL</div>
-                    <div class="table-country">폴란드</div>
+                    <div class="table-name">X-Kom PL</div>
+                    <div class="table-country">폴란드 (프랑크푸르트)</div>
                 </div>
             </div>
         </div>
@@ -611,26 +625,26 @@
 
     <!-- Asia Pacific -->
     <div class="region-group">
-        <div class="region-title">Asia Pacific (아시아 태평양)</div>
+        <div class="region-title">Asia Pacific (아시아 태평양) - 4개</div>
         <div class="tables-grid">
             <div class="table-item">
                 <div class="table-icon" style="background: #0ea5e9;">KR</div>
                 <div class="table-info">
                     <div class="table-name">Danawa KR</div>
-                    <div class="table-country">한국</div>
+                    <div class="table-country">한국 (서울)</div>
                 </div>
             </div>
             <div class="table-item">
                 <div class="table-icon" style="background: #ec4899;">JP</div>
                 <div class="table-info">
                     <div class="table-name">Amazon JP</div>
-                    <div class="table-country">일본</div>
+                    <div class="table-country">일본 (도쿄)</div>
                 </div>
             </div>
             <div class="table-item">
                 <div class="table-icon" style="background: #14b8a6;">AU</div>
                 <div class="table-info">
-                    <div class="table-name">JB Hi-Fi AU</div>
+                    <div class="table-name">CentreCom AU</div>
                     <div class="table-country">호주</div>
                 </div>
             </div>
@@ -638,21 +652,7 @@
                 <div class="table-icon" style="background: #f43f5e;">IN</div>
                 <div class="table-info">
                     <div class="table-name">Amazon IN</div>
-                    <div class="table-country">인도</div>
-                </div>
-            </div>
-            <div class="table-item">
-                <div class="table-icon" style="background: #84cc16;">SG</div>
-                <div class="table-info">
-                    <div class="table-name">Courts SG</div>
-                    <div class="table-country">싱가포르</div>
-                </div>
-            </div>
-            <div class="table-item">
-                <div class="table-icon" style="background: #a855f7;">TH</div>
-                <div class="table-info">
-                    <div class="table-name">Power Buy TH</div>
-                    <div class="table-country">태국</div>
+                    <div class="table-country">인도 (뭄바이)</div>
                 </div>
             </div>
         </div>
@@ -663,36 +663,69 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Fetch dashboard stats
-    fetchDashboardStats();
+    // 각 레이어 API 호출하여 상태 업데이트
+    fetchAllLayerStats();
 });
 
-async function fetchDashboardStats() {
+async function fetchAllLayerStats() {
+    // 어제 날짜 계산
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dateStr = yesterday.toISOString().split('T')[0];
+
+    let passedCount = 0;
+    let warningCount = 0;
+    let failedCount = 0;
+
+    // Layer 1 API 호출
     try {
-        const response = await fetch('/api/ds/dashboard/');
+        const response = await fetch(`/ds/layer1/api/stats/?date=${dateStr}`);
         if (response.ok) {
             const data = await response.json();
-            updateDashboardStats(data);
+            const status = data.summary?.status || 'pending';
+            updateLayerStatus(1, status);
+            if (status === 'success') passedCount++;
+            else if (status === 'warning') warningCount++;
+            else if (status === 'danger') failedCount++;
         }
     } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
+        console.error('Layer 1 API error:', error);
     }
-}
 
-function updateDashboardStats(data) {
-    // Update summary stats
-    document.getElementById('totalTables').textContent = data.total_tables || 17;
-    document.getElementById('passedLayers').textContent = data.passed_layers || 0;
-    document.getElementById('warningLayers').textContent = data.warning_layers || 0;
-    document.getElementById('failedLayers').textContent = data.failed_layers || 0;
-
-    // Update layer statuses
-    if (data.layer_status) {
-        for (let i = 1; i <= 5; i++) {
-            const status = data.layer_status[`layer${i}`] || 'pending';
-            updateLayerStatus(i, status);
+    // Layer 2 API 호출
+    try {
+        const response = await fetch(`/ds/layer2/api/stats/?date=${dateStr}`);
+        if (response.ok) {
+            const data = await response.json();
+            const status = data.summary?.status || 'pending';
+            updateLayerStatus(2, status);
+            if (status === 'success') passedCount++;
+            else if (status === 'warning') warningCount++;
+            else if (status === 'danger') failedCount++;
         }
+    } catch (error) {
+        console.error('Layer 2 API error:', error);
     }
+
+    // Layer 3 API 호출
+    try {
+        const response = await fetch(`/ds/layer3/api/stats/?date=${dateStr}`);
+        if (response.ok) {
+            const data = await response.json();
+            const status = data.summary?.status || 'pending';
+            updateLayerStatus(3, status);
+            if (status === 'success') passedCount++;
+            else if (status === 'warning') warningCount++;
+            else if (status === 'danger') failedCount++;
+        }
+    } catch (error) {
+        console.error('Layer 3 API error:', error);
+    }
+
+    // 요약 통계 업데이트
+    document.getElementById('passedLayers').textContent = passedCount;
+    document.getElementById('warningLayers').textContent = warningCount;
+    document.getElementById('failedLayers').textContent = failedCount;
 }
 
 function updateLayerStatus(layerNum, status) {
