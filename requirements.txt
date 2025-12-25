@@ -4,3 +4,4 @@ psycopg2-binary>=2.9
 mysqlclient>=2.2
 python-dotenv>=1.0
 whitenoise>=6.6
+pytz>=2023.3
