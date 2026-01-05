@@ -12,27 +12,12 @@ DS Layer 2 API: 데이터 품질 검수 (NULL 필드 체크)
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_ds_connection
+from config.targets import load_monitoring_targets
 
-# 모니터링 대상 테이블 (table_name, retailer, region, korea_time, country, mall_name)
-MONITORING_TARGETS = [
-    ('amazon_price_crawl_tbl_usa_v2', 'Amazon_USA', '미국(오하이오)', '22:00', 'usa', 'amazon'),
-    ('bestbuy_price_crawl_tbl_usa_v2', 'BestBuy_USA', '미국(오하이오)', '23:00', 'usa', 'bestbuy'),
-    ('amazon_price_crawl_tbl_jp_v2', 'Amazon_JP', '아시아(도쿄)', '09:00', 'jp', 'amazon'),
-    ('amazon_price_crawl_tbl_ind_v2', 'Amazon_IN', '아시아(뭄바이)', '12:30', 'in', 'amazon'),
-    ('danawa_price_crawl_tbl_kr_v2', 'Danawa_KR', '아시아(서울)', '09:00', 'kr', 'danawa'),
-    ('amazon_price_crawl_tbl_uk_v2', 'Amazon_GB', '유럽(런던)', '17:00', 'gb', 'amazon'),
-    ('currys_price_crawl_tbl_gb_v2', 'Currys_GB', '유럽(런던)', '17:00', 'gb', 'currys'),
-    ('amazon_price_crawl_tbl_it_v2', 'Amazon_IT', '유럽(밀라노)', '16:00', 'it', 'amazon'),
-    ('amazon_price_crawl_tbl_es_v2', 'Amazon_ES', '유럽(스페인)', '16:00', 'es', 'amazon'),
-    ('amazon_price_crawl_tbl_fr_v2', 'Amazon_FR', '유럽(파리)', '16:00', 'fr', 'amazon'),
-    ('fnac_price_crawl_tbl_fr', 'Fnac_FR', '유럽(파리)', '17:00', 'fr', 'fnac'),
-    ('amazon_price_crawl_tbl_nl', 'Amazon_NL', '유럽(파리)', '16:00', 'nl', 'amazon'),
-    ('coolblue_price_crawl_tbl_nl_v2', 'Coolblue_NL', '유럽(파리)', '16:00', 'nl', 'coolblue'),
-    ('amazon_price_crawl_tbl_de_v2', 'Amazon_DE', '유럽(프랑크푸르트)', '16:00', 'de', 'amazon'),
-    ('mediamarkt_price_crawl_tbl_de_v2', 'MediaMarkt_DE', '유럽(프랑크푸르트)', '17:00', 'de', 'mediamarkt'),
-    ('xkom_price_crawl_tbl_pl_v2', 'X-Kom_PL', '유럽(프랑크푸르트)', '17:00', 'pl', 'x-kom'),
-    ('centrecom_price_crawl_tbl_au', 'CentreCom_AU', '호주', '07:00', 'au', 'centrecom'),
-]
+
+def get_monitoring_targets():
+    """CSV에서 모니터링 대상 목록 로드"""
+    return load_monitoring_targets()
 
 # 체크할 NULL 필드 목록
 NULL_CHECK_FIELDS = ['title', 'imageurl', 'retailprice', 'ships_from', 'sold_by']
@@ -179,7 +164,7 @@ def layer_stats(request):
         total_all_null = 0
         total_valid = 0
 
-        for idx, (table_name, retailer, region, korea_time, country, mall_name) in enumerate(MONITORING_TARGETS, 1):
+        for idx, (table_name, retailer, region, korea_time, country, mall_name) in enumerate(get_monitoring_targets(), 1):
             quality = get_quality_counts(cursor, table_name, target_date)
 
             total = quality.get('total', 0)
@@ -247,7 +232,7 @@ def layer_stats(request):
 
         data['results'] = results
         data['summary'] = {
-            'total_tables': len(MONITORING_TARGETS),
+            'total_tables': len(get_monitoring_targets()),
             'total_records': total_records,
             'title_null': total_title_null,
             'imageurl_null': total_imageurl_null,
@@ -262,7 +247,7 @@ def layer_stats(request):
     except Exception as e:
         data['error'] = str(e)
         data['summary'] = {
-            'total_tables': len(MONITORING_TARGETS),
+            'total_tables': len(get_monitoring_targets()),
             'total_records': 0,
             'total_error': 0,
             'status': 'error'
@@ -290,7 +275,7 @@ def table_null_detail(request):
     if not table_name:
         return JsonResponse({'error': '테이블명을 입력하세요.'})
 
-    valid_tables = [t[0] for t in MONITORING_TARGETS]
+    valid_tables = [t[0] for t in get_monitoring_targets()]
     if table_name not in valid_tables:
         return JsonResponse({'error': '유효하지 않은 테이블명입니다.'})
 
@@ -388,7 +373,7 @@ def table_null_detail(request):
         cursor.close()
         conn.close()
 
-        retailer_info = next((t for t in MONITORING_TARGETS if t[0] == table_name), None)
+        retailer_info = next((t for t in get_monitoring_targets() if t[0] == table_name), None)
 
         data['retailer'] = retailer_info[1] if retailer_info else table_name
         data['region'] = retailer_info[2] if retailer_info else ''

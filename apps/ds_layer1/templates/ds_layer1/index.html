@@ -122,6 +122,17 @@
         opacity: 0.9;
     }
 
+    .btn-today {
+        background: white;
+        color: {{ layer.color }};
+        border: 1px solid {{ layer.color }};
+    }
+
+    .btn-today:hover {
+        background: {{ layer.color }};
+        color: white;
+    }
+
     .view-toggle {
         display: flex;
         gap: 8px;
@@ -361,6 +372,28 @@
         color: var(--text-secondary);
     }
 
+    .layer2-badge {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        margin-left: 6px;
+        cursor: help;
+    }
+
+    .layer2-badge.warning {
+        background: #fef3c7;
+        color: #d97706;
+        border: 1px solid #fcd34d;
+    }
+
+    .layer2-badge.danger {
+        background: #fee2e2;
+        color: #dc2626;
+        border: 1px solid #fca5a5;
+    }
+
     .completion-bar {
         width: 100px;
         height: 8px;
@@ -378,6 +411,7 @@
     .completion-fill.success { background: #059669; }
     .completion-fill.warning { background: #d97706; }
     .completion-fill.danger { background: #dc2626; }
+    .completion-fill.collecting { background: #3b82f6; }
 
     /* All Table View */
     .all-table-section {
@@ -491,6 +525,8 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        background: white;
+        flex-shrink: 0;
     }
 
     .modal-title {
@@ -524,9 +560,10 @@
     }
 
     .modal-body {
-        padding: 24px;
+        padding: 0 24px 24px 24px;
         overflow-y: auto;
         flex: 1;
+        min-height: 0;
     }
 
     .modal-footer {
@@ -535,6 +572,8 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        background: white;
+        flex-shrink: 0;
     }
 
     /* 상세 테이블 */
@@ -552,11 +591,26 @@
     }
 
     .detail-table th {
-        background: var(--bg-primary);
+        background: #f8fafc;
         font-weight: 600;
         color: var(--text-secondary);
         position: sticky;
         top: 0;
+        z-index: 10;
+    }
+
+    .detail-table thead tr {
+        background: #f8fafc;
+    }
+
+    .detail-table thead::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 1px;
+        background: var(--border-color);
     }
 
     .detail-table td {
@@ -666,6 +720,152 @@
     .range-table .rate-cell.danger { color: #dc2626; background: #fef2f2; }
     .range-table .rate-cell.pending { color: #6b7280; background: #f3f4f6; }
     .range-table .rate-cell.collecting { color: #2563eb; background: #eff6ff; }
+
+    /* Main Tabs */
+    .main-tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 24px;
+        background: white;
+        padding: 6px;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        width: fit-content;
+    }
+
+    .main-tab {
+        padding: 12px 24px;
+        border: none;
+        background: transparent;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: var(--text-secondary);
+    }
+
+    .main-tab:hover {
+        background: var(--bg-secondary);
+    }
+
+    .main-tab.active {
+        background: {{ layer.color }};
+        color: white;
+    }
+
+    /* Fileserver Tab Content */
+    .fileserver-section {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .fileserver-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .fileserver-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .fileserver-summary {
+        display: flex;
+        gap: 24px;
+    }
+
+    .fileserver-stat {
+        text-align: center;
+    }
+
+    .fileserver-stat-value {
+        font-size: 20px;
+        font-weight: 700;
+        color: {{ layer.color }};
+    }
+
+    .fileserver-stat-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .fileserver-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .fileserver-table th,
+    .fileserver-table td {
+        padding: 14px 20px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .fileserver-table th {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        background: var(--bg-primary);
+    }
+
+    .fileserver-table td {
+        font-size: 14px;
+        color: var(--text-primary);
+    }
+
+    .fileserver-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .file-size {
+        font-weight: 600;
+        color: {{ layer.color }};
+    }
+
+    .file-count {
+        background: var(--bg-secondary);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+
+    .file-list {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .file-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 0;
+        border-bottom: 1px dashed var(--border-color);
+    }
+
+    .file-item:last-child {
+        border-bottom: none;
+    }
+
+    .expand-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: {{ layer.color }};
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+
+    .expand-btn:hover {
+        text-decoration: underline;
+    }
 </style>
 {% endblock %}
 
@@ -686,12 +886,21 @@
     </div>
 </div>
 
+<!-- Main Tabs -->
+<div class="main-tabs">
+    <button class="main-tab active" id="tabCollection" onclick="setMainTab('collection')">수집 현황</button>
+    <button class="main-tab" id="tabFileserver" onclick="setMainTab('fileserver')">파일 용량</button>
+</div>
+
+<!-- Collection Tab Content -->
+<div id="collectionTabContent">
 <!-- Controls -->
 <div class="controls-bar">
     <div class="date-selector" id="singleDateSelector">
         <label>조회 날짜</label>
         <input type="date" id="targetDate">
         <button class="btn btn-primary" onclick="loadData()">조회</button>
+        <button class="btn btn-today" onclick="goToday()">오늘</button>
     </div>
     <div class="date-range-selector hidden" id="rangeDateSelector">
         <label>기간</label>
@@ -791,6 +1000,44 @@
     </div>
     <div id="rangeContent" style="overflow-x: auto;"></div>
 </div>
+</div><!-- End of collectionTabContent -->
+
+<!-- Fileserver Tab Content -->
+<div id="fileserverTabContent" class="hidden">
+    <div class="controls-bar">
+        <div class="date-selector">
+            <label>조회 날짜</label>
+            <input type="date" id="fileserverDate">
+            <button class="btn btn-primary" onclick="loadFileserverData()">조회</button>
+            <button class="btn btn-today" onclick="goTodayFileserver()">오늘</button>
+        </div>
+    </div>
+
+    <div class="fileserver-section">
+        <div class="fileserver-header">
+            <div class="fileserver-title">파일서버 용량 현황</div>
+            <div class="fileserver-summary" id="fileserverSummary">
+                <div class="fileserver-stat">
+                    <div class="fileserver-stat-value" id="fsTotalCountries">-</div>
+                    <div class="fileserver-stat-label">국가</div>
+                </div>
+                <div class="fileserver-stat">
+                    <div class="fileserver-stat-value" id="fsTotalFiles">-</div>
+                    <div class="fileserver-stat-label">파일</div>
+                </div>
+                <div class="fileserver-stat">
+                    <div class="fileserver-stat-value" id="fsTotalSize">-</div>
+                    <div class="fileserver-stat-label">총 용량</div>
+                </div>
+            </div>
+        </div>
+        <div class="loading" id="fileserverLoading">
+            <div class="loading-spinner"></div>
+            데이터를 불러오는 중...
+        </div>
+        <div id="fileserverContent"></div>
+    </div>
+</div>
 
 <!-- 상세 모달 -->
 <div id="detailModal" class="modal-overlay hidden" onclick="closeModalOnOverlay(event)">
@@ -824,9 +1071,11 @@
 {% block extra_js %}
 <script>
 let currentView = 'all';
+let currentMainTab = 'collection';
 let statsData = null;
 let instancesData = null;
 let rangeData = null;
+let fileserverData = null;
 
 // 모달 관련 변수
 let currentTableName = '';
@@ -838,6 +1087,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     document.getElementById('targetDate').value = yesterday.toISOString().split('T')[0];
+    document.getElementById('fileserverDate').value = yesterday.toISOString().split('T')[0];
 
     // 날짜 범위 기본값 (최근 7일)
     const weekAgo = new Date();
@@ -847,6 +1097,112 @@ document.addEventListener('DOMContentLoaded', function() {
 
     loadData();
 });
+
+// Main Tab 전환
+function setMainTab(tab) {
+    currentMainTab = tab;
+    document.getElementById('tabCollection').classList.toggle('active', tab === 'collection');
+    document.getElementById('tabFileserver').classList.toggle('active', tab === 'fileserver');
+    document.getElementById('collectionTabContent').classList.toggle('hidden', tab !== 'collection');
+    document.getElementById('fileserverTabContent').classList.toggle('hidden', tab !== 'fileserver');
+
+    if (tab === 'fileserver' && !fileserverData) {
+        loadFileserverData();
+    }
+}
+
+// Fileserver 데이터 로드
+async function loadFileserverData() {
+    const date = document.getElementById('fileserverDate').value;
+
+    document.getElementById('fileserverLoading').classList.remove('hidden');
+    document.getElementById('fileserverContent').innerHTML = '';
+
+    try {
+        const response = await fetch(`/ds/layer1/api/fileserver/?date=${date}`);
+        fileserverData = await response.json();
+
+        if (fileserverData.error) {
+            document.getElementById('fileserverContent').innerHTML = `<div class="loading">${fileserverData.error}</div>`;
+        } else {
+            renderFileserverData(fileserverData);
+        }
+    } catch (error) {
+        console.error('Error loading fileserver data:', error);
+        document.getElementById('fileserverContent').innerHTML = '<div class="loading">파일서버 연결 실패</div>';
+    }
+
+    document.getElementById('fileserverLoading').classList.add('hidden');
+}
+
+function renderFileserverData(data) {
+    // Summary 업데이트
+    document.getElementById('fsTotalCountries').textContent = data.summary.total_countries;
+    document.getElementById('fsTotalFiles').textContent = data.summary.total_files;
+    document.getElementById('fsTotalSize').textContent = data.summary.total_size.toLocaleString() + ' bytes';
+
+    const container = document.getElementById('fileserverContent');
+
+    if (!data.countries || data.countries.length === 0) {
+        container.innerHTML = '<div class="loading">해당 날짜의 파일이 없습니다.</div>';
+        return;
+    }
+
+    // 모든 파일을 flat 리스트로 변환
+    let allFiles = [];
+    data.countries.forEach(country => {
+        country.files.forEach(file => {
+            allFiles.push({
+                country_code: country.country_code,
+                retailer: country.retailer,
+                filename: file.name,
+                size: file.size
+            });
+        });
+    });
+
+    let html = `
+        <table class="fileserver-table">
+            <thead>
+                <tr>
+                    <th>No</th>
+                    <th>국가</th>
+                    <th>리테일러</th>
+                    <th>파일용량</th>
+                    <th>파일명</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    allFiles.forEach((file, idx) => {
+        html += `
+            <tr>
+                <td>${idx + 1}</td>
+                <td>${file.country_code}</td>
+                <td><span class="retailer-name">${file.retailer}</span></td>
+                <td><span class="file-size">${file.size.toLocaleString()}</span></td>
+                <td>${file.filename}</td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function toggleFileList(btn) {
+    const fileList = btn.nextElementSibling;
+    const isHidden = fileList.classList.contains('hidden');
+    fileList.classList.toggle('hidden');
+    btn.textContent = isHidden ? '접기 ▲' : '상세 보기 ▼';
+}
+
+function goTodayFileserver() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('fileserverDate').value = today;
+    loadFileserverData();
+}
 
 function setView(view) {
     currentView = view;
@@ -873,6 +1229,14 @@ function setView(view) {
     }
 }
 
+function goToday() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('targetDate').value = today;
+    loadData();
+}
+
+var layer2Data = null;  // Layer2 비정상 데이터 저장
+
 async function loadData() {
     const date = document.getElementById('targetDate').value;
 
@@ -883,14 +1247,16 @@ async function loadData() {
     document.getElementById('allContent').innerHTML = '';
 
     try {
-        // Fetch both APIs in parallel
-        const [statsResponse, instancesResponse] = await Promise.all([
+        // Fetch all APIs in parallel (Layer1 + Layer2)
+        const [statsResponse, instancesResponse, layer2Response] = await Promise.all([
             fetch(`/ds/layer1/api/stats/?date=${date}`),
-            fetch(`/ds/layer1/api/instances/?date=${date}`)
+            fetch(`/ds/layer1/api/instances/?date=${date}`),
+            fetch(`/ds/layer2/api/stats/?date=${date}`)
         ]);
 
         statsData = await statsResponse.json();
         instancesData = await instancesResponse.json();
+        layer2Data = await layer2Response.json();
 
         // Update summary
         updateSummary(statsData);
@@ -906,6 +1272,15 @@ async function loadData() {
 
     document.getElementById('regionLoading').classList.add('hidden');
     document.getElementById('allLoading').classList.add('hidden');
+}
+
+// Layer2에서 비정상인 리테일러인지 확인
+function getLayer2Status(retailerName) {
+    if (!layer2Data || !layer2Data.results) return null;
+    const found = layer2Data.results.find(r => r.retailer === retailerName);
+    if (!found) return null;
+    if (found.status === 'success') return null;
+    return found;
 }
 
 function updateSummary(data) {
@@ -1057,9 +1432,13 @@ function renderRegionView(data) {
 
         for (const retailer of region.retailers) {
             const retailerStatus = retailer.status;
+            const l2Status = getLayer2Status(retailer.retailer);
+            // 수집중/대기중일 때는 L2 태그 표시 안함
+            const showL2Badge = l2Status && retailerStatus !== 'collecting' && retailerStatus !== 'pending';
+            const l2Badge = showL2Badge ? `<span class="layer2-badge ${l2Status.status}" title="L2 비정상: ${l2Status.error_count}건">L2 확인</span>` : '';
             html += `
                 <tr onclick="openDetail('${retailer.table_name}', '${retailer.retailer}', '${retailer.country}')" title="클릭하여 상세 보기">
-                    <td><span class="retailer-name">${retailer.retailer}</span></td>
+                    <td><span class="retailer-name">${retailer.retailer}</span>${l2Badge}</td>
                     <td><span class="country-badge">${retailer.country}</span></td>
                     <td>${retailer.korea_time}</td>
                     <td>${retailer.expected.toLocaleString()}</td>
@@ -1120,10 +1499,14 @@ function renderAllView(data) {
 
     for (const item of data.results) {
         const statusClass = item.status;
+        const l2Status = getLayer2Status(item.retailer);
+        // 수집중/대기중일 때는 L2 태그 표시 안함
+        const showL2Badge = l2Status && statusClass !== 'collecting' && statusClass !== 'pending';
+        const l2Badge = showL2Badge ? `<span class="layer2-badge ${l2Status.status}" title="L2 비정상: ${l2Status.error_count}건">L2 확인</span>` : '';
         html += `
             <tr onclick="openDetail('${item.table_name}', '${item.retailer}', '${item.country}')" title="클릭하여 상세 보기">
                 <td>${item.no}</td>
-                <td><span class="retailer-name">${item.retailer}</span></td>
+                <td><span class="retailer-name">${item.retailer}</span>${l2Badge}</td>
                 <td>${item.region}</td>
                 <td><span class="country-badge">${item.country}</span></td>
                 <td>${item.korea_time}</td>

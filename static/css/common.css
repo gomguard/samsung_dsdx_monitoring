@@ -13,6 +13,7 @@
     --color-warning: #f59e0b;
     --color-critical: #ef4444;
     --color-pending: #6366f1;
+    --color-collecting: #3b82f6;
 
     --bg-primary: #f8fafc;
     --bg-secondary: #ffffff;
@@ -257,6 +258,11 @@ body {
 .status-badge.pending {
     background: rgba(99, 102, 241, 0.1);
     color: var(--color-pending);
+}
+
+.status-badge.collecting {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--color-collecting);
 }
 
 .status-dot {

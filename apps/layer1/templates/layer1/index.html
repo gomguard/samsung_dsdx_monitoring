@@ -246,8 +246,18 @@
         gap: 12px;
     }
 
+    /* YouTube 카테고리 그리드 (2열, 꽉 차게) */
+    .youtube-category-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+
     @media (max-width: 768px) {
         .retailer-grid {
+            grid-template-columns: 1fr;
+        }
+        .youtube-category-grid {
             grid-template-columns: 1fr;
         }
     }
@@ -382,6 +392,23 @@
 
     .btn-refresh:hover {
         background: #152c4d;
+    }
+
+    .btn-today {
+        padding: 8px 12px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-today:hover {
+        background: var(--bg-primary);
+        border-color: var(--color-layer1);
     }
 
     .date-info {
@@ -523,11 +550,300 @@
         border-bottom: none;
     }
 
+    /* Sentiment 카테고리 (TV, HHP) */
+    .sentiment-categories {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .sentiment-category-item {
+        background: white;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .sentiment-category-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        cursor: pointer;
+        background: var(--bg-secondary);
+        transition: background-color 0.2s;
+    }
+
+    .sentiment-category-header:hover {
+        background: #e8e8e8;
+    }
+
+    .sentiment-category-info {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .sentiment-category-name {
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .detail-view-btn {
+        cursor: pointer;
+        font-size: 12px;
+        margin-left: 6px;
+        opacity: 0.6;
+        transition: opacity 0.2s;
+    }
+
+    .detail-view-btn:hover {
+        opacity: 1;
+    }
+
+    .sentiment-category-stats {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .sentiment-category-count {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .sentiment-category-rate {
+        font-weight: 700;
+        font-size: 14px;
+    }
+
+    .sentiment-category-rate.ok { color: var(--color-ok); }
+    .sentiment-category-rate.warning { color: var(--color-warning); }
+    .sentiment-category-rate.critical { color: var(--color-critical); }
+    .sentiment-category-rate.pending { color: var(--color-pending); }
+    .sentiment-category-rate.collecting { color: var(--color-collecting); }
+
+    /* Sentiment/Retail 2열 레이아웃 */
+    .sentiment-two-column {
+        display: none;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        padding: 16px;
+        background: var(--bg-primary);
+    }
+
+    .sentiment-two-column.show {
+        display: grid;
+    }
+
+    .sentiment-column {
+        background: white;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .sentiment-column.ok { border-left: 3px solid var(--color-ok); }
+    .sentiment-column.warning { border-left: 3px solid var(--color-warning); }
+    .sentiment-column.critical { border-left: 3px solid var(--color-critical); }
+    .sentiment-column.pending { border-left: 3px solid var(--color-pending); }
+    .sentiment-column.collecting { border-left: 3px solid var(--color-collecting); }
+
+    .sentiment-column-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background: var(--bg-primary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .sentiment-column-title {
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .sentiment-column-stats {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .sentiment-column-count {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .sentiment-column-rate {
+        font-weight: 700;
+        font-size: 14px;
+    }
+
+    .sentiment-column-rate.ok { color: var(--color-ok); }
+    .sentiment-column-rate.warning { color: var(--color-warning); }
+    .sentiment-column-rate.critical { color: var(--color-critical); }
+    .sentiment-column-rate.pending { color: var(--color-pending); }
+    .sentiment-column-rate.collecting { color: var(--color-collecting); }
+
+    .sentiment-retailer-list {
+        padding: 12px;
+    }
+
+    .sentiment-retailer-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        background: var(--bg-primary);
+    }
+
+    .sentiment-retailer-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .sentiment-retailer-item.ok { border-left: 3px solid var(--color-ok); }
+    .sentiment-retailer-item.warning { border-left: 3px solid var(--color-warning); }
+    .sentiment-retailer-item.critical { border-left: 3px solid var(--color-critical); }
+    .sentiment-retailer-item.pending { border-left: 3px solid var(--color-pending); }
+    .sentiment-retailer-item.collecting { border-left: 3px solid var(--color-collecting); }
+
+    .sentiment-retailer-name {
+        font-weight: 500;
+        font-size: 13px;
+    }
+
+    .sentiment-retailer-stats {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .sentiment-retailer-count {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .sentiment-retailer-rate {
+        font-weight: 700;
+        font-size: 14px;
+        min-width: 50px;
+        text-align: right;
+    }
+
+    .sentiment-retailer-rate.ok { color: var(--color-ok); }
+    .sentiment-retailer-rate.warning { color: var(--color-warning); }
+    .sentiment-retailer-rate.critical { color: var(--color-critical); }
+    .sentiment-retailer-rate.pending { color: var(--color-pending); }
+    .sentiment-retailer-rate.collecting { color: var(--color-collecting); }
+
+    /* Retail Retailer Item */
+    .retail-retailer-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        background: var(--bg-primary);
+    }
+
+    .retail-retailer-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .retail-retailer-item.ok { border-left: 3px solid var(--color-ok); }
+    .retail-retailer-item.warning { border-left: 3px solid var(--color-warning); }
+    .retail-retailer-item.critical { border-left: 3px solid var(--color-critical); }
+    .retail-retailer-item.pending { border-left: 3px solid var(--color-pending); }
+    .retail-retailer-item.collecting { border-left: 3px solid var(--color-collecting); }
+
+    .retail-retailer-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .retail-retailer-name {
+        font-weight: 500;
+        font-size: 13px;
+    }
+
+    .retail-retailer-expected {
+        font-size: 11px;
+        color: var(--text-secondary);
+    }
+
+    .retail-retailer-stats {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .retail-retailer-count {
+        font-weight: 700;
+        font-size: 14px;
+    }
+
+    .retail-retailer-item {
+        cursor: pointer;
+    }
+
+    .toggle-icon-mini {
+        font-size: 8px;
+        color: var(--text-secondary);
+        margin-right: 4px;
+        transition: transform 0.2s;
+        display: inline-block;
+    }
+
+    .toggle-icon-mini.expanded {
+        transform: rotate(90deg);
+    }
+
+    .retail-items-list {
+        display: none;
+        padding: 8px 12px;
+        margin: 0 12px 8px 12px;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+    }
+
+    .retail-items-list.show {
+        display: block;
+    }
+
+    .retail-item-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .retail-item-row:last-child {
+        border-bottom: none;
+    }
+
+    .retail-item-name {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .retail-item-count {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
     /* Status 색상 for check-stat value */
     .check-stat .value.ok { color: var(--color-ok); }
     .check-stat .value.warning { color: var(--color-warning); }
     .check-stat .value.critical { color: var(--color-critical); }
     .check-stat .value.pending { color: var(--color-pending); }
+    .check-stat .value.collecting { color: var(--color-collecting); }
 
     /* Retailer Stats (count + rate) */
     .retailer-stats {
@@ -710,6 +1026,600 @@
     .demand-rate.critical {
         color: var(--color-critical);
     }
+
+    /* Raw Data Popup Modal */
+    .raw-data-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .raw-data-modal-overlay.show {
+        display: flex;
+    }
+
+    .raw-data-modal {
+        background: white;
+        border-radius: 12px;
+        width: 95vw;
+        max-width: 1600px;
+        height: 85vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .raw-data-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border-color);
+        flex-shrink: 0;
+    }
+
+    .raw-data-modal-title {
+        font-size: 18px;
+        font-weight: 700;
+    }
+
+    .raw-data-modal-subtitle {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .raw-data-modal-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .btn-reset-sort {
+        padding: 6px 12px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-reset-sort:hover {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    }
+
+    .btn-close-modal {
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 18px;
+        color: var(--text-secondary);
+        transition: all 0.2s;
+    }
+
+    .btn-close-modal:hover {
+        background: var(--color-critical);
+        color: white;
+    }
+
+    .raw-data-modal-body {
+        flex: 1;
+        overflow: hidden;
+        padding: 0;
+        position: relative;
+    }
+
+    .raw-data-table-wrapper {
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+    }
+
+    .raw-data-table {
+        table-layout: fixed;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+
+    .raw-data-table th,
+    .raw-data-table td {
+        padding: 10px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        position: relative;
+    }
+
+    .raw-data-table th {
+        background: var(--bg-primary);
+        font-weight: 600;
+        color: var(--text-secondary);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .raw-data-table th:hover {
+        background: #e8e8e8;
+    }
+
+    .raw-data-table th.sort-asc::after {
+        content: ' ▲';
+        font-size: 10px;
+        color: var(--color-layer1);
+    }
+
+    .raw-data-table th.sort-desc::after {
+        content: ' ▼';
+        font-size: 10px;
+        color: var(--color-layer1);
+    }
+
+    .raw-data-table tbody tr:hover {
+        background: var(--bg-primary);
+    }
+
+    .raw-data-table tbody tr:nth-child(even) {
+        background: #fafafa;
+    }
+
+    .raw-data-table tbody tr:nth-child(even):hover {
+        background: var(--bg-primary);
+    }
+
+    /* Column Resizer */
+    .column-resizer {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 5px;
+        height: 100%;
+        cursor: col-resize;
+        background: transparent;
+    }
+
+    .column-resizer:hover {
+        background: var(--color-layer1);
+    }
+
+    .column-resizer.resizing {
+        background: var(--color-layer1);
+    }
+
+    /* Loading State */
+    .raw-data-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+
+    .raw-data-loading-spinner {
+        width: 24px;
+        height: 24px;
+        border: 3px solid var(--border-color);
+        border-top: 3px solid var(--color-layer1);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-right: 12px;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Empty State */
+    .raw-data-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+
+    /* Modal Count Info */
+    .raw-data-count {
+        font-size: 13px;
+        color: var(--text-secondary);
+        padding: 8px 24px;
+        background: var(--bg-primary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .raw-data-count strong {
+        color: var(--text-primary);
+    }
+
+    /* Columns Info Modal */
+    .columns-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .columns-modal-overlay.show {
+        display: flex;
+    }
+
+    .columns-modal {
+        background: var(--bg-primary);
+        border-radius: 12px;
+        width: 95%;
+        max-width: 1200px;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+
+    .columns-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .columns-modal-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .columns-modal-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .columns-tab {
+        padding: 8px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--bg-secondary);
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        transition: all 0.15s;
+    }
+
+    .columns-tab:hover {
+        background: var(--bg-primary);
+    }
+
+    .columns-tab.active {
+        background: var(--color-layer1);
+        color: white;
+        border-color: var(--color-layer1);
+    }
+
+    .columns-modal-body {
+        flex: 1;
+        overflow: auto;
+        padding: 20px 24px;
+    }
+
+    .columns-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .columns-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .columns-table th,
+    .columns-table td {
+        padding: 10px 12px;
+        text-align: center;
+        border: 1px solid var(--border-color);
+    }
+
+    .columns-table th {
+        background: var(--bg-secondary);
+        font-weight: 600;
+        color: var(--text-primary);
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    .columns-table th:first-child {
+        text-align: left;
+        min-width: 200px;
+        position: sticky;
+        left: 0;
+        z-index: 2;
+    }
+
+    .columns-table td:first-child {
+        text-align: left;
+        font-family: 'SF Mono', Monaco, monospace;
+        font-size: 12px;
+        background: var(--bg-primary);
+        position: sticky;
+        left: 0;
+        z-index: 1;
+    }
+
+    .columns-table tbody tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .columns-table tbody tr:hover td:first-child {
+        background: var(--bg-secondary);
+    }
+
+    .col-check {
+        color: #22c55e;
+        font-weight: 600;
+    }
+
+    .col-empty {
+        color: var(--text-muted);
+    }
+
+    .btn-close-columns {
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 20px;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+    }
+
+    .btn-close-columns:hover {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .btn-columns-info {
+        padding: 6px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--bg-secondary);
+        cursor: pointer;
+        font-size: 12px;
+        color: var(--text-secondary);
+        transition: all 0.15s;
+        margin-left: 12px;
+    }
+
+    .btn-columns-info:hover {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    }
+
+    /* 상세 현황 모달 */
+    .summary-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .summary-modal-overlay.show {
+        display: flex;
+    }
+
+    .summary-modal {
+        background: white;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 900px;
+        max-height: 85vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .summary-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        background: #fafafa;
+    }
+
+    .summary-modal-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .summary-modal-subtitle {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .summary-modal-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .summary-tab {
+        padding: 8px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: white;
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--text-secondary);
+        transition: all 0.15s;
+    }
+
+    .summary-tab:hover {
+        background: var(--bg-primary);
+    }
+
+    .summary-tab.active {
+        background: var(--color-layer1);
+        color: white;
+        border-color: var(--color-layer1);
+    }
+
+    .summary-modal-body {
+        padding: 24px;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .summary-section {
+        margin-bottom: 24px;
+    }
+
+    .summary-section:last-child {
+        margin-bottom: 0;
+    }
+
+    .summary-section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .summary-section-icon {
+        font-size: 16px;
+    }
+
+    .summary-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .summary-table th,
+    .summary-table td {
+        padding: 10px 12px;
+        border: 1px solid var(--border-color);
+        text-align: center;
+    }
+
+    .summary-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .summary-table td {
+        color: var(--text-primary);
+    }
+
+    .summary-table .retailer-cell {
+        text-align: left;
+        font-weight: 600;
+    }
+
+    .summary-table .subtotal-row {
+        background: #fff8e6;
+        font-weight: 600;
+    }
+
+    .summary-table .total-row {
+        background: #e8f4ea;
+        font-weight: 700;
+    }
+
+    .null-section {
+        background: #fff8e6;
+        border: 1px solid #f0d88a;
+        border-radius: 8px;
+        padding: 16px;
+    }
+
+    .null-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .null-table th,
+    .null-table td {
+        padding: 8px 12px;
+        border: 1px solid #f0d88a;
+        text-align: left;
+    }
+
+    .null-table th {
+        background: #fff3cd;
+        font-weight: 600;
+        color: #856404;
+    }
+
+    .null-table td {
+        color: #856404;
+    }
+
+    .null-columns {
+        font-family: monospace;
+        font-size: 12px;
+    }
+
+    .btn-close-summary {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: var(--text-secondary);
+        padding: 0;
+        line-height: 1;
+    }
+
+    .btn-close-summary:hover {
+        color: var(--text-primary);
+    }
 </style>
 {% endblock %}
 
@@ -731,6 +1641,7 @@
         <label for="target-date">조회 날짜</label>
         <input type="date" id="target-date" class="date-input">
         <button onclick="loadAllData()" class="btn-refresh">조회</button>
+        <button onclick="setToday()" class="btn-today">오늘</button>
     </div>
     <div class="date-info" id="date-info">
         <span class="current-date"></span>
@@ -757,10 +1668,25 @@
     </div>
 </div>
 
-<!-- Checks Section -->
+<!-- Daily Checks Section -->
 <div class="checks-section">
-    <div class="checks-header">검증 항목</div>
-    <div id="checks-list">
+    <div class="checks-header">데일리 검증 항목</div>
+    <div id="daily-checks-list">
+        <div class="check-item">
+            <div class="check-main">
+                <div class="check-info">
+                    <div class="check-name">로딩 중...</div>
+                    <div class="check-description">데이터를 불러오고 있습니다</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Period Checks Section -->
+<div class="checks-section">
+    <div class="checks-header">분석대상일별 검증 항목</div>
+    <div id="period-checks-list">
         <div class="check-item">
             <div class="check-main">
                 <div class="check-info">
@@ -798,6 +1724,205 @@
     </div>
 </div>
 
+<!-- Columns Info Modal -->
+<div class="columns-modal-overlay" id="columnsModal">
+    <div class="columns-modal">
+        <div class="columns-modal-header">
+            <div class="columns-modal-title">수집 항목 정보</div>
+            <button class="btn-close-columns" onclick="closeColumnsModal()">&times;</button>
+        </div>
+        <div class="columns-modal-tabs">
+            <button class="columns-tab active" onclick="switchColumnsTab('tv')">TV</button>
+            <button class="columns-tab" onclick="switchColumnsTab('hhp')">HHP</button>
+        </div>
+        <div class="columns-modal-body">
+            <div class="columns-table-wrapper">
+                <table class="columns-table" id="columnsTable">
+                    <thead id="columnsTableHead"></thead>
+                    <tbody id="columnsTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Retail Summary Modal -->
+<div class="summary-modal-overlay" id="summaryModal" onclick="closeSummaryModal(event)">
+    <div class="summary-modal" onclick="event.stopPropagation()">
+        <div class="summary-modal-header">
+            <div>
+                <div class="summary-modal-title" id="summaryModalTitle">상세 현황</div>
+                <div class="summary-modal-subtitle">
+                    <input type="date" id="summaryModalDate" onchange="onSummaryDateChange()" style="border: 1px solid var(--border-color); border-radius: 4px; padding: 4px 8px; font-size: 13px;">
+                </div>
+            </div>
+            <button class="btn-close-summary" onclick="closeSummaryModal()">&times;</button>
+        </div>
+        <div class="summary-modal-tabs">
+            <button class="summary-tab active" id="summaryTabTv" onclick="switchSummaryTab('tv')">TV</button>
+            <button class="summary-tab" id="summaryTabHhp" onclick="switchSummaryTab('hhp')">HHP</button>
+        </div>
+        <div class="summary-modal-body" id="summaryModalBody">
+            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
+                데이터를 불러오는 중...
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Raw Data Popup Modal -->
+<div class="raw-data-modal-overlay" id="rawDataModal">
+    <div class="raw-data-modal">
+        <div class="raw-data-modal-header">
+            <div>
+                <div class="raw-data-modal-title" id="rawDataModalTitle">Raw Data</div>
+                <div class="raw-data-modal-subtitle" id="rawDataModalSubtitle"></div>
+            </div>
+            <div class="raw-data-modal-actions">
+                <button class="btn-reset-sort" onclick="resetSort()">정렬 초기화</button>
+                <button class="btn-close-modal" onclick="closeRawDataModal()">&times;</button>
+            </div>
+        </div>
+        <div class="raw-data-count" id="rawDataCount"></div>
+        <div class="raw-data-modal-body">
+            <div class="raw-data-table-wrapper" id="rawDataTableWrapper">
+                <div class="raw-data-loading" id="rawDataLoading">
+                    <div class="raw-data-loading-spinner"></div>
+                    데이터를 불러오는 중...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sentiment Raw Data Popup Modal -->
+<div class="raw-data-modal-overlay" id="sentimentModal">
+    <div class="raw-data-modal">
+        <div class="raw-data-modal-header">
+            <div>
+                <div class="raw-data-modal-title" id="sentimentModalTitle">감성분석 데이터</div>
+                <div class="raw-data-modal-subtitle" id="sentimentModalSubtitle"></div>
+            </div>
+            <div class="raw-data-modal-actions">
+                <button class="btn-reset-sort" onclick="resetSentimentSort()">정렬 초기화</button>
+                <button class="btn-close-modal" onclick="closeSentimentModal()">&times;</button>
+            </div>
+        </div>
+        <div class="raw-data-count" id="sentimentDataCount"></div>
+        <div class="raw-data-modal-body">
+            <div class="raw-data-table-wrapper" id="sentimentTableWrapper">
+                <div class="raw-data-loading" id="sentimentLoading">
+                    <div class="raw-data-loading-spinner"></div>
+                    데이터를 불러오는 중...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- YouTube Raw Data Modal -->
+<div class="raw-data-modal-overlay" id="youtubeModal">
+    <div class="raw-data-modal">
+        <div class="raw-data-modal-header">
+            <div>
+                <div class="raw-data-modal-title" id="youtubeModalTitle">YouTube 데이터</div>
+                <div class="raw-data-modal-subtitle" id="youtubeModalSubtitle"></div>
+            </div>
+            <div class="raw-data-modal-actions">
+                <select id="youtubeDataType" onchange="loadYoutubeData()" style="padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; margin-right: 8px;">
+                    <option value="logs">수집 로그</option>
+                    <option value="videos">비디오</option>
+                    <option value="comments">댓글</option>
+                </select>
+                <button class="btn-reset-sort" onclick="resetYoutubeSort()">정렬 초기화</button>
+                <button class="btn-close-modal" onclick="closeYoutubeModal()">&times;</button>
+            </div>
+        </div>
+        <div class="raw-data-count" id="youtubeDataCount"></div>
+        <div class="raw-data-modal-body">
+            <div class="raw-data-table-wrapper" id="youtubeTableWrapper">
+                <div class="raw-data-loading" id="youtubeLoading">
+                    <div class="raw-data-loading-spinner"></div>
+                    데이터를 불러오는 중...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Market Trend Raw Data Modal -->
+<div class="raw-data-modal-overlay" id="marketTrendModal">
+    <div class="raw-data-modal">
+        <div class="raw-data-modal-header">
+            <div>
+                <div class="raw-data-modal-title" id="marketTrendModalTitle">Market Trend 데이터</div>
+                <div class="raw-data-modal-subtitle" id="marketTrendModalSubtitle"></div>
+            </div>
+            <div class="raw-data-modal-actions">
+                <button class="btn-reset-sort" onclick="resetMarketTrendSort()">정렬 초기화</button>
+                <button class="btn-close-modal" onclick="closeMarketTrendModal()">&times;</button>
+            </div>
+        </div>
+        <div class="raw-data-count" id="marketTrendDataCount"></div>
+        <div class="raw-data-modal-body">
+            <div class="raw-data-table-wrapper" id="marketTrendTableWrapper">
+                <div class="raw-data-loading" id="marketTrendLoading">
+                    <div class="raw-data-loading-spinner"></div>
+                    데이터를 불러오는 중...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="raw-data-modal-overlay" id="marketDemandModal">
+    <div class="raw-data-modal">
+        <div class="raw-data-modal-header">
+            <div>
+                <div class="raw-data-modal-title" id="marketDemandModalTitle">Market 수요증감율 데이터</div>
+                <div class="raw-data-modal-subtitle" id="marketDemandModalSubtitle"></div>
+            </div>
+            <div class="raw-data-modal-actions">
+                <button class="btn-reset-sort" onclick="resetMarketDemandSort()">정렬 초기화</button>
+                <button class="btn-close-modal" onclick="closeMarketDemandModal()">&times;</button>
+            </div>
+        </div>
+        <div class="raw-data-count" id="marketDemandDataCount"></div>
+        <div class="raw-data-modal-body">
+            <div class="raw-data-table-wrapper" id="marketDemandTableWrapper">
+                <div class="raw-data-loading" id="marketDemandLoading">
+                    <div class="raw-data-loading-spinner"></div>
+                    데이터를 불러오는 중...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="raw-data-modal-overlay" id="marketPromotionModal">
+    <div class="raw-data-modal">
+        <div class="raw-data-modal-header">
+            <div>
+                <div class="raw-data-modal-title" id="marketPromotionModalTitle">Market Promotion 데이터</div>
+                <div class="raw-data-modal-subtitle" id="marketPromotionModalSubtitle"></div>
+            </div>
+            <div class="raw-data-modal-actions">
+                <button class="btn-reset-sort" onclick="resetMarketPromotionSort()">정렬 초기화</button>
+                <button class="btn-close-modal" onclick="closeMarketPromotionModal()">&times;</button>
+            </div>
+        </div>
+        <div class="raw-data-count" id="marketPromotionDataCount"></div>
+        <div class="raw-data-modal-body">
+            <div class="raw-data-table-wrapper" id="marketPromotionTableWrapper">
+                <div class="raw-data-loading" id="marketPromotionLoading">
+                    <div class="raw-data-loading-spinner"></div>
+                    데이터를 불러오는 중...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -807,7 +1932,9 @@ function getStatusBadge(status) {
         'OK': { class: 'ok', text: '정상' },
         'WARNING': { class: 'warning', text: '주의' },
         'CRITICAL': { class: 'critical', text: '심각' },
-        'PENDING': { class: 'pending', text: '대기중' }
+        'PENDING': { class: 'pending', text: '대기중' },
+        'COLLECTING': { class: 'collecting', text: '수집중' },
+        'ANALYZING': { class: 'collecting', text: '분석중' }
     };
     const s = statusMap[status] || { class: 'ok', text: status };
     return `<span class="status-badge ${s.class}"><span class="status-dot"></span>${s.text}</span>`;
@@ -817,7 +1944,9 @@ function getRetailerStatusClass(status) {
     const classMap = {
         'OK': 'ok',
         'WARNING': 'warning',
-        'CRITICAL': 'critical'
+        'CRITICAL': 'critical',
+        'PENDING': 'pending',
+        'COLLECTING': 'collecting'
     };
     return classMap[status] || 'ok';
 }
@@ -842,6 +1971,18 @@ function toggleRetailerDetails(element, checkIdx, slotIdx) {
     }
 }
 
+function toggleSentimentCategory(element, checkIdx, catIdx) {
+    const container = document.getElementById(`sentiment-cat-${checkIdx}-${catIdx}`);
+    const icon = element.querySelector('.toggle-icon-small');
+
+    if (container) {
+        container.classList.toggle('show');
+        if (icon) {
+            icon.classList.toggle('expanded');
+        }
+    }
+}
+
 // 날짜 초기화 (기본값: 전일자)
 function initDate() {
     const dateInput = document.getElementById('target-date');
@@ -852,6 +1993,14 @@ function initDate() {
     // 최대 날짜를 오늘로 제한
     const today = new Date();
     dateInput.max = today.toISOString().split('T')[0];
+}
+
+// 오늘 날짜로 설정 후 조회
+function setToday() {
+    const dateInput = document.getElementById('target-date');
+    const today = new Date();
+    dateInput.value = today.toISOString().split('T')[0];
+    loadAllData();
 }
 
 async function loadStats() {
@@ -886,128 +2035,74 @@ async function loadStats() {
             failedCountEl.classList.add('warning');
         }
 
-        // Render checks list
-        const checksList = document.getElementById('checks-list');
-        if (data.checks && data.checks.length > 0) {
-            checksList.innerHTML = data.checks.map((check, checkIdx) => {
-                // Sentiment 타입인 경우
-                if (check.check_type === 'sentiment') {
-                    return renderSentimentCheck(check, checkIdx);
-                }
+        // 데일리 체크 타입과 분석대상일별 체크 타입 분류
+        const dailyCheckTypes = ['retail', 'sentiment', 'youtube', 'market_trend', 'market_demand'];
+        const periodCheckTypes = ['market_competitor', 'market_competitor_event', 'market_promotion'];
 
-                // YouTube 타입인 경우
-                if (check.check_type === 'youtube') {
-                    return renderYouTubeCheck(check, checkIdx);
-                }
-
-                // Market Trend 타입인 경우
-                if (check.check_type === 'market_trend') {
-                    return renderMarketTrendCheck(check, checkIdx);
-                }
-
-                // Market Competitor 타입인 경우
-                if (check.check_type === 'market_competitor') {
-                    return renderMarketCompetitorCheck(check, checkIdx);
-                }
-
-                // Market Competitor Event 타입인 경우
-                if (check.check_type === 'market_competitor_event') {
-                    return renderMarketCompetitorEventCheck(check, checkIdx);
-                }
-
-                // Market 수요증감율 타입인 경우
-                if (check.check_type === 'market_demand') {
-                    return renderMarketDemandCheck(check, checkIdx);
-                }
-
-                // Market Promotion 타입인 경우
-                if (check.check_type === 'market_promotion') {
-                    return renderMarketPromotionCheck(check, checkIdx);
-                }
-
-                // Retail 타입인 경우
-                const hasTimeSlots = check.time_slots && check.time_slots.length > 0;
-
-                let timeSlotsHtml = '';
-                if (hasTimeSlots) {
-                    timeSlotsHtml = `
-                        <div class="time-slots-container" id="time-slots-${checkIdx}">
-                            ${check.time_slots.map((slot, slotIdx) => {
-                                const hasRetailers = slot.retailers && slot.retailers.length > 0;
-
-                                let retailersHtml = '';
-                                if (hasRetailers) {
-                                    retailersHtml = `
-                                        <div class="retailer-details" id="retailers-${checkIdx}-${slotIdx}">
-                                            <div class="retailer-grid">
-                                                ${slot.retailers.map(r => `
-                                                    <div class="retailer-card ${getRetailerStatusClass(r.status)}">
-                                                        <div class="retailer-name">
-                                                            ${r.retailer}
-                                                            ${getStatusBadge(r.status)}
-                                                        </div>
-                                                        <div class="retailer-count">${r.count.toLocaleString()}</div>
-                                                        <div class="retailer-expected">정상: ${r.ok_threshold || 250} 이상 / 기대: ${r.expected}</div>
-                                                    </div>
-                                                `).join('')}
-                                            </div>
-                                        </div>
-                                    `;
-                                }
-
-                                return `
-                                    <div class="time-slot-item">
-                                        <div class="time-slot-header" onclick="toggleRetailerDetails(this, ${checkIdx}, ${slotIdx})">
-                                            <div class="time-slot-info">
-                                                ${hasRetailers ? '<span class="toggle-icon-small">▶</span>' : '<span style="width: 18px; display: inline-block;"></span>'}
-                                                <span class="time-slot-name">${slot.name}</span>
-                                                <span class="time-slot-time">
-                                                    <span class="utc">UTC ${slot.utc_time ? slot.utc_time.split(' ')[1] : ''}</span>
-                                                    <span class="kst">KST ${slot.kr_time ? slot.kr_time.split(' ')[1] : ''}</span>
-                                                </span>
-                                            </div>
-                                            <div class="time-slot-stats">
-                                                <span class="time-slot-count">${slot.total.toLocaleString()} / ${slot.expected.toLocaleString()}</span>
-                                                ${getStatusBadge(slot.status)}
-                                            </div>
-                                        </div>
-                                        ${retailersHtml}
-                                    </div>
-                                `;
-                            }).join('')}
+        // 체크 렌더링 함수
+        function renderCheck(check, checkIdx) {
+            if (check.check_type === 'sentiment') {
+                return renderSentimentCheck(check, checkIdx);
+            }
+            if (check.check_type === 'youtube') {
+                return renderYouTubeCheck(check, checkIdx);
+            }
+            if (check.check_type === 'market_trend') {
+                return renderMarketTrendCheck(check, checkIdx);
+            }
+            if (check.check_type === 'market_competitor') {
+                return renderMarketCompetitorCheck(check, checkIdx);
+            }
+            if (check.check_type === 'market_competitor_event') {
+                return renderMarketCompetitorEventCheck(check, checkIdx);
+            }
+            if (check.check_type === 'market_demand') {
+                return renderMarketDemandCheck(check, checkIdx);
+            }
+            if (check.check_type === 'market_promotion') {
+                return renderMarketPromotionCheck(check, checkIdx);
+            }
+            if (check.check_type === 'retail') {
+                return renderRetailCheck(check, checkIdx);
+            }
+            // 기본 렌더링
+            return `
+                <div class="check-item">
+                    <div class="check-main">
+                        <div class="check-info">
+                            <div class="check-name">${check.name}</div>
+                            <div class="check-description">${check.description || ''}</div>
                         </div>
-                    `;
-                }
-
-                return `
-                    <div class="check-item">
-                        <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
-                            <div class="check-info">
-                                <div class="check-name">
-                                    ${hasTimeSlots ? '<span class="toggle-icon">▶</span>' : ''}
-                                    ${check.name}
-                                </div>
-                                <div class="check-description">${check.description}</div>
-                            </div>
-                            <div class="check-criteria">
-                                <span class="criteria-item ok">정상: 250↑</span>
-                                <span class="criteria-item warning">주의: 200~249</span>
-                                <span class="criteria-item critical">심각: 200↓</span>
-                            </div>
-                            <div class="check-stats">
-                                <div class="check-stat">
-                                    <div class="value">${check.actual !== undefined ? check.actual.toLocaleString() : '-'}</div>
-                                    <div class="label">총 수집량</div>
-                                </div>
-                                ${getStatusBadge(check.status)}
-                            </div>
+                        <div class="check-stats">
+                            ${getStatusBadge(check.status)}
                         </div>
-                        ${timeSlotsHtml}
                     </div>
-                `;
+                </div>
+            `;
+        }
+
+        // 데일리 체크 리스트
+        const dailyChecksList = document.getElementById('daily-checks-list');
+        const dailyChecks = data.checks ? data.checks.filter(c => dailyCheckTypes.includes(c.check_type)) : [];
+        if (dailyChecks.length > 0) {
+            dailyChecksList.innerHTML = dailyChecks.map((check, idx) => {
+                const checkIdx = data.checks.indexOf(check);
+                return renderCheck(check, checkIdx);
             }).join('');
         } else {
-            checksList.innerHTML = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 없음</div></div></div></div>';
+            dailyChecksList.innerHTML = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 없음</div></div></div></div>';
+        }
+
+        // 분석대상일별 체크 리스트
+        const periodChecksList = document.getElementById('period-checks-list');
+        const periodChecks = data.checks ? data.checks.filter(c => periodCheckTypes.includes(c.check_type)) : [];
+        if (periodChecks.length > 0) {
+            periodChecksList.innerHTML = periodChecks.map((check, idx) => {
+                const checkIdx = data.checks.indexOf(check);
+                return renderCheck(check, checkIdx);
+            }).join('');
+        } else {
+            periodChecksList.innerHTML = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 없음</div></div></div></div>';
         }
 
         // Failed items table
@@ -1030,7 +2125,9 @@ async function loadStats() {
 
     } catch (error) {
         console.error('Stats load failed:', error);
-        document.getElementById('checks-list').innerHTML = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 로드 실패</div><div class="check-description">' + error.message + '</div></div></div></div>';
+        const errorHtml = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 로드 실패</div><div class="check-description">' + error.message + '</div></div></div></div>';
+        document.getElementById('daily-checks-list').innerHTML = errorHtml;
+        document.getElementById('period-checks-list').innerHTML = errorHtml;
     }
 }
 
@@ -1038,226 +2135,558 @@ function getStatusClass(status) {
     return status ? status.toLowerCase() : 'pending';
 }
 
-function renderSentimentCheck(check, checkIdx) {
-    const hasTimeSlots = check.time_slots && check.time_slots.length > 0;
+function renderRetailCategory(cat, checkIdx, catIdx) {
+    const catStatusClass = getStatusClass(cat.status);
+    const hasTimeSlots = cat.time_slots && cat.time_slots.length > 0;
+
+    // Sentiment와 동일하게 2열 레이아웃으로 오전/오후 표시
+    let timeSlotsHtml = '';
+    if (hasTimeSlots) {
+        timeSlotsHtml = '<div class="sentiment-two-column" id="retail-cat-' + checkIdx + '-' + catIdx + '">' +
+            cat.time_slots.map((slot, slotIdx) => renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, cat.name)).join('') +
+        '</div>';
+    }
+
+    return '<div class="sentiment-category-item">' +
+        '<div class="sentiment-category-header" onclick="toggleRetailCategory(this, ' + checkIdx + ', ' + catIdx + ')">' +
+            '<div class="sentiment-category-info">' +
+                '<span class="toggle-icon-small">▶</span>' +
+                '<span class="sentiment-category-name">' + cat.name + '</span>' +
+            '</div>' +
+            '<div class="sentiment-category-stats">' +
+                '<span class="sentiment-category-count">' + cat.total.toLocaleString() + '</span>' +
+                getStatusBadge(cat.status) +
+            '</div>' +
+        '</div>' +
+        timeSlotsHtml +
+    '</div>';
+}
+
+// Retail 슬롯 카드 (Sentiment와 동일한 2열 레이아웃용)
+function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
+    const slotStatusClass = getStatusClass(slot.status);
+    const hasRetailers = slot.retailers && slot.retailers.length > 0;
+    const period = slot.name; // '오전' 또는 '오후'
+
+    const retailersHtml = hasRetailers
+        ? slot.retailers.map((r, rIdx) => {
+            const rStatusClass = getRetailerStatusClass(r.status);
+            const itemsId = 'retail-items-' + checkIdx + '-' + catIdx + '-' + slotIdx + '-' + rIdx;
+
+            // 수집 항목 정보
+            const hasItems = r.items && r.items.length > 0;
+            const itemsHtml = hasItems
+                ? '<div class="retail-items-list" id="' + itemsId + '">' +
+                    r.items.map(item => {
+                        return '<div class="retail-item-row">' +
+                            '<span class="retail-item-name">' + item.name + '</span>' +
+                            '<span class="retail-item-count">' + (item.count || 0).toLocaleString() + '건</span>' +
+                        '</div>';
+                    }).join('') +
+                '</div>'
+                : '';
+
+            return '<div class="retail-retailer-item ' + rStatusClass + '" onclick="toggleRetailItems(this, \'' + itemsId + '\')">' +
+                '<div class="retail-retailer-info">' +
+                    '<span class="retail-retailer-name" onclick="event.stopPropagation(); openRawDataModal(\'' + categoryName + '\', \'' + r.retailer + '\', \'' + period + '\')" style="cursor: pointer; text-decoration: underline;">' +
+                        '<span class="toggle-icon-mini">▶</span>' +
+                        r.retailer +
+                    '</span>' +
+                    '<span class="retail-retailer-expected">정상: ' + (r.ok_threshold || 250) + '↑ / 기대: ' + r.expected + '</span>' +
+                '</div>' +
+                '<div class="retail-retailer-stats">' +
+                    '<span class="retail-retailer-count">' + r.count.toLocaleString() + '건</span>' +
+                    getStatusBadge(r.status) +
+                '</div>' +
+            '</div>' +
+            itemsHtml;
+        }).join('')
+        : '<div style="color: var(--text-secondary); padding: 8px;">데이터 없음</div>';
+
+    return '<div class="sentiment-column">' +
+        '<div class="sentiment-column-header">' +
+            '<span class="sentiment-column-title">' + slot.name + '</span>' +
+            '<div class="sentiment-column-stats">' +
+                '<span class="sentiment-column-count">' + slot.total.toLocaleString() + '건</span>' +
+                getStatusBadge(slot.status) +
+            '</div>' +
+        '</div>' +
+        '<div class="sentiment-retailer-list">' + retailersHtml + '</div>' +
+    '</div>';
+}
+
+function toggleRetailItems(element, itemsId) {
+    const container = document.getElementById(itemsId);
+    const icon = element.querySelector('.toggle-icon-mini');
+
+    if (container) {
+        container.classList.toggle('show');
+        if (icon) {
+            icon.classList.toggle('expanded');
+        }
+    }
+}
+
+function renderRetailCheck(check, checkIdx) {
+    const hasCategories = check.categories && check.categories.length > 0;
     const statusClass = getStatusClass(check.status);
+
+    // 시간 정보
+    const timeInfo = check.time_info || { am: { utc: '00:00', kst: '09:00' }, pm: { utc: '12:00', kst: '21:00' } };
+
+    const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
+        '<div class="time-slot-header" style="cursor: default;">' +
+            '<div class="time-slot-info">' +
+                '<span class="time-slot-name">수집 시간</span>' +
+                '<span class="time-slot-time">' +
+                    '<span class="utc">오전 UTC ' + timeInfo.am.utc + ' KST ' + timeInfo.am.kst + '</span>' +
+                    '<span class="kst" style="margin-left: 16px;">오후 UTC ' + timeInfo.pm.utc + ' KST ' + timeInfo.pm.kst + '</span>' +
+                '</span>' +
+            '</div>' +
+        '</div>' +
+    '</div>';
+
+    let categoriesHtml = '';
+    if (hasCategories) {
+        categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
+            timeHeader +
+            '<div class="sentiment-categories">' +
+                check.categories.map((cat, catIdx) => renderRetailCategory(cat, checkIdx, catIdx)).join('') +
+            '</div>' +
+        '</div>';
+    }
+
+    return '<div class="check-item">' +
+        '<div class="check-main" onclick="toggleTimeSlots(this, ' + checkIdx + ')">' +
+            '<div class="check-info">' +
+                '<div class="check-name">' +
+                    '<span class="toggle-icon">▶</span>' +
+                    check.name +
+                '</div>' +
+                '<div class="check-description">' + check.description + '</div>' +
+            '</div>' +
+            '<div class="check-criteria">' +
+                '<span class="criteria-item ok">정상: 250↑</span>' +
+                '<span class="criteria-item warning">주의: 200~249</span>' +
+                '<span class="criteria-item critical">심각: 200↓</span>' +
+                '<button class="btn-columns-info" onclick="event.stopPropagation(); openColumnsModal()">수집 항목 정보</button>' +
+                '<button class="btn-columns-info" onclick="event.stopPropagation(); openSummaryModal()">상세 현황</button>' +
+            '</div>' +
+            '<div class="check-stats">' +
+                '<div class="check-stat">' +
+                    '<div class="value">' + (check.actual !== undefined ? check.actual.toLocaleString() : '-') + '</div>' +
+                    '<div class="label">총 수집량</div>' +
+                '</div>' +
+                getStatusBadge(check.status) +
+            '</div>' +
+        '</div>' +
+        categoriesHtml +
+    '</div>';
+}
+
+function toggleRetailCategory(element, checkIdx, catIdx) {
+    const container = document.getElementById('retail-cat-' + checkIdx + '-' + catIdx);
+    const icon = element.querySelector('.toggle-icon-small');
+
+    if (container) {
+        container.classList.toggle('show');
+        if (icon) {
+            icon.classList.toggle('expanded');
+        }
+    }
+}
+
+function renderSentimentRetailer(r, category, period) {
+    const rStatusClass = getStatusClass(r.status);
+    const clickHandler = 'openSentimentModal(\'' + category + '\', \'' + r.name + '\', \'' + period + '\')';
+    return '<div class="sentiment-retailer-item ' + rStatusClass + '" onclick="' + clickHandler + '" style="cursor: pointer;">' +
+        '<span class="sentiment-retailer-name">' + r.name + '</span>' +
+        '<div class="sentiment-retailer-stats">' +
+            '<span class="sentiment-retailer-count">' + r.analyzed.toLocaleString() + '/' + r.target.toLocaleString() + '건</span>' +
+            '<span class="sentiment-retailer-rate ' + rStatusClass + '">' + r.rate + '%</span>' +
+            getStatusBadge(r.status) +
+        '</div>' +
+    '</div>';
+}
+
+function renderSentimentSlot(slot, category) {
+    const slotStatusClass = getStatusClass(slot.status);
+    const hasRetailers = slot.retailers && slot.retailers.length > 0;
+    const period = slot.time;  // '오전' 또는 '오후'
+    const retailersHtml = hasRetailers
+        ? slot.retailers.map(r => renderSentimentRetailer(r, category, period)).join('')
+        : '<div style="color: var(--text-secondary); padding: 8px;">데이터 없음</div>';
+
+    return '<div class="sentiment-column">' +
+        '<div class="sentiment-column-header">' +
+            '<span class="sentiment-column-title">' + slot.time + ' (' + slot.target.toLocaleString() + '건)</span>' +
+            '<div class="sentiment-column-stats">' +
+                '<span class="sentiment-column-count">' + slot.analyzed.toLocaleString() + '/' + slot.target.toLocaleString() + '</span>' +
+                '<span class="sentiment-column-rate ' + slotStatusClass + '">' + slot.rate + '%</span>' +
+                getStatusBadge(slot.status) +
+            '</div>' +
+        '</div>' +
+        '<div class="sentiment-retailer-list">' + retailersHtml + '</div>' +
+    '</div>';
+}
+
+function renderSentimentCategory(cat, checkIdx, catIdx) {
+    const catStatusClass = getStatusClass(cat.status);
+    const hasTimeSlots = cat.time_slots && cat.time_slots.length > 0;
+    const category = cat.name;  // 'TV' 또는 'HHP'
 
     let timeSlotsHtml = '';
     if (hasTimeSlots) {
-        timeSlotsHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${check.time_slots.map((slot, slotIdx) => {
-                    const hasRetailers = slot.retailers && slot.retailers.length > 0;
-                    const slotStatusClass = getStatusClass(slot.status);
-
-                    let retailersHtml = '';
-                    if (hasRetailers) {
-                        retailersHtml = `
-                            <div class="retailer-details" id="retailers-${checkIdx}-${slotIdx}">
-                                <div class="retailer-grid">
-                                    ${slot.retailers.map(r => `
-                                        <div class="retailer-card ${getRetailerStatusClass(r.status)}">
-                                            <div class="retailer-name">
-                                                ${r.name}
-                                                ${getStatusBadge(r.status)}
-                                            </div>
-                                            <div class="retailer-stats">
-                                                <span class="retailer-count">${r.analyzed.toLocaleString()}</span>
-                                                <span class="retailer-rate ${getRetailerStatusClass(r.status)}">${r.rate}%</span>
-                                            </div>
-                                            <div class="retailer-expected">분석완료 / 대상: ${r.target.toLocaleString()}</div>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        `;
-                    }
-
-                    return `
-                        <div class="time-slot-item">
-                            <div class="time-slot-header" onclick="toggleRetailerDetails(this, ${checkIdx}, ${slotIdx})">
-                                <div class="time-slot-info">
-                                    ${hasRetailers ? '<span class="toggle-icon-small">▶</span>' : '<span style="width: 18px; display: inline-block;"></span>'}
-                                    <span class="time-slot-name">${slot.time}</span>
-                                    <span class="time-slot-time">
-                                        <span class="utc">UTC ${slot.utc_time ? slot.utc_time.split(' ')[1] : ''}</span>
-                                        <span class="kst">KST ${slot.kr_time ? slot.kr_time.split(' ')[1] : ''}</span>
-                                    </span>
-                                </div>
-                                <div class="time-slot-stats">
-                                    <span class="time-slot-count">${slot.analyzed.toLocaleString()} / ${slot.target.toLocaleString()}</span>
-                                    <span class="time-slot-rate ${slotStatusClass}">${slot.rate}%</span>
-                                    ${getStatusBadge(slot.status)}
-                                </div>
-                            </div>
-                            ${retailersHtml}
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-        `;
+        timeSlotsHtml = '<div class="sentiment-two-column" id="sentiment-cat-' + checkIdx + '-' + catIdx + '">' +
+            cat.time_slots.map(slot => renderSentimentSlot(slot, category)).join('') +
+        '</div>';
     }
 
-    return `
-        <div class="check-item">
-            <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
-                <div class="check-info">
-                    <div class="check-name">
-                        ${hasTimeSlots ? '<span class="toggle-icon">▶</span>' : ''}
-                        ${check.name}
-                    </div>
-                    <div class="check-description">${check.description}</div>
-                </div>
-                <div class="check-criteria">
-                    <span class="criteria-item ok">정상: 100%</span>
-                    <span class="criteria-item warning">주의: 90%↑</span>
-                    <span class="criteria-item critical">심각: 90%↓</span>
-                </div>
-                <div class="check-stats">
-                    <div class="check-stat">
-                        <div class="value ${statusClass}">${check.rate}%</div>
-                        <div class="label">분석률</div>
-                    </div>
-                    ${getStatusBadge(check.status)}
-                </div>
-            </div>
-            ${timeSlotsHtml}
-        </div>
-    `;
+    return '<div class="sentiment-category-item">' +
+        '<div class="sentiment-category-header" onclick="toggleSentimentCategory(this, ' + checkIdx + ', ' + catIdx + ')">' +
+            '<div class="sentiment-category-info">' +
+                '<span class="toggle-icon-small">▶</span>' +
+                '<span class="sentiment-category-name">' + cat.name + '</span>' +
+            '</div>' +
+            '<div class="sentiment-category-stats">' +
+                '<span class="sentiment-category-count">' + cat.analyzed.toLocaleString() + '/' + cat.target.toLocaleString() + '</span>' +
+                '<span class="sentiment-category-rate ' + catStatusClass + '">' + cat.rate + '%</span>' +
+                getStatusBadge(cat.status) +
+            '</div>' +
+        '</div>' +
+        timeSlotsHtml +
+    '</div>';
+}
+
+function renderSentimentCheck(check, checkIdx) {
+    const hasCategories = check.categories && check.categories.length > 0;
+    const statusClass = getStatusClass(check.status);
+
+    const utcTime = check.utc_time ? check.utc_time.split(' ')[1] : '01:00';
+    const kstTime = check.kr_time ? check.kr_time.split(' ')[1] : '10:00';
+
+    const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
+        '<div class="time-slot-header" style="cursor: default;">' +
+            '<div class="time-slot-info">' +
+                '<span class="time-slot-name">분석 시간</span>' +
+                '<span class="time-slot-time">' +
+                    '<span class="utc">UTC ' + utcTime + '</span>' +
+                    '<span class="kst">KST ' + kstTime + '</span>' +
+                '</span>' +
+            '</div>' +
+        '</div>' +
+    '</div>';
+
+    let categoriesHtml = '';
+    if (hasCategories) {
+        categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
+            timeHeader +
+            '<div class="sentiment-categories">' +
+                check.categories.map((cat, catIdx) => renderSentimentCategory(cat, checkIdx, catIdx)).join('') +
+            '</div>' +
+        '</div>';
+    }
+
+    return '<div class="check-item">' +
+        '<div class="check-main" onclick="toggleTimeSlots(this, ' + checkIdx + ')">' +
+            '<div class="check-info">' +
+                '<div class="check-name">' +
+                    '<span class="toggle-icon">▶</span>' +
+                    check.name +
+                '</div>' +
+                '<div class="check-description">' + check.description + '</div>' +
+            '</div>' +
+            '<div class="check-criteria">' +
+                '<span class="criteria-item ok">정상: 100%</span>' +
+                '<span class="criteria-item warning">주의: 90%↑</span>' +
+                '<span class="criteria-item critical">심각: 90%↓</span>' +
+            '</div>' +
+            '<div class="check-stats">' +
+                '<div class="check-stat">' +
+                    '<div class="value ' + statusClass + '">' + check.rate + '%</div>' +
+                    '<div class="label">분석률</div>' +
+                '</div>' +
+                getStatusBadge(check.status) +
+            '</div>' +
+        '</div>' +
+        categoriesHtml +
+    '</div>';
+}
+
+function getYoutubeCardStyle(status) {
+    const styles = {
+        'OK': { border: '#4CAF50', bg: '#f0fff0', left: '#4CAF50' },
+        'WARNING': { border: '#FF9800', bg: '#fff8e1', left: '#FF9800' },
+        'CRITICAL': { border: '#f44336', bg: '#ffebee', left: '#f44336' },
+        'PENDING': { border: '#9e9e9e', bg: '#f5f5f5', left: '#9e9e9e' },
+        'COLLECTING': { border: '#2196F3', bg: '#e3f2fd', left: '#2196F3' }
+    };
+    return styles[status] || styles['PENDING'];
+}
+
+function renderYoutubeStatCard(catName, typeKey, typeLabel, typeDataType, value, status, extraInfo) {
+    const statusClass = getStatusClass(status);
+    let statsHtml = '';
+
+    if (extraInfo) {
+        // 로그: count/expected, rate%, 상태배지
+        statsHtml = '<span class="sentiment-retailer-count">' + extraInfo.count + '/' + extraInfo.expected + '</span>' +
+            '<span class="sentiment-retailer-rate ' + statusClass + '">' + extraInfo.rate + '%</span>' +
+            getStatusBadge(status);
+    } else {
+        // 비디오/댓글: 숫자, 상태배지
+        statsHtml = '<span class="sentiment-retailer-count">' + (value || 0).toLocaleString() + '</span>' +
+            getStatusBadge(status);
+    }
+
+    return '<div class="sentiment-retailer-item ' + statusClass + '" ' +
+        'onclick="openYoutubeModalWithType(\'' + catName + '\', \'' + typeDataType + '\')" ' +
+        'style="cursor: pointer;" ' +
+        'title="클릭하여 ' + catName + ' ' + typeLabel + ' 데이터 보기">' +
+        '<span class="sentiment-retailer-name">' + typeLabel + '</span>' +
+        '<div class="sentiment-retailer-stats">' +
+            statsHtml +
+        '</div>' +
+    '</div>';
+}
+
+function getYoutubeItemStatus(type, value, logStatus) {
+    if (type === 'log') {
+        return logStatus;
+    } else if (type === 'video') {
+        return value >= 30 ? 'OK' : 'CRITICAL';
+    } else if (type === 'comment') {
+        return value >= 1000 ? 'OK' : 'CRITICAL';
+    }
+    return 'PENDING';
+}
+
+function renderYoutubeColumn(cat) {
+    // 각 항목별 상태 계산
+    const logStatus = cat.status;
+    const videoStatus = getYoutubeItemStatus('video', cat.video_count, logStatus);
+    const commentStatus = getYoutubeItemStatus('comment', cat.comment_count, logStatus);
+
+    // 전체 상태: 로그, 비디오, 댓글 모두 정상이면 정상
+    const allOk = logStatus === 'OK' && videoStatus === 'OK' && commentStatus === 'OK';
+    const overallStatus = allOk ? 'OK' : 'CRITICAL';
+    const overallStatusClass = getStatusClass(overallStatus);
+
+    // 로그는 상태 표시 포함
+    const logExtraInfo = {
+        count: cat.log_count.toLocaleString(),
+        expected: (cat.expected || 0).toLocaleString(),
+        rate: cat.rate || 0
+    };
+
+    const retailersHtml =
+        renderYoutubeStatCard(cat.name, 'log_count', '로그', 'logs', cat.log_count, logStatus, logExtraInfo) +
+        renderYoutubeStatCard(cat.name, 'video_count', '비디오', 'videos', cat.video_count, videoStatus, null) +
+        renderYoutubeStatCard(cat.name, 'comment_count', '댓글', 'comments', cat.comment_count, commentStatus, null);
+
+    return '<div class="sentiment-column">' +
+        '<div class="sentiment-column-header">' +
+            '<span class="sentiment-column-title">' + cat.name + '</span>' +
+            '<div class="sentiment-column-stats">' +
+                getStatusBadge(overallStatus) +
+            '</div>' +
+        '</div>' +
+        '<div class="sentiment-retailer-list">' +
+            retailersHtml +
+        '</div>' +
+    '</div>';
 }
 
 function renderYouTubeCheck(check, checkIdx) {
     const hasCategories = check.categories && check.categories.length > 0;
     const statusClass = getStatusClass(check.status);
 
-    // 수집률 표시 (Sentiment와 동일)
-    const rateDisplay = `${check.rate || 0}%`;
+    const rateDisplay = (check.rate || 0) + '%';
+
+    const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
+        '<div class="time-slot-header" style="cursor: default;">' +
+            '<div class="time-slot-info">' +
+                '<span class="time-slot-name">수집 시간</span>' +
+                '<span class="time-slot-time">' +
+                    '<span class="utc">UTC 12:00</span>' +
+                    '<span class="kst">KST 21:00</span>' +
+                '</span>' +
+            '</div>' +
+        '</div>' +
+    '</div>';
 
     let categoriesHtml = '';
     if (hasCategories) {
-        categoriesHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                <div class="retailer-grid">
-                    ${check.categories.map(cat => {
-                        return `
-                            <div class="retailer-card ${getRetailerStatusClass(cat.status)}">
-                                <div class="retailer-name">
-                                    ${cat.name}
-                                    ${getStatusBadge(cat.status)}
-                                </div>
-                                <div class="retailer-stats">
-                                    <span class="retailer-count">${cat.log_count.toLocaleString()}</span>
-                                    <span class="retailer-rate ${getRetailerStatusClass(cat.status)}">${cat.rate || 0}%</span>
-                                </div>
-                                <div class="retailer-expected">기대: ${(cat.expected || 0).toLocaleString()}건</div>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        `;
+        const sortOrder = ['TV', 'HHP'];
+        const sortedCategories = [...check.categories].sort(function(a, b) {
+            const aIdx = sortOrder.indexOf(a.name);
+            const bIdx = sortOrder.indexOf(b.name);
+            if (aIdx === -1 && bIdx === -1) return 0;
+            if (aIdx === -1) return 1;
+            if (bIdx === -1) return -1;
+            return aIdx - bIdx;
+        });
+
+        const columnsContent = '<div class="sentiment-two-column show">' +
+            sortedCategories.map(function(cat) {
+                return renderYoutubeColumn(cat);
+            }).join('') +
+        '</div>';
+
+        categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
+            timeHeader +
+            columnsContent +
+        '</div>';
+    } else {
+        categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
+            timeHeader +
+            '<div class="sentiment-two-column show">' +
+                '<div class="sentiment-column">' +
+                    '<div class="sentiment-column-header">' +
+                        '<span class="sentiment-column-title">TV</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="sentiment-column">' +
+                    '<div class="sentiment-column-header">' +
+                        '<span class="sentiment-column-title">HHP</span>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
     }
 
-    return `
-        <div class="check-item">
-            <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
-                <div class="check-info">
-                    <div class="check-name">
-                        ${hasCategories ? '<span class="toggle-icon">▶</span>' : ''}
-                        ${check.name}
-                    </div>
-                    <div class="check-description">${check.description}</div>
-                </div>
-                <div class="check-criteria">
-                    <span class="criteria-item ok">정상: 100%+</span>
-                    <span class="criteria-item warning">주의: 90~99%</span>
-                    <span class="criteria-item critical">위험: 90%-</span>
-                </div>
-                <div class="check-stats">
-                    <div class="check-stat">
-                        <div class="value ${statusClass}">${rateDisplay}</div>
-                        <div class="label">수집률</div>
-                    </div>
-                    ${getStatusBadge(check.status)}
-                </div>
-            </div>
-            ${categoriesHtml}
-        </div>
-    `;
+    return '<div class="check-item">' +
+        '<div class="check-main" onclick="toggleTimeSlots(this, ' + checkIdx + ')">' +
+            '<div class="check-info">' +
+                '<div class="check-name">' +
+                    '<span class="toggle-icon">▶</span>' +
+                    check.name +
+                '</div>' +
+                '<div class="check-description">' + check.description + '</div>' +
+            '</div>' +
+            '<div class="check-criteria">' +
+                '<span class="criteria-item ok">정상: 100%+</span>' +
+                '<span class="criteria-item warning">주의: 90~99%</span>' +
+                '<span class="criteria-item critical">위험: 90%↓</span>' +
+            '</div>' +
+            '<div class="check-stats">' +
+                '<div class="check-stat">' +
+                    '<div class="value ' + statusClass + '">' + rateDisplay + '</div>' +
+                    '<div class="label">수집률</div>' +
+                '</div>' +
+                getStatusBadge(check.status) +
+            '</div>' +
+        '</div>' +
+        categoriesHtml +
+    '</div>';
+}
+
+function renderMarketTrendCategory(cat, checkIdx, catIdx) {
+    const catStatusClass = getStatusClass(cat.status);
+    const hasItems = cat.items && cat.items.length > 0;
+
+    // Event/News를 2열 레이아웃으로 표시
+    let itemsHtml = '';
+    if (hasItems) {
+        itemsHtml = '<div class="sentiment-two-column" id="market-cat-' + checkIdx + '-' + catIdx + '">' +
+            cat.items.map(item => {
+                const itemStatusClass = getStatusClass(item.status);
+                return '<div class="sentiment-column ' + itemStatusClass + '" onclick="openMarketTrendModal(\'' + cat.name + '\', \'' + item.name + '\')" style="cursor: pointer;">' +
+                    '<div class="sentiment-column-header">' +
+                        '<span class="sentiment-column-title">' + item.name + '</span>' +
+                        '<div class="sentiment-column-stats">' +
+                            '<span class="sentiment-column-count">' + item.collected.toLocaleString() + '/' + item.expected.toLocaleString() + '</span>' +
+                            '<span class="sentiment-column-rate ' + itemStatusClass + '">' + item.rate + '%</span>' +
+                            getStatusBadge(item.status) +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('') +
+        '</div>';
+    }
+
+    return '<div class="sentiment-category-item">' +
+        '<div class="sentiment-category-header" onclick="toggleMarketCategory(this, ' + checkIdx + ', ' + catIdx + ')">' +
+            '<div class="sentiment-category-info">' +
+                '<span class="toggle-icon-small">▶</span>' +
+                '<span class="sentiment-category-name">' + cat.name + '</span>' +
+            '</div>' +
+            '<div class="sentiment-category-stats">' +
+                '<span class="sentiment-category-count">' + cat.total.toLocaleString() + '/' + cat.expected.toLocaleString() + '</span>' +
+                '<span class="sentiment-category-rate ' + catStatusClass + '">' + cat.rate + '%</span>' +
+                getStatusBadge(cat.status) +
+            '</div>' +
+        '</div>' +
+        itemsHtml +
+    '</div>';
+}
+
+function toggleMarketCategory(element, checkIdx, catIdx) {
+    const container = document.getElementById('market-cat-' + checkIdx + '-' + catIdx);
+    const icon = element.querySelector('.toggle-icon-small');
+
+    if (container) {
+        container.classList.toggle('show');
+        if (icon) {
+            icon.classList.toggle('expanded');
+        }
+    }
 }
 
 function renderMarketTrendCheck(check, checkIdx) {
     const hasCategories = check.categories && check.categories.length > 0;
     const statusClass = getStatusClass(check.status);
 
-    // TV, HHP 그룹별로 분리
+    // 수집 시간 정보
+    const utcTime = check.utc_time ? check.utc_time.split(' ')[1] || check.utc_time : '04:00';
+    const krTime = check.kr_time ? check.kr_time.split(' ')[1] || check.kr_time : '13:00';
+
+    const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
+        '<div class="time-slot-header" style="cursor: default;">' +
+            '<div class="time-slot-info">' +
+                '<span class="time-slot-name">수집 시간</span>' +
+                '<span class="time-slot-time">' +
+                    '<span class="utc">UTC ' + utcTime + '</span>' +
+                    '<span class="kst">KST ' + krTime + '</span>' +
+                '</span>' +
+            '</div>' +
+        '</div>' +
+    '</div>';
+
     let categoriesHtml = '';
     if (hasCategories) {
-        // product_line별로 그룹화
-        const tvCategories = check.categories.filter(c => c.product_line === 'TV');
-        const hhpCategories = check.categories.filter(c => c.product_line === 'HHP');
-
-        const renderGroup = (groupName, categories) => {
-            if (categories.length === 0) return '';
-            return `
-                <div class="market-group">
-                    <div class="market-group-header">${groupName}</div>
-                    <div class="market-items">
-                        ${categories.map(cat => {
-                            return `
-                                <div class="retailer-card ${getRetailerStatusClass(cat.status)}">
-                                    <div class="retailer-name">
-                                        ${cat.content_type}
-                                        ${getStatusBadge(cat.status)}
-                                    </div>
-                                    <div class="retailer-stats">
-                                        <span class="retailer-count">${cat.collected.toLocaleString()} / ${cat.expected.toLocaleString()}</span>
-                                        <span class="retailer-rate ${getRetailerStatusClass(cat.status)}">${cat.rate}%</span>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-            `;
-        };
-
-        categoriesHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                <div class="market-groups">
-                    ${renderGroup('TV', tvCategories)}
-                    ${renderGroup('HHP', hhpCategories)}
-                </div>
-            </div>
-        `;
+        categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
+            timeHeader +
+            '<div class="sentiment-categories">' +
+                check.categories.map((cat, catIdx) => renderMarketTrendCategory(cat, checkIdx, catIdx)).join('') +
+            '</div>' +
+        '</div>';
     }
 
-    return `
-        <div class="check-item">
-            <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
-                <div class="check-info">
-                    <div class="check-name">
-                        ${hasCategories ? '<span class="toggle-icon">▶</span>' : ''}
-                        ${check.name}
-                    </div>
-                    <div class="check-description">${check.description}</div>
-                </div>
-                <div class="check-criteria">
-                    <span class="criteria-item ok">정상: 100%</span>
-                    <span class="criteria-item warning">주의: 90%↑</span>
-                    <span class="criteria-item critical">심각: 90%↓</span>
-                </div>
-                <div class="check-stats">
-                    <div class="check-stat">
-                        <div class="value ${statusClass}">${check.rate}%</div>
-                        <div class="label">수집률</div>
-                    </div>
-                    ${getStatusBadge(check.status)}
-                </div>
-            </div>
-            ${categoriesHtml}
-        </div>
-    `;
+    return '<div class="check-item">' +
+        '<div class="check-main" onclick="toggleTimeSlots(this, ' + checkIdx + ')">' +
+            '<div class="check-info">' +
+                '<div class="check-name">' +
+                    '<span class="toggle-icon">▶</span>' +
+                    check.name +
+                '</div>' +
+                '<div class="check-description">' + check.description + '</div>' +
+            '</div>' +
+            '<div class="check-criteria">' +
+                '<span class="criteria-item ok">정상: 100%</span>' +
+                '<span class="criteria-item warning">주의: 90%↑</span>' +
+                '<span class="criteria-item critical">심각: 90%↓</span>' +
+            '</div>' +
+            '<div class="check-stats">' +
+                '<div class="check-stat">' +
+                    '<div class="value ' + statusClass + '">' + check.rate + '%</div>' +
+                    '<div class="label">수집률</div>' +
+                '</div>' +
+                getStatusBadge(check.status) +
+            '</div>' +
+        '</div>' +
+        categoriesHtml +
+    '</div>';
 }
 
 function renderMarketCompetitorCheck(check, checkIdx) {
@@ -1285,28 +2714,49 @@ function renderMarketCompetitorCheck(check, checkIdx) {
         });
     }
 
+    // 시간 헤더
+    const timeHeader = `
+        <div class="time-slot-item" style="margin-bottom: 16px;">
+            <div class="time-slot-header" style="cursor: default;">
+                <div class="time-slot-info">
+                    <span class="time-slot-name">${quarterDisplay}</span>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // TV, HHP 순서로 정렬
+    const sortOrder = ['TV', 'HHP'];
+    const sortedCategories = hasCategories ? [...check.categories].sort((a, b) => {
+        const aIdx = sortOrder.indexOf(a.category);
+        const bIdx = sortOrder.indexOf(b.category);
+        if (aIdx === -1 && bIdx === -1) return 0;
+        if (aIdx === -1) return 1;
+        if (bIdx === -1) return -1;
+        return aIdx - bIdx;
+    }) : [];
+
     let categoriesHtml = '';
     if (hasCategories) {
         categoriesHtml = `
             <div class="time-slots-container" id="time-slots-${checkIdx}">
-                <div style="padding: 12px 16px; font-size: 14px; font-weight: 600; color: var(--color-text); border-bottom: 1px solid var(--color-border);">
-                    ${quarterDisplay}
-                </div>
-                <div class="market-groups">
-                    ${check.categories.map(cat => {
+                ${timeHeader}
+                <div class="sentiment-two-column show">
+                    ${sortedCategories.map(cat => {
+                        // 분석대상일이 아니면 pending 상태로 표시
+                        const displayStatus = isTargetDate ? cat.status : 'PENDING';
+                        const catStatusClass = getStatusClass(displayStatus);
+                        const statusBadgeHtml = isTargetDate ? getStatusBadge(cat.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
                         return `
-                            <div class="market-group">
-                                <div class="market-group-header">${cat.category}</div>
-                                <div class="market-items">
-                                    <div class="retailer-card ${getRetailerStatusClass(cat.status)}">
-                                        <div class="retailer-name">
-                                            경쟁품 분석
-                                            ${getStatusBadge(cat.status)}
-                                        </div>
-                                        <div class="retailer-stats">
-                                            <span class="retailer-count">${cat.collected.toLocaleString()} / ${cat.expected.toLocaleString()}</span>
-                                            <span class="retailer-rate ${getRetailerStatusClass(cat.status)}">${cat.rate}%</span>
-                                        </div>
+                            <div class="sentiment-column ${catStatusClass}"
+                                 style="cursor: pointer;"
+                                 title="${cat.category} 경쟁품 분석">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${cat.category}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.expected.toLocaleString()}</span>
+                                        <span class="sentiment-column-rate ${catStatusClass}">${cat.rate}%</span>
+                                        ${statusBadgeHtml}
                                     </div>
                                 </div>
                             </div>
@@ -1318,6 +2768,32 @@ function renderMarketCompetitorCheck(check, checkIdx) {
                         배치: ${check.batch_id} | 마지막 실행: ${lastRunDisplay || 'N/A'}
                     </div>
                 ` : ''}
+            </div>
+        `;
+    } else {
+        // 카테고리가 없을 때 - 기본 카테고리(TV, HHP)를 표시
+        const defaultCategories = ['TV', 'HHP'];
+        categoriesHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${timeHeader}
+                <div class="sentiment-two-column show">
+                    ${defaultCategories.map(catName => {
+                        return `
+                            <div class="sentiment-column pending"
+                                 style="cursor: pointer;"
+                                 title="${catName} 경쟁품 분석">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${catName}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">0/0</span>
+                                        <span class="sentiment-column-rate pending">0%</span>
+                                        <span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
             </div>
         `;
     }
@@ -1332,9 +2808,10 @@ function renderMarketCompetitorCheck(check, checkIdx) {
             ${getStatusBadge(check.status)}
         `
         : `
-            <div class="check-stat">
-                <div class="value" style="font-size: 14px; color: var(--color-text-muted);">분석대상일 아님</div>
-            </div>
+            <span class="status-badge pending">
+                <span class="status-dot"></span>
+                분석대상일 아님
+            </span>
         `;
 
     return `
@@ -1342,7 +2819,7 @@ function renderMarketCompetitorCheck(check, checkIdx) {
             <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
                 <div class="check-info">
                     <div class="check-name">
-                        ${hasCategories ? '<span class="toggle-icon">▶</span>' : ''}
+                        <span class="toggle-icon">▶</span>
                         ${check.name}
                     </div>
                     <div class="check-description">${check.description}</div>
@@ -1386,28 +2863,49 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
         });
     }
 
+    // 시간 헤더
+    const timeHeader = `
+        <div class="time-slot-item" style="margin-bottom: 16px;">
+            <div class="time-slot-header" style="cursor: default;">
+                <div class="time-slot-info">
+                    <span class="time-slot-name">${monthDisplay}</span>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // TV, HHP 순서로 정렬
+    const sortOrder = ['TV', 'HHP'];
+    const sortedCategories = hasCategories ? [...check.categories].sort((a, b) => {
+        const aIdx = sortOrder.indexOf(a.category);
+        const bIdx = sortOrder.indexOf(b.category);
+        if (aIdx === -1 && bIdx === -1) return 0;
+        if (aIdx === -1) return 1;
+        if (bIdx === -1) return -1;
+        return aIdx - bIdx;
+    }) : [];
+
     let categoriesHtml = '';
     if (hasCategories) {
         categoriesHtml = `
             <div class="time-slots-container" id="time-slots-${checkIdx}">
-                <div style="padding: 12px 16px; font-size: 14px; font-weight: 600; color: var(--color-text); border-bottom: 1px solid var(--color-border);">
-                    ${monthDisplay}
-                </div>
-                <div class="market-groups">
-                    ${check.categories.map(cat => {
+                ${timeHeader}
+                <div class="sentiment-two-column show">
+                    ${sortedCategories.map(cat => {
+                        // 분석대상일이 아니면 pending 상태로 표시
+                        const displayStatus = isTargetDate ? cat.status : 'PENDING';
+                        const catStatusClass = getStatusClass(displayStatus);
+                        const statusBadgeHtml = isTargetDate ? getStatusBadge(cat.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
                         return `
-                            <div class="market-group">
-                                <div class="market-group-header">${cat.category}</div>
-                                <div class="market-items">
-                                    <div class="retailer-card ${getRetailerStatusClass(cat.status)}">
-                                        <div class="retailer-name">
-                                            이벤트 분석
-                                            ${getStatusBadge(cat.status)}
-                                        </div>
-                                        <div class="retailer-stats">
-                                            <span class="retailer-count">${cat.collected.toLocaleString()} / ${cat.expected.toLocaleString()}</span>
-                                            <span class="retailer-rate ${getRetailerStatusClass(cat.status)}">${cat.rate}%</span>
-                                        </div>
+                            <div class="sentiment-column ${catStatusClass}"
+                                 style="cursor: pointer;"
+                                 title="${cat.category} 이벤트 분석">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${cat.category}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.expected.toLocaleString()}</span>
+                                        <span class="sentiment-column-rate ${catStatusClass}">${cat.rate}%</span>
+                                        ${statusBadgeHtml}
                                     </div>
                                 </div>
                             </div>
@@ -1419,6 +2917,32 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
                         배치: ${check.batch_id} | 마지막 실행: ${lastRunDisplay || 'N/A'}
                     </div>
                 ` : ''}
+            </div>
+        `;
+    } else {
+        // 카테고리가 없을 때 - 기본 카테고리(TV, HHP)를 표시
+        const defaultCategories = ['TV', 'HHP'];
+        categoriesHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${timeHeader}
+                <div class="sentiment-two-column show">
+                    ${defaultCategories.map(catName => {
+                        return `
+                            <div class="sentiment-column pending"
+                                 style="cursor: pointer;"
+                                 title="${catName} 이벤트 분석">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${catName}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">0/0</span>
+                                        <span class="sentiment-column-rate pending">0%</span>
+                                        <span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
             </div>
         `;
     }
@@ -1433,9 +2957,10 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
             ${getStatusBadge(check.status)}
         `
         : `
-            <div class="check-stat">
-                <div class="value" style="font-size: 14px; color: var(--color-text-muted);">분석대상일 아님</div>
-            </div>
+            <span class="status-badge pending">
+                <span class="status-dot"></span>
+                분석대상일 아님
+            </span>
         `;
 
     return `
@@ -1443,7 +2968,7 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
             <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
                 <div class="check-info">
                     <div class="check-name">
-                        ${hasCategories ? '<span class="toggle-icon">▶</span>' : ''}
+                        <span class="toggle-icon">▶</span>
                         ${check.name}
                     </div>
                     <div class="check-description">${check.description}</div>
@@ -1466,49 +2991,56 @@ function renderMarketDemandCheck(check, checkIdx) {
     const statusClass = getStatusClass(check.status);
     const hasCategories = check.categories && check.categories.length > 0;
 
-    // 프로그레스바 렌더링 함수
-    const renderProgressBar = (collected, target, status) => {
-        const pct = target > 0 ? Math.min(100, (collected / target) * 100) : 0;
-        const barClass = status === 'OK' ? 'ok' : status === 'WARNING' ? 'warning' : 'critical';
-        return `
-            <div class="demand-progress-bar">
-                <div class="demand-progress-fill ${barClass}" style="width: ${pct}%"></div>
+    // 수집 시간 헤더 (Market Trend와 동일)
+    const timeHeader = `
+        <div class="time-slot-item" style="margin-bottom: 16px;">
+            <div class="time-slot-header" style="cursor: default;">
+                <div class="time-slot-info">
+                    <span class="time-slot-name">수집 시간</span>
+                    <span class="time-slot-time">
+                        <span class="utc">UTC 23:00</span>
+                        <span class="kst">KST 08:00</span>
+                    </span>
+                </div>
             </div>
-        `;
-    };
+        </div>
+    `;
 
     let contentHtml = '';
+    const isPending = check.status === 'PENDING';
+    const isCollecting = check.status === 'COLLECTING';
+
     if (hasCategories) {
+        // TV, HHP 순서로 정렬
+        const sortOrder = ['TV', 'HHP'];
+        const sortedCategories = [...check.categories].sort((a, b) => {
+            const aIdx = sortOrder.indexOf(a.category);
+            const bIdx = sortOrder.indexOf(b.category);
+            if (aIdx === -1 && bIdx === -1) return 0;
+            if (aIdx === -1) return 1;
+            if (bIdx === -1) return -1;
+            return aIdx - bIdx;
+        });
+
         contentHtml = `
             <div class="time-slots-container" id="time-slots-${checkIdx}">
-                <div class="demand-container">
-                    <div class="demand-section" style="flex: 1;">
-                        <table class="demand-table">
-                            <thead>
-                                <tr>
-                                    <th>카테고리</th>
-                                    <th>수집 결과</th>
-                                    <th>대상 키워드</th>
-                                    <th>완료율</th>
-                                    <th>상태</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${check.categories.map(cat => `
-                                    <tr>
-                                        <td class="demand-category">${cat.category}</td>
-                                        <td class="demand-progress-cell">
-                                            ${renderProgressBar(cat.collected, cat.target, cat.status)}
-                                            <span class="demand-count">${cat.collected}</span>
-                                        </td>
-                                        <td class="demand-target">${cat.target}</td>
-                                        <td class="demand-rate ${getStatusClass(cat.status)}">${cat.rate}%</td>
-                                        <td>${getStatusBadge(cat.status)}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                ${timeHeader}
+                <div class="sentiment-two-column show">
+                    ${sortedCategories.map((cat, catIdx) => {
+                        const catStatusClass = getStatusClass(cat.status);
+                        return `
+                            <div class="sentiment-column ${catStatusClass}" onclick="openMarketDemandModal('${cat.category}')" style="cursor: pointer;">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${cat.category}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.target.toLocaleString()}</span>
+                                        <span class="sentiment-column-rate ${catStatusClass}">${cat.rate}%</span>
+                                        ${getStatusBadge(cat.status)}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
@@ -1530,6 +3062,10 @@ function renderMarketDemandCheck(check, checkIdx) {
                     <span class="criteria-item critical">위험: 70% 미만</span>
                 </div>
                 <div class="check-stats">
+                    <div class="check-stat">
+                        <div class="value ${statusClass}">${check.rate || 0}%</div>
+                        <div class="label">수집률</div>
+                    </div>
                     ${getStatusBadge(check.status)}
                 </div>
             </div>
@@ -1543,78 +3079,97 @@ function renderMarketPromotionCheck(check, checkIdx) {
     const statusClass = getStatusClass(check.status);
     const isTargetDate = check.is_target_date;
 
-    // 프로그레스바 렌더링 함수
-    const renderProgressBar = (collected, expected, status) => {
-        const pct = expected > 0 ? Math.min(100, (collected / expected) * 100) : 0;
-        const barClass = status === 'OK' ? 'ok' : status === 'WARNING' ? 'warning' : status === 'PENDING' ? 'pending' : 'critical';
-        return `
-            <div class="demand-progress-bar">
-                <div class="demand-progress-fill ${barClass}" style="width: ${pct}%"></div>
+    // 수집률 표시
+    const rateDisplay = `${check.rate || 0}%`;
+
+    // 시간 헤더 (YouTube와 동일한 스타일)
+    const timeHeader = `
+        <div class="time-slot-item" style="margin-bottom: 16px;">
+            <div class="time-slot-header" style="cursor: default;">
+                <div class="time-slot-info">
+                    <span class="time-slot-name">수집 시간</span>
+                    <span class="time-slot-time">
+                        <span class="utc">UTC 18:00</span>
+                        <span class="kst">KST +1 03:00</span>
+                    </span>
+                    <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">(매주 월요일)</span>
+                </div>
             </div>
-        `;
-    };
+        </div>
+    `;
 
     let contentHtml = '';
+    const isPending = check.status === 'PENDING';
+    const isCollecting = check.status === 'COLLECTING';
+
     if (hasRetailers) {
+        // retailer가 있으면 항상 카드 표시 (분석대상일 여부와 관계없이)
         contentHtml = `
             <div class="time-slots-container" id="time-slots-${checkIdx}">
-                <div style="padding: 12px 16px; font-size: 14px; font-weight: 600; color: var(--color-text); border-bottom: 1px solid var(--color-border);">
-                    대상 이벤트: ${check.event_count}개 (9주 이내) × 7개 리테일러 = ${check.expected}건 예상
-                </div>
-                <div class="demand-container">
-                    <div class="demand-section" style="flex: 1;">
-                        <table class="demand-table">
-                            <thead>
-                                <tr>
-                                    <th>리테일러</th>
-                                    <th>수집 결과</th>
-                                    <th>대상 이벤트</th>
-                                    <th>완료율</th>
-                                    <th>상태</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${check.retailers.map(r => `
-                                    <tr>
-                                        <td class="demand-category">${r.retailer}</td>
-                                        <td class="demand-progress-cell">
-                                            ${renderProgressBar(r.collected, r.expected, r.status)}
-                                            <span class="demand-count">${r.collected}</span>
-                                        </td>
-                                        <td class="demand-target">${r.expected}</td>
-                                        <td class="demand-rate ${getStatusClass(r.status)}">${r.rate}%</td>
-                                        <td>${getStatusBadge(r.status)}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                ${timeHeader}
+                <div class="sentiment-two-column show">
+                    ${check.retailers.map(r => {
+                        // 분석대상일이 아니면 pending으로 표시
+                        const displayStatus = isTargetDate ? r.status : 'PENDING';
+                        const retailerStatusClass = getStatusClass(displayStatus);
+                        // 분석대상일이 아니면 "분석대상일 아님" 배지 표시
+                        const statusBadgeHtml = isTargetDate ? getStatusBadge(r.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
+                        return `
+                            <div class="sentiment-column ${retailerStatusClass}"
+                                 style="cursor: pointer;"
+                                 onclick="openMarketPromotionModal('${r.retailer}')"
+                                 title="클릭하여 ${r.retailer} 데이터 보기">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${r.retailer}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">${r.collected.toLocaleString()}/${r.expected.toLocaleString()}</span>
+                                        <span class="sentiment-column-rate ${retailerStatusClass}">${r.rate || 0}%</span>
+                                        ${statusBadgeHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             </div>
         `;
     }
 
     // 분석률 또는 분석대상일 아님 표시
-    const statsHtml = isTargetDate
-        ? `
+    let statsHtml;
+    if (!isTargetDate) {
+        // 분석대상일 아님
+        statsHtml = `
+            <span class="status-badge pending">
+                <span class="status-dot"></span>
+                분석대상일 아님
+            </span>
+        `;
+    } else if (isPending) {
+        // 분석대상일이지만 수집 시작 전
+        statsHtml = `
+            <span class="status-badge pending">
+                <span class="status-dot"></span>
+                대기중
+            </span>
+        `;
+    } else {
+        // 수집 중이거나 완료
+        statsHtml = `
             <div class="check-stat">
-                <div class="value ${statusClass}">${check.rate}%</div>
+                <div class="value ${statusClass}">${rateDisplay}</div>
                 <div class="label">수집률</div>
             </div>
             ${getStatusBadge(check.status)}
-        `
-        : `
-            <div class="check-stat">
-                <div class="value" style="font-size: 14px; color: var(--color-text-muted);">분석대상일 아님 (매주 월요일)</div>
-            </div>
         `;
+    }
 
     return `
         <div class="check-item">
             <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
                 <div class="check-info">
                     <div class="check-name">
-                        ${hasRetailers ? '<span class="toggle-icon">▶</span>' : ''}
+                        <span class="toggle-icon">▶</span>
                         ${check.name}
                     </div>
                     <div class="check-description">${check.description}</div>
@@ -1635,6 +3190,1854 @@ function renderMarketPromotionCheck(check, checkIdx) {
 
 function loadAllData() {
     loadStats();
+}
+
+// ============================================================
+// Raw Data Popup Modal
+// ============================================================
+
+let rawDataState = {
+    data: [],
+    columns: [],
+    sortColumn: null,
+    sortDirection: null, // 'asc' or 'desc'
+    originalData: []
+};
+
+function openRawDataModal(category, retailer, period) {
+    const modal = document.getElementById('rawDataModal');
+    const titleEl = document.getElementById('rawDataModalTitle');
+    const subtitleEl = document.getElementById('rawDataModalSubtitle');
+    const countEl = document.getElementById('rawDataCount');
+    const wrapperEl = document.getElementById('rawDataTableWrapper');
+    const currentDate = document.getElementById('target-date').value;
+
+    // 모달 표시
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    // 제목 설정
+    titleEl.textContent = category + ' Retail - ' + retailer;
+    subtitleEl.textContent = currentDate + ' ' + period;
+    countEl.innerHTML = '';
+
+    // 로딩 표시
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    // 상태 초기화
+    rawDataState = {
+        data: [],
+        columns: [],
+        sortColumn: null,
+        sortDirection: null,
+        originalData: []
+    };
+
+    // API 호출
+    const url = '/layer1/api/retailer-raw-data/?category=' + encodeURIComponent(category) +
+                '&retailer=' + encodeURIComponent(retailer) +
+                '&period=' + encodeURIComponent(period) +
+                '&date=' + encodeURIComponent(currentDate);
+
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(result) {
+            if (result.error) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + result.error + '</div>';
+                return;
+            }
+
+            if (!result.data || result.data.length === 0) {
+                countEl.innerHTML = '총 <strong>0</strong>건';
+                wrapperEl.innerHTML = '<div class="raw-data-empty">데이터가 없습니다.</div>';
+                return;
+            }
+
+            rawDataState.columns = result.columns;
+            // id(첫번째 컬럼) 기준 오름차순 정렬
+            rawDataState.data = result.data.slice().sort(function(a, b) {
+                return a[0] - b[0];
+            });
+            rawDataState.originalData = rawDataState.data.slice();
+            rawDataState.sortColumn = 0;
+            rawDataState.sortDirection = 'asc';
+
+            countEl.innerHTML = '총 <strong>' + result.total_count + '</strong>건' + (result.total_count > 500 ? ' (최대 500건 표시)' : '');
+
+            renderRawDataTable();
+        })
+        .catch(function(error) {
+            wrapperEl.innerHTML = '<div class="raw-data-empty">데이터를 불러오는데 실패했습니다.</div>';
+            console.error('Error:', error);
+        });
+}
+
+function closeRawDataModal() {
+    const modal = document.getElementById('rawDataModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+let rawDataRenderedCount = 0;
+const RAW_DATA_BATCH_SIZE = 50;
+
+// 공통 컬럼 기본 너비
+var DEFAULT_COL_WIDTH = 150;
+var MIN_COL_WIDTH = 50;
+
+function renderRawDataTable() {
+    const wrapperEl = document.getElementById('rawDataTableWrapper');
+    const columns = ['No.'].concat(rawDataState.columns);
+
+    rawDataRenderedCount = 0;
+
+    // colgroup 생성
+    let colgroupHtml = '<colgroup><col style="width: 50px;">';
+    for (let i = 0; i < rawDataState.columns.length; i++) {
+        colgroupHtml += '<col style="width: ' + DEFAULT_COL_WIDTH + 'px;">';
+    }
+    colgroupHtml += '</colgroup>';
+
+    const parts = ['<table class="raw-data-table" id="rawDataTable">', colgroupHtml, '<thead><tr>'];
+
+    // 헤더 (No. 열은 정렬 없음)
+    parts.push('<th>No.<div class="column-resizer" onmousedown="startResize(event, 0)"></div></th>');
+    for (let i = 0; i < rawDataState.columns.length; i++) {
+        const sortClass = rawDataState.sortColumn === i
+            ? (rawDataState.sortDirection === 'asc' ? 'sort-asc' : 'sort-desc')
+            : '';
+        parts.push('<th class="', sortClass, '" onclick="sortByColumn(', i, ')">', rawDataState.columns[i], '<div class="column-resizer" onmousedown="event.stopPropagation(); startResize(event,', i + 1, ')"></div></th>');
+    }
+    parts.push('</tr></thead><tbody id="rawDataTbody"></tbody></table>');
+
+    wrapperEl.innerHTML = parts.join('');
+
+    // 첫 배치 렌더링
+    renderMoreRows();
+
+    // 스크롤 이벤트
+    wrapperEl.onscroll = function() {
+        if (wrapperEl.scrollTop + wrapperEl.clientHeight >= wrapperEl.scrollHeight - 100) {
+            renderMoreRows();
+        }
+    };
+}
+
+function renderMoreRows() {
+    const tbody = document.getElementById('rawDataTbody');
+    if (!tbody) return;
+
+    const data = rawDataState.data;
+    const end = Math.min(rawDataRenderedCount + RAW_DATA_BATCH_SIZE, data.length);
+
+    if (rawDataRenderedCount >= end) return;
+
+    const parts = [];
+    for (let r = rawDataRenderedCount; r < end; r++) {
+        const row = data[r];
+        parts.push('<tr>');
+        parts.push('<td>', r + 1, '</td>');  // 순번
+        for (let c = 0; c < row.length; c++) {
+            const v = row[c];
+            parts.push('<td>', (v === null || v === undefined) ? '' : v, '</td>');
+        }
+        parts.push('</tr>');
+    }
+
+    tbody.insertAdjacentHTML('beforeend', parts.join(''));
+    rawDataRenderedCount = end;
+}
+
+function sortByColumn(colIndex) {
+    if (rawDataState.sortColumn === colIndex) {
+        // 같은 컬럼 클릭: asc -> desc -> null
+        if (rawDataState.sortDirection === 'asc') {
+            rawDataState.sortDirection = 'desc';
+        } else if (rawDataState.sortDirection === 'desc') {
+            rawDataState.sortColumn = null;
+            rawDataState.sortDirection = null;
+            rawDataState.data = rawDataState.originalData.map(row => row.slice());
+            renderRawDataTable();
+            return;
+        }
+    } else {
+        // 다른 컬럼: asc로 시작
+        rawDataState.sortColumn = colIndex;
+        rawDataState.sortDirection = 'asc';
+    }
+
+    // 정렬 수행
+    rawDataState.data.sort(function(a, b) {
+        var valA = a[colIndex];
+        var valB = b[colIndex];
+
+        // null은 항상 마지막으로
+        var aIsNull = (valA === null || valA === undefined || valA === '');
+        var bIsNull = (valB === null || valB === undefined || valB === '');
+        if (aIsNull && bIsNull) return 0;
+        if (aIsNull) return 1;
+        if (bIsNull) return -1;
+
+        // 숫자 비교 시도
+        var numA = parseFloat(valA);
+        var numB = parseFloat(valB);
+
+        if (!isNaN(numA) && !isNaN(numB)) {
+            if (rawDataState.sortDirection === 'asc') {
+                return numA - numB;
+            } else {
+                return numB - numA;
+            }
+        }
+
+        // 문자열 비교
+        var strA = String(valA).toLowerCase();
+        var strB = String(valB).toLowerCase();
+
+        if (rawDataState.sortDirection === 'asc') {
+            return strA.localeCompare(strB);
+        } else {
+            return strB.localeCompare(strA);
+        }
+    });
+
+    renderRawDataTable();
+}
+
+function resetSort() {
+    rawDataState.sortColumn = null;
+    rawDataState.sortDirection = null;
+    rawDataState.data = rawDataState.originalData.map(row => row.slice());
+    renderRawDataTable();
+}
+
+// 열 크기 조정 기능
+let resizeState = {
+    isResizing: false,
+    columnIndex: null,
+    startX: 0,
+    startWidth: 0
+};
+
+function startResize(e, columnIndex) {
+    e.stopPropagation();
+    e.preventDefault();
+
+    var table = document.getElementById('rawDataTable');
+    if (!table) return;
+
+    var col = table.querySelectorAll('colgroup col')[columnIndex];
+    if (!col) return;
+
+    var th = table.querySelectorAll('th')[columnIndex];
+
+    resizeState.isResizing = true;
+    resizeState.columnIndex = columnIndex;
+    resizeState.startX = e.pageX;
+    resizeState.startWidth = parseInt(col.style.width) || DEFAULT_COL_WIDTH;
+
+    if (th) {
+        var resizer = th.querySelector('.column-resizer');
+        if (resizer) resizer.classList.add('resizing');
+    }
+
+    document.addEventListener('mousemove', doResize);
+    document.addEventListener('mouseup', stopResize);
+}
+
+function doResize(e) {
+    if (!resizeState.isResizing) return;
+
+    var table = document.getElementById('rawDataTable');
+    if (!table) return;
+
+    var col = table.querySelectorAll('colgroup col')[resizeState.columnIndex];
+    if (!col) return;
+
+    var diff = e.pageX - resizeState.startX;
+    var newWidth = Math.max(MIN_COL_WIDTH, resizeState.startWidth + diff);
+
+    col.style.width = newWidth + 'px';
+}
+
+function stopResize() {
+    if (!resizeState.isResizing) return;
+
+    var table = document.getElementById('rawDataTable');
+    if (table) {
+        var th = table.querySelectorAll('th')[resizeState.columnIndex];
+        if (th) {
+            var resizer = th.querySelector('.column-resizer');
+            if (resizer) resizer.classList.remove('resizing');
+        }
+    }
+
+    resizeState.isResizing = false;
+    resizeState.columnIndex = null;
+
+    document.removeEventListener('mousemove', doResize);
+    document.removeEventListener('mouseup', stopResize);
+}
+
+// 모달 외부 클릭 시 닫기
+document.addEventListener('click', function(e) {
+    var modal = document.getElementById('rawDataModal');
+    if (e.target === modal) {
+        closeRawDataModal();
+    }
+    var columnsModal = document.getElementById('columnsModal');
+    if (e.target === columnsModal) {
+        closeColumnsModal();
+    }
+    var sentimentModal = document.getElementById('sentimentModal');
+    if (e.target === sentimentModal) {
+        closeSentimentModal();
+    }
+    var youtubeModal = document.getElementById('youtubeModal');
+    if (e.target === youtubeModal) {
+        closeYoutubeModal();
+    }
+    var marketTrendModal = document.getElementById('marketTrendModal');
+    if (e.target === marketTrendModal) {
+        closeMarketTrendModal();
+    }
+});
+
+// ESC 키로 모달 닫기
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeRawDataModal();
+        closeColumnsModal();
+        closeSentimentModal();
+        closeYoutubeModal();
+        closeMarketTrendModal();
+    }
+});
+
+// ============================================================
+// Columns Info Modal
+// ============================================================
+var columnsData = null;
+var currentColumnsTab = 'tv';
+
+function openColumnsModal() {
+    var modal = document.getElementById('columnsModal');
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    if (!columnsData) {
+        loadColumnsData();
+    } else {
+        renderColumnsTable();
+    }
+}
+
+function closeColumnsModal() {
+    var modal = document.getElementById('columnsModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function switchColumnsTab(tab) {
+    currentColumnsTab = tab;
+
+    // 탭 버튼 활성화
+    var tabs = document.querySelectorAll('.columns-tab');
+    tabs.forEach(function(t) {
+        t.classList.remove('active');
+        if (t.textContent.toLowerCase() === tab) {
+            t.classList.add('active');
+        }
+    });
+
+    renderColumnsTable();
+}
+
+function loadColumnsData() {
+    fetch('/layer1/api/retailer-columns/')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            columnsData = data;
+            renderColumnsTable();
+        })
+        .catch(function(error) {
+            console.error('Error loading columns data:', error);
+        });
+}
+
+function renderColumnsTable() {
+    if (!columnsData) return;
+
+    var data = columnsData[currentColumnsTab];
+    var allColumns = data.all_columns;
+    var columnsByRetailer = data.columns;
+    var retailers = Object.keys(columnsByRetailer);
+
+    // 헤더 렌더링
+    var thead = document.getElementById('columnsTableHead');
+    var headerHtml = '<tr><th>컬럼명</th>';
+    retailers.forEach(function(retailer) {
+        headerHtml += '<th>' + retailer + '</th>';
+    });
+    headerHtml += '</tr>';
+    thead.innerHTML = headerHtml;
+
+    // 바디 렌더링
+    var tbody = document.getElementById('columnsTableBody');
+    var bodyHtml = '';
+
+    allColumns.forEach(function(col) {
+        bodyHtml += '<tr>';
+        bodyHtml += '<td>' + col + '</td>';
+        retailers.forEach(function(retailer) {
+            var hasColumn = columnsByRetailer[retailer].indexOf(col) !== -1;
+            if (hasColumn) {
+                bodyHtml += '<td class="col-check">O</td>';
+            } else {
+                bodyHtml += '<td class="col-empty">-</td>';
+            }
+        });
+        bodyHtml += '</tr>';
+    });
+
+    tbody.innerHTML = bodyHtml;
+}
+
+// ============================================================
+// Sentiment Raw Data Modal
+// ============================================================
+var sentimentDataState = {
+    columns: [],
+    data: [],
+    sortColumn: null,
+    sortDirection: 'asc'
+};
+var sentimentRenderedCount = 0;
+var SENTIMENT_BATCH_SIZE = 50;
+
+function openSentimentModal(category, retailer, period) {
+    var modal = document.getElementById('sentimentModal');
+    var titleEl = document.getElementById('sentimentModalTitle');
+    var subtitleEl = document.getElementById('sentimentModalSubtitle');
+    var countEl = document.getElementById('sentimentDataCount');
+    var wrapperEl = document.getElementById('sentimentTableWrapper');
+    var loadingEl = document.getElementById('sentimentLoading');
+
+    titleEl.textContent = category + ' ' + retailer + ' 감성분석';
+    subtitleEl.textContent = period;
+    countEl.innerHTML = '';
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading" id="sentimentLoading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    var currentDate = document.getElementById('target-date').value;
+    var url = '/layer1/api/sentiment-raw-data/?category=' + encodeURIComponent(category) +
+              '&retailer=' + encodeURIComponent(retailer) +
+              '&period=' + encodeURIComponent(period) +
+              '&date=' + encodeURIComponent(currentDate);
+
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.error) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                return;
+            }
+
+            sentimentDataState.columns = data.columns || [];
+            sentimentDataState.data = data.data || [];
+            sentimentDataState.sortColumn = 0;  // sentiment_id 기준 초기 정렬
+            sentimentDataState.sortDirection = 'asc';
+
+            countEl.innerHTML = '총 <strong>' + (data.total_count || 0).toLocaleString() + '</strong>건';
+
+            if (sentimentDataState.data.length === 0) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">데이터가 없습니다</div>';
+                return;
+            }
+
+            renderSentimentTable();
+        })
+        .catch(function(error) {
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+        });
+}
+
+function closeSentimentModal() {
+    var modal = document.getElementById('sentimentModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+// 컬럼별 기본 너비 설정
+var sentimentColumnWidths = {
+    'id': 80,
+    'retail_com_id': 120,
+    'item': 150,
+    'sentiment_score': 130,
+    'final_interpretation': 400,
+    'created_at': 180,
+    'batch_id': 150
+};
+
+function renderSentimentTable() {
+    var wrapperEl = document.getElementById('sentimentTableWrapper');
+    sentimentRenderedCount = 0;
+
+    // colgroup 생성
+    var colgroupHtml = '<colgroup><col style="width: 50px;">';
+    sentimentDataState.columns.forEach(function(col) {
+        var colWidth = sentimentColumnWidths[col] || DEFAULT_COL_WIDTH;
+        colgroupHtml += '<col style="width: ' + colWidth + 'px;">';
+    });
+    colgroupHtml += '</colgroup>';
+
+    var tableHtml = '<table class="raw-data-table" id="sentimentTable">' +
+        colgroupHtml +
+        '<thead><tr>' +
+        '<th>No.<div class="column-resizer" onmousedown="startSentimentResize(event, 0)"></div></th>';
+
+    sentimentDataState.columns.forEach(function(col, idx) {
+        tableHtml += '<th style="cursor: pointer; position: relative;" onclick="sortSentimentData(' + idx + ')">' +
+            '<span class="column-name">' + col + '</span>' +
+            '<span class="sort-indicator" id="sentiment-sort-' + idx + '"></span>' +
+            '<div class="column-resizer" onmousedown="event.stopPropagation(); startSentimentResize(event, ' + (idx + 1) + ')"></div>' +
+        '</th>';
+    });
+
+    tableHtml += '</tr></thead><tbody id="sentimentTbody"></tbody></table>';
+    wrapperEl.innerHTML = tableHtml;
+
+    updateSentimentSortIndicators();
+    renderMoreSentimentRows();
+
+    wrapperEl.addEventListener('scroll', function() {
+        if (wrapperEl.scrollTop + wrapperEl.clientHeight >= wrapperEl.scrollHeight - 100) {
+            renderMoreSentimentRows();
+        }
+    });
+}
+
+// 감성분석 테이블 컬럼 리사이즈
+var sentimentResizeState = {
+    isResizing: false,
+    columnIndex: null,
+    startX: 0,
+    startWidth: 0
+};
+
+function startSentimentResize(e, colIdx) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    var table = document.getElementById('sentimentTable');
+    if (!table) return;
+
+    var col = table.querySelectorAll('colgroup col')[colIdx];
+    if (!col) return;
+
+    var th = table.querySelectorAll('th')[colIdx];
+
+    sentimentResizeState.isResizing = true;
+    sentimentResizeState.columnIndex = colIdx;
+    sentimentResizeState.startX = e.pageX;
+    sentimentResizeState.startWidth = parseInt(col.style.width) || DEFAULT_COL_WIDTH;
+
+    if (th) {
+        var resizer = th.querySelector('.column-resizer');
+        if (resizer) resizer.classList.add('resizing');
+    }
+
+    document.addEventListener('mousemove', doSentimentResize);
+    document.addEventListener('mouseup', stopSentimentResize);
+}
+
+function doSentimentResize(e) {
+    if (!sentimentResizeState.isResizing) return;
+
+    var table = document.getElementById('sentimentTable');
+    if (!table) return;
+
+    var col = table.querySelectorAll('colgroup col')[sentimentResizeState.columnIndex];
+    if (!col) return;
+
+    var diff = e.pageX - sentimentResizeState.startX;
+    var newWidth = Math.max(MIN_COL_WIDTH, sentimentResizeState.startWidth + diff);
+
+    col.style.width = newWidth + 'px';
+}
+
+function stopSentimentResize() {
+    if (!sentimentResizeState.isResizing) return;
+
+    var table = document.getElementById('sentimentTable');
+    if (table) {
+        var th = table.querySelectorAll('th')[sentimentResizeState.columnIndex];
+        if (th) {
+            var resizer = th.querySelector('.column-resizer');
+            if (resizer) resizer.classList.remove('resizing');
+        }
+    }
+
+    sentimentResizeState.isResizing = false;
+    sentimentResizeState.columnIndex = null;
+
+    document.removeEventListener('mousemove', doSentimentResize);
+    document.removeEventListener('mouseup', stopSentimentResize);
+}
+
+function renderMoreSentimentRows() {
+    var tbody = document.getElementById('sentimentTbody');
+    if (!tbody) return;
+
+    var data = sentimentDataState.data;
+    var end = Math.min(sentimentRenderedCount + SENTIMENT_BATCH_SIZE, data.length);
+    if (sentimentRenderedCount >= end) return;
+
+    var parts = [];
+    for (var r = sentimentRenderedCount; r < end; r++) {
+        var row = data[r];
+        parts.push('<tr>');
+        parts.push('<td>', r + 1, '</td>');
+        for (var c = 0; c < row.length; c++) {
+            var v = row[c];
+            parts.push('<td>', (v === null || v === undefined) ? '' : v, '</td>');
+        }
+        parts.push('</tr>');
+    }
+    tbody.insertAdjacentHTML('beforeend', parts.join(''));
+    sentimentRenderedCount = end;
+}
+
+function sortSentimentData(colIdx) {
+    if (sentimentDataState.sortColumn === colIdx) {
+        sentimentDataState.sortDirection = sentimentDataState.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        sentimentDataState.sortColumn = colIdx;
+        sentimentDataState.sortDirection = 'asc';
+    }
+
+    var dir = sentimentDataState.sortDirection === 'asc' ? 1 : -1;
+
+    sentimentDataState.data.sort(function(a, b) {
+        var valA = a[colIdx];
+        var valB = b[colIdx];
+
+        var aIsNull = (valA === null || valA === undefined || valA === '');
+        var bIsNull = (valB === null || valB === undefined || valB === '');
+
+        if (aIsNull && bIsNull) return 0;
+        if (aIsNull) return 1;
+        if (bIsNull) return -1;
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return (valA - valB) * dir;
+        }
+
+        var strA = String(valA);
+        var strB = String(valB);
+
+        var numA = parseFloat(strA.replace(/[^0-9.-]/g, ''));
+        var numB = parseFloat(strB.replace(/[^0-9.-]/g, ''));
+
+        if (!isNaN(numA) && !isNaN(numB)) {
+            return (numA - numB) * dir;
+        }
+
+        return strA.localeCompare(strB) * dir;
+    });
+
+    renderSentimentTable();
+}
+
+function updateSentimentSortIndicators() {
+    sentimentDataState.columns.forEach(function(col, idx) {
+        var indicator = document.getElementById('sentiment-sort-' + idx);
+        if (indicator) {
+            if (idx === sentimentDataState.sortColumn) {
+                indicator.textContent = sentimentDataState.sortDirection === 'asc' ? ' ▲' : ' ▼';
+            } else {
+                indicator.textContent = '';
+            }
+        }
+    });
+}
+
+function resetSentimentSort() {
+    sentimentDataState.sortColumn = 0;
+    sentimentDataState.sortDirection = 'asc';
+
+    sentimentDataState.data.sort(function(a, b) {
+        return a[0] - b[0];
+    });
+
+    renderSentimentTable();
+}
+
+// ============================================================
+// Retail Summary Modal (상세 현황)
+// ============================================================
+var currentSummaryTab = 'tv';
+var summaryCache = {};
+
+function openSummaryModal() {
+    var modal = document.getElementById('summaryModal');
+    var currentDate = document.getElementById('target-date').value;
+
+    document.getElementById('summaryModalTitle').textContent = 'Retail 상세 현황';
+    document.getElementById('summaryModalDate').value = currentDate;
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    // 캐시 초기화
+    summaryCache = {};
+
+    // TV 탭 활성화
+    currentSummaryTab = 'tv';
+    document.getElementById('summaryTabTv').classList.add('active');
+    document.getElementById('summaryTabHhp').classList.remove('active');
+
+    loadSummaryData('tv');
+}
+
+function closeSummaryModal(event) {
+    if (event && event.target !== event.currentTarget) return;
+    var modal = document.getElementById('summaryModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function onSummaryDateChange() {
+    // 날짜 변경 시 캐시 초기화 후 현재 탭 다시 로드
+    summaryCache = {};
+    loadSummaryData(currentSummaryTab);
+}
+
+function switchSummaryTab(tab) {
+    currentSummaryTab = tab;
+
+    document.getElementById('summaryTabTv').classList.toggle('active', tab === 'tv');
+    document.getElementById('summaryTabHhp').classList.toggle('active', tab === 'hhp');
+
+    if (summaryCache[tab]) {
+        renderSummaryContent(summaryCache[tab]);
+    } else {
+        loadSummaryData(tab);
+    }
+}
+
+function loadSummaryData(type) {
+    var bodyEl = document.getElementById('summaryModalBody');
+    var currentDate = document.getElementById('summaryModalDate').value;
+
+    bodyEl.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">데이터를 불러오는 중...</div>';
+
+    var url = '/layer1/api/retail-summary/?type=' + type + '&date=' + currentDate;
+
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.error) {
+                bodyEl.innerHTML = '<div style="text-align: center; padding: 40px; color: red;">오류: ' + data.error + '</div>';
+                return;
+            }
+
+            summaryCache[type] = data;
+            renderSummaryContent(data);
+        })
+        .catch(function(error) {
+            bodyEl.innerHTML = '<div style="text-align: center; padding: 40px; color: red;">데이터를 불러오는데 실패했습니다.</div>';
+            console.error('Error:', error);
+        });
+}
+
+function renderSummaryContent(data) {
+    var bodyEl = document.getElementById('summaryModalBody');
+
+    var html = '';
+
+    // 데이터 테이블 섹션
+    html += '<div class="summary-section">';
+    html += '<div class="summary-section-title">';
+    html += '<span class="summary-section-icon">' + (data.product_line === 'TV' ? '📺' : '📱') + '</span>';
+    html += data.product_line;
+    html += '</div>';
+
+    html += '<table class="summary-table">';
+    html += '<thead><tr>';
+    html += '<th>리테일러</th>';
+    html += '<th>시간대</th>';
+    html += '<th>Main</th>';
+    html += '<th>BSR</th>';
+    html += '<th>' + data.extra_rank_name + '</th>';
+    html += '<th>총 건수</th>';
+    html += '<th>소계</th>';
+    html += '</tr></thead>';
+    html += '<tbody>';
+
+    var amTotal = 0;
+    var pmTotal = 0;
+    var mainTotal = 0;
+    var bsrTotal = 0;
+    var extraTotal = 0;
+
+    data.summary.forEach(function(retailer) {
+        var rowCount = retailer.rows.length;
+        var isFirstRow = true;
+
+        retailer.rows.forEach(function(row, idx) {
+            html += '<tr>';
+
+            if (isFirstRow) {
+                html += '<td class="retailer-cell" rowspan="' + rowCount + '">' + retailer.retailer + '</td>';
+                isFirstRow = false;
+            }
+
+            html += '<td>' + row.time_slot + '</td>';
+            html += '<td>' + row.main.toLocaleString() + '</td>';
+            html += '<td>' + row.bsr.toLocaleString() + '</td>';
+            html += '<td>' + row.extra.toLocaleString() + '</td>';
+            html += '<td>' + row.total.toLocaleString() + '</td>';
+
+            if (idx === 0) {
+                html += '<td rowspan="' + rowCount + '" style="font-weight: 600;">' + retailer.total.toLocaleString() + '</td>';
+            }
+
+            html += '</tr>';
+
+            // 합계 계산
+            mainTotal += row.main;
+            bsrTotal += row.bsr;
+            extraTotal += row.extra;
+            if (row.time_slot === '오전') amTotal += row.total;
+            else pmTotal += row.total;
+        });
+    });
+
+    // 합계 행
+    html += '<tr class="total-row">';
+    html += '<td colspan="2" style="text-align: center; font-weight: 700;">합계</td>';
+    html += '<td>' + mainTotal.toLocaleString() + '</td>';
+    html += '<td>' + bsrTotal.toLocaleString() + '</td>';
+    html += '<td>' + extraTotal.toLocaleString() + '</td>';
+    html += '<td>' + data.totals.grand_total.toLocaleString() + '</td>';
+    html += '<td></td>';
+    html += '</tr>';
+
+    html += '</tbody></table>';
+    html += '</div>';
+
+    // NULL 컬럼 현황 섹션
+    if (data.null_columns && data.null_columns.length > 0) {
+        html += '<div class="summary-section">';
+        html += '<div class="summary-section-title">';
+        html += '<span class="summary-section-icon">⚠️</span>';
+        html += 'NULL 컬럼 현황';
+        html += '</div>';
+
+        html += '<div class="null-section">';
+        html += '<table class="null-table">';
+        html += '<thead><tr>';
+        html += '<th>리테일러</th>';
+        html += '<th>시간대</th>';
+        html += '<th>NULL 컬럼</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
+
+        data.null_columns.forEach(function(retailer) {
+            var rowCount = retailer.time_slots.length;
+            var isFirstRow = true;
+
+            retailer.time_slots.forEach(function(slot, idx) {
+                html += '<tr>';
+
+                if (isFirstRow) {
+                    html += '<td rowspan="' + rowCount + '">' + retailer.retailer + '</td>';
+                    isFirstRow = false;
+                }
+
+                html += '<td>' + slot.time_slot + '</td>';
+                html += '<td class="null-columns">' + slot.null_columns.join(', ') + '</td>';
+                html += '</tr>';
+            });
+        });
+
+        html += '</tbody></table>';
+        html += '</div>';
+        html += '</div>';
+    }
+
+    bodyEl.innerHTML = html;
+}
+
+// ============================================================
+// YouTube Raw Data Modal
+// ============================================================
+var youtubeDataState = {
+    columns: [],
+    data: [],
+    sortColumn: null,
+    sortDirection: 'asc',
+    category: '',
+    dataType: 'logs'
+};
+var youtubeRenderedCount = 0;
+var YOUTUBE_BATCH_SIZE = 50;
+
+function openYoutubeModal(category) {
+    openYoutubeModalWithType(category, 'logs');
+}
+
+function openYoutubeModalWithType(category, dataType) {
+    var modal = document.getElementById('youtubeModal');
+    var titleEl = document.getElementById('youtubeModalTitle');
+    var subtitleEl = document.getElementById('youtubeModalSubtitle');
+    var countEl = document.getElementById('youtubeDataCount');
+    var wrapperEl = document.getElementById('youtubeTableWrapper');
+    var currentDate = document.getElementById('target-date').value;
+
+    youtubeDataState.category = category;
+    youtubeDataState.dataType = dataType || 'logs';
+    document.getElementById('youtubeDataType').value = dataType || 'logs';
+
+    var typeLabel = {'logs': '로그', 'videos': '비디오', 'comments': '댓글'}[dataType] || '로그';
+    titleEl.textContent = 'YouTube - ' + category + ' - ' + typeLabel;
+    subtitleEl.textContent = currentDate;
+    countEl.innerHTML = '';
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading" id="youtubeLoading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    loadYoutubeData();
+}
+
+function closeYoutubeModal() {
+    var modal = document.getElementById('youtubeModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function loadYoutubeData() {
+    var wrapperEl = document.getElementById('youtubeTableWrapper');
+    var countEl = document.getElementById('youtubeDataCount');
+    var currentDate = document.getElementById('target-date').value;
+    var dataType = document.getElementById('youtubeDataType').value;
+
+    youtubeDataState.dataType = dataType;
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    var url = '/layer1/api/youtube-raw-data/?category=' + encodeURIComponent(youtubeDataState.category) +
+              '&date=' + encodeURIComponent(currentDate) +
+              '&data_type=' + encodeURIComponent(dataType);
+
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.error) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                return;
+            }
+
+            youtubeDataState.columns = data.columns || [];
+            youtubeDataState.data = data.data || [];
+            youtubeDataState.sortColumn = 0;
+            youtubeDataState.sortDirection = 'asc';
+
+            countEl.innerHTML = '총 <strong>' + (data.total_count || 0).toLocaleString() + '</strong>건' + (data.total_count > 500 ? ' (최대 500건 표시)' : '');
+
+            if (youtubeDataState.data.length === 0) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">데이터가 없습니다</div>';
+                return;
+            }
+
+            renderYoutubeTable();
+        })
+        .catch(function(error) {
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+        });
+}
+
+// YouTube 컬럼별 기본 너비 설정
+var youtubeColumnWidths = {
+    'video_id': 120,
+    'keyword': 200,
+    'title': 300,
+    'description': 400,
+    'comment_text_summary': 400,
+    'published_at': 180,
+    'created_at': 180,
+    'channel_country': 100,
+    'channel_custom_url': 150,
+    'channel_subscriber_count': 120,
+    'channel_video_count': 100,
+    'view_count': 100,
+    'like_count': 100,
+    'comment_count': 100,
+    'category_id': 80,
+    'category': 120,
+    'engagement_rate': 100,
+    'reviewed_brand': 150,
+    'reviewed_series': 150,
+    'reviewed_item': 150,
+    'product_sentiment_score': 120,
+    'product_sentiment_score_comment': 150
+};
+
+function renderYoutubeTable() {
+    var wrapperEl = document.getElementById('youtubeTableWrapper');
+    youtubeRenderedCount = 0;
+
+    // colgroup으로 컬럼 너비 제어
+    var colgroupHtml = '<colgroup><col style="width: 50px;">';
+    youtubeDataState.columns.forEach(function(col) {
+        var colWidth = youtubeColumnWidths[col] || DEFAULT_COL_WIDTH;
+        colgroupHtml += '<col style="width: ' + colWidth + 'px;">';
+    });
+    colgroupHtml += '</colgroup>';
+
+    var tableHtml = '<table class="raw-data-table" id="youtubeTable">' +
+        colgroupHtml +
+        '<thead><tr>' +
+        '<th>No.<div class="column-resizer" onmousedown="startYoutubeResize(event, 0)"></div></th>';
+
+    youtubeDataState.columns.forEach(function(col, idx) {
+        tableHtml += '<th style="cursor: pointer; position: relative;" onclick="sortYoutubeData(' + idx + ')">' +
+            '<span class="column-name">' + col + '</span>' +
+            '<span class="sort-indicator" id="youtube-sort-' + idx + '"></span>' +
+            '<div class="column-resizer" onmousedown="event.stopPropagation(); startYoutubeResize(event, ' + (idx + 1) + ')"></div>' +
+        '</th>';
+    });
+
+    tableHtml += '</tr></thead><tbody id="youtubeTbody"></tbody></table>';
+    wrapperEl.innerHTML = tableHtml;
+
+    updateYoutubeSortIndicators();
+    renderMoreYoutubeRows();
+
+    wrapperEl.addEventListener('scroll', function() {
+        if (wrapperEl.scrollTop + wrapperEl.clientHeight >= wrapperEl.scrollHeight - 100) {
+            renderMoreYoutubeRows();
+        }
+    });
+}
+
+// YouTube 테이블 컬럼 리사이즈
+var youtubeResizeState = {
+    isResizing: false,
+    columnIndex: null,
+    startX: 0,
+    startWidth: 0
+};
+
+function startYoutubeResize(e, colIdx) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    var table = document.getElementById('youtubeTable');
+    if (!table) return;
+
+    var cols = table.querySelectorAll('colgroup col');
+    var col = cols[colIdx];
+    if (!col) return;
+
+    var th = table.querySelectorAll('th')[colIdx];
+
+    youtubeResizeState.isResizing = true;
+    youtubeResizeState.columnIndex = colIdx;
+    youtubeResizeState.startX = e.pageX;
+    youtubeResizeState.startWidth = parseInt(col.style.width) || DEFAULT_COL_WIDTH;
+
+    if (th) {
+        var resizer = th.querySelector('.column-resizer');
+        if (resizer) resizer.classList.add('resizing');
+    }
+
+    document.addEventListener('mousemove', doYoutubeResize);
+    document.addEventListener('mouseup', stopYoutubeResize);
+}
+
+function doYoutubeResize(e) {
+    if (!youtubeResizeState.isResizing) return;
+
+    var table = document.getElementById('youtubeTable');
+    if (!table) return;
+
+    var col = table.querySelectorAll('colgroup col')[youtubeResizeState.columnIndex];
+    if (!col) return;
+
+    var diff = e.pageX - youtubeResizeState.startX;
+    var newWidth = Math.max(MIN_COL_WIDTH, youtubeResizeState.startWidth + diff);
+
+    col.style.width = newWidth + 'px';
+}
+
+function stopYoutubeResize() {
+    if (!youtubeResizeState.isResizing) return;
+
+    var table = document.getElementById('youtubeTable');
+    if (table) {
+        var th = table.querySelectorAll('th')[youtubeResizeState.columnIndex];
+        if (th) {
+            var resizer = th.querySelector('.column-resizer');
+            if (resizer) resizer.classList.remove('resizing');
+        }
+    }
+
+    youtubeResizeState.isResizing = false;
+    youtubeResizeState.columnIndex = null;
+
+    document.removeEventListener('mousemove', doYoutubeResize);
+    document.removeEventListener('mouseup', stopYoutubeResize);
+}
+
+function renderMoreYoutubeRows() {
+    var tbody = document.getElementById('youtubeTbody');
+    if (!tbody) return;
+
+    var data = youtubeDataState.data;
+    var end = Math.min(youtubeRenderedCount + YOUTUBE_BATCH_SIZE, data.length);
+    if (youtubeRenderedCount >= end) return;
+
+    var parts = [];
+    for (var r = youtubeRenderedCount; r < end; r++) {
+        var row = data[r];
+        parts.push('<tr>');
+        parts.push('<td>', r + 1, '</td>');
+        for (var c = 0; c < row.length; c++) {
+            var v = row[c];
+            parts.push('<td>', (v === null || v === undefined) ? '' : v, '</td>');
+        }
+        parts.push('</tr>');
+    }
+    tbody.insertAdjacentHTML('beforeend', parts.join(''));
+    youtubeRenderedCount = end;
+}
+
+function sortYoutubeData(colIdx) {
+    if (youtubeDataState.sortColumn === colIdx) {
+        youtubeDataState.sortDirection = youtubeDataState.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        youtubeDataState.sortColumn = colIdx;
+        youtubeDataState.sortDirection = 'asc';
+    }
+
+    var dir = youtubeDataState.sortDirection === 'asc' ? 1 : -1;
+
+    youtubeDataState.data.sort(function(a, b) {
+        var valA = a[colIdx];
+        var valB = b[colIdx];
+
+        var aIsNull = (valA === null || valA === undefined || valA === '');
+        var bIsNull = (valB === null || valB === undefined || valB === '');
+
+        if (aIsNull && bIsNull) return 0;
+        if (aIsNull) return 1;
+        if (bIsNull) return -1;
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return (valA - valB) * dir;
+        }
+
+        var strA = String(valA);
+        var strB = String(valB);
+
+        var numA = parseFloat(strA.replace(/[^0-9.-]/g, ''));
+        var numB = parseFloat(strB.replace(/[^0-9.-]/g, ''));
+
+        if (!isNaN(numA) && !isNaN(numB)) {
+            return (numA - numB) * dir;
+        }
+
+        return strA.localeCompare(strB) * dir;
+    });
+
+    renderYoutubeTable();
+}
+
+function updateYoutubeSortIndicators() {
+    youtubeDataState.columns.forEach(function(col, idx) {
+        var indicator = document.getElementById('youtube-sort-' + idx);
+        if (indicator) {
+            if (idx === youtubeDataState.sortColumn) {
+                indicator.textContent = youtubeDataState.sortDirection === 'asc' ? ' ▲' : ' ▼';
+            } else {
+                indicator.textContent = '';
+            }
+        }
+    });
+}
+
+function resetYoutubeSort() {
+    youtubeDataState.sortColumn = 0;
+    youtubeDataState.sortDirection = 'asc';
+
+    youtubeDataState.data.sort(function(a, b) {
+        return a[0] - b[0];
+    });
+
+    renderYoutubeTable();
+}
+
+// ============================================================
+// Market Trend Raw Data Modal
+// ============================================================
+var marketTrendDataState = {
+    columns: [],
+    data: [],
+    sortColumn: null,
+    sortDirection: 'asc',
+    category: '',
+    contentType: ''
+};
+var marketTrendRenderedCount = 0;
+var MARKET_TREND_BATCH_SIZE = 50;
+
+// Market Trend 컬럼별 기본 너비
+var marketTrendColumnWidths = {
+    'keyword': 200,
+    'product_line': 100,
+    'content_type': 150,
+    'country': 80,
+    'source': 150,
+    'trend_score': 100,
+    'search_volume': 120,
+    'sentiment_score': 120,
+    'crawl_at_utc': 180,
+    'crawl_at_local_time': 180,
+    'created_at': 180
+};
+
+function openMarketTrendModal(category, contentType) {
+    var modal = document.getElementById('marketTrendModal');
+    var titleEl = document.getElementById('marketTrendModalTitle');
+    var subtitleEl = document.getElementById('marketTrendModalSubtitle');
+    var countEl = document.getElementById('marketTrendDataCount');
+    var wrapperEl = document.getElementById('marketTrendTableWrapper');
+    var currentDate = document.getElementById('target-date').value;
+
+    marketTrendDataState.category = category;
+    marketTrendDataState.contentType = contentType || '';
+
+    var title = 'Market Trend - ' + category;
+    if (contentType) {
+        title += ' (' + contentType + ')';
+    }
+    titleEl.textContent = title;
+    subtitleEl.textContent = currentDate;
+    countEl.innerHTML = '';
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading" id="marketTrendLoading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    loadMarketTrendData();
+}
+
+function closeMarketTrendModal() {
+    var modal = document.getElementById('marketTrendModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function loadMarketTrendData() {
+    var wrapperEl = document.getElementById('marketTrendTableWrapper');
+    var countEl = document.getElementById('marketTrendDataCount');
+    var currentDate = document.getElementById('target-date').value;
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    var url = '/layer1/api/market-trend-raw-data/?category=' + encodeURIComponent(marketTrendDataState.category) +
+              '&date=' + encodeURIComponent(currentDate);
+
+    if (marketTrendDataState.contentType) {
+        url += '&content_type=' + encodeURIComponent(marketTrendDataState.contentType);
+    }
+
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.error) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                return;
+            }
+
+            marketTrendDataState.columns = data.columns || [];
+            marketTrendDataState.data = data.data || [];
+            marketTrendDataState.sortColumn = 0;
+            marketTrendDataState.sortDirection = 'asc';
+
+            countEl.innerHTML = '총 <strong>' + (data.total_count || 0).toLocaleString() + '</strong>건' + (data.total_count > 500 ? ' (최대 500건 표시)' : '');
+
+            if (marketTrendDataState.data.length === 0) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">데이터가 없습니다</div>';
+                return;
+            }
+
+            renderMarketTrendTable();
+        })
+        .catch(function(error) {
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+        });
+}
+
+function renderMarketTrendTable() {
+    var wrapperEl = document.getElementById('marketTrendTableWrapper');
+    marketTrendRenderedCount = 0;
+
+    // colgroup으로 컬럼 너비 제어
+    var colgroupHtml = '<colgroup><col style="width: 50px;">';
+    marketTrendDataState.columns.forEach(function(col) {
+        var colWidth = marketTrendColumnWidths[col] || DEFAULT_COL_WIDTH;
+        colgroupHtml += '<col style="width: ' + colWidth + 'px;">';
+    });
+    colgroupHtml += '</colgroup>';
+
+    var tableHtml = '<table class="raw-data-table" id="marketTrendTable">' +
+        colgroupHtml +
+        '<thead><tr>' +
+        '<th>No.<div class="column-resizer" onmousedown="startMarketTrendResize(event, 0)"></div></th>';
+
+    marketTrendDataState.columns.forEach(function(col, idx) {
+        tableHtml += '<th style="cursor: pointer; position: relative;" onclick="sortMarketTrendData(' + idx + ')">' +
+            '<span class="column-name">' + col + '</span>' +
+            '<span class="sort-indicator" id="market-trend-sort-' + idx + '"></span>' +
+            '<div class="column-resizer" onmousedown="event.stopPropagation(); startMarketTrendResize(event, ' + (idx + 1) + ')"></div>' +
+        '</th>';
+    });
+
+    tableHtml += '</tr></thead><tbody id="marketTrendTbody"></tbody></table>';
+    wrapperEl.innerHTML = tableHtml;
+
+    updateMarketTrendSortIndicators();
+    renderMoreMarketTrendRows();
+
+    wrapperEl.addEventListener('scroll', function() {
+        if (wrapperEl.scrollTop + wrapperEl.clientHeight >= wrapperEl.scrollHeight - 100) {
+            renderMoreMarketTrendRows();
+        }
+    });
+}
+
+// Market Trend 테이블 컬럼 리사이즈
+var marketTrendResizeState = {
+    isResizing: false,
+    columnIndex: null,
+    startX: 0,
+    startWidth: 0
+};
+
+function startMarketTrendResize(e, colIdx) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    var table = document.getElementById('marketTrendTable');
+    if (!table) return;
+
+    var col = table.querySelectorAll('colgroup col')[colIdx];
+    if (!col) return;
+
+    var th = table.querySelectorAll('th')[colIdx];
+
+    marketTrendResizeState.isResizing = true;
+    marketTrendResizeState.columnIndex = colIdx;
+    marketTrendResizeState.startX = e.pageX;
+    marketTrendResizeState.startWidth = parseInt(col.style.width) || DEFAULT_COL_WIDTH;
+
+    if (th) {
+        var resizer = th.querySelector('.column-resizer');
+        if (resizer) resizer.classList.add('resizing');
+    }
+
+    document.addEventListener('mousemove', doMarketTrendResize);
+    document.addEventListener('mouseup', stopMarketTrendResize);
+}
+
+function doMarketTrendResize(e) {
+    if (!marketTrendResizeState.isResizing) return;
+
+    var table = document.getElementById('marketTrendTable');
+    if (!table) return;
+
+    var col = table.querySelectorAll('colgroup col')[marketTrendResizeState.columnIndex];
+    if (!col) return;
+
+    var diff = e.pageX - marketTrendResizeState.startX;
+    var newWidth = Math.max(MIN_COL_WIDTH, marketTrendResizeState.startWidth + diff);
+
+    col.style.width = newWidth + 'px';
+}
+
+function stopMarketTrendResize() {
+    if (!marketTrendResizeState.isResizing) return;
+
+    var table = document.getElementById('marketTrendTable');
+    if (table) {
+        var th = table.querySelectorAll('th')[marketTrendResizeState.columnIndex];
+        if (th) {
+            var resizer = th.querySelector('.column-resizer');
+            if (resizer) resizer.classList.remove('resizing');
+        }
+    }
+
+    marketTrendResizeState.isResizing = false;
+    marketTrendResizeState.columnIndex = null;
+
+    document.removeEventListener('mousemove', doMarketTrendResize);
+    document.removeEventListener('mouseup', stopMarketTrendResize);
+}
+
+function renderMoreMarketTrendRows() {
+    var tbody = document.getElementById('marketTrendTbody');
+    if (!tbody) return;
+
+    var data = marketTrendDataState.data;
+    var end = Math.min(marketTrendRenderedCount + MARKET_TREND_BATCH_SIZE, data.length);
+    if (marketTrendRenderedCount >= end) return;
+
+    var parts = [];
+    for (var r = marketTrendRenderedCount; r < end; r++) {
+        var row = data[r];
+        parts.push('<tr>');
+        parts.push('<td>', r + 1, '</td>');
+        for (var c = 0; c < row.length; c++) {
+            var v = row[c];
+            parts.push('<td>', (v === null || v === undefined) ? '' : v, '</td>');
+        }
+        parts.push('</tr>');
+    }
+    tbody.insertAdjacentHTML('beforeend', parts.join(''));
+    marketTrendRenderedCount = end;
+}
+
+function sortMarketTrendData(colIdx) {
+    if (marketTrendDataState.sortColumn === colIdx) {
+        marketTrendDataState.sortDirection = marketTrendDataState.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        marketTrendDataState.sortColumn = colIdx;
+        marketTrendDataState.sortDirection = 'asc';
+    }
+
+    var dir = marketTrendDataState.sortDirection === 'asc' ? 1 : -1;
+
+    marketTrendDataState.data.sort(function(a, b) {
+        var valA = a[colIdx];
+        var valB = b[colIdx];
+
+        var aIsNull = (valA === null || valA === undefined || valA === '');
+        var bIsNull = (valB === null || valB === undefined || valB === '');
+
+        if (aIsNull && bIsNull) return 0;
+        if (aIsNull) return 1;
+        if (bIsNull) return -1;
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return (valA - valB) * dir;
+        }
+
+        var strA = String(valA);
+        var strB = String(valB);
+
+        var numA = parseFloat(strA.replace(/[^0-9.-]/g, ''));
+        var numB = parseFloat(strB.replace(/[^0-9.-]/g, ''));
+
+        if (!isNaN(numA) && !isNaN(numB)) {
+            return (numA - numB) * dir;
+        }
+
+        return strA.localeCompare(strB) * dir;
+    });
+
+    renderMarketTrendTable();
+}
+
+function updateMarketTrendSortIndicators() {
+    marketTrendDataState.columns.forEach(function(col, idx) {
+        var indicator = document.getElementById('market-trend-sort-' + idx);
+        if (indicator) {
+            if (idx === marketTrendDataState.sortColumn) {
+                indicator.textContent = marketTrendDataState.sortDirection === 'asc' ? ' ▲' : ' ▼';
+            } else {
+                indicator.textContent = '';
+            }
+        }
+    });
+}
+
+function resetMarketTrendSort() {
+    marketTrendDataState.sortColumn = 0;
+    marketTrendDataState.sortDirection = 'asc';
+
+    marketTrendDataState.data.sort(function(a, b) {
+        var strA = String(a[0] || '');
+        var strB = String(b[0] || '');
+        return strA.localeCompare(strB);
+    });
+
+    renderMarketTrendTable();
+}
+
+// ============================================================
+// Market Demand Modal
+// ============================================================
+var marketDemandDataState = {
+    category: '',
+    columns: [],
+    data: [],
+    sortColumn: null,
+    sortDirection: null
+};
+var marketDemandRenderedCount = 0;
+
+function openMarketDemandModal(category) {
+    var modal = document.getElementById('marketDemandModal');
+    var titleEl = document.getElementById('marketDemandModalTitle');
+    var subtitleEl = document.getElementById('marketDemandModalSubtitle');
+    var countEl = document.getElementById('marketDemandDataCount');
+    var wrapperEl = document.getElementById('marketDemandTableWrapper');
+    var currentDate = document.getElementById('target-date').value;
+
+    marketDemandDataState.category = category;
+
+    titleEl.textContent = 'Market 수요증감율 - ' + category;
+    subtitleEl.textContent = currentDate;
+    countEl.innerHTML = '';
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    loadMarketDemandData();
+}
+
+function closeMarketDemandModal() {
+    var modal = document.getElementById('marketDemandModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function loadMarketDemandData() {
+    var wrapperEl = document.getElementById('marketDemandTableWrapper');
+    var countEl = document.getElementById('marketDemandDataCount');
+    var currentDate = document.getElementById('target-date').value;
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    var url = '/layer1/api/market-demand-raw-data/?category=' + encodeURIComponent(marketDemandDataState.category) +
+              '&date=' + encodeURIComponent(currentDate);
+
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.error) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                return;
+            }
+
+            marketDemandDataState.columns = data.columns || [];
+            marketDemandDataState.data = data.data || [];
+            marketDemandDataState.sortColumn = 0;
+            marketDemandDataState.sortDirection = 'asc';
+
+            countEl.innerHTML = '총 <strong>' + (data.total_count || 0).toLocaleString() + '</strong>건' + (data.total_count > 500 ? ' (최대 500건 표시)' : '');
+
+            if (marketDemandDataState.data.length === 0) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">데이터가 없습니다</div>';
+                return;
+            }
+
+            renderMarketDemandTable();
+        })
+        .catch(function(error) {
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+        });
+}
+
+function renderMarketDemandTable() {
+    var wrapperEl = document.getElementById('marketDemandTableWrapper');
+    marketDemandRenderedCount = 0;
+
+    var colgroupHtml = '<colgroup><col style="width: 50px;">';
+    marketDemandDataState.columns.forEach(function() {
+        colgroupHtml += '<col>';
+    });
+    colgroupHtml += '</colgroup>';
+
+    var headerHtml = '<thead><tr><th>#</th>';
+    marketDemandDataState.columns.forEach(function(col, idx) {
+        var sortIndicator = '';
+        if (marketDemandDataState.sortColumn === idx) {
+            sortIndicator = marketDemandDataState.sortDirection === 'asc' ? ' ▲' : ' ▼';
+        }
+        headerHtml += '<th onclick="sortMarketDemandTable(' + idx + ')" style="cursor: pointer;">' + col + sortIndicator + '</th>';
+    });
+    headerHtml += '</tr></thead>';
+
+    var tableHtml = '<table class="raw-data-table">' + colgroupHtml + headerHtml + '<tbody id="marketDemandTableBody"></tbody></table>';
+    wrapperEl.innerHTML = tableHtml;
+
+    renderMarketDemandRows();
+
+    wrapperEl.onscroll = function() {
+        if (wrapperEl.scrollTop + wrapperEl.clientHeight >= wrapperEl.scrollHeight - 100) {
+            renderMarketDemandRows();
+        }
+    };
+}
+
+function renderMarketDemandRows() {
+    var tbody = document.getElementById('marketDemandTableBody');
+    var batchSize = 50;
+    var start = marketDemandRenderedCount;
+    var end = Math.min(start + batchSize, marketDemandDataState.data.length);
+
+    for (var i = start; i < end; i++) {
+        var row = marketDemandDataState.data[i];
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + (i + 1) + '</td>' + row.map(function(cell) {
+            var cellValue = cell;
+            if (cell === null || cell === undefined) {
+                cellValue = '-';
+            }
+            return '<td>' + cellValue + '</td>';
+        }).join('');
+        tbody.appendChild(tr);
+    }
+
+    marketDemandRenderedCount = end;
+}
+
+function sortMarketDemandTable(colIdx) {
+    if (marketDemandDataState.sortColumn === colIdx) {
+        marketDemandDataState.sortDirection = marketDemandDataState.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        marketDemandDataState.sortColumn = colIdx;
+        marketDemandDataState.sortDirection = 'asc';
+    }
+
+    marketDemandDataState.data.sort(function(a, b) {
+        var valA = a[colIdx];
+        var valB = b[colIdx];
+
+        if (valA === null || valA === undefined) valA = '';
+        if (valB === null || valB === undefined) valB = '';
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+            return marketDemandDataState.sortDirection === 'asc' ? valA - valB : valB - valA;
+        }
+
+        var strA = String(valA);
+        var strB = String(valB);
+        var cmp = strA.localeCompare(strB);
+        return marketDemandDataState.sortDirection === 'asc' ? cmp : -cmp;
+    });
+
+    renderMarketDemandTable();
+}
+
+function resetMarketDemandSort() {
+    marketDemandDataState.sortColumn = 0;
+    marketDemandDataState.sortDirection = 'asc';
+
+    marketDemandDataState.data.sort(function(a, b) {
+        var strA = String(a[0] || '');
+        var strB = String(b[0] || '');
+        return strA.localeCompare(strB);
+    });
+
+    renderMarketDemandTable();
+}
+
+// ============================================================
+// Market Promotion Modal
+// ============================================================
+var marketPromotionDataState = {
+    retailer: '',
+    data: [],
+    columns: [],
+    sortColumn: null,
+    sortDirection: null
+};
+var marketPromotionRenderedCount = 0;
+
+function openMarketPromotionModal(retailer) {
+    var modal = document.getElementById('marketPromotionModal');
+    var titleEl = document.getElementById('marketPromotionModalTitle');
+    var subtitleEl = document.getElementById('marketPromotionModalSubtitle');
+    var countEl = document.getElementById('marketPromotionDataCount');
+    var wrapperEl = document.getElementById('marketPromotionTableWrapper');
+    var currentDate = document.getElementById('target-date').value;
+
+    marketPromotionDataState.retailer = retailer;
+
+    titleEl.textContent = 'Market Promotion - ' + retailer;
+    subtitleEl.textContent = currentDate;
+    countEl.innerHTML = '';
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    loadMarketPromotionData();
+}
+
+function closeMarketPromotionModal() {
+    var modal = document.getElementById('marketPromotionModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function loadMarketPromotionData() {
+    var wrapperEl = document.getElementById('marketPromotionTableWrapper');
+    var countEl = document.getElementById('marketPromotionDataCount');
+    var currentDate = document.getElementById('target-date').value;
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    var url = '/layer1/api/market-promotion-raw-data/?retailer=' + encodeURIComponent(marketPromotionDataState.retailer) +
+              '&date=' + encodeURIComponent(currentDate);
+
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.error) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                return;
+            }
+
+            marketPromotionDataState.columns = data.columns || [];
+            marketPromotionDataState.data = data.data || [];
+            marketPromotionDataState.sortColumn = 0;
+            marketPromotionDataState.sortDirection = 'asc';
+
+            countEl.innerHTML = '총 <strong>' + (data.total_count || 0).toLocaleString() + '</strong>건' + (data.total_count > 500 ? ' (최대 500건 표시)' : '');
+
+            if (marketPromotionDataState.data.length === 0) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">데이터가 없습니다</div>';
+                return;
+            }
+
+            renderMarketPromotionTable();
+        })
+        .catch(function(error) {
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+        });
+}
+
+function renderMarketPromotionTable() {
+    var wrapperEl = document.getElementById('marketPromotionTableWrapper');
+    marketPromotionRenderedCount = 0;
+
+    var colgroupHtml = '<colgroup><col style="width: 50px;">';
+    marketPromotionDataState.columns.forEach(function() {
+        colgroupHtml += '<col>';
+    });
+    colgroupHtml += '</colgroup>';
+
+    var headerHtml = '<tr><th class="row-number-header">#</th>';
+    marketPromotionDataState.columns.forEach(function(col, idx) {
+        var sortIndicator = '';
+        if (marketPromotionDataState.sortColumn === idx) {
+            sortIndicator = marketPromotionDataState.sortDirection === 'asc' ? ' ▲' : ' ▼';
+        }
+        headerHtml += '<th class="sortable-header" onclick="sortMarketPromotionTable(' + idx + ')">' + col + sortIndicator + '</th>';
+    });
+    headerHtml += '</tr>';
+
+    var tableHtml = '<table class="raw-data-table">' + colgroupHtml + '<thead>' + headerHtml + '</thead><tbody id="marketPromotionTableBody"></tbody></table>';
+
+    wrapperEl.innerHTML = tableHtml;
+
+    renderMoreMarketPromotionRows();
+
+    var tableBody = document.getElementById('marketPromotionTableBody');
+    if (tableBody) {
+        wrapperEl.addEventListener('scroll', function() {
+            if (wrapperEl.scrollTop + wrapperEl.clientHeight >= wrapperEl.scrollHeight - 100) {
+                renderMoreMarketPromotionRows();
+            }
+        });
+    }
+}
+
+function renderMoreMarketPromotionRows() {
+    var tableBody = document.getElementById('marketPromotionTableBody');
+    if (!tableBody) return;
+
+    var batchSize = 50;
+    var start = marketPromotionRenderedCount;
+    var end = Math.min(start + batchSize, marketPromotionDataState.data.length);
+
+    if (start >= marketPromotionDataState.data.length) return;
+
+    var rowsHtml = '';
+    for (var i = start; i < end; i++) {
+        var row = marketPromotionDataState.data[i];
+        rowsHtml += '<tr><td class="row-number">' + (i + 1) + '</td>';
+        row.forEach(function(cell) {
+            var displayValue = cell;
+            if (cell === null || cell === undefined) {
+                displayValue = '-';
+            }
+            rowsHtml += '<td>' + displayValue + '</td>';
+        });
+        rowsHtml += '</tr>';
+    }
+
+    tableBody.innerHTML += rowsHtml;
+    marketPromotionRenderedCount = end;
+}
+
+function sortMarketPromotionTable(colIdx) {
+    if (marketPromotionDataState.sortColumn === colIdx) {
+        marketPromotionDataState.sortDirection = marketPromotionDataState.sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        marketPromotionDataState.sortColumn = colIdx;
+        marketPromotionDataState.sortDirection = 'asc';
+    }
+
+    marketPromotionDataState.data.sort(function(a, b) {
+        var valA = a[colIdx];
+        var valB = b[colIdx];
+
+        if (valA === null || valA === undefined) valA = '';
+        if (valB === null || valB === undefined) valB = '';
+
+        var numA = parseFloat(valA);
+        var numB = parseFloat(valB);
+
+        var cmp;
+        if (!isNaN(numA) && !isNaN(numB)) {
+            cmp = numA - numB;
+        } else {
+            cmp = String(valA).localeCompare(String(valB));
+        }
+
+        return marketPromotionDataState.sortDirection === 'asc' ? cmp : -cmp;
+    });
+
+    renderMarketPromotionTable();
+}
+
+function resetMarketPromotionSort() {
+    marketPromotionDataState.sortColumn = 0;
+    marketPromotionDataState.sortDirection = 'asc';
+
+    marketPromotionDataState.data.sort(function(a, b) {
+        var strA = String(a[0] || '');
+        var strB = String(b[0] || '');
+        return strA.localeCompare(strB);
+    });
+
+    renderMarketPromotionTable();
 }
 
 window.onload = function() {

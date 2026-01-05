@@ -39,6 +39,9 @@ INSTALLED_APPS = [
     'apps.ds_layer1',
     'apps.ds_layer2',
     'apps.ds_layer3',
+    # Report (보고용 페이지)
+    'apps.ds_report',
+    'apps.dx_report',
 ]
 
 MIDDLEWARE = [

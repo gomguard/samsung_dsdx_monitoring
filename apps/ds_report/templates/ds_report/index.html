@@ -1,0 +1,1009 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}DS 모니터링 보고{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary-color: #2563eb;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --text-primary: #1f2937;
+        --text-secondary: #6b7280;
+        --border-color: #e5e7eb;
+        --bg-light: #f9fafb;
+    }
+
+    .report-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 24px;
+    }
+
+    .report-header {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .report-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .report-title-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 20px;
+    }
+
+    .date-selector {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .date-selector input {
+        padding: 10px 14px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 14px;
+        width: 180px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #1d4ed8;
+    }
+
+    .btn-copy {
+        background: #f3f4f6;
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-copy:hover {
+        background: #e5e7eb;
+    }
+
+    .btn-copy.copied {
+        background: var(--success-color);
+        color: white;
+        border-color: var(--success-color);
+    }
+
+    .report-section {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .report-content {
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 13px;
+        line-height: 1.8;
+        white-space: pre-wrap;
+        background: var(--bg-light);
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .report-preview {
+        background: #1e293b;
+        color: #e2e8f0;
+        padding: 20px;
+        border-radius: 8px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 13px;
+        line-height: 1.8;
+        white-space: pre-wrap;
+        overflow-x: auto;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-secondary);
+    }
+
+    .retailer-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .retailer-card {
+        background: var(--bg-light);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .retailer-card.success {
+        border-left: 3px solid var(--success-color);
+    }
+
+    .retailer-card.warning {
+        border-left: 3px solid var(--warning-color);
+    }
+
+    .retailer-card.danger {
+        border-left: 3px solid var(--danger-color);
+    }
+
+    .retailer-name {
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .retailer-count {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .issue-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .issue-item {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .issue-item:last-child {
+        border-bottom: none;
+    }
+
+    .issue-bullet {
+        color: var(--warning-color);
+        font-weight: bold;
+    }
+
+    .issue-text {
+        flex: 1;
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .copy-section {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 16px;
+    }
+
+    .summary-stats {
+        display: flex;
+        gap: 24px;
+        margin-bottom: 20px;
+    }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    .stat-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    /* 탭 스타일 */
+    .tab-container {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+    }
+
+    .tab-btn {
+        padding: 12px 24px;
+        border: none;
+        background: white;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        color: var(--text-secondary);
+        transition: all 0.2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .tab-btn:hover {
+        background: #f3f4f6;
+    }
+
+    .tab-btn.active {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* 모니터링 항목 스타일 */
+    .monitoring-section {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .monitoring-layer {
+        margin-bottom: 32px;
+    }
+
+    .monitoring-layer:last-child {
+        margin-bottom: 0;
+    }
+
+    .layer-header-box {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .layer-badge-small {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: white;
+        font-size: 14px;
+    }
+
+    .layer-badge-small.layer1 { background: #3b82f6; }
+    .layer-badge-small.layer2 { background: #10b981; }
+    .layer-badge-small.layer3 { background: #f59e0b; }
+
+    .layer-title-box {
+        flex: 1;
+    }
+
+    .layer-title-box h3 {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 2px;
+    }
+
+    .layer-title-box p {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .check-category {
+        margin-bottom: 20px;
+    }
+
+    .category-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .category-icon {
+        font-size: 16px;
+    }
+
+    .check-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .check-item-row {
+        display: flex;
+        align-items: flex-start;
+        padding: 10px 16px;
+        background: var(--bg-light);
+        border-radius: 6px;
+        margin-bottom: 6px;
+        gap: 12px;
+    }
+
+    .check-number {
+        width: 24px;
+        height: 24px;
+        background: var(--border-color);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        flex-shrink: 0;
+    }
+
+    .check-content {
+        flex: 1;
+    }
+
+    .check-name {
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 2px;
+    }
+
+    .check-desc {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .check-badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+    }
+
+    .check-badge.auto {
+        background: #dbeafe;
+        color: #1d4ed8;
+    }
+
+    .check-badge.manual {
+        background: #fef3c7;
+        color: #b45309;
+    }
+
+    .monitoring-summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .summary-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border-left: 4px solid;
+    }
+
+    .summary-card.layer1 { border-left-color: #3b82f6; }
+    .summary-card.layer2 { border-left-color: #10b981; }
+    .summary-card.layer3 { border-left-color: #f59e0b; }
+
+    .summary-card .count {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .summary-card .label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    /* 보고서 미리보기 (모니터링 항목) */
+    .monitoring-preview {
+        background: #1e293b;
+        color: #e2e8f0;
+        padding: 20px;
+        border-radius: 8px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 12px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        overflow-x: auto;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="report-container">
+    <div class="report-header">
+        <div class="report-title">
+            <div class="report-title-icon">📋</div>
+            DS 모니터링 보고
+        </div>
+    </div>
+
+    <!-- 탭 메뉴 -->
+    <div class="tab-container">
+        <button class="tab-btn active" onclick="switchTab('daily')">일일 결과 보고</button>
+        <button class="tab-btn" onclick="switchTab('items')">모니터링 항목</button>
+    </div>
+
+    <!-- 탭 1: 일일 결과 보고 -->
+    <div id="tab-daily" class="tab-content active">
+        <div class="report-section">
+            <div class="date-selector">
+                <label>수집일자:</label>
+                <input type="date" id="report-date" />
+                <button class="btn btn-primary" onclick="loadReport()">조회</button>
+            </div>
+        </div>
+
+        <div id="report-loading" class="report-section" style="display: none;">
+            <div class="loading">데이터를 불러오는 중...</div>
+        </div>
+
+        <div id="report-result" style="display: none;">
+            <div class="report-section">
+                <div class="section-title">수집 현황 요약</div>
+                <div class="summary-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-retailers">-</div>
+                        <div class="stat-label">리테일러</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="success-count">-</div>
+                        <div class="stat-label">정상 수집</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="issue-count">-</div>
+                        <div class="stat-label">특이사항</div>
+                    </div>
+                </div>
+                <div class="retailer-grid" id="retailer-grid"></div>
+            </div>
+
+            <div class="report-section">
+                <div class="section-title">보고서 미리보기</div>
+                <div class="report-preview" id="report-preview"></div>
+                <div class="copy-section">
+                    <button class="btn btn-copy" id="copy-btn" onclick="copyReport()">
+                        📋 클립보드에 복사
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 탭 2: 모니터링 항목 -->
+    <div id="tab-items" class="tab-content">
+        <!-- 요약 카드 -->
+        <div class="monitoring-summary" style="grid-template-columns: repeat(3, 1fr);">
+            <div class="summary-card layer1">
+                <div class="count">4</div>
+                <div class="label">Layer 1 수집 모니터링</div>
+            </div>
+            <div class="summary-card layer2">
+                <div class="count">6</div>
+                <div class="label">Layer 2 NULL 검증</div>
+            </div>
+            <div class="summary-card layer3">
+                <div class="count">4</div>
+                <div class="label">Layer 3 반복 에러</div>
+            </div>
+        </div>
+
+        <!-- Layer 1 -->
+        <div class="monitoring-section">
+            <div class="monitoring-layer">
+                <div class="layer-header-box">
+                    <div class="layer-badge-small layer1">L1</div>
+                    <div class="layer-title-box">
+                        <h3>수집 모니터링</h3>
+                        <p>글로벌 리테일러 가격 데이터 수집 현황 확인</p>
+                    </div>
+                </div>
+                <div class="check-category">
+                    <div class="category-name"><span class="category-icon">🌍</span> 리테일러 수집 현황 (17개 리테일러)</div>
+                    <ul class="check-list">
+                        <li class="check-item-row">
+                            <div class="check-number">1</div>
+                            <div class="check-content">
+                                <div class="check-name">리테일러별 수집 건수</div>
+                                <div class="check-desc">Amazon(USA/JP/IN/GB/IT/ES/FR/NL/DE), BestBuy, Danawa, Currys, Fnac, Coolblue, MediaMarkt, X-Kom, CentreCom의 수집 건수 확인</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-number">2</div>
+                            <div class="check-content">
+                                <div class="check-name">수집 완료율</div>
+                                <div class="check-desc">예상 건수(samsung_price_tracking_list 기준) 대비 실제 수집 건수 비율 확인 (95% 이상 정상)</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-number">3</div>
+                            <div class="check-content">
+                                <div class="check-name">수집 시간 확인</div>
+                                <div class="check-desc">리테일러별 예정 수집 시간(한국 시간 기준) 내 수집 완료 여부 확인</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-number">4</div>
+                            <div class="check-content">
+                                <div class="check-name">파일서버 용량</div>
+                                <div class="check-desc">파일서버에 저장된 국가별/리테일러별 zip 파일 용량 및 개수 확인</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Layer 2 -->
+        <div class="monitoring-section">
+            <div class="monitoring-layer">
+                <div class="layer-header-box">
+                    <div class="layer-badge-small layer2">L2</div>
+                    <div class="layer-title-box">
+                        <h3>NULL 필드 검증</h3>
+                        <p>필수 필드 NULL 여부 및 형식 검증</p>
+                    </div>
+                </div>
+
+                <div class="check-category">
+                    <div class="category-name"><span class="category-icon">📊</span> 필수 필드 NULL 검사</div>
+                    <ul class="check-list">
+                        <li class="check-item-row">
+                            <div class="check-number">1</div>
+                            <div class="check-content">
+                                <div class="check-name">title NULL 검사</div>
+                                <div class="check-desc">상품명(title) 필드가 NULL이거나 빈 문자열인 경우 탐지</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-number">2</div>
+                            <div class="check-content">
+                                <div class="check-name">imageurl NULL 검사</div>
+                                <div class="check-desc">title이 유효한데 imageurl이 NULL인 경우 탐지</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-number">3</div>
+                            <div class="check-content">
+                                <div class="check-name">imageurl 형식 검사</div>
+                                <div class="check-desc">imageurl이 존재하지만 'https://'로 시작하지 않는 경우 탐지</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="check-category">
+                    <div class="category-name"><span class="category-icon">🔗</span> 부가 필드 NULL 검사</div>
+                    <ul class="check-list">
+                        <li class="check-item-row">
+                            <div class="check-number">4</div>
+                            <div class="check-content">
+                                <div class="check-name">부분 NULL 검사</div>
+                                <div class="check-desc">retailprice, ships_from, sold_by 중 일부만 NULL인 비정상 케이스 탐지</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-number">5</div>
+                            <div class="check-content">
+                                <div class="check-name">전체 NULL 허용</div>
+                                <div class="check-desc">retailprice, ships_from, sold_by 3개 모두 NULL인 경우는 정상으로 처리</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-number">6</div>
+                            <div class="check-content">
+                                <div class="check-name">에러 비율 임계치</div>
+                                <div class="check-desc">전체 데이터 대비 에러 비율이 5% 이상이면 경고</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Layer 3 -->
+        <div class="monitoring-section">
+            <div class="monitoring-layer">
+                <div class="layer-header-box">
+                    <div class="layer-badge-small layer3">L3</div>
+                    <div class="layer-title-box">
+                        <h3>반복 에러 탐지</h3>
+                        <p>연속 발생하는 에러 상품 추적 (producturl 기준)</p>
+                    </div>
+                </div>
+
+                <div class="check-category">
+                    <div class="category-name"><span class="category-icon">🔄</span> 에러 유형별 반복 탐지</div>
+                    <ul class="check-list">
+                        <li class="check-item-row">
+                            <div class="check-number">1</div>
+                            <div class="check-content">
+                                <div class="check-name">title NULL 반복</div>
+                                <div class="check-desc">동일 producturl에서 title NULL이 2일 이상 연속 발생하는 경우 탐지</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-number">2</div>
+                            <div class="check-content">
+                                <div class="check-name">imageurl NULL 반복</div>
+                                <div class="check-desc">동일 producturl에서 imageurl NULL이 2일 이상 연속 발생하는 경우 탐지</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-number">3</div>
+                            <div class="check-content">
+                                <div class="check-name">imageurl 형식 에러 반복</div>
+                                <div class="check-desc">동일 producturl에서 imageurl 형식 오류가 2일 이상 연속 발생하는 경우 탐지</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-number">4</div>
+                            <div class="check-content">
+                                <div class="check-name">부분 NULL 반복</div>
+                                <div class="check-desc">동일 producturl에서 부분 NULL(retailprice/ships_from/sold_by 일부만 NULL)이 2일 이상 연속 발생하는 경우 탐지</div>
+                            </div>
+                            <span class="check-badge auto">자동</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="check-category">
+                    <div class="category-name"><span class="category-icon">📊</span> 신규 vs 반복 구분</div>
+                    <ul class="check-list">
+                        <li class="check-item-row">
+                            <div class="check-content">
+                                <div class="check-name">신규 에러 (1일)</div>
+                                <div class="check-desc">오늘 처음 발생한 에러 - 일시적 문제일 가능성 높음</div>
+                            </div>
+                            <span class="check-badge" style="background: #e0f2fe; color: #0369a1;">신규</span>
+                        </li>
+                        <li class="check-item-row">
+                            <div class="check-content">
+                                <div class="check-name">반복 에러 (2일+)</div>
+                                <div class="check-desc">2일 이상 연속 발생하는 에러 - 크롤러 수정 필요</div>
+                            </div>
+                            <span class="check-badge" style="background: #fee2e2; color: #b91c1c;">반복</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 보고서 미리보기 -->
+        <div class="monitoring-section">
+            <div class="section-title">보고서 미리보기</div>
+            <div class="monitoring-preview" id="monitoring-preview"></div>
+            <div class="copy-section">
+                <button class="btn btn-copy" id="copy-monitoring-btn" onclick="copyMonitoringReport()">
+                    📋 클립보드에 복사
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 어제 날짜로 기본 설정
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    document.getElementById('report-date').value = yesterday.toISOString().split('T')[0];
+
+    let reportData = null;
+
+    // 페이지 로드 시 자동 조회
+    document.addEventListener('DOMContentLoaded', function() {
+        loadReport();
+        generateMonitoringReport();
+    });
+
+    // 탭 전환
+    function switchTab(tabName) {
+        // 모든 탭 버튼 비활성화
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        // 모든 탭 콘텐츠 숨김
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+        // 선택된 탭 활성화
+        event.target.classList.add('active');
+        document.getElementById('tab-' + tabName).classList.add('active');
+    }
+
+    async function loadReport() {
+        const date = document.getElementById('report-date').value;
+        if (!date) {
+            alert('날짜를 선택하세요.');
+            return;
+        }
+
+        document.getElementById('report-loading').style.display = 'block';
+        document.getElementById('report-result').style.display = 'none';
+
+        try {
+            const response = await fetch(`/ds/report/api/stats/?date=${date}`);
+            reportData = await response.json();
+
+            if (reportData.error) {
+                alert('데이터 로드 실패: ' + reportData.error);
+                return;
+            }
+
+            renderReport(reportData);
+            document.getElementById('report-loading').style.display = 'none';
+            document.getElementById('report-result').style.display = 'block';
+
+        } catch (error) {
+            console.error('Error:', error);
+            alert('데이터 로드 실패');
+            document.getElementById('report-loading').style.display = 'none';
+        }
+    }
+
+    function renderReport(data) {
+        // 요약 통계
+        document.getElementById('total-retailers').textContent = data.summary.total_retailers;
+        document.getElementById('success-count').textContent = data.summary.success_count;
+        document.getElementById('issue-count').textContent = data.summary.issue_count;
+
+        // 리테일러 그리드
+        let gridHtml = '';
+        data.retailers.forEach(r => {
+            const status = r.actual >= r.expected ? 'success' : (r.actual > 0 ? 'warning' : 'danger');
+            gridHtml += `
+                <div class="retailer-card ${status}">
+                    <span class="retailer-name">${r.name}</span>
+                    <span class="retailer-count">${r.actual}/${r.expected}</span>
+                </div>
+            `;
+        });
+        document.getElementById('retailer-grid').innerHTML = gridHtml;
+
+        // 보고서 텍스트 생성
+        const reportText = generateReportText(data);
+        document.getElementById('report-preview').textContent = reportText;
+    }
+
+    function generateReportText(data) {
+        const date = document.getElementById('report-date').value;
+        const formattedDate = date.replace(/-/g, '-');
+
+        // 수집 상태 판단
+        const allComplete = data.retailers.every(r => r.actual >= r.expected);
+        const collectionStatus = allComplete ? '정상' : '일부 미완료';
+
+        // 이슈 건수 계산
+        const issueCount = data.issues ? data.issues.length : 0;
+        const totalIssueItems = data.issues ? data.issues.reduce((sum, issue) => {
+            const match = issue.description.match(/(\d+)건/);
+            return sum + (match ? parseInt(match[1]) : 1);
+        }, 0) : 0;
+
+        let text = `ds 모니터링 보고\n\n`;
+        text += `수집일시 : ${formattedDate}\n\n`;
+
+        // [요약]
+        text += `[요약]\n`;
+        text += `수집현황: ${collectionStatus} (${data.retailers.length}개 리테일러 100% 완료)\n`;
+        if (issueCount > 0) {
+            text += `데이터품질: 이슈 ${issueCount}건 (${totalIssueItems}건 데이터)\n`;
+        } else {
+            text += `데이터품질: 정상\n`;
+        }
+        text += `파일질라: 정상\n\n`;
+
+        // [이슈 내용]
+        text += `[이슈 내용]\n`;
+        if (data.issues && data.issues.length > 0) {
+            // 이슈를 리테일러별로 정리
+            const maxRetailerLen = Math.max(...data.issues.map(i => i.retailer.length));
+            data.issues.forEach(issue => {
+                const padding = ' '.repeat(maxRetailerLen - issue.retailer.length + 2);
+                text += `${issue.retailer}${padding}${issue.description}\n`;
+            });
+        } else {
+            text += `없음\n`;
+        }
+
+        // [상세]
+        text += `\n[상세]\n`;
+
+        // 1. 리테일러 현황
+        text += `1. 리테일러 ${data.retailers.length}건 : 수집건수 / 수집예상건수\n`;
+
+        // 가장 긴 이름 길이 찾기 (정렬용)
+        const maxNameLen = Math.max(...data.retailers.map(r => r.name.length));
+
+        data.retailers.forEach(r => {
+            const padding = ' '.repeat(maxNameLen - r.name.length + 2);
+            text += `\t- ${r.name}${padding}${r.actual}/${r.expected}\n`;
+        });
+
+        // 2. 특이사항
+        text += `\n2. 특이사항\n`;
+
+        if (data.issues && data.issues.length > 0) {
+            data.issues.forEach(issue => {
+                text += `\t- ${issue.retailer} ${issue.description}\n`;
+            });
+        } else {
+            text += `\t- 특이사항 없음\n`;
+        }
+
+        // 3. 파일질라 용량 보고
+        text += `\n3. 파일질라 용량 보고\n`;
+        text += `\t- 하단 이미지 파일 참고\n`;
+
+        return text;
+    }
+
+    function copyReport() {
+        const reportText = document.getElementById('report-preview').textContent;
+
+        navigator.clipboard.writeText(reportText).then(() => {
+            const btn = document.getElementById('copy-btn');
+            btn.textContent = '✓ 복사됨!';
+            btn.classList.add('copied');
+
+            setTimeout(() => {
+                btn.textContent = '📋 클립보드에 복사';
+                btn.classList.remove('copied');
+            }, 2000);
+        }).catch(err => {
+            alert('복사 실패: ' + err);
+        });
+    }
+
+    // 모니터링 항목 보고서 생성
+    function generateMonitoringReport() {
+        let text = `DS 모니터링 시스템 - 모니터링 항목 현황\n`;
+        text += `=`.repeat(50) + `\n\n`;
+
+        text += `[ 총 14개 항목 모니터링 ]\n`;
+        text += `- Layer 1 수집 모니터링: 4개 항목\n`;
+        text += `- Layer 2 NULL 검증: 6개 항목\n`;
+        text += `- Layer 3 반복 에러: 4개 항목\n\n`;
+
+        text += `[ 모니터링 대상 리테일러: 17개 ]\n`;
+        text += `- 미국: Amazon_USA, BestBuy\n`;
+        text += `- 아시아: Amazon_JP, Amazon_IN, Danawa\n`;
+        text += `- 유럽: Amazon_GB, Currys, Amazon_IT, Amazon_ES,\n`;
+        text += `        Amazon_FR, Fnac, Amazon_NL, Coolblue,\n`;
+        text += `        Amazon_DE, MediaMarkt, X-Kom\n`;
+        text += `- 호주: CentreCom\n\n`;
+
+        text += `-`.repeat(50) + `\n`;
+        text += `Layer 1: 수집 모니터링\n`;
+        text += `-`.repeat(50) + `\n`;
+        text += `1. 리테일러별 수집 건수\n`;
+        text += `   - 17개 리테일러 테이블별 수집 건수 확인\n`;
+        text += `   - 예상 건수: samsung_price_tracking_list 기준\n`;
+        text += `2. 수집 완료율\n`;
+        text += `   - 95% 이상: 정상\n`;
+        text += `   - 80~95%: 경고\n`;
+        text += `   - 80% 미만: 위험\n`;
+        text += `3. 수집 시간 확인\n`;
+        text += `   - 리테일러별 예정 수집 시간(한국 시간) 기준 확인\n`;
+        text += `4. 파일서버 용량 확인\n`;
+        text += `   - 국가별/리테일러별 zip 파일 용량 확인\n\n`;
+
+        text += `-`.repeat(50) + `\n`;
+        text += `Layer 2: NULL 필드 검증\n`;
+        text += `-`.repeat(50) + `\n`;
+        text += `[필수 필드]\n`;
+        text += `1. title NULL - 상품명이 NULL인 경우\n`;
+        text += `2. imageurl NULL - title 유효, imageurl NULL인 경우\n`;
+        text += `3. imageurl 형식 - https://로 시작하지 않는 경우\n\n`;
+        text += `[부가 필드]\n`;
+        text += `4. 부분 NULL - retailprice/ships_from/sold_by 일부만 NULL (비정상)\n`;
+        text += `5. 전체 NULL - 3개 필드 모두 NULL (정상 처리)\n`;
+        text += `6. 에러 비율 - 5% 이상 시 경고\n\n`;
+
+        text += `-`.repeat(50) + `\n`;
+        text += `Layer 3: 반복 에러 탐지\n`;
+        text += `-`.repeat(50) + `\n`;
+        text += `[에러 유형별 반복 탐지 - producturl 기준]\n`;
+        text += `1. title NULL 반복 (2일+ 연속)\n`;
+        text += `2. imageurl NULL 반복 (2일+ 연속)\n`;
+        text += `3. imageurl 형식 에러 반복 (2일+ 연속)\n`;
+        text += `4. 부분 NULL 반복 (2일+ 연속)\n\n`;
+        text += `* 신규 에러 (1일): 일시적 문제 가능성\n`;
+        text += `* 반복 에러 (2일+): 크롤러 수정 필요\n\n`;
+
+        text += `=`.repeat(50) + `\n`;
+        text += `* 전체 14개 항목 자동 검증\n`;
+
+        document.getElementById('monitoring-preview').textContent = text;
+    }
+
+    // 모니터링 보고서 복사
+    function copyMonitoringReport() {
+        const reportText = document.getElementById('monitoring-preview').textContent;
+
+        navigator.clipboard.writeText(reportText).then(() => {
+            const btn = document.getElementById('copy-monitoring-btn');
+            btn.textContent = '✓ 복사됨!';
+            btn.classList.add('copied');
+
+            setTimeout(() => {
+                btn.textContent = '📋 클립보드에 복사';
+                btn.classList.remove('copied');
+            }, 2000);
+        }).catch(err => {
+            alert('복사 실패: ' + err);
+        });
+    }
+</script>
+{% endblock %}

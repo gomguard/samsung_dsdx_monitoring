@@ -11,5 +11,13 @@ urlpatterns = [
     # API
     path('api/stats/', api_views.layer_stats, name='api_stats'),
     path('api/retail/', api_views.retail_detail, name='api_retail_detail'),
+    path('api/retail-summary/', api_views.retail_summary, name='api_retail_summary'),
     path('api/sentiment/', api_views.sentiment_stats, name='api_sentiment'),
+    path('api/retailer-raw-data/', api_views.retailer_raw_data, name='api_retailer_raw_data'),
+    path('api/retailer-columns/', api_views.retailer_columns_info, name='api_retailer_columns'),
+    path('api/sentiment-raw-data/', api_views.sentiment_raw_data, name='api_sentiment_raw_data'),
+    path('api/youtube-raw-data/', api_views.youtube_raw_data, name='api_youtube_raw_data'),
+    path('api/market-trend-raw-data/', api_views.market_trend_raw_data, name='api_market_trend_raw_data'),
+    path('api/market-demand-raw-data/', api_views.market_demand_raw_data, name='api_market_demand_raw_data'),
+    path('api/market-promotion-raw-data/', api_views.market_promotion_raw_data, name='api_market_promotion_raw_data'),
 ]

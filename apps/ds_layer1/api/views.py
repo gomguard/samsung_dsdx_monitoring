@@ -1,33 +1,21 @@
 """
 DS Layer 1 API: 기본 통계 검수
 인스턴스별/지역별 수집 현황 API
+파일서버 용량 조회 API
 """
 
 from django.http import JsonResponse
 from datetime import datetime, timedelta, date
 from apps.common.db import get_ds_connection
+from config.config import FILE_SERVER_CONFIG
+from config.targets import load_monitoring_targets, get_retailer_map
 import pytz
+import paramiko
 
-# 모니터링 대상 테이블 (table_name, retailer, region, korea_time, country, mall_name)
-MONITORING_TARGETS = [
-    ('amazon_price_crawl_tbl_usa_v2', 'Amazon_USA', '미국(오하이오)', '22:00', 'usa', 'amazon'),
-    ('bestbuy_price_crawl_tbl_usa_v2', 'BestBuy_USA', '미국(오하이오)', '23:00', 'usa', 'bestbuy'),
-    ('amazon_price_crawl_tbl_jp_v2', 'Amazon_JP', '아시아(도쿄)', '09:00', 'jp', 'amazon'),
-    ('amazon_price_crawl_tbl_ind_v2', 'Amazon_IN', '아시아(뭄바이)', '12:30', 'in', 'amazon'),
-    ('danawa_price_crawl_tbl_kr_v2', 'Danawa_KR', '아시아(서울)', '09:00', 'kr', 'danawa'),
-    ('amazon_price_crawl_tbl_uk_v2', 'Amazon_GB', '유럽(런던)', '17:00', 'gb', 'amazon'),
-    ('currys_price_crawl_tbl_gb_v2', 'Currys_GB', '유럽(런던)', '17:00', 'gb', 'currys'),
-    ('amazon_price_crawl_tbl_it_v2', 'Amazon_IT', '유럽(밀라노)', '16:00', 'it', 'amazon'),
-    ('amazon_price_crawl_tbl_es_v2', 'Amazon_ES', '유럽(스페인)', '16:00', 'es', 'amazon'),
-    ('amazon_price_crawl_tbl_fr_v2', 'Amazon_FR', '유럽(파리)', '16:00', 'fr', 'amazon'),
-    ('fnac_price_crawl_tbl_fr', 'Fnac_FR', '유럽(파리)', '17:00', 'fr', 'fnac'),
-    ('amazon_price_crawl_tbl_nl', 'Amazon_NL', '유럽(파리)', '16:00', 'nl', 'amazon'),
-    ('coolblue_price_crawl_tbl_nl_v2', 'Coolblue_NL', '유럽(파리)', '16:00', 'nl', 'coolblue'),
-    ('amazon_price_crawl_tbl_de_v2', 'Amazon_DE', '유럽(프랑크푸르트)', '16:00', 'de', 'amazon'),
-    ('mediamarkt_price_crawl_tbl_de_v2', 'MediaMarkt_DE', '유럽(프랑크푸르트)', '17:00', 'de', 'mediamarkt'),
-    ('xkom_price_crawl_tbl_pl_v2', 'X-Kom_PL', '유럽(프랑크푸르트)', '17:00', 'pl', 'x-kom'),
-    ('centrecom_price_crawl_tbl_au', 'CentreCom_AU', '호주', '07:00', 'au', 'centrecom'),
-]
+
+def get_monitoring_targets():
+    """CSV에서 모니터링 대상 목록 로드"""
+    return load_monitoring_targets()
 
 
 def get_crawl_count(cursor, table_name, target_date):
@@ -64,10 +52,6 @@ def get_expected_count(cursor, country, mall_name):
         result = cursor.fetchone()
         count = result[0] if result else 0
 
-        # 한국 다나와는 2배로 계산
-        if country == 'kr' and mall_name == 'danawa':
-            count = count * 2
-
         return count
     except Exception as e:
         return -1
@@ -99,11 +83,14 @@ def get_collection_status(korea_time_str, target_date, completion_rate):
     try:
         hour, minute = map(int, korea_time_str.split(':'))
         crawl_time = now_kst.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        crawl_time_plus_1h = crawl_time + timedelta(hours=1)
+        crawl_time_plus_2h = crawl_time + timedelta(hours=2)
 
         if now_kst < crawl_time:
             return 'pending'  # 대기중
-        elif now_kst < crawl_time_plus_1h:
+        elif now_kst < crawl_time_plus_2h:
+            # 수집중이지만 100% 달성했으면 결과 표시
+            if completion_rate >= 100:
+                return 'success'
             return 'collecting'  # 수집중
         else:
             # 수집 완료 시간 지남 - 완료율 기반 판단
@@ -153,7 +140,7 @@ def layer_stats(request):
         total_actual = 0
         results = []
 
-        for idx, (table_name, retailer, region, korea_time, country, mall_name) in enumerate(MONITORING_TARGETS, 1):
+        for idx, (table_name, retailer, region, korea_time, country, mall_name) in enumerate(get_monitoring_targets(), 1):
             expected = get_expected_count(cursor, country, mall_name)
             actual = get_crawl_count(cursor, table_name, target_date)
 
@@ -194,7 +181,7 @@ def layer_stats(request):
 
         data['results'] = results
         data['summary'] = {
-            'total_tables': len(MONITORING_TARGETS),
+            'total_tables': len(get_monitoring_targets()),
             'total_expected': total_expected,
             'total_actual': total_actual,
             'total_completion_rate': total_completion_rate,
@@ -204,7 +191,7 @@ def layer_stats(request):
     except Exception as e:
         data['error'] = str(e)
         data['summary'] = {
-            'total_tables': len(MONITORING_TARGETS),
+            'total_tables': len(get_monitoring_targets()),
             'total_expected': 0,
             'total_actual': 0,
             'total_completion_rate': 0,
@@ -235,7 +222,7 @@ def instances_stats(request):
 
         # 지역별로 그룹화
         regions = {}
-        for table_name, retailer, region, korea_time, country, mall_name in MONITORING_TARGETS:
+        for table_name, retailer, region, korea_time, country, mall_name in get_monitoring_targets():
             if region not in regions:
                 regions[region] = {
                     'name': region,
@@ -313,7 +300,7 @@ def table_detail(request):
         return JsonResponse({'error': '테이블명을 입력하세요.'})
 
     # 테이블명 검증
-    valid_tables = [t[0] for t in MONITORING_TARGETS]
+    valid_tables = [t[0] for t in get_monitoring_targets()]
     if table_name not in valid_tables:
         return JsonResponse({'error': '유효하지 않은 테이블명입니다.'})
 
@@ -380,7 +367,7 @@ def table_detail(request):
         conn.close()
 
         # 리테일러 정보 찾기
-        retailer_info = next((t for t in MONITORING_TARGETS if t[0] == table_name), None)
+        retailer_info = next((t for t in get_monitoring_targets() if t[0] == table_name), None)
 
         data['retailer'] = retailer_info[1] if retailer_info else table_name
         data['region'] = retailer_info[2] if retailer_info else ''
@@ -419,12 +406,12 @@ def date_range_stats(request):
 
     # 특정 테이블 필터
     if table_name:
-        valid_tables = [t[0] for t in MONITORING_TARGETS]
+        valid_tables = [t[0] for t in get_monitoring_targets()]
         if table_name not in valid_tables:
             return JsonResponse({'error': '유효하지 않은 테이블명입니다.'})
-        targets = [t for t in MONITORING_TARGETS if t[0] == table_name]
+        targets = [t for t in get_monitoring_targets() if t[0] == table_name]
     else:
-        targets = MONITORING_TARGETS
+        targets = get_monitoring_targets()
 
     data = {
         'timestamp': datetime.now().isoformat(),
@@ -495,5 +482,172 @@ def date_range_stats(request):
 
     except Exception as e:
         data['error'] = str(e)
+
+    return JsonResponse(data)
+
+
+
+
+def get_directory_size(sftp, path):
+    """SFTP로 디렉토리 용량 조회 (바이트)"""
+    total_size = 0
+    try:
+        for entry in sftp.listdir_attr(path):
+            entry_path = f"{path}/{entry.filename}"
+            if entry.st_mode & 0o40000:  # 디렉토리인 경우
+                total_size += get_directory_size(sftp, entry_path)
+            else:
+                total_size += entry.st_size
+    except Exception:
+        pass
+    return total_size
+
+
+def format_size(size_bytes):
+    """바이트를 읽기 쉬운 형식으로 변환"""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+
+def fileserver_stats(request):
+    """파일서버 날짜별 용량 조회 API"""
+    date_str = request.GET.get('date')
+
+    if date_str:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    else:
+        target_date = (datetime.now() - timedelta(days=1)).date()
+
+    date_folder = target_date.strftime('%Y%m%d')
+
+    data = {
+        'timestamp': datetime.now().isoformat(),
+        'date': str(target_date),
+        'date_folder': date_folder,
+        'countries': [],
+        'summary': {}
+    }
+
+    try:
+        transport = paramiko.Transport((FILE_SERVER_CONFIG['host'], FILE_SERVER_CONFIG['port']))
+        transport.connect(
+            username=FILE_SERVER_CONFIG['username'],
+            password=FILE_SERVER_CONFIG['password']
+        )
+        sftp = paramiko.SFTPClient.from_transport(transport)
+
+        base_path = FILE_SERVER_CONFIG['upload_path']
+        total_size = 0
+        total_files = 0
+        countries_data = []
+
+        # 국가별 디렉토리 조회
+        try:
+            country_dirs = sftp.listdir(base_path)
+        except Exception:
+            country_dirs = []
+
+        for country_code in sorted(country_dirs):
+            country_path = f"{base_path}/{country_code}"
+
+            # 디렉토리인지 확인
+            try:
+                stat = sftp.stat(country_path)
+                if not (stat.st_mode & 0o40000):
+                    continue
+            except Exception:
+                continue
+
+            # 해당 날짜 폴더 확인
+            date_path = f"{country_path}/{date_folder}"
+            try:
+                sftp.stat(date_path)
+            except FileNotFoundError:
+                # 해당 날짜 폴더가 없으면 스킵
+                continue
+
+            # 파일 목록 및 용량 조회 (zip 파일만)
+            try:
+                files = sftp.listdir_attr(date_path)
+
+                # zip 파일만 필터링
+                zip_files = [f for f in files if f.filename.endswith('.zip') and not (f.st_mode & 0o40000)]
+
+                # 리테일러 이름 찾기 (CSV 기반)
+                retailer_map = get_retailer_map()
+
+                # zip 파일 상세 정보 (리테일러별로 분리)
+                for f in sorted(zip_files, key=lambda x: x.filename):
+                    # 파일명에서 리테일러 추출: 20260102_172616_de_mediamarkt.zip -> mediamarkt
+                    filename = f.filename
+                    parts = filename.replace('.zip', '').split('_')
+                    # parts: ['20260102', '172616', 'de', 'mediamarkt']
+                    if len(parts) >= 4:
+                        file_country = parts[2]
+                        file_retailer = '_'.join(parts[3:])  # 리테일러 이름에 _가 있을 수 있음
+                        retailer_key = f"{file_country}_{file_retailer}"
+                        retailer_name = retailer_map.get(retailer_key, file_retailer)
+                    else:
+                        retailer_name = country_code.upper()
+
+                    total_size += f.st_size
+                    total_files += 1
+
+                    countries_data.append({
+                        'country_code': country_code,
+                        'retailer': retailer_name,
+                        'path': date_path,
+                        'file_count': 1,
+                        'size': f.st_size,
+                        'files': [{
+                            'name': f.filename,
+                            'size': f.st_size,
+                            'modified': datetime.fromtimestamp(f.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                        }]
+                    })
+            except Exception as e:
+                continue
+
+        sftp.close()
+        transport.close()
+
+        # 고유 국가 수 계산
+        unique_countries = set(item['country_code'] for item in countries_data)
+
+        # 수집현황과 동일한 순서로 정렬 (monitoring_targets.csv 순서 기준)
+        targets = get_monitoring_targets()
+        retailer_order = {f"{t[4]}_{t[5]}": idx for idx, t in enumerate(targets)}  # country_mall_name -> order
+
+        def get_sort_key(item):
+            # 파일명에서 country_mall_name 추출
+            filename = item['files'][0]['name'] if item['files'] else ''
+            parts = filename.replace('.zip', '').split('_')
+            if len(parts) >= 4:
+                key = f"{parts[2]}_{parts[3]}"
+                return retailer_order.get(key, 999)
+            return 999
+
+        countries_data.sort(key=get_sort_key)
+
+        data['countries'] = countries_data
+        data['summary'] = {
+            'total_countries': len(unique_countries),
+            'total_files': total_files,
+            'total_size': total_size
+        }
+
+    except Exception as e:
+        data['error'] = str(e)
+        data['summary'] = {
+            'total_countries': 0,
+            'total_files': 0,
+            'total_size': 0
+        }
 
     return JsonResponse(data)

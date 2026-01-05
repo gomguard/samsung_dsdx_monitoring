@@ -120,6 +120,17 @@
         opacity: 0.9;
     }
 
+    .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+        background: var(--bg-primary);
+        border-color: {{ layer.color }};
+    }
+
     .summary-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -622,6 +633,7 @@
         <label>조회 날짜</label>
         <input type="date" id="targetDate">
         <button class="btn btn-primary" onclick="loadData()">조회</button>
+        <button class="btn btn-secondary" onclick="setToday()">오늘</button>
     </div>
 </div>
 
@@ -817,6 +829,12 @@ function switchTab(tab) {
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.toggle('active', content.id === tab + 'Tab');
     });
+}
+
+function setToday() {
+    const today = new Date();
+    document.getElementById('targetDate').value = today.toISOString().split('T')[0];
+    loadData();
 }
 
 async function loadData() {
