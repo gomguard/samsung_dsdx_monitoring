@@ -1,0 +1,13 @@
+check_type,name,category,us_start_hour,collection_duration_min,schedule_type,description
+retail,오전,TV,0,300,daily,TV Retail 오전 수집
+retail,오후,TV,12,300,daily,TV Retail 오후 수집
+retail,오전,HHP,0,300,daily,HHP Retail 오전 수집
+retail,오후,HHP,12,300,daily,HHP Retail 오후 수집
+sentiment,감성분석,TV,1,240,daily,TV 감성분석 (다음날 실행)
+sentiment,감성분석,HHP,1,240,daily,HHP 감성분석 (다음날 실행)
+youtube,YouTube,ALL,12,240,daily,YouTube Consumer 수집
+market_trend,Market Trend,ALL,23,60,daily,Market Trend 수집
+market_demand,수요증감율,ALL,18,60,daily,수요증감율 수집
+market_promotion,Promotion,ALL,18,60,weekly_tuesday,Promotion 수집 (월요일)
+market_competitor,Competitor,ALL,09,60,quarterly,Competitor 수집 (분기 첫날)
+market_competitor_event,Competitor Event,ALL,09,60,monthly,Competitor Event 수집 (월 첫번째 월요일)

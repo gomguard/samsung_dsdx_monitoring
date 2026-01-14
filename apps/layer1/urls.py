@@ -19,5 +19,6 @@ urlpatterns = [
     path('api/youtube-raw-data/', api_views.youtube_raw_data, name='api_youtube_raw_data'),
     path('api/market-trend-raw-data/', api_views.market_trend_raw_data, name='api_market_trend_raw_data'),
     path('api/market-demand-raw-data/', api_views.market_demand_raw_data, name='api_market_demand_raw_data'),
+    path('api/market-demand-missing/', api_views.market_demand_missing_keywords, name='api_market_demand_missing'),
     path('api/market-promotion-raw-data/', api_views.market_promotion_raw_data, name='api_market_promotion_raw_data'),
 ]

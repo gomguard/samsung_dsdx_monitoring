@@ -12,7 +12,7 @@ DS Layer 3 API: 이상치/반복 에러 검수
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_ds_connection
-from config.targets import load_monitoring_targets
+from apps.common.targets import load_monitoring_targets
 
 
 def get_monitoring_targets():
@@ -163,13 +163,9 @@ def layer_stats(request):
                 total_new['total'] += new_total
                 total_recurring['total'] += recurring_total
 
-                # 상태 판정 (반복 에러 기준)
+                # 상태 판정: 정상 또는 이상만 (경고 없음)
                 if recurring_total == 0 and new_total == 0:
                     status = 'success'
-                elif recurring_total == 0:
-                    status = 'warning'  # 신규만 있음
-                elif recurring_total < 10:
-                    status = 'warning'
                 else:
                     status = 'danger'
 
@@ -212,13 +208,9 @@ def layer_stats(request):
         cursor.close()
         conn.close()
 
-        # 전체 상태
+        # 전체 상태: 정상 또는 이상만 (경고 없음)
         if total_recurring['total'] == 0 and total_new['total'] == 0:
             overall_status = 'success'
-        elif total_recurring['total'] == 0:
-            overall_status = 'warning'
-        elif total_recurring['total'] < 50:
-            overall_status = 'warning'
         else:
             overall_status = 'danger'
 

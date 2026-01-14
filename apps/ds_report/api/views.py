@@ -7,7 +7,7 @@ DS 모니터링 보고 API
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_ds_connection
-from config.targets import get_report_targets
+from apps.common.targets import get_report_targets
 
 
 def get_monitoring_targets():

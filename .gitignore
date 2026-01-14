@@ -31,7 +31,6 @@ media/
 # 민감 정보
 config/config.py
 config/create_admin.py
-config/csv/
 
 # Nginx (서버에서 직접 설정)
 nginx/

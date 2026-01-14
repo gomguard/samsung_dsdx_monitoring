@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from datetime import datetime, timedelta, date
 from apps.common.db import get_ds_connection
 from config.config import FILE_SERVER_CONFIG
-from config.targets import load_monitoring_targets, get_retailer_map
+from apps.common.targets import load_monitoring_targets, get_retailer_map
 import pytz
 import paramiko
 
@@ -622,16 +622,15 @@ def fileserver_stats(request):
 
         # 수집현황과 동일한 순서로 정렬 (monitoring_targets.csv 순서 기준)
         targets = get_monitoring_targets()
-        retailer_order = {f"{t[4]}_{t[5]}": idx for idx, t in enumerate(targets)}  # country_mall_name -> order
+        # retailer 이름으로 순서 매핑 (대소문자, 하이픈 무시)
+        def normalize_name(name):
+            return name.lower().replace('-', '').replace('_', '')
+
+        retailer_order = {normalize_name(t[1]): idx for idx, t in enumerate(targets)}
 
         def get_sort_key(item):
-            # 파일명에서 country_mall_name 추출
-            filename = item['files'][0]['name'] if item['files'] else ''
-            parts = filename.replace('.zip', '').split('_')
-            if len(parts) >= 4:
-                key = f"{parts[2]}_{parts[3]}"
-                return retailer_order.get(key, 999)
-            return 999
+            retailer_name = normalize_name(item.get('retailer', ''))
+            return retailer_order.get(retailer_name, 999)
 
         countries_data.sort(key=get_sort_key)
 

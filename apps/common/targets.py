@@ -6,8 +6,8 @@ CSV 파일에서 모니터링 타겟 목록을 읽어옴
 import csv
 from pathlib import Path
 
-# CSV 파일 경로
-TARGETS_CSV_PATH = Path(__file__).parent / 'csv' / 'ds_monitoring_targets.csv'
+# CSV 파일 경로 (config/csv 폴더)
+TARGETS_CSV_PATH = Path(__file__).parent.parent.parent / 'config' / 'csv' / 'ds_monitoring_targets.csv'
 
 # 캐시된 데이터
 _targets_cache = None
@@ -16,14 +16,11 @@ _targets_cache = None
 def load_monitoring_targets():
     """
     CSV 파일에서 모니터링 대상 목록을 로드
+    매번 CSV 파일에서 직접 읽음 (캐시 사용 안함)
 
     Returns:
         list of tuples: (table_name, retailer, region, korea_time, country, mall_name)
     """
-    global _targets_cache
-
-    if _targets_cache is not None:
-        return _targets_cache
 
     targets = []
 
@@ -39,12 +36,10 @@ def load_monitoring_targets():
                     row['country'],
                     row['mall_name']
                 ))
-        _targets_cache = targets
     except Exception as e:
         print(f"Error loading monitoring targets: {e}")
-        _targets_cache = []
 
-    return _targets_cache
+    return targets
 
 
 def get_retailer_map():

@@ -4,10 +4,18 @@ Layer 2 API: 형식/NULL 검증 (Formatting & Null Validation)
 - 테이블별 분류: TV Retail, HHP Retail, Sentiment, YouTube, Market
 """
 
-import re
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
+from apps.common.retail_columns import (
+    get_null_check_query_parts, get_null_detail_query_parts, get_null_check_columns,
+    validate_field, get_duplicate_key_columns, get_duplicate_check_query,
+    load_format_rules, get_retailer_list, get_retail_duplicate_keys,
+    get_null_check_config, get_null_display_columns, get_null_query_columns,
+    get_null_check_where_condition, get_null_check_date_column,
+    get_check_name_by_table, get_check_names_by_table, get_null_check_columns_for_category,
+    get_all_categories, get_check_names_by_category, get_category_config
+)
 
 
 # 상태 기준: 0건 = OK, 1~10건 = WARNING, 10건 초과 = CRITICAL
@@ -21,459 +29,13 @@ def get_status(issue_count):
 
 
 def validate_tv_field(field_name, value, account_name='Amazon'):
-    """TV Retail 필드별 형식 검증. 오류 시 메시지 반환, 정상이면 None"""
-    if value is None:
-        return None
-    val = str(value).strip()
-    if val == '':
-        return None
-
-    # ======== 공통 검증 ========
-    # item: 알파벳+숫자
-    if field_name == 'item':
-        if not re.match(r'^[A-Za-z0-9]+$', val):
-            return f'item 형식 오류: {val[:20]}'
-
-    # account_name: Amazon, Bestbuy, Walmart
-    elif field_name == 'account_name':
-        if val not in ['Amazon', 'Bestbuy', 'Walmart']:
-            return f'account_name 오류: {val}'
-
-    # page_type: main, bsr, trend, promotion
-    elif field_name == 'page_type':
-        if val not in ['main', 'bsr', 'trend', 'promotion']:
-            return f'page_type 오류: {val}'
-
-    # product_url: http 시작
-    elif field_name == 'product_url':
-        if not val.startswith('http://') and not val.startswith('https://'):
-            return 'product_url 형식 오류'
-
-    # main_rank: 1~400 (TV는 400까지)
-    elif field_name == 'main_rank':
-        try:
-            rank = int(val)
-            if rank < 1 or rank > 400:
-                return f'main_rank 범위 오류: {val} (1~400)'
-        except ValueError:
-            return f'main_rank 숫자 아님: {val}'
-
-    # bsr_rank: 1~100
-    elif field_name == 'bsr_rank':
-        try:
-            rank = int(val)
-            if rank < 1 or rank > 100:
-                return f'bsr_rank 범위 오류: {val} (1~100)'
-        except ValueError:
-            return f'bsr_rank 숫자 아님: {val}'
-
-    # final_sku_price, original_sku_price: $00.00 형식 (리테일러별)
-    elif field_name in ['final_sku_price', 'original_sku_price']:
-        amazon_allowed = ['No featured offers available', 'Currently unavailable.', 'Price higher than typical',
-                          'To see our price, add this item to your cart.', 'See price in cart']
-        bestbuy_allowed = ['See price in cart']
-        walmart_allowed = ['Not Available', 'See price in cart']
-
-        if account_name == 'Amazon' and val in amazon_allowed:
-            return None
-        elif account_name == 'Bestbuy' and val in bestbuy_allowed:
-            return None
-        elif account_name == 'Walmart' and val in walmart_allowed:
-            return None
-        elif account_name == 'Walmart' and re.match(r'^\$[\d,]+\.?\d*/(month|undefined)$', val):
-            return None
-        elif not re.match(r'^\$[\d,]+\.?\d*$', val):
-            return f'{field_name} 형식 오류: {val[:20]}'
-
-    # count_of_reviews: 숫자(쉼표 가능)
-    elif field_name == 'count_of_reviews':
-        clean_val = val.replace(',', '')
-        if not re.match(r'^\d+$', clean_val):
-            return f'count_of_reviews 형식 오류: {val[:20]}'
-
-    # star_rating: 0.0~5.0 또는 리뷰없음 텍스트 (리테일러별 허용값 다름)
-    elif field_name == 'star_rating':
-        # Amazon TV: No customer reviews 만 허용
-        # Bestbuy TV: Not yet reviewed 만 허용
-        # Walmart TV: No ratings yet 만 허용
-        if account_name == 'Amazon':
-            no_review_texts = ['No customer reviews']
-        elif account_name == 'Bestbuy':
-            no_review_texts = ['Not yet reviewed']
-        else:  # Walmart
-            no_review_texts = ['No ratings yet']
-        if val in no_review_texts:
-            return None
-        try:
-            rating = float(val)
-            if rating < 0.0 or rating > 5.0:
-                return f'star_rating 범위 오류: {val} (0.0~5.0)'
-        except ValueError:
-            return f'star_rating 형식 오류: {val[:20]}'
-
-    # count_of_star_ratings: 숫자(쉼표 가능) 또는 리뷰없음 텍스트 (리테일러별 허용값 다름)
-    elif field_name == 'count_of_star_ratings':
-        # Amazon TV: No customer reviews 만 허용
-        # Bestbuy TV: Not yet reviewed 만 허용
-        # Walmart TV: No ratings yet 만 허용
-        if account_name == 'Amazon':
-            no_review_texts = ['No customer reviews']
-        elif account_name == 'Bestbuy':
-            no_review_texts = ['Not yet reviewed']
-        else:  # Walmart
-            no_review_texts = ['No ratings yet']
-        if val in no_review_texts:
-            return None
-        clean_val = val.replace(',', '')
-        if not re.match(r'^\d+$', clean_val):
-            return f'count_of_star_ratings 형식 오류: {val[:20]}'
-
-    # detailed_review_content: TV는 1- 로 시작 (Amazon), review1- (Walmart)
-    elif field_name == 'detailed_review_content':
-        if account_name == 'Amazon' and val == 'No customer reviews':
-            return None
-        elif account_name == 'Amazon' and val and not val.startswith('1-'):
-            return 'detailed_review_content 형식 오류 (1- 로 시작해야 함)'
-        elif account_name == 'Walmart' and val and not val.startswith('review1-'):
-            return 'detailed_review_content 형식 오류 (review1- 로 시작해야 함)'
-        elif account_name == 'Bestbuy' and val and not val.startswith('review1 - '):
-            return 'detailed_review_content 형식 오류 (review1 - 로 시작해야 함)'
-
-    # ======== Amazon 전용 검증 ========
-    elif account_name == 'Amazon':
-        # number_of_units_purchased_past_month: 숫자
-        if field_name == 'number_of_units_purchased_past_month':
-            clean_val = val.replace(',', '').replace('+', '')
-            if not re.match(r'^\d+$', clean_val) and val.lower() not in ['null', 'none']:
-                return f'number_of_units_purchased_past_month 형식 오류: {val[:20]}'
-
-        # available_quantity_for_purchase: 숫자 또는 "In Stock"
-        elif field_name == 'available_quantity_for_purchase':
-            clean_val = val.replace(',', '')
-            if not re.match(r'^\d+$', clean_val) and val != 'In Stock':
-                return f'available_quantity_for_purchase 형식 오류: {val[:20]}'
-
-        # sku_popularity: Amazon's Choice 또는 null/빈값
-        elif field_name == 'sku_popularity':
-            if val and val not in ["Amazon's  Choice", "Amazon's Choice"]:
-                return f"sku_popularity 오류: {val[:20]}"
-
-        # retailer_membership_discounts: Prime members 시작 (TV Amazon은 Or 없음)
-        elif field_name == 'retailer_membership_discounts':
-            if val and not val.startswith('Prime members'):
-                return f'retailer_membership_discounts 형식 오류: {val[:20]}'
-
-        # rank_1, rank_2: # 시작
-        elif field_name in ['rank_1', 'rank_2']:
-            if val and not val.startswith('#'):
-                return f'{field_name} 형식 오류 (# 로 시작해야 함)'
-
-        # summarized_review_content: Customers 시작
-        elif field_name == 'summarized_review_content':
-            if val and not val.startswith('Customers'):
-                return f'summarized_review_content 형식 오류 (Customers 로 시작해야 함)'
-
-    # ======== Bestbuy 전용 검증 ========
-    elif account_name == 'Bestbuy':
-        # savings: $00.00 형식
-        if field_name == 'savings':
-            if not re.match(r'^\$[\d,]+\.?\d*$', val):
-                return f'savings 형식 오류: {val[:20]}'
-
-        # offer: 숫자 형식
-        elif field_name == 'offer':
-            if not re.match(r'^\d+$', val):
-                return f'offer 형식 오류: {val[:20]}'
-
-        # retailer_sku_name_similar: null이거나 구분자 ||| 3개 존재
-        elif field_name == 'retailer_sku_name_similar':
-            if val:
-                separator_count = val.count('|||')
-                if separator_count != 3:
-                    return f'retailer_sku_name_similar 오류 (||| 구분자 {separator_count}개, 3개 필요)'
-
-        # recommendation_intent: 숫자% would recommend to a friend 형식
-        elif field_name == 'recommendation_intent':
-            if val and not re.match(r'^\d+% would recommend to a friend$', val):
-                return f'recommendation_intent 형식 오류: {val[:30]}'
-
-    # ======== Walmart 전용 검증 ========
-    elif account_name == 'Walmart':
-        # offer: 숫자
-        if field_name == 'offer':
-            if not re.match(r'^\d+$', val):
-                return f'offer 형식 오류: {val[:20]}'
-
-        # retailer_membership_discounts: Walmart Plus 또는 Save with W+ 만 허용
-        elif field_name == 'retailer_membership_discounts':
-            if val and not (val == 'Walmart Plus' or val.startswith('Save with W+')):
-                return f'retailer_membership_discounts 형식 오류: {val[:20]}'
-
-        # available_quantity_for_purchase: 숫자
-        elif field_name == 'available_quantity_for_purchase':
-            clean_val = val.replace(',', '')
-            if not re.match(r'^\d+$', clean_val):
-                return f'available_quantity_for_purchase 형식 오류: {val[:20]}'
-
-        # number_of_ppl_purchased_yesterday: 숫자
-        elif field_name == 'number_of_ppl_purchased_yesterday':
-            clean_val = val.replace(',', '').replace('+', '')
-            if not re.match(r'^\d+$', clean_val):
-                return f'number_of_ppl_purchased_yesterday 형식 오류: {val[:20]}'
-
-        # number_of_ppl_added_to_carts: 숫자
-        elif field_name == 'number_of_ppl_added_to_carts':
-            clean_val = val.replace(',', '').replace('+', '')
-            if not re.match(r'^\d+$', clean_val):
-                return f'number_of_ppl_added_to_carts 형식 오류: {val[:20]}'
-
-        # savings: $00.00 형식
-        elif field_name == 'savings':
-            if not re.match(r'^\$[\d,]+\.?\d*$', val):
-                return f'savings 형식 오류: {val[:20]}'
-
-        # discount_type: Price when purchased online 또는 null
-        elif field_name == 'discount_type':
-            if val and val != 'Price when purchased online':
-                return f'discount_type 오류: {val[:20]}'
-
-    return None
+    """TV Retail 필드별 형식 검증. 오류 시 메시지 반환, 정상이면 None (CSV 기반)"""
+    return validate_field('tv_retail_com', field_name, value, account_name)
 
 
 def validate_hhp_field(field_name, value, account_name='Amazon'):
-    """HHP Retail 필드별 형식 검증 (TV와 다른 검증 규칙 적용)"""
-    if value is None:
-        return None
-    val = str(value).strip()
-    if val == '':
-        return None
-
-    # ======== 공통 검증 ========
-    # item: 알파벳+숫자
-    if field_name == 'item':
-        if not re.match(r'^[A-Za-z0-9]+$', val):
-            return f'item 형식 오류: {val[:20]}'
-
-    # account_name: Amazon, Bestbuy, Walmart
-    elif field_name == 'account_name':
-        if val not in ['Amazon', 'Bestbuy', 'Walmart']:
-            return f'account_name 오류: {val}'
-
-    # page_type: main, bsr, trend (HHP는 promotion 없음)
-    elif field_name == 'page_type':
-        if val not in ['main', 'bsr', 'trend']:
-            return f'page_type 오류: {val}'
-
-    # product_url: http 시작
-    elif field_name == 'product_url':
-        if not val.startswith('http://') and not val.startswith('https://'):
-            return 'product_url 형식 오류'
-
-    # main_rank: 1~300 (HHP는 300까지)
-    elif field_name == 'main_rank':
-        try:
-            rank = int(val)
-            if rank < 1 or rank > 300:
-                return f'main_rank 범위 오류: {val} (1~300)'
-        except ValueError:
-            return f'main_rank 숫자 아님: {val}'
-
-    # bsr_rank: 1~100
-    elif field_name == 'bsr_rank':
-        try:
-            rank = int(val)
-            if rank < 1 or rank > 100:
-                return f'bsr_rank 범위 오류: {val} (1~100)'
-        except ValueError:
-            return f'bsr_rank 숫자 아님: {val}'
-
-    # trend_rank: 1~10 (HHP 전용)
-    elif field_name == 'trend_rank':
-        try:
-            rank = int(val)
-            if rank < 1 or rank > 10:
-                return f'trend_rank 범위 오류: {val} (1~10)'
-        except ValueError:
-            return f'trend_rank 숫자 아님: {val}'
-
-    # final_sku_price, original_sku_price: $00.00 형식 (리테일러별)
-    elif field_name in ['final_sku_price', 'original_sku_price']:
-        amazon_allowed = ['No featured offers available', 'Currently unavailable.', 'Price higher than typical', 'To see our price, add this item to your cart.', 'See price in cart']
-        walmart_allowed = ['Not Available']
-
-        if account_name == 'Amazon' and val in amazon_allowed:
-            return None
-        elif account_name == 'Walmart' and val in walmart_allowed:
-            return None
-        elif account_name == 'Walmart' and re.match(r'^\$[\d,]+\.?\d*/(month|undefined)$', val):
-            return None
-        elif not re.match(r'^\$[\d,]+\.?\d*$', val):
-            return f'{field_name} 형식 오류: {val[:20]}'
-
-    # count_of_reviews: 숫자(쉼표 가능)
-    elif field_name == 'count_of_reviews':
-        clean_val = val.replace(',', '')
-        if not re.match(r'^\d+$', clean_val):
-            return f'count_of_reviews 형식 오류: {val[:20]}'
-
-    # star_rating: 0.0~5.0 또는 리뷰없음 텍스트 (리테일러별 허용값 다름)
-    elif field_name == 'star_rating':
-        # Amazon HHP: No customer reviews 만 허용
-        # Bestbuy HHP: Not yet reviewed 만 허용
-        # Walmart HHP: No ratings yet 만 허용
-        if account_name == 'Amazon':
-            no_review_texts = ['No customer reviews']
-        elif account_name == 'Bestbuy':
-            no_review_texts = ['Not yet reviewed']
-        else:  # Walmart
-            no_review_texts = ['No ratings yet']
-        if val in no_review_texts:
-            return None
-        try:
-            rating = float(val)
-            if rating < 0.0 or rating > 5.0:
-                return f'star_rating 범위 오류: {val} (0.0~5.0)'
-        except ValueError:
-            return f'star_rating 형식 오류: {val[:20]}'
-
-    # count_of_star_ratings: 숫자(쉼표 가능) 또는 리뷰없음 텍스트 (리테일러별 허용값 다름)
-    elif field_name == 'count_of_star_ratings':
-        # Amazon HHP: No customer reviews 만 허용
-        # Bestbuy HHP: Not yet reviewed 만 허용
-        # Walmart HHP: No ratings yet 만 허용
-        if account_name == 'Amazon':
-            no_review_texts = ['No customer reviews']
-        elif account_name == 'Bestbuy':
-            no_review_texts = ['Not yet reviewed']
-        else:  # Walmart
-            no_review_texts = ['No ratings yet']
-        if val in no_review_texts:
-            return None
-        clean_val = val.replace(',', '')
-        if not re.match(r'^\d+$', clean_val):
-            return f'count_of_star_ratings 형식 오류: {val[:20]}'
-
-    # detailed_review_content: HHP는 review1 - 로 시작 (Amazon, Bestbuy 공통)
-    elif field_name == 'detailed_review_content':
-        if account_name == 'Amazon' and val == 'No customer reviews':
-            return None
-        elif val and not val.startswith('review1 - '):
-            return 'detailed_review_content 형식 오류 (review1 - 로 시작해야 함)'
-
-    # ======== Amazon 전용 검증 ========
-    elif account_name == 'Amazon':
-        # number_of_units_purchased_past_month: 숫자
-        if field_name == 'number_of_units_purchased_past_month':
-            clean_val = val.replace(',', '').replace('+', '')
-            if not re.match(r'^\d+$', clean_val) and val.lower() not in ['null', 'none']:
-                return f'number_of_units_purchased_past_month 형식 오류: {val[:20]}'
-
-        # available_quantity_for_purchase: 숫자
-        elif field_name == 'available_quantity_for_purchase':
-            clean_val = val.replace(',', '')
-            if not re.match(r'^\d+$', clean_val):
-                return f'available_quantity_for_purchase 형식 오류: {val[:20]}'
-
-        # sku_popularity: Amazon's Choice 또는 null/빈값
-        elif field_name == 'sku_popularity':
-            if val and val not in ["Amazon's  Choice", "Amazon's Choice"]:
-                return f"sku_popularity 오류: {val[:20]}"
-
-        # trade_in: Save up to $ 시작 (HHP Amazon 전용)
-        elif field_name == 'trade_in':
-            if val and not val.startswith('Save up to $'):
-                return f'trade_in 형식 오류 (Save up to $ 로 시작해야 함)'
-
-        # retailer_membership_discounts: Or Prime members 시작
-        elif field_name == 'retailer_membership_discounts':
-            if val and not val.startswith('Or Prime members'):
-                return f'retailer_membership_discounts 형식 오류: {val[:20]}'
-
-        # rank_1, rank_2: # 시작
-        elif field_name in ['rank_1', 'rank_2']:
-            if val and not val.startswith('#'):
-                return f'{field_name} 형식 오류 (# 로 시작해야 함)'
-
-        # summarized_review_content: Customers 시작
-        elif field_name == 'summarized_review_content':
-            if val and not val.startswith('Customers'):
-                return f'summarized_review_content 형식 오류 (Customers 로 시작해야 함)'
-
-    # ======== Bestbuy 전용 검증 ========
-    elif account_name == 'Bestbuy':
-        # savings: $00.00 형식
-        if field_name == 'savings':
-            if not re.match(r'^\$[\d,]+\.?\d*$', val):
-                return f'savings 형식 오류: {val[:20]}'
-
-        # offer: 숫자 형식
-        elif field_name == 'offer':
-            if not re.match(r'^\d+$', val):
-                return f'offer 형식 오류: {val[:20]}'
-
-        # sku_status: Sponsored 또는 null (HHP Bestbuy 전용)
-        elif field_name == 'sku_status':
-            if val and val != 'Sponsored':
-                return f'sku_status 오류 (Sponsored 또는 null)'
-
-        # trade_in: Check your trade-in value. 시작 (HHP Bestbuy 전용)
-        elif field_name == 'trade_in':
-            if val and not val.startswith('Check your trade-in value.'):
-                return f'trade_in 형식 오류 (Check your trade-in value. 로 시작해야 함)'
-
-        # retailer_sku_name_similar: null이거나 구분자 ||| 3개 존재
-        elif field_name == 'retailer_sku_name_similar':
-            if val:
-                separator_count = val.count('|||')
-                if separator_count != 3:
-                    return f'retailer_sku_name_similar 오류 (||| 구분자 {separator_count}개, 3개 필요)'
-
-        # recommendation_intent: 숫자% would recommend to a friend 형식
-        elif field_name == 'recommendation_intent':
-            if val and not re.match(r'^\d+% would recommend to a friend$', val):
-                return f'recommendation_intent 형식 오류: {val[:30]}'
-
-    # ======== Walmart 전용 검증 ========
-    elif account_name == 'Walmart':
-        # offer: 숫자
-        if field_name == 'offer':
-            if not re.match(r'^\d+$', val):
-                return f'offer 형식 오류: {val[:20]}'
-
-        # retailer_membership_discounts: Save with W+ 시작
-        elif field_name == 'retailer_membership_discounts':
-            if val and not val.startswith('Save with W+'):
-                return f'retailer_membership_discounts 형식 오류: {val[:20]}'
-
-        # available_quantity_for_purchase: 숫자
-        elif field_name == 'available_quantity_for_purchase':
-            clean_val = val.replace(',', '')
-            if not re.match(r'^\d+$', clean_val):
-                return f'available_quantity_for_purchase 형식 오류: {val[:20]}'
-
-        # number_of_ppl_purchased_yesterday: 숫자
-        elif field_name == 'number_of_ppl_purchased_yesterday':
-            clean_val = val.replace(',', '').replace('+', '')
-            if not re.match(r'^\d+$', clean_val):
-                return f'number_of_ppl_purchased_yesterday 형식 오류: {val[:20]}'
-
-        # number_of_ppl_added_to_carts: 숫자
-        elif field_name == 'number_of_ppl_added_to_carts':
-            clean_val = val.replace(',', '').replace('+', '')
-            if not re.match(r'^\d+$', clean_val):
-                return f'number_of_ppl_added_to_carts 형식 오류: {val[:20]}'
-
-        # savings: $00.00 형식
-        elif field_name == 'savings':
-            if not re.match(r'^\$[\d,]+\.?\d*$', val):
-                return f'savings 형식 오류: {val[:20]}'
-
-        # discount_type: Price when purchased online 또는 null
-        elif field_name == 'discount_type':
-            if val and val != 'Price when purchased online':
-                return f'discount_type 오류: {val[:20]}'
-
-    return None
+    """HHP Retail 필드별 형식 검증. 오류 시 메시지 반환, 정상이면 None (CSV 기반)"""
+    return validate_field('hhp_retail_com', field_name, value, account_name)
 
 
 def layer_stats(request):
@@ -511,7 +73,7 @@ def layer_stats(request):
         total_anomaly_issues = 0
 
         # ============================================================
-        # 1. NULL 검증 (필수값 누락)
+        # 1. NULL 검증 (필수값 누락) - CSV 기반 동적 생성
         # ============================================================
         null_validation = {
             'type': 'null',
@@ -522,499 +84,120 @@ def layer_stats(request):
             'tables': []
         }
 
-        # TV Retail NULL 검증 - 필수항목별 NULL 개수 + 하나라도 NULL인 레코드 수
-        cursor.execute("""
-            SELECT
-                account_name,
-                COUNT(*) as total,
-                COUNT(CASE WHEN item IS NULL OR item = '' THEN 1 END) as null_item,
-                COUNT(CASE WHEN screen_size IS NULL OR screen_size = '' THEN 1 END) as null_screen_size,
-                COUNT(CASE WHEN final_sku_price IS NULL OR final_sku_price = '' THEN 1 END) as null_price,
-                COUNT(CASE WHEN retailer_sku_name IS NULL OR retailer_sku_name = '' THEN 1 END) as null_sku_name,
-                COUNT(CASE WHEN count_of_reviews IS NULL OR count_of_reviews = '' THEN 1 END) as null_reviews,
-                COUNT(CASE WHEN star_rating IS NULL OR star_rating = '' THEN 1 END) as null_rating,
-                COUNT(CASE WHEN count_of_star_ratings IS NULL OR count_of_star_ratings = '' THEN 1 END) as null_star_ratings,
-                COUNT(CASE WHEN (item IS NULL OR item = '')
-                              OR (screen_size IS NULL OR screen_size = '')
-                              OR (final_sku_price IS NULL OR final_sku_price = '')
-                              OR (retailer_sku_name IS NULL OR retailer_sku_name = '')
-                              OR (count_of_reviews IS NULL OR count_of_reviews = '')
-                              OR (star_rating IS NULL OR star_rating = '')
-                              OR (count_of_star_ratings IS NULL OR count_of_star_ratings = '')
-                         THEN 1 END) as records_with_null
-            FROM tv_retail_com
-            WHERE DATE(crawl_datetime::timestamp) = %s
-            GROUP BY account_name
-            ORDER BY account_name
-        """, (target_date,))
+        # CSV에서 모든 category 가져와서 동적으로 테이블 생성
+        all_categories = get_all_categories()
 
-        tv_null_rows = cursor.fetchall()
-        tv_null_retailers = []
-        tv_null_total = 0
-        tv_null_issue_total = 0
-
-        # TV Retail NULL 컬럼 조회 (리테일러별, 시간대별)
-        tv_null_columns = {}
-        tv_columns_by_retailer = {
-            'Amazon': [
-                'id', 'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-                'retailer_sku_name', 'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                'number_of_units_purchased_past_month', 'final_sku_price', 'original_sku_price',
-                'shipping_info', 'available_quantity_for_purchase', 'discount_type', 'sku_popularity',
-                'retailer_membership_discounts', 'rank_1', 'rank_2', 'summarized_review_content',
-                'detailed_review_content', 'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-            ],
-            'Bestbuy': [
-                'id', 'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-                'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'savings', 'offer',
-                'pick_up_availability', 'shipping_availability', 'delivery_availability',
-                'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                'estimated_annual_electricity_use', 'retailer_sku_name_similar', 'top_mentions',
-                'detailed_review_content', 'recommendation_intent', 'promotion_type',
-                'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-            ],
-            'Walmart': [
-                'id', 'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-                'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'offer',
-                'pick_up_availability', 'shipping_availability', 'delivery_availability',
-                'sku_status', 'retailer_membership_discounts', 'available_quantity_for_purchase',
-                'inventory_status', 'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts',
-                'sku_popularity', 'savings', 'discount_type', 'shipping_info', 'count_of_reviews',
-                'star_rating', 'count_of_star_ratings', 'detailed_review_content',
-                'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-            ]
+        # category별 표시명 매핑 (category -> display_name)
+        category_display_names = {
+            'tv_retail': 'TV Retail',
+            'hhp_retail': 'HHP Retail',
+            'youtube': 'YouTube',
+            'market': 'Market'
         }
 
-        for retailer, columns in tv_columns_by_retailer.items():
-            tv_null_columns[retailer] = {'오전': [], '오후': []}
-            for period, hour_condition in [('오전', '< 12'), ('오후', '>= 12')]:
-                count_parts = [f"COUNT({col}) as {col}_cnt" for col in columns]
-                query = f"""
-                    SELECT {', '.join(count_parts)}
-                    FROM tv_retail_com
-                    WHERE account_name = %s
-                    AND crawl_datetime::timestamp >= %s
-                    AND crawl_datetime::timestamp < %s
-                    AND EXTRACT(HOUR FROM crawl_datetime::timestamp) {hour_condition}
-                """
-                cursor.execute(query, (retailer, str(target_date), str(next_date)))
-                row = cursor.fetchone()
-                if row:
-                    null_cols = [col for col, cnt in zip(columns, row) if cnt == 0]
-                    tv_null_columns[retailer][period] = null_cols
+        # 리테일러 테이블 (account_name 조건 필요)
+        retail_categories = ['tv_retail', 'hhp_retail']
 
-        for row in tv_null_rows:
-            records_with_null = row[9]  # 하나라도 NULL인 레코드 수
-            retailer_name = row[0]
-            tv_null_retailers.append({
-                'retailer': retailer_name,
-                'total': row[1],
-                'records_with_null': records_with_null,
-                'fields_detail': {
-                    'item': row[2],
-                    'screen_size': row[3],
-                    'final_sku_price': row[4],
-                    'retailer_sku_name': row[5],
-                    'count_of_reviews': row[6],
-                    'star_rating': row[7],
-                    'count_of_star_ratings': row[8]
-                },
-                'null_columns': tv_null_columns.get(retailer_name, {'오전': [], '오후': []}),
-                'status': get_status(records_with_null)
-            })
-            tv_null_total += row[1]
-            tv_null_issue_total += records_with_null
-
-        null_validation['tables'].append({
-            'table': 'tv_retail',
-            'table_name': 'TV Retail',
-            'total_records': tv_null_total,
-            'total_issues': tv_null_issue_total,
-            'status': get_status(tv_null_issue_total),
-            'retailers': tv_null_retailers,
-            'fields': ['item', 'screen_size', 'final_sku_price', 'retailer_sku_name', 'count_of_reviews', 'star_rating', 'count_of_star_ratings']
-        })
-        total_null_issues += tv_null_issue_total
-
-        # HHP Retail NULL 검증 - 필수항목별 NULL 개수 + 하나라도 NULL인 레코드 수
-        cursor.execute("""
-            SELECT
-                account_name,
-                COUNT(*) as total,
-                COUNT(CASE WHEN item IS NULL OR item = '' THEN 1 END) as null_item,
-                COUNT(CASE WHEN final_sku_price IS NULL OR final_sku_price = '' THEN 1 END) as null_price,
-                COUNT(CASE WHEN retailer_sku_name IS NULL OR retailer_sku_name = '' THEN 1 END) as null_sku_name,
-                COUNT(CASE WHEN count_of_reviews IS NULL OR count_of_reviews = '' THEN 1 END) as null_reviews,
-                COUNT(CASE WHEN star_rating IS NULL OR star_rating = '' THEN 1 END) as null_rating,
-                COUNT(CASE WHEN count_of_star_ratings IS NULL OR count_of_star_ratings = '' THEN 1 END) as null_star_ratings,
-                COUNT(CASE WHEN (item IS NULL OR item = '')
-                              OR (final_sku_price IS NULL OR final_sku_price = '')
-                              OR (retailer_sku_name IS NULL OR retailer_sku_name = '')
-                              OR (count_of_reviews IS NULL OR count_of_reviews = '')
-                              OR (star_rating IS NULL OR star_rating = '')
-                              OR (count_of_star_ratings IS NULL OR count_of_star_ratings = '')
-                         THEN 1 END) as records_with_null
-            FROM hhp_retail_com
-            WHERE DATE(crawl_strdatetime::timestamp) = %s
-            GROUP BY account_name
-            ORDER BY account_name
-        """, (target_date,))
-
-        hhp_null_rows = cursor.fetchall()
-        hhp_null_retailers = []
-        hhp_null_total = 0
-        hhp_null_issue_total = 0
-
-        # HHP Retail NULL 컬럼 조회 (리테일러별, 시간대별)
-        hhp_null_columns = {}
-        hhp_columns_by_retailer = {
-            'Amazon': [
-                'id', 'country', 'product', 'item', 'account_name', 'page_type', 'product_url', 'main_rank', 'bsr_rank',
-                'retailer_sku_name', 'number_of_units_purchased_past_month', 'final_sku_price', 'original_sku_price',
-                'shipping_info', 'available_quantity_for_purchase', 'discount_type',
-                'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                'sku_popularity', 'bundle', 'trade_in', 'retailer_membership_discounts', 'rank_1', 'rank_2',
-                'hhp_carrier', 'hhp_storage', 'hhp_color', 'summarized_review_content', 'detailed_review_content',
-                'calendar_week', 'crawl_strdatetime'
-            ],
-            'Bestbuy': [
-                'id', 'country', 'product', 'item', 'account_name', 'page_type', 'count_of_reviews',
-                'retailer_sku_name', 'product_url', 'star_rating', 'count_of_star_ratings',
-                'final_sku_price', 'original_sku_price', 'savings', 'offer',
-                'pick_up_availability', 'shipping_availability', 'delivery_availability', 'sku_status',
-                'trade_in', 'hhp_carrier', 'hhp_storage', 'hhp_color', 'detailed_review_content', 'top_mentions',
-                'recommendation_intent', 'main_rank', 'bsr_rank', 'trend_rank',
-                'promotion_type', 'retailer_sku_name_similar', 'calendar_week', 'crawl_strdatetime'
-            ],
-            'Walmart': [
-                'id', 'item', 'account_name', 'page_type', 'product_url',
-                'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'offer',
-                'pick_up_availability', 'shipping_availability', 'delivery_availability', 'sku_status',
-                'retailer_membership_discounts', 'available_quantity_for_purchase', 'inventory_status',
-                'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts', 'sku_popularity',
-                'savings', 'discount_type', 'shipping_info', 'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                'hhp_carrier', 'hhp_storage', 'hhp_color', 'detailed_review_content',
-                'main_rank', 'bsr_rank', 'calendar_week', 'crawl_strdatetime'
-            ]
-        }
-
-        for retailer, columns in hhp_columns_by_retailer.items():
-            hhp_null_columns[retailer] = {'오전': [], '오후': []}
-            for period, hour_condition in [('오전', '< 12'), ('오후', '>= 12')]:
-                count_parts = [f"COUNT({col}) as {col}_cnt" for col in columns]
-                query = f"""
-                    SELECT {', '.join(count_parts)}
-                    FROM hhp_retail_com
-                    WHERE account_name = %s
-                    AND crawl_strdatetime::timestamp >= %s
-                    AND crawl_strdatetime::timestamp < %s
-                    AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) {hour_condition}
-                """
-                cursor.execute(query, (retailer, str(target_date), str(next_date)))
-                row = cursor.fetchone()
-                if row:
-                    null_cols = [col for col, cnt in zip(columns, row) if cnt == 0]
-                    hhp_null_columns[retailer][period] = null_cols
-
-        for row in hhp_null_rows:
-            records_with_null = row[8]  # 하나라도 NULL인 레코드 수
-            retailer_name = row[0]
-            hhp_null_retailers.append({
-                'retailer': retailer_name,
-                'total': row[1],
-                'records_with_null': records_with_null,
-                'fields_detail': {
-                    'item': row[2],
-                    'final_sku_price': row[3],
-                    'retailer_sku_name': row[4],
-                    'count_of_reviews': row[5],
-                    'star_rating': row[6],
-                    'count_of_star_ratings': row[7]
-                },
-                'null_columns': hhp_null_columns.get(retailer_name, {'오전': [], '오후': []}),
-                'status': get_status(records_with_null)
-            })
-            hhp_null_total += row[1]
-            hhp_null_issue_total += records_with_null
-
-        null_validation['tables'].append({
-            'table': 'hhp_retail',
-            'table_name': 'HHP Retail',
-            'total_records': hhp_null_total,
-            'total_issues': hhp_null_issue_total,
-            'status': get_status(hhp_null_issue_total),
-            'retailers': hhp_null_retailers,
-            'fields': ['item', 'final_sku_price', 'retailer_sku_name', 'count_of_reviews', 'star_rating', 'count_of_star_ratings']
-        })
-        total_null_issues += hhp_null_issue_total
-
-        # YouTube NULL 검증 (Logs, Videos, Comments 통합)
-        # Logs NULL 검증
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total,
-                COUNT(CASE WHEN keyword_id IS NULL THEN 1 END) as null_keyword_id,
-                COUNT(CASE WHEN keyword IS NULL OR keyword = '' THEN 1 END) as null_keyword,
-                COUNT(CASE WHEN status IS NULL OR status = '' THEN 1 END) as null_status,
-                COUNT(CASE WHEN videos_collected IS NULL THEN 1 END) as null_videos_collected,
-                COUNT(CASE WHEN comments_collected IS NULL THEN 1 END) as null_comments_collected,
-                COUNT(CASE WHEN started_at IS NULL THEN 1 END) as null_started_at,
-                COUNT(CASE WHEN completed_at IS NULL THEN 1 END) as null_completed_at
-            FROM youtube_collection_logs
-            WHERE DATE(started_at) = %s
-        """, (target_date,))
-        yt_log_null_row = cursor.fetchone()
-        yt_log_null_issues = (yt_log_null_row[1] or 0) + (yt_log_null_row[2] or 0) + (yt_log_null_row[3] or 0) + (yt_log_null_row[6] or 0) + (yt_log_null_row[7] or 0)
-
-        # Videos NULL 검증
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total,
-                COUNT(CASE WHEN video_id IS NULL OR video_id = '' THEN 1 END) as null_video_id,
-                COUNT(CASE WHEN keyword IS NULL OR keyword = '' THEN 1 END) as null_keyword,
-                COUNT(CASE WHEN title IS NULL OR title = '' THEN 1 END) as null_title,
-                COUNT(CASE WHEN published_at IS NULL THEN 1 END) as null_published_at,
-                COUNT(CASE WHEN channel_country IS NULL OR channel_country = '' THEN 1 END) as null_channel_country
-            FROM youtube_videos
-            WHERE DATE(created_at) = %s
-        """, (target_date,))
-        yt_video_null_row = cursor.fetchone()
-        yt_video_null_issues = (yt_video_null_row[1] or 0) + (yt_video_null_row[2] or 0) + (yt_video_null_row[3] or 0) + (yt_video_null_row[4] or 0) + (yt_video_null_row[5] or 0)
-
-        # Comments NULL 검증
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total,
-                COUNT(CASE WHEN comment_id IS NULL OR comment_id = '' THEN 1 END) as null_comment_id,
-                COUNT(CASE WHEN video_id IS NULL OR video_id = '' THEN 1 END) as null_video_id,
-                COUNT(CASE WHEN comment_text_display IS NULL OR comment_text_display = '' THEN 1 END) as null_comment_text,
-                COUNT(CASE WHEN published_at IS NULL THEN 1 END) as null_published_at
-            FROM youtube_comments
-            WHERE DATE(created_at) = %s
-        """, (target_date,))
-        yt_comment_null_row = cursor.fetchone()
-        yt_comment_null_issues = (yt_comment_null_row[1] or 0) + (yt_comment_null_row[2] or 0) + (yt_comment_null_row[3] or 0) + (yt_comment_null_row[4] or 0)
-
-        # YouTube 통합 (리테일러 형태로) - 순서: Logs, Videos, Comments
-        yt_total_null_issues = yt_log_null_issues + yt_video_null_issues + yt_comment_null_issues
-        yt_total_records = (yt_log_null_row[0] or 0) + (yt_video_null_row[0] or 0) + (yt_comment_null_row[0] or 0)
-
-        youtube_null_retailers = [
-            {
-                'retailer': 'Logs',
-                'total': yt_log_null_row[0] or 0,
-                'records_with_null': yt_log_null_issues,
-                'status': get_status(yt_log_null_issues),
-                'fields_detail': {
-                    'keyword_id': yt_log_null_row[1] or 0,
-                    'keyword': yt_log_null_row[2] or 0,
-                    'status': yt_log_null_row[3] or 0,
-                    'videos_collected': yt_log_null_row[4] or 0,
-                    'comments_collected': yt_log_null_row[5] or 0,
-                    'started_at': yt_log_null_row[6] or 0,
-                    'completed_at': yt_log_null_row[7] or 0
-                }
-            },
-            {
-                'retailer': 'Videos',
-                'total': yt_video_null_row[0] or 0,
-                'records_with_null': yt_video_null_issues,
-                'status': get_status(yt_video_null_issues),
-                'fields_detail': {
-                    'video_id': yt_video_null_row[1] or 0,
-                    'keyword': yt_video_null_row[2] or 0,
-                    'title': yt_video_null_row[3] or 0,
-                    'published_at': yt_video_null_row[4] or 0,
-                    'channel_country': yt_video_null_row[5] or 0
-                }
-            },
-            {
-                'retailer': 'Comments',
-                'total': yt_comment_null_row[0] or 0,
-                'records_with_null': yt_comment_null_issues,
-                'status': get_status(yt_comment_null_issues),
-                'fields_detail': {
-                    'comment_id': yt_comment_null_row[1] or 0,
-                    'video_id': yt_comment_null_row[2] or 0,
-                    'comment_text_display': yt_comment_null_row[3] or 0,
-                    'published_at': yt_comment_null_row[4] or 0
-                }
-            }
-        ]
-
-        null_validation['tables'].append({
-            'table': 'youtube',
-            'table_name': 'YouTube',
-            'total_records': yt_total_records,
-            'total_issues': yt_total_null_issues,
-            'status': get_status(yt_total_null_issues),
-            'retailers': youtube_null_retailers,
-            'fields': ['comment_id', 'video_id', 'keyword', 'title', 'published_at', 'channel_country', 'keyword_id', 'status', 'started_at', 'completed_at', 'comment_text_display']
-        })
-        total_null_issues += yt_total_null_issues
-
-        # Market NULL 검증 (Trend, Comp Product, Comp Event)
-        try:
-            # market_trend NULL 검증
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN keyword IS NULL OR keyword = '' THEN 1 END) as null_keyword,
-                    COUNT(CASE WHEN total_article_number IS NULL THEN 1 END) as null_total_article_number,
-                    COUNT(CASE WHEN calendar_week IS NULL OR calendar_week = '' THEN 1 END) as null_calendar_week,
-                    COUNT(CASE WHEN crawl_at_local_time IS NULL THEN 1 END) as null_crawl_at_local_time
-                FROM market_trend
-                WHERE DATE(crawl_at_local_time) = %s
-            """, (target_date,))
-            market_trend_null_row = cursor.fetchone()
-            market_trend_total = market_trend_null_row[0] if market_trend_null_row else 0
-            market_trend_null_issues = sum(v or 0 for v in market_trend_null_row[1:5]) if market_trend_null_row else 0
-
-            # market_comp_product NULL 검증
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN country IS NULL OR country = '' THEN 1 END) as null_country,
-                    COUNT(CASE WHEN samsung_series_name IS NULL OR samsung_series_name = '' THEN 1 END) as null_samsung_series_name,
-                    COUNT(CASE WHEN comp_brand IS NULL OR comp_brand = '' THEN 1 END) as null_comp_brand,
-                    COUNT(CASE WHEN comp_series_name IS NULL OR comp_series_name = '' THEN 1 END) as null_comp_series_name,
-                    COUNT(CASE WHEN expected_release IS NULL OR expected_release = '' THEN 1 END) as null_expected_release,
-                    COUNT(CASE WHEN comment IS NULL OR comment = '' THEN 1 END) as null_comment,
-                    COUNT(CASE WHEN calender_week IS NULL OR calender_week = '' THEN 1 END) as null_calender_week,
-                    COUNT(CASE WHEN created_at IS NULL THEN 1 END) as null_created_at,
-                    COUNT(CASE WHEN batch_id IS NULL OR batch_id = '' THEN 1 END) as null_batch_id,
-                    COUNT(CASE WHEN category IS NULL OR category = '' THEN 1 END) as null_category
-                FROM market_comp_product
-                WHERE DATE(created_at) = %s
-            """, (target_date,))
-            market_comp_product_null_row = cursor.fetchone()
-            market_comp_product_total = market_comp_product_null_row[0] if market_comp_product_null_row else 0
-            market_comp_product_null_issues = sum(v or 0 for v in market_comp_product_null_row[1:11]) if market_comp_product_null_row else 0
-
-            # market_comp_event NULL 검증
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN country IS NULL OR country = '' THEN 1 END) as null_country,
-                    COUNT(CASE WHEN comp_brand IS NULL OR comp_brand = '' THEN 1 END) as null_comp_brand,
-                    COUNT(CASE WHEN comp_sku_name IS NULL OR comp_sku_name = '' THEN 1 END) as null_comp_sku_name,
-                    COUNT(CASE WHEN calender_week IS NULL OR calender_week = '' THEN 1 END) as null_calender_week,
-                    COUNT(CASE WHEN created_at IS NULL THEN 1 END) as null_created_at,
-                    COUNT(CASE WHEN batch_id IS NULL OR batch_id = '' THEN 1 END) as null_batch_id,
-                    COUNT(CASE WHEN category IS NULL OR category = '' THEN 1 END) as null_category
-                FROM market_comp_event
-                WHERE DATE(created_at) = %s
-            """, (target_date,))
-            market_comp_event_null_row = cursor.fetchone()
-            market_comp_event_total = market_comp_event_null_row[0] if market_comp_event_null_row else 0
-            market_comp_event_null_issues = sum(v or 0 for v in market_comp_event_null_row[1:8]) if market_comp_event_null_row else 0
-
-            market_total_records = market_trend_total + market_comp_product_total + market_comp_event_total
-            market_total_null_issues = market_trend_null_issues + market_comp_product_null_issues + market_comp_event_null_issues
-
-            market_null_retailers = [
-                {
-                    'retailer': 'Trend',
-                    'total': market_trend_total,
-                    'records_with_null': market_trend_null_issues,
-                    'status': get_status(market_trend_null_issues),
-                    'fields_detail': {
-                        'keyword': market_trend_null_row[1] if market_trend_null_row else 0,
-                        'total_article_number': market_trend_null_row[2] if market_trend_null_row else 0,
-                        'calendar_week': market_trend_null_row[3] if market_trend_null_row else 0,
-                        'crawl_at_local_time': market_trend_null_row[4] if market_trend_null_row else 0
-                    }
-                },
-                {
-                    'retailer': 'Comp Product',
-                    'total': market_comp_product_total,
-                    'records_with_null': market_comp_product_null_issues,
-                    'status': get_status(market_comp_product_null_issues),
-                    'fields_detail': {
-                        'country': market_comp_product_null_row[1] if market_comp_product_null_row else 0,
-                        'samsung_series_name': market_comp_product_null_row[2] if market_comp_product_null_row else 0,
-                        'comp_brand': market_comp_product_null_row[3] if market_comp_product_null_row else 0,
-                        'comp_series_name': market_comp_product_null_row[4] if market_comp_product_null_row else 0,
-                        'expected_release': market_comp_product_null_row[5] if market_comp_product_null_row else 0,
-                        'comment': market_comp_product_null_row[6] if market_comp_product_null_row else 0,
-                        'calender_week': market_comp_product_null_row[7] if market_comp_product_null_row else 0,
-                        'created_at': market_comp_product_null_row[8] if market_comp_product_null_row else 0,
-                        'batch_id': market_comp_product_null_row[9] if market_comp_product_null_row else 0,
-                        'category': market_comp_product_null_row[10] if market_comp_product_null_row else 0
-                    }
-                },
-                {
-                    'retailer': 'Comp Event',
-                    'total': market_comp_event_total,
-                    'records_with_null': market_comp_event_null_issues,
-                    'status': get_status(market_comp_event_null_issues),
-                    'fields_detail': {
-                        'country': market_comp_event_null_row[1] if market_comp_event_null_row else 0,
-                        'comp_brand': market_comp_event_null_row[2] if market_comp_event_null_row else 0,
-                        'comp_sku_name': market_comp_event_null_row[3] if market_comp_event_null_row else 0,
-                        'calender_week': market_comp_event_null_row[4] if market_comp_event_null_row else 0,
-                        'created_at': market_comp_event_null_row[5] if market_comp_event_null_row else 0,
-                        'batch_id': market_comp_event_null_row[6] if market_comp_event_null_row else 0,
-                        'category': market_comp_event_null_row[7] if market_comp_event_null_row else 0
-                    }
-                }
-            ]
-
-            # OpenAI Forecast NULL 검증 - Market 안에 포함
+        for category in all_categories:
             try:
-                cursor.execute("""
-                    SELECT
-                        COUNT(*) as total,
-                        COUNT(CASE WHEN product_name IS NULL OR product_name = '' THEN 1 END) as null_product_name,
-                        COUNT(CASE WHEN event IS NULL OR event = '' THEN 1 END) as null_event,
-                        COUNT(CASE WHEN metric_type IS NULL OR metric_type = '' THEN 1 END) as null_metric_type,
-                        COUNT(CASE WHEN event_offset IS NULL THEN 1 END) as null_event_offset,
-                        COUNT(CASE WHEN event_value IS NULL THEN 1 END) as null_event_value,
-                        COUNT(CASE WHEN comment IS NULL OR comment = '' THEN 1 END) as null_comment,
-                        COUNT(CASE WHEN week IS NULL OR week = '' THEN 1 END) as null_week,
-                        COUNT(CASE WHEN crawled_at IS NULL THEN 1 END) as null_crawled_at
-                    FROM openai_forecast_results
-                    WHERE DATE(crawled_at) = %s
-                """, (target_date,))
-                forecast_null_row = cursor.fetchone()
-                forecast_total = forecast_null_row[0] if forecast_null_row else 0
-                forecast_null_issues = sum(v or 0 for v in forecast_null_row[1:9]) if forecast_null_row else 0
+                check_names = get_check_names_by_category(category)
+                if not check_names:
+                    continue
 
-                market_null_retailers.append({
-                    'retailer': 'Forecast',
-                    'total': forecast_total,
-                    'records_with_null': forecast_null_issues,
-                    'status': get_status(forecast_null_issues),
-                    'fields_detail': {
-                        'product_name': forecast_null_row[1] if forecast_null_row else 0,
-                        'event': forecast_null_row[2] if forecast_null_row else 0,
-                        'metric_type': forecast_null_row[3] if forecast_null_row else 0,
-                        'event_offset': forecast_null_row[4] if forecast_null_row else 0,
-                        'event_value': forecast_null_row[5] if forecast_null_row else 0,
-                        'comment': forecast_null_row[6] if forecast_null_row else 0,
-                        'week': forecast_null_row[7] if forecast_null_row else 0,
-                        'crawled_at': forecast_null_row[8] if forecast_null_row else 0
-                    }
+                cat_retailers = []
+                cat_total_records = 0
+                cat_total_issues = 0
+                all_cat_fields = []
+
+                # 표시명 결정 (매핑에 없으면 category 그대로 사용)
+                display_name = category_display_names.get(category, category.replace('_', ' ').title())
+
+                for check_name in check_names:
+                    try:
+                        query_parts = get_null_check_query_parts(check_name)
+                        if not query_parts:
+                            continue
+
+                        # 리테일러명 추출 (check_name에서 추출)
+                        # tv_retail, hhp_retail: amazon_tv -> Amazon
+                        # youtube: youtube_logs -> Logs
+                        # market: market_trend -> Trend
+                        if category in retail_categories:
+                            retailer_name = check_name.split('_')[0].capitalize()
+                        else:
+                            # check_name에서 category 부분 제거하고 표시명 생성
+                            parts = check_name.split('_')
+                            if len(parts) > 1 and parts[0] == category.split('_')[0]:
+                                retailer_name = '_'.join(parts[1:]).replace('_', ' ').title()
+                            else:
+                                retailer_name = check_name.replace('_', ' ').title()
+
+                        # 상세 쿼리 파트도 가져옴 (WHERE 조건용)
+                        detail_parts = get_null_detail_query_parts(check_name)
+                        where_conds = ' OR '.join(detail_parts['where_conditions']) if detail_parts else '1=0'
+
+                        # 필드별 NULL 건수와 NULL 레코드 수를 동시에 조회
+                        if category in retail_categories:
+                            # 리테일러 테이블: account_name 조건 추가
+                            query = f"""
+                                SELECT COUNT(*) as total,
+                                       {', '.join(query_parts['count_parts'])},
+                                       COUNT(CASE WHEN {where_conds} THEN 1 END) as records_with_null
+                                FROM {query_parts['table_name']}
+                                WHERE DATE({query_parts['date_column']}::timestamp) = %s
+                                  AND account_name = %s
+                            """
+                            cursor.execute(query, (target_date, retailer_name))
+                        else:
+                            # 그 외 테이블: account_name 조건 없음
+                            query = f"""
+                                SELECT COUNT(*) as total,
+                                       {', '.join(query_parts['count_parts'])},
+                                       COUNT(CASE WHEN {where_conds} THEN 1 END) as records_with_null
+                                FROM {query_parts['table_name']}
+                                WHERE DATE({query_parts['date_column']}) = %s
+                            """
+                            cursor.execute(query, (target_date,))
+
+                        row = cursor.fetchone()
+
+                        if row:
+                            total = row[0] or 0
+                            fields_detail = {}
+                            total_null_count = 0  # 모든 필드의 NULL 건수 합산
+                            for i, col_name in enumerate(query_parts['column_names']):
+                                null_count = row[i + 1] or 0
+                                fields_detail[col_name] = null_count
+                                total_null_count += null_count  # NULL 건수 합산
+                                if col_name not in all_cat_fields:
+                                    all_cat_fields.append(col_name)
+
+                            cat_retailers.append({
+                                'retailer': retailer_name,
+                                'total': total,
+                                'records_with_null': total_null_count,  # 필드별 NULL 합산
+                                'status': get_status(total_null_count),
+                                'fields_detail': fields_detail
+                            })
+                            cat_total_records += total
+                            cat_total_issues += total_null_count
+                    except Exception:
+                        # 개별 check_name 오류 시 무시하고 계속
+                        pass
+
+                null_validation['tables'].append({
+                    'table': category,
+                    'table_name': display_name,
+                    'total_records': cat_total_records,
+                    'total_issues': cat_total_issues,
+                    'status': get_status(cat_total_issues),
+                    'retailers': cat_retailers,
+                    'fields': all_cat_fields
                 })
-                market_total_records += forecast_total
-                market_total_null_issues += forecast_null_issues
-            except Exception as e:
-                # openai_forecast_results 테이블이 없거나 오류 발생 시 무시
+                total_null_issues += cat_total_issues
+            except Exception:
+                # category 처리 오류 시 무시하고 계속
                 pass
-
-            null_validation['tables'].append({
-                'table': 'market',
-                'table_name': 'Market',
-                'total_records': market_total_records,
-                'total_issues': market_total_null_issues,
-                'status': get_status(market_total_null_issues),
-                'retailers': market_null_retailers,
-                'fields': ['keyword', 'total_article_number', 'calendar_week', 'crawl_at_local_time', 'country', 'samsung_series_name', 'comp_brand', 'comp_series_name', 'expected_release', 'comment', 'calender_week', 'created_at', 'batch_id', 'category', 'comp_sku_name', 'product_name', 'event', 'metric_type', 'event_offset', 'event_value', 'week', 'crawled_at']
-            })
-            total_null_issues += market_total_null_issues
-        except Exception as e:
-            # Market 테이블이 없거나 오류 발생 시 무시
-            pass
 
         null_validation['total_issues'] = total_null_issues
         null_validation['status'] = get_status(total_null_issues)
@@ -1378,13 +561,12 @@ def layer_stats(request):
                     COUNT(CASE WHEN samsung_series_name IS NOT NULL AND samsung_series_name != '' AND samsung_series_name NOT IN (SELECT keyword FROM market_mst WHERE analysis_type = 'competitor' AND content_type = 'samsung') THEN 1 END) as invalid_samsung_series,
                     COUNT(CASE WHEN comp_brand IS NOT NULL AND comp_brand != '' AND comp_brand NOT IN (SELECT keyword FROM market_mst WHERE analysis_type = 'competitor' AND content_type = 'comp') THEN 1 END) as invalid_comp_brand,
                     COUNT(CASE WHEN calender_week IS NOT NULL AND calender_week != '' AND LOWER(calender_week) !~ '^w([1-9]|[1-4][0-9]|5[0-2])$' THEN 1 END) as invalid_calender_week,
-                    COUNT(CASE WHEN category IS NOT NULL AND category != '' AND category NOT IN ('TV', 'HHP') THEN 1 END) as invalid_category,
-                    COUNT(CASE WHEN expected_release IS NOT NULL AND expected_release != '' AND expected_release !~ '^(Q[1-4] [0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{4}|TBD|TBA|Unknown|info_not_available)$' THEN 1 END) as invalid_expected_release
+                    COUNT(CASE WHEN category IS NOT NULL AND category != '' AND category NOT IN ('TV', 'HHP') THEN 1 END) as invalid_category
                 FROM market_comp_product
                 WHERE DATE(created_at) = %s
             """, (target_date,))
             market_comp_product_format_row = cursor.fetchone()
-            market_comp_product_format_issues = sum(v or 0 for v in market_comp_product_format_row[1:6]) if market_comp_product_format_row else 0
+            market_comp_product_format_issues = sum(v or 0 for v in market_comp_product_format_row[1:5]) if market_comp_product_format_row else 0
 
             # market_comp_event 형식 검증 - 최신 배치 기준 comp_brand, comp_series_name 검증
             cursor.execute("""
@@ -1449,8 +631,7 @@ def layer_stats(request):
                         'samsung_series_name 미등록': market_comp_product_format_row[1] if market_comp_product_format_row else 0,
                         'comp_brand 미등록': market_comp_product_format_row[2] if market_comp_product_format_row else 0,
                         'calender_week 형식 오류': market_comp_product_format_row[3] if market_comp_product_format_row else 0,
-                        'category 값 오류': market_comp_product_format_row[4] if market_comp_product_format_row else 0,
-                        'expected_release 형식 오류': market_comp_product_format_row[5] if market_comp_product_format_row else 0
+                        'category 값 오류': market_comp_product_format_row[4] if market_comp_product_format_row else 0
                     }
                 },
                 {
@@ -1500,7 +681,7 @@ def layer_stats(request):
         results['validation_types'].append(format_validation)
 
         # ============================================================
-        # 3. 중복 검증 (동일 상품 중복 수집)
+        # 3. 중복 검증 (동일 상품 중복 수집) - CSV 기반
         # ============================================================
         anomaly_validation = {
             'type': 'duplicate',
@@ -1511,33 +692,63 @@ def layer_stats(request):
             'tables': []
         }
 
-        # TV Retail 이상치: 총 레코드 수 조회
-        cursor.execute("""
-            SELECT COUNT(*) FROM tv_retail_com
-            WHERE DATE(crawl_datetime::timestamp) = %s
-        """, (target_date,))
+        def get_duplicate_count(table_name, date_col, dup_keys, target_date, use_period=False, group_by_col=None):
+            """CSV 기반 중복 검증 쿼리 실행"""
+            dup_keys_sql = ', '.join(dup_keys)
+
+            if use_period:
+                period_expr = f"CASE WHEN EXTRACT(HOUR FROM {date_col}::timestamp) < 12 THEN '오전' ELSE '오후' END as period"
+                if group_by_col:
+                    # 리테일러별 그룹화
+                    cursor.execute(f"""
+                        SELECT {group_by_col}, COUNT(*) as dup_groups FROM (
+                            SELECT {dup_keys_sql}, {period_expr}
+                            FROM {table_name}
+                            WHERE DATE({date_col}::timestamp) = %s
+                            GROUP BY {dup_keys_sql}, period
+                            HAVING COUNT(*) > 1
+                        ) sub
+                        GROUP BY {group_by_col}
+                        ORDER BY {group_by_col}
+                    """, (target_date,))
+                    return {row[0]: row[1] for row in cursor.fetchall()}
+                else:
+                    cursor.execute(f"""
+                        SELECT COUNT(*) FROM (
+                            SELECT {dup_keys_sql}, {period_expr}
+                            FROM {table_name}
+                            WHERE DATE({date_col}::timestamp) = %s
+                            GROUP BY {dup_keys_sql}, period
+                            HAVING COUNT(*) > 1
+                        ) sub
+                    """, (target_date,))
+                    return cursor.fetchone()[0] or 0
+            else:
+                cursor.execute(f"""
+                    SELECT COUNT(*) FROM (
+                        SELECT {dup_keys_sql}
+                        FROM {table_name}
+                        WHERE DATE({date_col}) = %s
+                        GROUP BY {dup_keys_sql}
+                        HAVING COUNT(*) > 1
+                    ) sub
+                """, (target_date,))
+                return cursor.fetchone()[0] or 0
+
+        # TV Retail 중복 검증 (CSV 기반)
+        tv_dup_keys = get_retail_duplicate_keys('tv')
+        if not tv_dup_keys:
+            tv_dup_keys = ['item', 'account_name']
+        tv_date_col = 'crawl_datetime'
+
+        cursor.execute(f"SELECT COUNT(*) FROM tv_retail_com WHERE DATE({tv_date_col}::timestamp) = %s", (target_date,))
         tv_total_records = cursor.fetchone()[0] or 0
 
-        # TV Retail 이상치: 중복 데이터
-        cursor.execute("""
-            SELECT account_name, COUNT(*) as dup_groups FROM (
-                SELECT item, account_name,
-                       CASE WHEN EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12 THEN '오전' ELSE '오후' END as period
-                FROM tv_retail_com
-                WHERE DATE(crawl_datetime::timestamp) = %s
-                GROUP BY item, account_name, period
-                HAVING COUNT(*) > 1
-            ) sub
-            GROUP BY account_name
-            ORDER BY account_name
-        """, (target_date,))
-
-        tv_dup_rows = cursor.fetchall()
-        tv_dup_dict = {row[0]: row[1] for row in tv_dup_rows}
+        retailer_list = get_retailer_list()
+        tv_dup_dict = get_duplicate_count('tv_retail_com', tv_date_col, tv_dup_keys, target_date, use_period=True, group_by_col='account_name')
         tv_dup_retailers = []
         tv_dup_total = 0
-        # 모든 retailer 포함 (중복 0건이어도 표시)
-        for retailer_name in ['Amazon', 'Bestbuy', 'Walmart']:
+        for retailer_name in retailer_list:
             dup_count = tv_dup_dict.get(retailer_name, 0)
             tv_dup_retailers.append({
                 'retailer': retailer_name,
@@ -1546,7 +757,7 @@ def layer_stats(request):
             })
             tv_dup_total += dup_count
 
-        # TV Retail 이상치: 가격 이상 (음수 또는 비정상적 고가)
+        # TV Retail 가격 이상
         cursor.execute("""
             SELECT COUNT(*) FROM tv_retail_com
             WHERE DATE(crawl_datetime::timestamp) = %s
@@ -1562,41 +773,27 @@ def layer_stats(request):
             'table': 'tv_retail',
             'table_name': 'TV Retail',
             'total_records': tv_total_records,
-            'total_issues': tv_dup_total + tv_price_anomaly,
+            'total_issues': tv_dup_total,
             'duplicate_groups': tv_dup_total,
-            'price_anomalies': tv_price_anomaly,
-            'status': get_status(tv_dup_total + tv_price_anomaly),
+            'duplicate_keys': tv_dup_keys,
+            'status': get_status(tv_dup_total),
             'retailers': tv_dup_retailers
         })
-        total_anomaly_issues += tv_dup_total + tv_price_anomaly
+        total_anomaly_issues += tv_dup_total
 
-        # HHP Retail 이상치: 총 레코드 수 조회
-        cursor.execute("""
-            SELECT COUNT(*) FROM hhp_retail_com
-            WHERE DATE(crawl_strdatetime::timestamp) = %s
-        """, (target_date,))
+        # HHP Retail 중복 검증 (CSV 기반)
+        hhp_dup_keys = get_retail_duplicate_keys('hhp')
+        if not hhp_dup_keys:
+            hhp_dup_keys = ['item', 'account_name']
+        hhp_date_col = 'crawl_strdatetime'
+
+        cursor.execute(f"SELECT COUNT(*) FROM hhp_retail_com WHERE DATE({hhp_date_col}::timestamp) = %s", (target_date,))
         hhp_total_records = cursor.fetchone()[0] or 0
 
-        # HHP Retail 이상치: 중복 데이터
-        cursor.execute("""
-            SELECT account_name, COUNT(*) as dup_groups FROM (
-                SELECT item, account_name,
-                       CASE WHEN EXTRACT(HOUR FROM crawl_strdatetime::timestamp) < 12 THEN '오전' ELSE '오후' END as period
-                FROM hhp_retail_com
-                WHERE DATE(crawl_strdatetime::timestamp) = %s
-                GROUP BY item, account_name, period
-                HAVING COUNT(*) > 1
-            ) sub
-            GROUP BY account_name
-            ORDER BY account_name
-        """, (target_date,))
-
-        hhp_dup_rows = cursor.fetchall()
-        hhp_dup_dict = {row[0]: row[1] for row in hhp_dup_rows}
+        hhp_dup_dict = get_duplicate_count('hhp_retail_com', hhp_date_col, hhp_dup_keys, target_date, use_period=True, group_by_col='account_name')
         hhp_dup_retailers = []
         hhp_dup_total = 0
-        # 모든 retailer 포함 (중복 0건이어도 표시)
-        for retailer_name in ['Amazon', 'Bestbuy', 'Walmart']:
+        for retailer_name in retailer_list:
             dup_count = hhp_dup_dict.get(retailer_name, 0)
             hhp_dup_retailers.append({
                 'retailer': retailer_name,
@@ -1611,38 +808,30 @@ def layer_stats(request):
             'total_records': hhp_total_records,
             'total_issues': hhp_dup_total,
             'duplicate_groups': hhp_dup_total,
+            'duplicate_keys': hhp_dup_keys,
             'status': get_status(hhp_dup_total),
             'retailers': hhp_dup_retailers
         })
         total_anomaly_issues += hhp_dup_total
 
-        # YouTube Videos 이상치: 총 레코드 수 조회
-        cursor.execute("""
-            SELECT COUNT(*) FROM youtube_videos
-            WHERE DATE(created_at) = %s
-        """, (target_date,))
+        # YouTube Videos 중복 검증 (CSV 기반)
+        ytv_dup_info = get_duplicate_key_columns('youtube_videos')
+        ytv_date_col = ytv_dup_info['date_column'] if ytv_dup_info else 'created_at'
+        ytv_dup_keys = ytv_dup_info['duplicate_keys'] if ytv_dup_info else ['video_id', 'keyword']
+
+        cursor.execute(f"SELECT COUNT(*) FROM youtube_videos WHERE DATE({ytv_date_col}) = %s", (target_date,))
         ytv_total_records = cursor.fetchone()[0] or 0
+        ytv_dup_total = get_duplicate_count('youtube_videos', ytv_date_col, ytv_dup_keys, target_date)
 
-        # YouTube Videos 이상치: 중복 데이터 (동일 video_id + keyword)
-        cursor.execute("""
-            SELECT COUNT(*) FROM (
-                SELECT video_id, keyword
-                FROM youtube_videos
-                WHERE DATE(created_at) = %s
-                GROUP BY video_id, keyword
-                HAVING COUNT(*) > 1
-            ) sub
-        """, (target_date,))
-        ytv_dup_total = cursor.fetchone()[0] or 0
+        # YouTube Logs 중복 검증 (CSV 기반 - JOIN 필요)
+        ytl_dup_info = get_duplicate_key_columns('youtube_collection_logs')
+        ytl_date_col = ytl_dup_info['date_column'] if ytl_dup_info else 'started_at'
+        ytl_dup_keys = ytl_dup_info['duplicate_keys'] if ytl_dup_info else ['keyword', 'category']
 
-        # YouTube Logs 이상치: 총 레코드 수 조회
-        cursor.execute("""
-            SELECT COUNT(*) FROM youtube_collection_logs
-            WHERE DATE(started_at) = %s
-        """, (target_date,))
+        cursor.execute(f"SELECT COUNT(*) FROM youtube_collection_logs WHERE DATE({ytl_date_col}) = %s", (target_date,))
         ytl_total_records = cursor.fetchone()[0] or 0
 
-        # YouTube Logs 이상치: 중복 데이터 (동일 keyword + category)
+        # YouTube Logs는 youtube_keywords와 JOIN 필요 (keyword, category가 별도 테이블)
         cursor.execute("""
             SELECT COUNT(*) FROM (
                 SELECT k.keyword, k.category
@@ -1655,7 +844,6 @@ def layer_stats(request):
         """, (target_date,))
         ytl_dup_total = cursor.fetchone()[0] or 0
 
-        # YouTube 통합 섹션 (Logs + Videos를 retailers처럼 배치, Comments는 중복검사 제외)
         yt_total_issues = ytl_dup_total + ytv_dup_total
         anomaly_validation['tables'].append({
             'table': 'youtube',
@@ -1669,72 +857,47 @@ def layer_stats(request):
                     'retailer': 'Logs',
                     'total': ytl_total_records,
                     'duplicate_groups': ytl_dup_total,
+                    'duplicate_keys': ytl_dup_keys,
                     'status': get_status(ytl_dup_total)
                 },
                 {
                     'retailer': 'Videos',
                     'total': ytv_total_records,
                     'duplicate_groups': ytv_dup_total,
+                    'duplicate_keys': ytv_dup_keys,
                     'status': get_status(ytv_dup_total)
                 }
             ]
         })
         total_anomaly_issues += yt_total_issues
 
-        # Market 중복 검증 (Trend, Product, Event)
-        # Market Trend: 같은 날짜에 keyword 중복 불가
-        cursor.execute("""
-            SELECT COUNT(*) FROM market_trend
-            WHERE DATE(crawl_at_local_time) = %s
-        """, (target_date,))
+        # Market 중복 검증 (CSV 기반)
+        # Market Trend
+        mt_dup_info = get_duplicate_key_columns('market_trend')
+        mt_date_col = mt_dup_info['date_column'] if mt_dup_info else 'crawl_at_local_time'
+        mt_dup_keys = mt_dup_info['duplicate_keys'] if mt_dup_info else ['keyword']
+
+        cursor.execute(f"SELECT COUNT(*) FROM market_trend WHERE DATE({mt_date_col}) = %s", (target_date,))
         market_trend_total = cursor.fetchone()[0] or 0
+        market_trend_dup = get_duplicate_count('market_trend', mt_date_col, mt_dup_keys, target_date)
 
-        cursor.execute("""
-            SELECT COUNT(*) FROM (
-                SELECT keyword
-                FROM market_trend
-                WHERE DATE(crawl_at_local_time) = %s
-                GROUP BY keyword
-                HAVING COUNT(*) > 1
-            ) sub
-        """, (target_date,))
-        market_trend_dup = cursor.fetchone()[0] or 0
+        # Market Product
+        mp_dup_info = get_duplicate_key_columns('market_comp_product')
+        mp_date_col = mp_dup_info['date_column'] if mp_dup_info else 'created_at'
+        mp_dup_keys = mp_dup_info['duplicate_keys'] if mp_dup_info else ['batch_id', 'samsung_series_name', 'comp_brand', 'comp_series_name']
 
-        # Market Product: 같은 batch_id에서 samsung_series_name + comp_brand + comp_series_name 중복 불가
-        cursor.execute("""
-            SELECT COUNT(*) FROM market_comp_product
-            WHERE DATE(created_at) = %s
-        """, (target_date,))
+        cursor.execute(f"SELECT COUNT(*) FROM market_comp_product WHERE DATE({mp_date_col}) = %s", (target_date,))
         market_product_total = cursor.fetchone()[0] or 0
+        market_product_dup = get_duplicate_count('market_comp_product', mp_date_col, mp_dup_keys, target_date)
 
-        cursor.execute("""
-            SELECT COUNT(*) FROM (
-                SELECT batch_id, samsung_series_name, comp_brand, comp_series_name
-                FROM market_comp_product
-                WHERE DATE(created_at) = %s
-                GROUP BY batch_id, samsung_series_name, comp_brand, comp_series_name
-                HAVING COUNT(*) > 1
-            ) sub
-        """, (target_date,))
-        market_product_dup = cursor.fetchone()[0] or 0
+        # Market Event
+        me_dup_info = get_duplicate_key_columns('market_comp_event')
+        me_date_col = me_dup_info['date_column'] if me_dup_info else 'created_at'
+        me_dup_keys = me_dup_info['duplicate_keys'] if me_dup_info else ['batch_id', 'comp_brand', 'comp_sku_name']
 
-        # Market Event: 같은 batch_id에서 comp_brand + comp_sku_name 중복 불가
-        cursor.execute("""
-            SELECT COUNT(*) FROM market_comp_event
-            WHERE DATE(created_at) = %s
-        """, (target_date,))
+        cursor.execute(f"SELECT COUNT(*) FROM market_comp_event WHERE DATE({me_date_col}) = %s", (target_date,))
         market_event_total = cursor.fetchone()[0] or 0
-
-        cursor.execute("""
-            SELECT COUNT(*) FROM (
-                SELECT batch_id, comp_brand, comp_sku_name
-                FROM market_comp_event
-                WHERE DATE(created_at) = %s
-                GROUP BY batch_id, comp_brand, comp_sku_name
-                HAVING COUNT(*) > 1
-            ) sub
-        """, (target_date,))
-        market_event_dup = cursor.fetchone()[0] or 0
+        market_event_dup = get_duplicate_count('market_comp_event', me_date_col, me_dup_keys, target_date)
 
         market_total_dup = market_trend_dup + market_product_dup + market_event_dup
         anomaly_validation['tables'].append({
@@ -1749,18 +912,21 @@ def layer_stats(request):
                     'retailer': 'Trend',
                     'total': market_trend_total,
                     'duplicate_groups': market_trend_dup,
+                    'duplicate_keys': mt_dup_keys,
                     'status': get_status(market_trend_dup)
                 },
                 {
                     'retailer': 'Product',
                     'total': market_product_total,
                     'duplicate_groups': market_product_dup,
+                    'duplicate_keys': mp_dup_keys,
                     'status': get_status(market_product_dup)
                 },
                 {
                     'retailer': 'Event',
                     'total': market_event_total,
                     'duplicate_groups': market_event_dup,
+                    'duplicate_keys': me_dup_keys,
                     'status': get_status(market_event_dup)
                 }
             ]
@@ -1771,277 +937,16 @@ def layer_stats(request):
         anomaly_validation['status'] = get_status(total_anomaly_issues)
         results['validation_types'].append(anomaly_validation)
 
-        # ========== 4. 커버리지 검증 (키워드 누락 확인) ==========
-        coverage_validation = {
-            'type': 'coverage',
-            'type_name': '커버리지 검증',
-            'type_name_en': 'Coverage Validation',
-            'icon': '📊',
-            'total_issues': 0,
-            'status': 'OK',
-            'tables': []
-        }
-        total_coverage_issues = 0
-
-        # Market Trend 키워드 커버리지 (product_line별)
-        # 1) market_mst에 등록된 trend 키워드 수 (product_line별)
-        cursor.execute("""
-            SELECT product_line, COUNT(*) as cnt
-            FROM market_mst WHERE analysis_type = 'trend'
-            GROUP BY product_line
-            ORDER BY product_line
-        """)
-        trend_by_category = {row[0]: {'registered': row[1], 'collected': 0} for row in cursor.fetchall()}
-
-        # 2) 해당 날짜에 수집된 키워드 수 (product_line별)
-        cursor.execute("""
-            SELECT m.product_line, COUNT(DISTINCT t.keyword) as cnt
-            FROM market_trend t
-            INNER JOIN market_mst m ON m.analysis_type = 'trend' AND t.keyword = m.keyword
-            WHERE DATE(t.crawl_at_local_time) = %s
-            GROUP BY m.product_line
-        """, (target_date,))
-        for row in cursor.fetchall():
-            if row[0] in trend_by_category:
-                trend_by_category[row[0]]['collected'] = row[1]
-
-        # 카테고리별 누락 계산
-        trend_categories = []
-        trend_registered = 0
-        trend_collected = 0
-        for cat, data in sorted(trend_by_category.items()):
-            missing = data['registered'] - data['collected'] if data['registered'] > data['collected'] else 0
-            trend_categories.append({
-                'category': cat,
-                'registered': data['registered'],
-                'collected': data['collected'],
-                'missing': missing
-            })
-            trend_registered += data['registered']
-            trend_collected += data['collected']
-
-        trend_missing = trend_registered - trend_collected if trend_registered > trend_collected else 0
-
-        # Market Product 커버리지 (삼성 키워드 × 경쟁사 브랜드 조합)
-        # 분기 기준으로 batch_id 찾기
-        quarter_month = ((target_date.month - 1) // 3) * 3 + 1
-        quarter_start = target_date.replace(month=quarter_month, day=1)
-        if quarter_month + 3 > 12:
-            quarter_end = target_date.replace(year=target_date.year + 1, month=1, day=1)
-        else:
-            quarter_end = target_date.replace(month=quarter_month + 3, day=1)
-
-        # 해당 분기의 최신 batch_id 찾기
-        cursor.execute("""
-            SELECT batch_id FROM market_comp_product
-            WHERE batch_id IS NOT NULL
-              AND created_at >= %s AND created_at < %s
-            ORDER BY created_at DESC
-            LIMIT 1
-        """, (quarter_start, quarter_end))
-        batch_row = cursor.fetchone()
-        product_batch_id = batch_row[0] if batch_row else None
-
-        # 카테고리별로 삼성 키워드 × 경쟁사 브랜드 조합 계산
-        # TV: 삼성TV키워드 × 경쟁사TV브랜드, HHP: 삼성HHP키워드 × 경쟁사HHP브랜드
-        cursor.execute("""
-            SELECT
-                s.product_line,
-                COUNT(DISTINCT s.keyword) as samsung_cnt,
-                (SELECT COUNT(DISTINCT keyword) FROM market_mst
-                 WHERE analysis_type = 'competitor' AND content_type = 'comp' AND product_line = s.product_line) as comp_cnt
-            FROM market_mst s
-            WHERE s.analysis_type = 'competitor' AND s.content_type = 'samsung'
-            GROUP BY s.product_line
-            ORDER BY s.product_line
-        """)
-        product_by_category = {}
-        for row in cursor.fetchall():
-            product_by_category[row[0]] = {
-                'registered': row[1] * row[2],  # 삼성 × 경쟁사
-                'samsung_cnt': row[1],
-                'comp_cnt': row[2],
-                'collected': 0
-            }
-
-        # 실제 수집된 조합 수 (product_line별)
-        if product_batch_id:
-            cursor.execute("""
-                SELECT m.product_line, COUNT(DISTINCT p.samsung_series_name || '||' || p.comp_brand)
-                FROM market_comp_product p
-                JOIN market_mst m ON m.analysis_type = 'competitor' AND m.content_type = 'samsung'
-                    AND m.keyword = p.samsung_series_name
-                WHERE p.batch_id = %s
-                GROUP BY m.product_line
-            """, (product_batch_id,))
-            for row in cursor.fetchall():
-                if row[0] in product_by_category:
-                    product_by_category[row[0]]['collected'] = row[1]
-
-        # 카테고리별 누락 계산
-        product_categories = []
-        product_expected = 0
-        product_collected = 0
-        for cat, data in sorted(product_by_category.items()):
-            missing = data['registered'] - data['collected'] if data['registered'] > data['collected'] else 0
-            product_categories.append({
-                'category': cat,
-                'registered': data['registered'],
-                'collected': data['collected'],
-                'missing': missing,
-                'detail': f"삼성 {data['samsung_cnt']}개 × 경쟁사 {data['comp_cnt']}개"
-            })
-            product_expected += data['registered']
-            product_collected += data['collected']
-
-        product_missing = product_expected - product_collected if product_expected > product_collected else 0
-
-        # Market 수요예측(Forecast) 커버리지 (카테고리별)
-        # 대상: 9주 이내 이벤트 키워드 - 1주 이내 제외 키워드
-        # 수집: openai_forecast_results 테이블
-        nine_weeks_later = target_date + timedelta(weeks=9)
-        one_week_later = target_date + timedelta(weeks=1)
-
-        # 9주 이내 대상 키워드 수 (카테고리별)
-        cursor.execute("""
-            SELECT k.category, COUNT(*) as cnt
-            FROM openai_keywords k
-            JOIN openai_event_mst e ON k.event_name = e.event_name
-            WHERE e.is_active = true
-            AND e.event_date >= %s AND e.event_date <= %s
-            GROUP BY k.category
-            ORDER BY k.category
-        """, (target_date.strftime('%Y-%m-%d'), nine_weeks_later.strftime('%Y-%m-%d')))
-        forecast_target_by_cat = {row[0]: row[1] for row in cursor.fetchall()}
-
-        # 1주 이내 제외 키워드 수 (카테고리별)
-        cursor.execute("""
-            SELECT k.category, COUNT(*) as cnt
-            FROM openai_keywords k
-            JOIN openai_event_mst e ON k.event_name = e.event_name
-            WHERE e.is_active = true
-            AND e.event_date >= %s AND e.event_date <= %s
-            GROUP BY k.category
-        """, (target_date.strftime('%Y-%m-%d'), one_week_later.strftime('%Y-%m-%d')))
-        forecast_excluded_by_cat = {row[0]: row[1] for row in cursor.fetchall()}
-
-        # 카테고리별 대상 수 계산 (9주 이내 - 1주 이내)
-        forecast_by_category = {}
-        for cat in forecast_target_by_cat:
-            target = forecast_target_by_cat.get(cat, 0)
-            excluded = forecast_excluded_by_cat.get(cat, 0)
-            forecast_by_category[cat] = {
-                'registered': target - excluded,
-                'collected': 0
-            }
-
-        # 수집된 키워드 수 (카테고리별)
-        cursor.execute("""
-            SELECT k.category, COUNT(*) as cnt
-            FROM openai_forecast_results f
-            JOIN openai_keywords k ON f.product_name = k.product_name
-                AND REPLACE(UPPER(f.event), '_', ' ') = UPPER(k.event_name)
-            JOIN openai_event_mst e ON k.event_name = e.event_name
-            WHERE f.crawled_at::date = %s
-            AND e.is_active = true
-            AND e.event_date > %s AND e.event_date <= %s
-            GROUP BY k.category
-        """, (target_date.strftime('%Y-%m-%d'), one_week_later.strftime('%Y-%m-%d'), nine_weeks_later.strftime('%Y-%m-%d')))
-        for row in cursor.fetchall():
-            if row[0] in forecast_by_category:
-                forecast_by_category[row[0]]['collected'] = row[1]
-
-        # 카테고리별 누락 계산
-        forecast_categories = []
-        forecast_registered = 0
-        forecast_collected = 0
-        for cat, data in sorted(forecast_by_category.items()):
-            missing = data['registered'] - data['collected'] if data['registered'] > data['collected'] else 0
-            forecast_categories.append({
-                'category': cat,
-                'registered': data['registered'],
-                'collected': data['collected'],
-                'missing': missing
-            })
-            forecast_registered += data['registered']
-            forecast_collected += data['collected']
-
-        forecast_missing = forecast_registered - forecast_collected if forecast_registered > forecast_collected else 0
-
-        # 커버리지 상태 결정 함수
-        def get_coverage_status(registered, collected):
-            if registered == 0:
-                return 'OK'
-            rate = (collected / registered) * 100
-            if rate >= 100:
-                return 'OK'
-            elif rate >= 90:
-                return 'WARNING'
-            else:
-                return 'CRITICAL'
-
-        trend_status = get_coverage_status(trend_registered, trend_collected)
-        product_status = get_coverage_status(product_expected, product_collected)
-        forecast_status = get_coverage_status(forecast_registered, forecast_collected)
-
-        # 전체 누락 수를 이슈로 카운트
-        total_coverage_issues = trend_missing + product_missing + forecast_missing
-
-        coverage_validation['tables'].append({
-            'table': 'market_coverage',
-            'table_name': 'Market 키워드',
-            'total_records': trend_registered + product_expected + forecast_registered,
-            'total_issues': total_coverage_issues,
-            'status': get_status(total_coverage_issues),
-            'retailers': [
-                {
-                    'retailer': 'Trend',
-                    'registered': trend_registered,
-                    'collected': trend_collected,
-                    'missing': trend_missing,
-                    'rate': round((trend_collected / trend_registered * 100), 1) if trend_registered > 0 else 100,
-                    'status': trend_status,
-                    'categories': trend_categories
-                },
-                {
-                    'retailer': 'Product',
-                    'registered': product_expected,
-                    'collected': product_collected,
-                    'missing': product_missing,
-                    'rate': round((product_collected / product_expected * 100), 1) if product_expected > 0 else 100,
-                    'status': product_status,
-                    'batch_id': product_batch_id,
-                    'detail': 'product_line별 삼성×경쟁사 조합',
-                    'categories': product_categories
-                },
-                {
-                    'retailer': 'Forecast',
-                    'registered': forecast_registered,
-                    'collected': forecast_collected,
-                    'missing': forecast_missing,
-                    'rate': round((forecast_collected / forecast_registered * 100), 1) if forecast_registered > 0 else 100,
-                    'status': forecast_status,
-                    'detail': '9주 이내 이벤트 키워드 (1주 이내 제외)',
-                    'categories': forecast_categories
-                }
-            ]
-        })
-
-        coverage_validation['total_issues'] = total_coverage_issues
-        coverage_validation['status'] = get_status(total_coverage_issues)
-        results['validation_types'].append(coverage_validation)
-
         cursor.close()
         conn.close()
 
         # Summary 계산
-        total_issues = total_null_issues + total_format_issues + total_anomaly_issues + total_coverage_issues
+        total_issues = total_null_issues + total_format_issues + total_anomaly_issues
         results['summary'] = {
             'total_issues': total_issues,
             'null_issues': total_null_issues,
             'format_issues': total_format_issues,
             'duplicate_issues': total_anomaly_issues,
-            'coverage_issues': total_coverage_issues,
             'overall_status': 'OK' if total_issues == 0 else ('WARNING' if total_issues <= 30 else 'CRITICAL')
         }
 
@@ -2057,9 +962,9 @@ def layer_stats(request):
 
 
 def null_detail(request):
-    """NULL 필드 상세 조회 API"""
+    """NULL 필드 상세 조회 API - category 기반 동적 처리"""
     date_str = request.GET.get('date')
-    table = request.GET.get('table', 'tv_retail')
+    category = request.GET.get('table', 'tv_retail')  # table 파라미터가 category
     retailer = request.GET.get('retailer')
 
     if date_str:
@@ -2069,375 +974,160 @@ def null_detail(request):
 
     next_date = target_date + timedelta(days=1)
 
+    # 리테일러 테이블 (account_name 조건 필요)
+    retail_categories = ['tv_retail', 'hhp_retail']
+
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
 
-        if table == 'tv_retail':
-            query = """
-                SELECT id, crawl_datetime, account_name, item, screen_size, final_sku_price,
-                       retailer_sku_name, count_of_reviews, star_rating, count_of_star_ratings, product_url
-                FROM tv_retail_com
-                WHERE crawl_datetime::timestamp >= %s AND crawl_datetime::timestamp < %s
-                  AND (item IS NULL OR item = '' OR screen_size IS NULL OR screen_size = ''
-                      OR final_sku_price IS NULL OR final_sku_price = ''
-                      OR retailer_sku_name IS NULL OR retailer_sku_name = ''
-                      OR count_of_reviews IS NULL OR count_of_reviews = ''
-                      OR star_rating IS NULL OR star_rating = ''
-                      OR count_of_star_ratings IS NULL OR count_of_star_ratings = '')
+        # category에 해당하는 check_names 가져오기
+        check_names = get_check_names_by_category(category)
+        if not check_names:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'results': [], 'display_config': {}, 'query_config': {}, 'date': str(target_date)})
+
+        # retailer가 있으면 해당 check_name 찾기
+        check_name = None
+        if retailer:
+            # retailer로 check_name 매칭
+            retailer_lower = retailer.lower().replace(' ', '_')
+            for cn in check_names:
+                # tv_retail, hhp_retail: amazon_tv -> Amazon 매칭
+                # youtube: youtube_logs -> Logs 매칭
+                # market: market_trend -> Trend 매칭
+                if category in retail_categories:
+                    if cn.startswith(retailer_lower):
+                        check_name = cn
+                        break
+                else:
+                    # check_name에서 category 부분 제거하고 비교
+                    parts = cn.split('_')
+                    if len(parts) > 1:
+                        cn_retailer = '_'.join(parts[1:]) if parts[0] == category.split('_')[0] else cn
+                    else:
+                        cn_retailer = cn
+                    if cn_retailer.lower().replace('_', ' ') == retailer.lower() or cn_retailer.lower() == retailer_lower:
+                        check_name = cn
+                        break
+
+        # check_name이 없으면 첫 번째 사용
+        if not check_name:
+            check_name = check_names[0]
+
+        # 설정 가져오기
+        category_config = get_null_check_config(check_name)
+        if not category_config:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'results': [], 'display_config': {}, 'query_config': {}, 'date': str(target_date)})
+
+        actual_table = category_config['table_name']
+        date_col = category_config.get('date_column', 'created_at')
+        all_null_check_cols = list(category_config['columns'].keys())
+
+        # WHERE 조건 생성
+        where_conditions = []
+        for col_name in all_null_check_cols:
+            where_conditions.append(get_null_check_where_condition(check_name, col_name))
+        where_conds = ' OR '.join(where_conditions)
+
+        # 조회할 칼럼 수집
+        select_cols_set = {'id', date_col}
+        # retail 테이블은 item, account_name, product_url 포함
+        if category in retail_categories:
+            select_cols_set.update(['account_name', 'item', 'product_url'])
+        for col_name in all_null_check_cols:
+            select_cols_set.add(col_name)
+            select_cols_set.update(get_null_display_columns(check_name, col_name))
+            select_cols_set.update(get_null_query_columns(check_name, col_name))
+        select_cols = list(select_cols_set)
+
+        # 쿼리 생성
+        if category in retail_categories:
+            # 리테일러 테이블: account_name 조건 추가
+            query = f"""
+                SELECT {', '.join(select_cols)}
+                FROM {actual_table}
+                WHERE {date_col}::timestamp >= %s AND {date_col}::timestamp < %s
+                  AND ({where_conds})
             """
             params = [str(target_date), str(next_date)]
-
             if retailer:
                 query += " AND account_name = %s"
                 params.append(retailer)
-
-            query += " ORDER BY account_name, crawl_datetime LIMIT 200"
-            cursor.execute(query, params)
-
-            rows = cursor.fetchall()
-            results = []
-            for row in rows:
-                null_fields = []
-                if not row[3]: null_fields.append('item')
-                if not row[4]: null_fields.append('screen_size')
-                if not row[5]: null_fields.append('final_sku_price')
-                if not row[6]: null_fields.append('retailer_sku_name')
-                if not row[7]: null_fields.append('count_of_reviews')
-                if not row[8]: null_fields.append('star_rating')
-                if not row[9]: null_fields.append('count_of_star_ratings')
-
-                results.append({
-                    'id': row[0],
-                    'crawl_datetime': str(row[1]) if row[1] else None,
-                    'account_name': row[2],
-                    'item': row[3],
-                    'screen_size': row[4],
-                    'final_sku_price': row[5],
-                    'retailer_sku_name': row[6],
-                    'count_of_reviews': row[7],
-                    'star_rating': row[8],
-                    'count_of_star_ratings': row[9],
-                    'product_url': row[10],
-                    'null_fields': null_fields
-                })
-
-        elif table == 'hhp_retail':
-            query = """
-                SELECT id, crawl_strdatetime, account_name, item, final_sku_price,
-                       retailer_sku_name, count_of_reviews, star_rating, count_of_star_ratings, product_url
-                FROM hhp_retail_com
-                WHERE crawl_strdatetime::timestamp >= %s AND crawl_strdatetime::timestamp < %s
-                  AND (item IS NULL OR item = ''
-                      OR final_sku_price IS NULL OR final_sku_price = ''
-                      OR retailer_sku_name IS NULL OR retailer_sku_name = ''
-                      OR count_of_reviews IS NULL OR count_of_reviews = ''
-                      OR star_rating IS NULL OR star_rating = ''
-                      OR count_of_star_ratings IS NULL OR count_of_star_ratings = '')
-            """
-            params = [str(target_date), str(next_date)]
-
-            if retailer:
-                query += " AND account_name = %s"
-                params.append(retailer)
-
-            query += " ORDER BY account_name, crawl_strdatetime LIMIT 200"
-            cursor.execute(query, params)
-
-            rows = cursor.fetchall()
-            results = []
-            for row in rows:
-                null_fields = []
-                if not row[3]: null_fields.append('item')
-                if not row[4]: null_fields.append('final_sku_price')
-                if not row[5]: null_fields.append('retailer_sku_name')
-                if not row[6]: null_fields.append('count_of_reviews')
-                if not row[7]: null_fields.append('star_rating')
-                if not row[8]: null_fields.append('count_of_star_ratings')
-
-                results.append({
-                    'id': row[0],
-                    'crawl_datetime': str(row[1]) if row[1] else None,
-                    'account_name': row[2],
-                    'item': row[3],
-                    'final_sku_price': row[4],
-                    'retailer_sku_name': row[5],
-                    'count_of_reviews': row[6],
-                    'star_rating': row[7],
-                    'count_of_star_ratings': row[8],
-                    'product_url': row[9],
-                    'null_fields': null_fields
-                })
-
-        elif table == 'youtube':
-            results = []
-
-            if retailer == 'Logs':
-                # youtube_collection_logs NULL 상세
-                query = """
-                    SELECT id, keyword_id, keyword, status, videos_collected, comments_collected,
-                           started_at, completed_at
-                    FROM youtube_collection_logs
-                    WHERE DATE(started_at) = %s
-                      AND (keyword_id IS NULL
-                          OR keyword IS NULL OR keyword = ''
-                          OR status IS NULL OR status = ''
-                          OR videos_collected IS NULL
-                          OR comments_collected IS NULL
-                          OR started_at IS NULL
-                          OR completed_at IS NULL)
-                    ORDER BY started_at DESC
-                    LIMIT 200
-                """
-                cursor.execute(query, (target_date,))
-                rows = cursor.fetchall()
-
-                for row in rows:
-                    null_fields = []
-                    if row[1] is None: null_fields.append('keyword_id')
-                    if not row[2]: null_fields.append('keyword')
-                    if not row[3]: null_fields.append('status')
-                    if row[4] is None: null_fields.append('videos_collected')
-                    if row[5] is None: null_fields.append('comments_collected')
-                    if row[6] is None: null_fields.append('started_at')
-                    if row[7] is None: null_fields.append('completed_at')
-
-                    results.append({
-                        'id': row[0],
-                        'item': row[2] or f'keyword_id: {row[1]}',  # keyword를 item으로 표시
-                        'crawl_datetime': str(row[6]) if row[6] else None,
-                        'null_fields': null_fields
-                    })
-
-            elif retailer == 'Videos':
-                # youtube_videos NULL 상세
-                query = """
-                    SELECT id, video_id, keyword, title, channel_id, channel_title,
-                           published_at, created_at
-                    FROM youtube_videos
-                    WHERE DATE(created_at) = %s
-                      AND (video_id IS NULL OR video_id = ''
-                          OR keyword IS NULL OR keyword = ''
-                          OR title IS NULL OR title = ''
-                          OR channel_id IS NULL OR channel_id = ''
-                          OR channel_title IS NULL OR channel_title = ''
-                          OR published_at IS NULL
-                          OR created_at IS NULL)
-                    ORDER BY created_at DESC
-                    LIMIT 200
-                """
-                cursor.execute(query, (target_date,))
-                rows = cursor.fetchall()
-
-                for row in rows:
-                    null_fields = []
-                    if not row[1]: null_fields.append('video_id')
-                    if not row[2]: null_fields.append('keyword')
-                    if not row[3]: null_fields.append('title')
-                    if not row[4]: null_fields.append('channel_id')
-                    if not row[5]: null_fields.append('channel_title')
-                    if row[6] is None: null_fields.append('published_at')
-                    if row[7] is None: null_fields.append('created_at')
-
-                    results.append({
-                        'id': row[0],
-                        'item': row[1] or '-',  # video_id를 item으로 표시
-                        'crawl_datetime': str(row[7]) if row[7] else None,
-                        'null_fields': null_fields
-                    })
-
-            elif retailer == 'Comments':
-                # youtube_comments NULL 상세 (Summary와 동일한 필드 검사: comment_id, video_id, comment_text_display, published_at)
-                query = """
-                    SELECT comment_id, video_id, comment_text_display,
-                           published_at, created_at
-                    FROM youtube_comments
-                    WHERE DATE(created_at) = %s
-                      AND (video_id IS NULL OR video_id = ''
-                          OR comment_id IS NULL OR comment_id = ''
-                          OR comment_text_display IS NULL OR comment_text_display = ''
-                          OR published_at IS NULL)
-                    ORDER BY created_at DESC
-                """
-                cursor.execute(query, (target_date,))
-                rows = cursor.fetchall()
-
-                for row in rows:
-                    null_fields = []
-                    if not row[0]: null_fields.append('comment_id')
-                    if not row[1]: null_fields.append('video_id')
-                    if not row[2]: null_fields.append('comment_text_display')
-                    if row[3] is None: null_fields.append('published_at')
-
-                    results.append({
-                        'comment_id': row[0] or '-',
-                        'video_id': row[1] or '-',
-                        'crawl_datetime': str(row[4]) if row[4] else None,
-                        'null_fields': null_fields
-                    })
-
-        elif table == 'market':
-            results = []
-
-            if retailer == 'Trend':
-                # market_trend NULL 상세
-                query = """
-                    SELECT id, keyword, total_article_number, calendar_week, crawl_at_local_time
-                    FROM market_trend
-                    WHERE DATE(crawl_at_local_time) = %s
-                      AND (keyword IS NULL OR keyword = ''
-                          OR total_article_number IS NULL
-                          OR calendar_week IS NULL OR calendar_week = ''
-                          OR crawl_at_local_time IS NULL)
-                    ORDER BY crawl_at_local_time DESC
-                    LIMIT 200
-                """
-                cursor.execute(query, (target_date,))
-                rows = cursor.fetchall()
-
-                for row in rows:
-                    null_fields = []
-                    if not row[1]: null_fields.append('keyword')
-                    if row[2] is None: null_fields.append('total_article_number')
-                    if not row[3]: null_fields.append('calendar_week')
-                    if row[4] is None: null_fields.append('crawl_at_local_time')
-
-                    results.append({
-                        'id': row[0],
-                        'item': row[1] or '-',
-                        'crawl_datetime': str(row[4]) if row[4] else None,
-                        'null_fields': null_fields
-                    })
-
-            elif retailer == 'Comp Product':
-                # market_comp_product NULL 상세
-                query = """
-                    SELECT id, country, samsung_series_name, comp_brand, comp_series_name,
-                           expected_release, comment, calender_week, created_at, batch_id, category
-                    FROM market_comp_product
-                    WHERE DATE(created_at) = %s
-                      AND (country IS NULL OR country = ''
-                          OR samsung_series_name IS NULL OR samsung_series_name = ''
-                          OR comp_brand IS NULL OR comp_brand = ''
-                          OR comp_series_name IS NULL OR comp_series_name = ''
-                          OR expected_release IS NULL OR expected_release = ''
-                          OR comment IS NULL OR comment = ''
-                          OR calender_week IS NULL OR calender_week = ''
-                          OR created_at IS NULL
-                          OR batch_id IS NULL OR batch_id = ''
-                          OR category IS NULL OR category = '')
-                    ORDER BY created_at DESC
-                    LIMIT 200
-                """
-                cursor.execute(query, (target_date,))
-                rows = cursor.fetchall()
-
-                for row in rows:
-                    null_fields = []
-                    if not row[1]: null_fields.append('country')
-                    if not row[2]: null_fields.append('samsung_series_name')
-                    if not row[3]: null_fields.append('comp_brand')
-                    if not row[4]: null_fields.append('comp_series_name')
-                    if not row[5]: null_fields.append('expected_release')
-                    if not row[6]: null_fields.append('comment')
-                    if not row[7]: null_fields.append('calender_week')
-                    if row[8] is None: null_fields.append('created_at')
-                    if not row[9]: null_fields.append('batch_id')
-                    if not row[10]: null_fields.append('category')
-
-                    results.append({
-                        'id': row[0],
-                        'item': f"{row[2] or '-'} / {row[3] or '-'}",  # samsung_series_name / comp_brand
-                        'crawl_datetime': str(row[8]) if row[8] else None,
-                        'null_fields': null_fields
-                    })
-
-            elif retailer == 'Comp Event':
-                # market_comp_event NULL 상세
-                query = """
-                    SELECT id, country, comp_brand, comp_sku_name, calender_week, created_at, batch_id, category
-                    FROM market_comp_event
-                    WHERE DATE(created_at) = %s
-                      AND (country IS NULL OR country = ''
-                          OR comp_brand IS NULL OR comp_brand = ''
-                          OR comp_sku_name IS NULL OR comp_sku_name = ''
-                          OR calender_week IS NULL OR calender_week = ''
-                          OR created_at IS NULL
-                          OR batch_id IS NULL OR batch_id = ''
-                          OR category IS NULL OR category = '')
-                    ORDER BY created_at DESC
-                    LIMIT 200
-                """
-                cursor.execute(query, (target_date,))
-                rows = cursor.fetchall()
-
-                for row in rows:
-                    null_fields = []
-                    if not row[1]: null_fields.append('country')
-                    if not row[2]: null_fields.append('comp_brand')
-                    if not row[3]: null_fields.append('comp_sku_name')
-                    if not row[4]: null_fields.append('calender_week')
-                    if row[5] is None: null_fields.append('created_at')
-                    if not row[6]: null_fields.append('batch_id')
-                    if not row[7]: null_fields.append('category')
-
-                    results.append({
-                        'id': row[0],
-                        'item': f"{row[2] or '-'} / {row[3] or '-'}",  # comp_brand / comp_sku_name
-                        'crawl_datetime': str(row[5]) if row[5] else None,
-                        'null_fields': null_fields
-                    })
-
-            elif retailer == 'Forecast':
-                # Forecast NULL 상세
-                query = """
-                    SELECT id, product_name, event, metric_type, event_offset, event_value, comment, week, crawled_at
-                    FROM openai_forecast_results
-                    WHERE DATE(crawled_at) = %s
-                      AND (product_name IS NULL OR product_name = ''
-                          OR event IS NULL OR event = ''
-                          OR metric_type IS NULL OR metric_type = ''
-                          OR event_offset IS NULL
-                          OR event_value IS NULL
-                          OR comment IS NULL OR comment = ''
-                          OR week IS NULL OR week = ''
-                          OR crawled_at IS NULL)
-                    ORDER BY crawled_at DESC
-                    LIMIT 200
-                """
-                cursor.execute(query, (target_date,))
-                rows = cursor.fetchall()
-
-                for row in rows:
-                    null_fields = []
-                    if not row[1]: null_fields.append('product_name')
-                    if not row[2]: null_fields.append('event')
-                    if not row[3]: null_fields.append('metric_type')
-                    if row[4] is None: null_fields.append('event_offset')
-                    if row[5] is None: null_fields.append('event_value')
-                    if not row[6]: null_fields.append('comment')
-                    if not row[7]: null_fields.append('week')
-                    if row[8] is None: null_fields.append('crawled_at')
-
-                    results.append({
-                        'id': row[0],
-                        'item': f"{row[1] or '-'} / {row[2] or '-'}",  # product_name / event
-                        'crawl_datetime': str(row[8]) if row[8] else None,
-                        'null_fields': null_fields
-                    })
-
+            query += f" ORDER BY account_name, {date_col} LIMIT 200"
         else:
-            results = []
+            # 그 외 테이블
+            query = f"""
+                SELECT {', '.join(select_cols)}
+                FROM {actual_table}
+                WHERE DATE({date_col}) = %s
+                  AND ({where_conds})
+                ORDER BY {date_col} DESC
+                LIMIT 200
+            """
+            params = [target_date]
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        # 컬럼 인덱스 매핑
+        col_index = {col: idx for idx, col in enumerate(select_cols)}
+
+        results = []
+        for row in rows:
+            record_data = {}
+            for col_name in select_cols:
+                idx = col_index.get(col_name)
+                if idx is not None:
+                    val = row[idx]
+                    if isinstance(val, datetime):
+                        record_data[col_name] = val.strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        record_data[col_name] = val
+
+            # null_fields 계산
+            null_fields = []
+            for col_name in all_null_check_cols:
+                idx = col_index.get(col_name)
+                if idx is not None:
+                    val = row[idx]
+                    col_config = category_config['columns'].get(col_name, {})
+                    check_type = col_config.get('check_type', 'both')
+                    if check_type == 'null':
+                        if val is None:
+                            null_fields.append(col_name)
+                    elif check_type == 'empty':
+                        if str(val).strip() == '':
+                            null_fields.append(col_name)
+                    else:  # both
+                        if val is None or str(val).strip() == '':
+                            null_fields.append(col_name)
+
+            record_data['null_fields'] = null_fields
+            results.append(record_data)
+
+        # display_config, query_config 생성
+        display_config = {}
+        query_config = {}
+        for null_col in all_null_check_cols:
+            display_cols = get_null_display_columns(check_name, null_col)
+            query_cols = get_null_query_columns(check_name, null_col)
+            if display_cols:
+                display_config[null_col] = {'select_columns': display_cols}
+            if query_cols:
+                query_config[null_col] = query_cols
 
         cursor.close()
         conn.close()
-
         return JsonResponse({
-            'date': str(target_date),
-            'table': table,
-            'retailer': retailer,
-            'total': len(results),
-            'results': results
+            'results': results,
+            'display_config': display_config,
+            'query_config': query_config,
+            'date_column': date_col,
+            'date': str(target_date)
         })
 
     except Exception as e:
@@ -2534,6 +1224,10 @@ def format_detail(request):
 
         # HHP Retail 형식 오류 상세 조회 - validate_hhp_field 함수 사용 (layer_stats와 동일)
         elif table == 'hhp_retail':
+            # hhp_item_mst에서 유효한 item 목록 조회 (참조 무결성 검증용)
+            cursor.execute("SELECT DISTINCT item FROM hhp_item_mst")
+            hhp_valid_items = set(row[0] for row in cursor.fetchall())
+
             # layer_stats와 동일한 쿼리로 모든 필드 조회
             query = """
                 SELECT
@@ -2592,6 +1286,15 @@ def format_detail(request):
                             'rule': error.split(':')[0] if ':' in error else error,
                             'reason': error.split(':')[1].strip() if ':' in error else error
                         })
+
+                # 참조 무결성 검증: item이 hhp_item_mst에 존재하는지 (layer_stats와 동일)
+                if item and item not in hhp_valid_items:
+                    errors.append({
+                        'field': 'item (참조 무결성)',
+                        'value': str(item)[:50] if item else '',
+                        'rule': '참조 무결성',
+                        'reason': f'hhp_item_mst에 등록되지 않은 item'
+                    })
 
                 if errors:
                     results.append({
@@ -2884,7 +1587,7 @@ def format_detail(request):
             valid_comp = set(row[0] for row in cursor.fetchall())
 
             cursor.execute("""
-                SELECT id, samsung_series_name, comp_brand, calender_week, category, expected_release, created_at
+                SELECT id, samsung_series_name, comp_brand, calender_week, category, created_at
                 FROM market_comp_product
                 WHERE DATE(created_at) = %s
                   AND (
@@ -2892,7 +1595,6 @@ def format_detail(request):
                       OR (comp_brand IS NOT NULL AND comp_brand != '')
                       OR (calender_week IS NOT NULL AND calender_week != '' AND LOWER(calender_week) !~ '^w([1-9]|[1-4][0-9]|5[0-2])$')
                       OR (category IS NOT NULL AND category != '' AND category NOT IN ('TV', 'HHP'))
-                      OR (expected_release IS NOT NULL AND expected_release != '' AND expected_release !~ '^(Q[1-4] [0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{4}|TBD|TBA|Unknown|info_not_available)$')
                   )
                 ORDER BY created_at DESC
             """, (target_date,))
@@ -2904,7 +1606,6 @@ def format_detail(request):
                 comp_brand = row[2]
                 cal_week = row[3]
                 category = row[4]
-                expected_release = row[5]
 
                 if samsung_name and samsung_name not in valid_samsung:
                     errors.append({
@@ -2935,13 +1636,6 @@ def format_detail(request):
                         'rule': 'TV 또는 HHP',
                         'reason': '허용되지 않은 값'
                     })
-                if expected_release and not re_module.match(r'^(Q[1-4] [0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{4}|TBD|TBA|Unknown|info_not_available)$', expected_release):
-                    errors.append({
-                        'field': 'expected_release',
-                        'value': str(expected_release)[:50],
-                        'rule': 'Q1 2024, 2024-01-15, 2024, TBD, TBA, Unknown, info_not_available',
-                        'reason': '형식 오류'
-                    })
 
                 if errors:
                     results.append({
@@ -2950,7 +1644,6 @@ def format_detail(request):
                         'comp_brand': comp_brand,
                         'calender_week': cal_week,
                         'category': category,
-                        'expected_release': expected_release,
                         'errors': errors
                     })
 
@@ -3209,6 +1902,7 @@ def anomaly_detail(request):
 
         elif table == 'hhp_retail':
             # 중복 그룹 찾기: item + 시간대 (오전/오후 각각 1건만 있어야 정상)
+            # trend_rank는 Bestbuy만 있음
             cursor.execute("""
                 WITH duplicate_groups AS (
                     SELECT item, account_name,
@@ -3221,7 +1915,7 @@ def anomaly_detail(request):
                     HAVING COUNT(*) > 1
                 )
                 SELECT d.item, d.account_name, d.period, d.dup_count,
-                       h.id, h.product_url, h.crawl_strdatetime, h.page_type, h.main_rank, h.bsr_rank
+                       h.id, h.product_url, h.crawl_strdatetime, h.page_type, h.main_rank, h.bsr_rank, h.trend_rank
                 FROM duplicate_groups d
                 JOIN hhp_retail_com h ON h.item = d.item
                     AND h.account_name = d.account_name
@@ -3245,13 +1939,22 @@ def anomaly_detail(request):
                         'reason': f'동일 item이 {row[2]}에 {row[3]}건 수집됨',
                         'records': []
                     }
+                page_type = row[7]
+                # page_type에 따라 해당 rank 선택
+                if page_type == 'trend':
+                    rank = row[10]  # trend_rank (Bestbuy만)
+                elif page_type == 'main':
+                    rank = row[8]   # main_rank
+                elif page_type == 'bsr':
+                    rank = row[9]   # bsr_rank
+                else:
+                    rank = row[8] or row[9]  # fallback
                 dup_groups[key]['records'].append({
                     'id': row[4],
                     'product_url': row[5],
                     'crawl_datetime': str(row[6]) if row[6] else None,
-                    'page_type': row[7],
-                    'main_rank': row[8],
-                    'bsr_rank': row[9]
+                    'page_type': page_type,
+                    'rank': rank
                 })
 
             duplicates = list(dup_groups.values())
@@ -3470,302 +2173,6 @@ def anomaly_detail(request):
             'table': table,
             'retailer': retailer,
             'results': {'duplicates': duplicates}
-        })
-
-    except Exception as e:
-        return JsonResponse({'error': str(e)})
-
-
-def null_columns(request):
-    """모든 데이터가 NULL인 컬럼 탐지 API (리테일러별, 시간대별)"""
-    date_str = request.GET.get('date')
-    table = request.GET.get('table', 'tv_retail')
-
-    if date_str:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    else:
-        target_date = (datetime.now() - timedelta(days=1)).date()
-
-    next_date = target_date + timedelta(days=1)
-
-    try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-
-        if table == 'tv_retail':
-            # TV Retail 컬럼 정의 (리테일러별)
-            columns_by_retailer = {
-                'Amazon': [
-                    'id', 'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-                    'retailer_sku_name', 'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                    'number_of_units_purchased_past_month', 'final_sku_price', 'original_sku_price',
-                    'shipping_info', 'available_quantity_for_purchase', 'discount_type', 'sku_popularity',
-                    'retailer_membership_discounts', 'rank_1', 'rank_2', 'summarized_review_content',
-                    'detailed_review_content', 'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-                ],
-                'Bestbuy': [
-                    'id', 'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-                    'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'savings', 'offer',
-                    'pick_up_availability', 'shipping_availability', 'delivery_availability',
-                    'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                    'estimated_annual_electricity_use', 'retailer_sku_name_similar', 'top_mentions',
-                    'detailed_review_content', 'recommendation_intent', 'promotion_type',
-                    'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-                ],
-                'Walmart': [
-                    'id', 'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-                    'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'offer',
-                    'pick_up_availability', 'shipping_availability', 'delivery_availability',
-                    'sku_status', 'retailer_membership_discounts', 'available_quantity_for_purchase',
-                    'inventory_status', 'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts',
-                    'sku_popularity', 'savings', 'discount_type', 'shipping_info', 'count_of_reviews',
-                    'star_rating', 'count_of_star_ratings', 'detailed_review_content',
-                    'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-                ]
-            }
-
-            results = {}
-            for retailer, columns in columns_by_retailer.items():
-                results[retailer] = {'오전': [], '오후': []}
-
-                for period, hour_condition in [('오전', '< 12'), ('오후', '>= 12')]:
-                    # 한 번의 쿼리로 모든 컬럼 COUNT
-                    count_parts = [f"COUNT({col}) as {col}_cnt" for col in columns]
-                    query = f"""
-                        SELECT {', '.join(count_parts)}
-                        FROM tv_retail_com
-                        WHERE account_name = %s
-                        AND crawl_datetime::timestamp >= %s
-                        AND crawl_datetime::timestamp < %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) {hour_condition}
-                    """
-
-                    cursor.execute(query, (retailer, str(target_date), str(next_date)))
-                    row = cursor.fetchone()
-
-                    if row:
-                        # COUNT = 0 인 컬럼 = 모든 데이터가 NULL
-                        null_cols = [col for col, cnt in zip(columns, row) if cnt == 0]
-                        results[retailer][period] = null_cols
-
-        elif table == 'hhp_retail':
-            # HHP Retail 컬럼 정의 (리테일러별)
-            columns_by_retailer = {
-                'Amazon': [
-                    'id', 'country', 'product', 'item', 'account_name', 'page_type', 'product_url', 'main_rank', 'bsr_rank',
-                    'retailer_sku_name', 'number_of_units_purchased_past_month', 'final_sku_price', 'original_sku_price',
-                    'shipping_info', 'available_quantity_for_purchase', 'discount_type',
-                    'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                    'sku_popularity', 'bundle', 'trade_in', 'retailer_membership_discounts', 'rank_1', 'rank_2',
-                    'hhp_carrier', 'hhp_storage', 'hhp_color', 'summarized_review_content', 'detailed_review_content',
-                    'calendar_week', 'crawl_strdatetime'
-                ],
-                'Bestbuy': [
-                    'id', 'country', 'product', 'item', 'account_name', 'page_type', 'count_of_reviews',
-                    'retailer_sku_name', 'product_url', 'star_rating', 'count_of_star_ratings',
-                    'final_sku_price', 'original_sku_price', 'savings', 'offer',
-                    'pick_up_availability', 'shipping_availability', 'delivery_availability', 'sku_status',
-                    'trade_in', 'hhp_carrier', 'hhp_storage', 'hhp_color', 'detailed_review_content', 'top_mentions',
-                    'recommendation_intent', 'main_rank', 'bsr_rank', 'trend_rank',
-                    'promotion_type', 'retailer_sku_name_similar', 'calendar_week', 'crawl_strdatetime'
-                ],
-                'Walmart': [
-                    'id', 'item', 'account_name', 'page_type', 'product_url',
-                    'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'offer',
-                    'pick_up_availability', 'shipping_availability', 'delivery_availability', 'sku_status',
-                    'retailer_membership_discounts', 'available_quantity_for_purchase', 'inventory_status',
-                    'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts',
-                    'sku_popularity', 'savings', 'discount_type', 'shipping_info',
-                    'hhp_carrier', 'hhp_storage', 'hhp_color', 'retailer_sku_name_similar', 'detailed_review_content',
-                    'count_of_reviews', 'star_rating', 'count_of_star_ratings', 'main_rank', 'bsr_rank',
-                    'calendar_week', 'crawl_strdatetime'
-                ]
-            }
-
-            results = {}
-            for retailer, columns in columns_by_retailer.items():
-                results[retailer] = {'오전': [], '오후': []}
-
-                for period, hour_condition in [('오전', '< 12'), ('오후', '>= 12')]:
-                    count_parts = [f"COUNT({col}) as {col}_cnt" for col in columns]
-                    query = f"""
-                        SELECT {', '.join(count_parts)}
-                        FROM hhp_retail_com
-                        WHERE account_name = %s
-                        AND crawl_strdatetime::timestamp >= %s
-                        AND crawl_strdatetime::timestamp < %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) {hour_condition}
-                    """
-
-                    cursor.execute(query, (retailer, str(target_date), str(next_date)))
-                    row = cursor.fetchone()
-
-                    if row:
-                        null_cols = [col for col, cnt in zip(columns, row) if cnt == 0]
-                        results[retailer][period] = null_cols
-
-        else:
-            results = {}
-
-        cursor.close()
-        conn.close()
-
-        return JsonResponse({
-            'date': str(target_date),
-            'table': table,
-            'results': results
-        })
-
-    except Exception as e:
-        return JsonResponse({'error': str(e)})
-
-
-def coverage_detail(request):
-    """커버리지 검증 상세 조회 API - 누락된 키워드 목록"""
-    date_str = request.GET.get('date')
-    table = request.GET.get('table', 'market_trend')
-    retailer = request.GET.get('retailer')
-
-    if date_str:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    else:
-        target_date = (datetime.now() - timedelta(days=1)).date()
-
-    try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-
-        missing_keywords = []
-
-        if table == 'market_trend' or retailer == 'Trend':
-            # Market Trend: market_mst에 등록된 trend 키워드 중 수집되지 않은 것
-            cursor.execute("""
-                SELECT m.keyword, m.product_line, m.content_type
-                FROM market_mst m
-                WHERE m.analysis_type = 'trend'
-                AND m.keyword NOT IN (
-                    SELECT DISTINCT t.keyword
-                    FROM market_trend t
-                    WHERE DATE(t.crawl_at_local_time) = %s
-                )
-                ORDER BY m.product_line, m.content_type, m.keyword
-            """, (target_date,))
-
-            rows = cursor.fetchall()
-            for row in rows:
-                missing_keywords.append({
-                    'keyword': row[0],
-                    'product_line': row[1],
-                    'content_type': row[2]
-                })
-
-        elif table == 'market_product' or retailer == 'Product':
-            # Market Product: 삼성 키워드 × 경쟁사 브랜드 조합 중 수집되지 않은 것
-            # 분기 기준으로 batch_id 찾기
-            quarter_month = ((target_date.month - 1) // 3) * 3 + 1
-            quarter_start = target_date.replace(month=quarter_month, day=1)
-            if quarter_month + 3 > 12:
-                quarter_end = target_date.replace(year=target_date.year + 1, month=1, day=1)
-            else:
-                quarter_end = target_date.replace(month=quarter_month + 3, day=1)
-
-            # 해당 분기의 최신 batch_id 찾기
-            cursor.execute("""
-                SELECT batch_id FROM market_comp_product
-                WHERE batch_id IS NOT NULL
-                  AND created_at >= %s AND created_at < %s
-                ORDER BY created_at DESC
-                LIMIT 1
-            """, (quarter_start, quarter_end))
-            batch_row = cursor.fetchone()
-            product_batch_id = batch_row[0] if batch_row else None
-
-            if product_batch_id:
-                # product_line별로 삼성 × 경쟁사 조합 중 수집 안 된 것
-                # 같은 product_line끼리만 조합 (TV×TV, HHP×HHP)
-                cursor.execute("""
-                    WITH expected_combinations AS (
-                        SELECT s.keyword as samsung_keyword, c.keyword as comp_keyword, s.product_line
-                        FROM market_mst s
-                        INNER JOIN market_mst c ON s.product_line = c.product_line
-                        WHERE s.analysis_type = 'competitor' AND s.content_type = 'samsung'
-                          AND c.analysis_type = 'competitor' AND c.content_type = 'comp'
-                    ),
-                    collected_combinations AS (
-                        SELECT DISTINCT samsung_series_name, comp_brand
-                        FROM market_comp_product
-                        WHERE batch_id = %s
-                    )
-                    SELECT e.samsung_keyword, e.comp_keyword, e.product_line
-                    FROM expected_combinations e
-                    LEFT JOIN collected_combinations c
-                        ON e.samsung_keyword = c.samsung_series_name
-                        AND e.comp_keyword = c.comp_brand
-                    WHERE c.samsung_series_name IS NULL
-                    ORDER BY e.product_line, e.samsung_keyword, e.comp_keyword
-                    LIMIT 200
-                """, (product_batch_id,))
-
-                rows = cursor.fetchall()
-                for row in rows:
-                    missing_keywords.append({
-                        'keyword': f'[{row[2]}] {row[0]} × {row[1]}',
-                        'samsung_series': row[0],
-                        'comp_brand': row[1],
-                        'product_line': row[2],
-                        'content_type': 'combination'
-                    })
-
-        elif table == 'market_forecast' or retailer == 'Forecast':
-            # Market Forecast: 수집되지 않은 키워드 (9주 이내 이벤트 - 1주 이내 제외)
-            # 대상: 1주 초과 ~ 9주 이내 이벤트
-            nine_weeks_later = target_date + timedelta(weeks=9)
-            one_week_later = target_date + timedelta(weeks=1)
-
-            cursor.execute("""
-                WITH target_keywords AS (
-                    SELECT k.product_name, k.event_name, k.category
-                    FROM openai_keywords k
-                    JOIN openai_event_mst e ON k.event_name = e.event_name
-                    WHERE e.is_active = true
-                    AND e.event_date > %s AND e.event_date <= %s
-                ),
-                collected_keywords AS (
-                    SELECT DISTINCT product_name, event
-                    FROM openai_forecast_results
-                    WHERE crawled_at::date = %s
-                )
-                SELECT t.product_name, t.event_name, t.category
-                FROM target_keywords t
-                LEFT JOIN collected_keywords c
-                    ON t.product_name = c.product_name
-                    AND REPLACE(UPPER(c.event), '_', ' ') = UPPER(t.event_name)
-                WHERE c.product_name IS NULL
-                ORDER BY t.category, t.product_name, t.event_name
-                LIMIT 200
-            """, (one_week_later.strftime('%Y-%m-%d'), nine_weeks_later.strftime('%Y-%m-%d'),
-                  target_date.strftime('%Y-%m-%d')))
-
-            rows = cursor.fetchall()
-            for row in rows:
-                missing_keywords.append({
-                    'keyword': f'[{row[2]}] {row[0]} - {row[1]}',
-                    'product_name': row[0],
-                    'event_name': row[1],
-                    'category': row[2],
-                    'product_line': row[2],
-                    'content_type': 'forecast'
-                })
-
-        cursor.close()
-        conn.close()
-
-        return JsonResponse({
-            'date': str(target_date),
-            'table': table,
-            'retailer': retailer,
-            'missing_count': len(missing_keywords),
-            'results': {'missing_keywords': missing_keywords}
         })
 
     except Exception as e:
@@ -4399,3 +2806,142 @@ def get_hhp_format_errors(cursor, table_name, date_field, target_date, retailer)
         })
 
     return errors
+
+
+def format_rules(request):
+    """형식검증 규칙 조회 API - CSV 기반"""
+    table_name = request.GET.get('table', 'tv_retail_com')
+    retailer = request.GET.get('retailer', 'Amazon')
+
+    # 테이블명 → product_line 매핑
+    table_to_product = {
+        'tv_retail_com': 'TV',
+        'hhp_retail_com': 'HHP',
+    }
+    product_line = table_to_product.get(table_name, 'ALL')
+
+    rules_data = load_format_rules()
+    result = []
+
+    if table_name not in rules_data:
+        return JsonResponse({'rules': []})
+
+    table_rules = rules_data[table_name]
+
+    # 해당 product_line 규칙 수집
+    if product_line in table_rules:
+        for column_name, column_rules in table_rules[product_line].items():
+            result.extend(_format_rules_for_display(column_name, column_rules, retailer))
+
+    # ALL 규칙도 추가 (product_line이 ALL이 아닌 경우)
+    if product_line != 'ALL' and 'ALL' in table_rules:
+        for column_name, column_rules in table_rules['ALL'].items():
+            result.extend(_format_rules_for_display(column_name, column_rules, retailer))
+
+    # 필드명 기준 정렬 및 중복 제거
+    seen = set()
+    unique_result = []
+    for rule in result:
+        key = (rule['field'], rule['description'])
+        if key not in seen:
+            seen.add(key)
+            unique_result.append(rule)
+
+    # 필드명 알파벳순 정렬
+    unique_result.sort(key=lambda x: x['field'])
+
+    return JsonResponse({'rules': unique_result})
+
+
+def _format_rules_for_display(column_name, column_rules, retailer):
+    """CSV 규칙을 프론트엔드 표시용 형식으로 변환"""
+    result = []
+
+    # 리테일러별 규칙과 common 규칙 분리
+    retailer_rules = [r for r in column_rules if r['retailer'] == retailer]
+    common_rules = [r for r in column_rules if r['retailer'] == 'common']
+
+    # 규칙 병합하여 표시
+    patterns = []
+    description = ''
+
+    # common 규칙에서 기본 description 추출
+    for rule in common_rules:
+        rule_type = rule['type']
+        rule_value = rule['rule']
+        allowed = rule['allowed']
+        error_msg = rule.get('error', '')
+
+        if rule_type == 'regex':
+            patterns.append(rule_value)
+            description = error_msg or _get_description_for_type(rule_type, rule_value, allowed)
+        elif rule_type == 'regex_clean':
+            patterns.append(rule_value)
+            clean_type = allowed[0] if allowed else ''
+            description = error_msg or f'숫자 ({clean_type.replace("_", ", ")} 허용)'
+        elif rule_type == 'range':
+            parts = rule_value.split('~')
+            patterns.append(f'{parts[0]} ~ {parts[1]}')
+            description = error_msg or f'{parts[0]}~{parts[1]} 범위 정수'
+        elif rule_type == 'range_float':
+            parts = rule_value.split('~')
+            patterns.append(f'{parts[0]} ~ {parts[1]}')
+            description = error_msg or f'{parts[0]}~{parts[1]} 범위'
+        elif rule_type == 'enum':
+            patterns.append(' | '.join(allowed))
+            description = error_msg or '허용값만'
+        elif rule_type == 'starts_with':
+            patterns.append(f'"{rule_value}..."')
+            description = error_msg or f'{rule_value}로 시작'
+        elif rule_type == 'separator_count':
+            parts = rule_value.split('~')
+            patterns.append(f'{parts[0]} 구분자 {parts[1]}개')
+            description = error_msg or f'{parts[0]} 구분자 {parts[1]}개 필요'
+        elif rule_type == 'fk_check':
+            # FK 참조 검증 (예: market_mst.keyword|analysis_type=competitor)
+            patterns.append(f'참조: {rule_value}')
+            description = error_msg or 'FK 참조 검증'
+        elif rule_type == 'min':
+            patterns.append(f'>= {rule_value}')
+            description = error_msg or f'{rule_value} 이상'
+
+    # 리테일러별 allowed_values 추가
+    for rule in retailer_rules:
+        if rule['type'] == 'allowed_values' and rule['allowed']:
+            for val in rule['allowed']:
+                patterns.append(f'"{val}"')
+            if not description:
+                description = '허용값만'
+        elif rule['type'] == 'starts_with':
+            patterns.append(f'"{rule["rule"]}..."')
+            if not description:
+                description = f'{rule["rule"]}로 시작'
+        elif rule['type'] == 'regex':
+            patterns.append(rule['rule'])
+            if not description:
+                description = _get_description_for_type('regex', rule['rule'], rule['allowed'])
+
+    if patterns:
+        result.append({
+            'field': column_name,
+            'description': description or '형식 검증',
+            'pattern': '\n'.join(patterns)
+        })
+
+    return result
+
+
+def _get_description_for_type(rule_type, rule_value, allowed):
+    """규칙 타입별 설명 생성"""
+    if rule_type == 'regex':
+        if rule_value == '^[A-Za-z0-9]+$':
+            return '알파벳+숫자만 허용'
+        elif '\\$' in rule_value:
+            return '$금액 형식'
+        elif '\\d' in rule_value:
+            return '숫자 형식'
+        elif 'http' in rule_value:
+            return 'http:// 또는 https:// 시작'
+        else:
+            return '정규식 패턴'
+    return '형식 검증'

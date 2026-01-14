@@ -25,7 +25,6 @@ urlpatterns = [
 
     # Report (보고용 페이지)
     path('ds/report/', include('apps.ds_report.urls')),
-    path('dx/report/', include('apps.dx_report.urls')),
 
     # 기존 URL (하위 호환)
     path('layer1/', include('apps.layer1.urls')),

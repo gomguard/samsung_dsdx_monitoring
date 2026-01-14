@@ -1,0 +1,385 @@
+"""
+DX 수집 스케줄 설정 로드
+CSV 파일에서 수집 시간대 설정을 읽어옴
+US(NY) 시간 → KST 자동 변환 (서머타임 고려)
+"""
+
+import csv
+from pathlib import Path
+from datetime import datetime, timedelta
+import pytz
+
+# CSV 파일 경로 (config/csv 폴더)
+SCHEDULES_CSV_PATH = Path(__file__).parent.parent.parent / 'config' / 'csv' / 'dx_collection_schedules.csv'
+
+# 타임존 설정
+NY_TZ = pytz.timezone('America/New_York')
+KST_TZ = pytz.timezone('Asia/Seoul')
+
+# 캐시된 데이터
+_schedules_cache = None
+
+
+def us_to_kst(us_hour, reference_date=None):
+    """
+    US(NY) 시간을 KST로 변환 (서머타임 자동 고려)
+
+    Args:
+        us_hour: US(NY) 시간 (0-24)
+        reference_date: 기준 날짜 (date 객체, 기본값: 오늘)
+
+    Returns:
+        tuple: (kst_hour, next_day, is_dst)
+        - kst_hour: KST 시간 (0-23)
+        - next_day: 다음날 여부 (True/False)
+        - is_dst: 서머타임 적용 여부 (True/False)
+    """
+    if reference_date is None:
+        reference_date = datetime.now().date()
+
+    # us_hour가 24인 경우 다음날 0시로 처리
+    if us_hour == 24:
+        us_hour = 0
+        reference_date = reference_date + timedelta(days=1)
+
+    # NY 시간으로 datetime 생성
+    ny_dt = NY_TZ.localize(datetime(reference_date.year, reference_date.month, reference_date.day, us_hour, 0, 0))
+
+    # KST로 변환
+    kst_dt = ny_dt.astimezone(KST_TZ)
+
+    # 서머타임 여부 확인 (NY 기준)
+    is_dst = bool(ny_dt.dst())
+
+    # 다음날 여부 확인
+    next_day = kst_dt.date() > reference_date
+
+    return kst_dt.hour, next_day, is_dst
+
+
+def get_kst_time_info(us_hour, reference_date=None):
+    """
+    US(NY) 시간의 KST 변환 정보를 문자열로 반환
+
+    Args:
+        us_hour: US(NY) 시간 (0-24)
+        reference_date: 기준 날짜 (date 객체)
+
+    Returns:
+        dict: {
+            'hour': KST 시간,
+            'next_day': 다음날 여부,
+            'is_dst': 서머타임 여부,
+            'display': 표시용 문자열 (예: "14:00" 또는 "+1 02:00"),
+            'date': KST 날짜 (date 객체),
+            'full_display': 날짜 포함 표시용 문자열 (예: "2026-01-05 14:00")
+        }
+    """
+    kst_hour, next_day, is_dst = us_to_kst(us_hour, reference_date)
+
+    if reference_date is None:
+        reference_date = datetime.now().date()
+
+    # KST 날짜 계산
+    if next_day:
+        kst_date = reference_date + timedelta(days=1)
+        display = f"+1 {kst_hour:02d}:00"
+    else:
+        kst_date = reference_date
+        display = f"{kst_hour:02d}:00"
+
+    full_display = f"{kst_date} {kst_hour:02d}:00"
+
+    return {
+        'hour': kst_hour,
+        'next_day': next_day,
+        'is_dst': is_dst,
+        'display': display,
+        'date': kst_date,
+        'full_display': full_display
+    }
+
+
+def load_collection_schedules():
+    """
+    CSV 파일에서 수집 스케줄 목록을 로드
+
+    Returns:
+        list of dict: 스케줄 정보 리스트
+    """
+    global _schedules_cache
+
+    if _schedules_cache is not None:
+        return _schedules_cache
+
+    schedules = []
+
+    try:
+        with open(SCHEDULES_CSV_PATH, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # 빈 행 건너뛰기
+                if not row.get('check_type') or not row.get('check_type').strip():
+                    continue
+                schedules.append({
+                    'check_type': row['check_type'],
+                    'name': row['name'],
+                    'category': row['category'],
+                    'us_start_hour': int(row['us_start_hour']),
+                    'collection_duration_min': int(row['collection_duration_min']),
+                    'schedule_type': row['schedule_type'],
+                    'description': row['description']
+                })
+        _schedules_cache = schedules
+    except Exception as e:
+        print(f"Error loading collection schedules: {e}")
+        _schedules_cache = []
+
+    return _schedules_cache
+
+
+def get_schedules_by_type(check_type, category=None):
+    """
+    check_type과 category로 스케줄 필터링
+
+    Args:
+        check_type: 검수 항목 유형 (retail, sentiment, youtube 등)
+        category: 카테고리 (TV, HHP, ALL) - None이면 전체
+
+    Returns:
+        list of dict: 필터링된 스케줄 리스트
+    """
+    schedules = load_collection_schedules()
+    filtered = [s for s in schedules if s['check_type'] == check_type]
+
+    if category:
+        filtered = [s for s in filtered if s['category'] in (category, 'ALL')]
+
+    return filtered
+
+
+def get_time_status(schedule, target_date, now=None):
+    """
+    현재 시간 기준으로 수집 상태 반환 (US→KST 자동 변환)
+
+    Args:
+        schedule: 스케줄 dict
+        target_date: 조회 대상 날짜 (date 객체)
+        now: 현재 시간 (datetime 객체, 기본값: datetime.now())
+
+    Returns:
+        str: 'PENDING', 'COLLECTING', or None (결과 표시)
+    """
+    if now is None:
+        now = datetime.now()
+
+    # US 시간에서 KST 자동 계산
+    us_start = schedule['us_start_hour']
+    duration_min = schedule['collection_duration_min']
+
+    kr_start_hour, kr_start_next_day, _ = us_to_kst(us_start, target_date)
+
+    # KST 수집 시작 datetime 계산
+    if kr_start_next_day:
+        kr_start_date = target_date + timedelta(days=1)
+    else:
+        kr_start_date = target_date
+
+    kr_start_dt = datetime(kr_start_date.year, kr_start_date.month, kr_start_date.day, kr_start_hour, 0, 0)
+
+    # 수집 종료 시간 = 시작 시간 + collection_duration_min
+    kr_end_dt = kr_start_dt + timedelta(minutes=duration_min)
+
+    # 현재 시간이 수집 시간대에 있는지 확인
+    if now < kr_start_dt:
+        return 'PENDING'
+    elif now < kr_end_dt:
+        return 'COLLECTING'
+    else:
+        return None  # 결과 표시
+
+
+def get_time_slots(check_type, category, target_date, now=None):
+    """
+    특정 검수 항목의 시간대 슬롯 정보 반환 (US→KST 자동 변환, 서머타임 고려)
+
+    Args:
+        check_type: 검수 항목 유형
+        category: 카테고리 (TV, HHP)
+        target_date: 조회 대상 날짜 (date 객체)
+        now: 현재 시간 (기본값: datetime.now())
+
+    Returns:
+        list of dict: 시간대 슬롯 정보 (is_dst 포함)
+    """
+    if now is None:
+        now = datetime.now()
+
+    schedules = get_schedules_by_type(check_type, category)
+
+    time_slots = []
+    for schedule in schedules:
+        # 미국(뉴욕) 시간 범위 계산
+        us_start = schedule['us_start_hour']
+        duration_min = schedule['collection_duration_min']
+
+        # 시작 시간 문자열 생성
+        start_str = f'{target_date} {us_start:02d}:00:00'
+
+        # 종료 시간 계산
+        # retail의 경우: 오전(00:00~12:00), 오후(12:00~다음날00:00) 고정 범위
+        # 기타: duration 기준
+        us_start_dt = datetime(target_date.year, target_date.month, target_date.day, us_start, 0, 0)
+        if check_type == 'retail':
+            # retail은 12시간 단위로 고정
+            if us_start == 0:
+                # 오전: 00:00 ~ 12:00
+                us_end_dt = datetime(target_date.year, target_date.month, target_date.day, 12, 0, 0)
+            else:
+                # 오후: 12:00 ~ 다음날 00:00
+                next_day = target_date + timedelta(days=1)
+                us_end_dt = datetime(next_day.year, next_day.month, next_day.day, 0, 0, 0)
+        else:
+            us_end_dt = us_start_dt + timedelta(minutes=duration_min)
+        end_str = us_end_dt.strftime('%Y-%m-%d %H:%M:%S')
+
+        # KST 시간 자동 계산 (서머타임 고려)
+        kst_start_info = get_kst_time_info(us_start, target_date)
+
+        # KST 종료 시간 = 시작 시간 + duration
+        kr_start_hour, kr_start_next_day, _ = us_to_kst(us_start, target_date)
+        if kr_start_next_day:
+            kr_start_date = target_date + timedelta(days=1)
+        else:
+            kr_start_date = target_date
+        kr_start_dt = datetime(kr_start_date.year, kr_start_date.month, kr_start_date.day, kr_start_hour, 0, 0)
+        kr_end_dt = kr_start_dt + timedelta(minutes=duration_min)
+
+        kst_end_info = {
+            'hour': kr_end_dt.hour,
+            'next_day': kr_end_dt.date() > target_date,
+            'is_dst': kst_start_info['is_dst'],
+            'display': f"{kr_end_dt.hour:02d}:00",
+            'date': kr_end_dt.date(),
+            'full_display': f"{kr_end_dt.date()} {kr_end_dt.hour:02d}:00"
+        }
+
+        # 상태 판정
+        time_status = get_time_status(schedule, target_date, now)
+        is_pending = time_status in ['PENDING', 'COLLECTING']
+
+        time_slots.append({
+            'name': schedule['name'],
+            'start': start_str,
+            'end': end_str,
+            'us_time': f'{target_date} {us_start:02d}:00',
+            'kr_time': kst_start_info['full_display'],
+            'kr_time_end': kst_end_info['full_display'],
+            'is_dst': kst_start_info['is_dst'],
+            'is_pending': is_pending,
+            'time_status': time_status,
+            'schedule': schedule
+        })
+
+    return time_slots
+
+
+def reload_schedules():
+    """캐시 초기화 후 다시 로드 (CSV 수정 시 사용)"""
+    global _schedules_cache
+    _schedules_cache = None
+    return load_collection_schedules()
+
+
+# 편의 함수들
+def get_retail_time_slots(category, target_date, now=None):
+    """Retail 검수용 시간대 슬롯"""
+    return get_time_slots('retail', category, target_date, now)
+
+
+def get_sentiment_time_slots(category, target_date, now=None):
+    """Sentiment 검수용 시간대 슬롯"""
+    return get_time_slots('sentiment', category, target_date, now)
+
+
+def get_youtube_time_slots(target_date, now=None):
+    """YouTube 검수용 시간대 슬롯"""
+    return get_time_slots('youtube', 'ALL', target_date, now)
+
+
+def get_market_time_slots(check_type, target_date, now=None):
+    """Market 관련 검수용 시간대 슬롯"""
+    return get_time_slots(check_type, 'ALL', target_date, now)
+
+
+def get_schedule_kst_info(check_type, target_date, now=None, category=None):
+    """
+    특정 check_type의 스케줄 KST 변환 정보를 한 번에 계산하여 반환
+
+    Args:
+        check_type: 검수 항목 유형 (market_trend, market_demand, market_promotion 등)
+        target_date: 조회 대상 날짜 (date 객체)
+        now: 현재 시간 (datetime 객체, 기본값: datetime.now())
+        category: 카테고리 (TV, HHP, ALL) - None이면 전체에서 첫 번째 스케줄 사용
+
+    Returns:
+        dict: {
+            'us_start_hour': US 시작 시간,
+            'collection_duration_min': 수집 소요 시간(분),
+            'kst_start': KST 시작 정보 (get_kst_time_info 반환값),
+            'kst_end': KST 종료 정보,
+            'time_status': 'PENDING', 'COLLECTING', or None,
+            'is_pending': 대기중 여부,
+            'is_collecting': 수집중 여부,
+            'collection_done': 수집 완료 여부
+        }
+    """
+    if now is None:
+        now = datetime.now()
+
+    schedules = get_schedules_by_type(check_type, category)
+    if not schedules:
+        return None
+
+    schedule = schedules[0]  # 첫 번째 스케줄 사용
+    us_start = schedule['us_start_hour']
+    duration_min = schedule['collection_duration_min']
+
+    # KST 시작 시간 계산
+    kst_start = get_kst_time_info(us_start, target_date)
+
+    # KST 종료 시간 = 시작 시간 + duration
+    kr_start_hour, kr_start_next_day, _ = us_to_kst(us_start, target_date)
+    if kr_start_next_day:
+        kr_start_date = target_date + timedelta(days=1)
+    else:
+        kr_start_date = target_date
+    kr_start_dt = datetime(kr_start_date.year, kr_start_date.month, kr_start_date.day, kr_start_hour, 0, 0)
+    kr_end_dt = kr_start_dt + timedelta(minutes=duration_min)
+
+    kst_end = {
+        'hour': kr_end_dt.hour,
+        'next_day': kr_end_dt.date() > target_date,
+        'is_dst': kst_start['is_dst'],
+        'display': f"{kr_end_dt.hour:02d}:00",
+        'date': kr_end_dt.date(),
+        'full_display': f"{kr_end_dt.date()} {kr_end_dt.hour:02d}:00"
+    }
+
+    # 상태 판정
+    time_status = get_time_status(schedule, target_date, now)
+    is_pending = time_status == 'PENDING'
+    is_collecting = time_status == 'COLLECTING'
+    collection_done = time_status is None
+
+    return {
+        'us_start_hour': us_start,
+        'collection_duration_min': duration_min,
+        'kst_start': kst_start,
+        'kst_end': kst_end,
+        'time_status': time_status,
+        'is_pending': is_pending,
+        'is_collecting': is_collecting,
+        'collection_done': collection_done,
+        'schedule': schedule
+    }

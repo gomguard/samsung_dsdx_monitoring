@@ -1,0 +1,142 @@
+table_name,product_line,column_name,retailer,validation_type,validation_rule,allowed_values,error_message
+tv_retail_com,TV,item,common,regex,^[A-Za-z0-9]+$,,item 형식 오류
+tv_retail_com,TV,account_name,common,enum,,Amazon|Bestbuy|Walmart,account_name 오류
+tv_retail_com,TV,page_type,common,enum,,main|bsr|trend|promotion,page_type 오류
+tv_retail_com,TV,product_url,common,starts_with,http,,product_url 형식 오류
+tv_retail_com,TV,main_rank,common,range,1~400,,main_rank 범위 오류 (1~400)
+tv_retail_com,TV,bsr_rank,common,range,1~100,,bsr_rank 범위 오류 (1~100)
+tv_retail_com,TV,final_sku_price,Amazon,allowed_values,,"No featured offers available|Currently unavailable.|Price higher than typical|To see our price, add this item to your cart.|See price in cart",
+tv_retail_com,TV,final_sku_price,Bestbuy,allowed_values,,See price in cart,
+tv_retail_com,TV,final_sku_price,Walmart,allowed_values,,Not Available|See price in cart,
+tv_retail_com,TV,final_sku_price,Walmart,regex,"^\$[\d,]+\.?\d*/(month|undefined)$",,
+tv_retail_com,TV,final_sku_price,common,regex,"^\$[\d,]+\.?\d*$",,final_sku_price 형식 오류
+tv_retail_com,TV,original_sku_price,Amazon,allowed_values,,"No featured offers available|Currently unavailable.|Price higher than typical|To see our price, add this item to your cart.|See price in cart",
+tv_retail_com,TV,original_sku_price,Bestbuy,allowed_values,,See price in cart,
+tv_retail_com,TV,original_sku_price,Walmart,allowed_values,,Not Available|See price in cart,
+tv_retail_com,TV,original_sku_price,Walmart,regex,"^\$[\d,]+\.?\d*/(month|undefined)$",,
+tv_retail_com,TV,original_sku_price,common,regex,"^\$[\d,]+\.?\d*$",,original_sku_price 형식 오류
+tv_retail_com,TV,count_of_reviews,common,regex_clean,^\d+$,comma,count_of_reviews 형식 오류
+tv_retail_com,TV,star_rating,Amazon,allowed_values,,No customer reviews,
+tv_retail_com,TV,star_rating,Bestbuy,allowed_values,,Not yet reviewed,
+tv_retail_com,TV,star_rating,Walmart,allowed_values,,No ratings yet,
+tv_retail_com,TV,star_rating,common,range_float,0.0~5.0,,star_rating 범위 오류 (0.0~5.0)
+tv_retail_com,TV,count_of_star_ratings,Amazon,allowed_values,,No customer reviews,
+tv_retail_com,TV,count_of_star_ratings,Bestbuy,allowed_values,,Not yet reviewed,
+tv_retail_com,TV,count_of_star_ratings,Walmart,allowed_values,,No ratings yet,
+tv_retail_com,TV,count_of_star_ratings,common,regex_clean,^\d+$,comma,count_of_star_ratings 형식 오류
+tv_retail_com,TV,detailed_review_content,Amazon,allowed_values,,No customer reviews,
+tv_retail_com,TV,detailed_review_content,Amazon,starts_with,1-,,detailed_review_content 형식 오류 (1- 로 시작해야 함)
+tv_retail_com,TV,detailed_review_content,Walmart,starts_with,review1-,,detailed_review_content 형식 오류 (review1- 로 시작해야 함)
+tv_retail_com,TV,detailed_review_content,Bestbuy,starts_with,review1 - ,,detailed_review_content 형식 오류 (review1 - 로 시작해야 함)
+tv_retail_com,TV,number_of_units_purchased_past_month,Amazon,regex_clean,^\d+$,comma_plus_null,number_of_units_purchased_past_month 형식 오류
+tv_retail_com,TV,available_quantity_for_purchase,Amazon,allowed_values,,In Stock,
+tv_retail_com,TV,available_quantity_for_purchase,Amazon,regex_clean,^\d+$,comma,available_quantity_for_purchase 형식 오류
+tv_retail_com,TV,sku_popularity,Amazon,allowed_values,,Amazon's  Choice|Amazon's Choice,
+tv_retail_com,TV,sku_popularity,Amazon,allow_empty,,,
+tv_retail_com,TV,retailer_membership_discounts,Amazon,starts_with,Prime members,,retailer_membership_discounts 형식 오류
+tv_retail_com,TV,rank_1,Amazon,starts_with,#,,rank_1 형식 오류 (# 로 시작해야 함)
+tv_retail_com,TV,rank_2,Amazon,starts_with,#,,rank_2 형식 오류 (# 로 시작해야 함)
+tv_retail_com,TV,summarized_review_content,Amazon,starts_with,Customers,,summarized_review_content 형식 오류 (Customers 로 시작해야 함)
+tv_retail_com,TV,savings,Bestbuy,regex,"^\$[\d,]+\.?\d*$",,savings 형식 오류
+tv_retail_com,TV,offer,Bestbuy,regex,^\d+$,,offer 형식 오류
+tv_retail_com,TV,retailer_sku_name_similar,Bestbuy,separator_count,|||~3,,retailer_sku_name_similar 오류 (||| 구분자 3개 필요)
+tv_retail_com,TV,recommendation_intent,Bestbuy,regex,^\d+% would recommend to a friend$,,recommendation_intent 형식 오류
+tv_retail_com,TV,offer,Walmart,regex,^\d+$,,offer 형식 오류
+tv_retail_com,TV,retailer_membership_discounts,Walmart,allowed_values,,Walmart Plus,
+tv_retail_com,TV,retailer_membership_discounts,Walmart,starts_with,Save with W+,,retailer_membership_discounts 형식 오류
+tv_retail_com,TV,available_quantity_for_purchase,Walmart,regex_clean,^\d+$,comma,available_quantity_for_purchase 형식 오류
+tv_retail_com,TV,number_of_ppl_purchased_yesterday,Walmart,regex_clean,^\d+$,comma_plus,number_of_ppl_purchased_yesterday 형식 오류
+tv_retail_com,TV,number_of_ppl_added_to_carts,Walmart,regex_clean,^\d+$,comma_plus,number_of_ppl_added_to_carts 형식 오류
+tv_retail_com,TV,savings,Walmart,regex,"^\$[\d,]+\.?\d*$",,savings 형식 오류
+tv_retail_com,TV,discount_type,Walmart,allowed_values,,Price when purchased online,
+tv_retail_com,TV,discount_type,Walmart,allow_empty,,,
+hhp_retail_com,HHP,item,common,regex,^[A-Za-z0-9]+$,,item 형식 오류
+hhp_retail_com,HHP,account_name,common,enum,,Amazon|Bestbuy|Walmart,account_name 오류
+hhp_retail_com,HHP,page_type,common,enum,,main|bsr|trend,page_type 오류
+hhp_retail_com,HHP,product_url,common,starts_with,http,,product_url 형식 오류
+hhp_retail_com,HHP,main_rank,common,range,1~300,,main_rank 범위 오류 (1~300)
+hhp_retail_com,HHP,bsr_rank,common,range,1~100,,bsr_rank 범위 오류 (1~100)
+hhp_retail_com,HHP,trend_rank,common,range,1~10,,trend_rank 범위 오류 (1~10)
+hhp_retail_com,HHP,final_sku_price,Amazon,allowed_values,,"No featured offers available|Currently unavailable.|Price higher than typical|To see our price, add this item to your cart.|See price in cart",
+hhp_retail_com,HHP,final_sku_price,Walmart,allowed_values,,Not Available,
+hhp_retail_com,HHP,final_sku_price,Walmart,regex,"^\$[\d,]+\.?\d*/(month|undefined)$",,
+hhp_retail_com,HHP,final_sku_price,common,regex,"^\$[\d,]+\.?\d*$",,final_sku_price 형식 오류
+hhp_retail_com,HHP,original_sku_price,Amazon,allowed_values,,"No featured offers available|Currently unavailable.|Price higher than typical|To see our price, add this item to your cart.|See price in cart",
+hhp_retail_com,HHP,original_sku_price,Walmart,allowed_values,,Not Available,
+hhp_retail_com,HHP,original_sku_price,Walmart,regex,"^\$[\d,]+\.?\d*/(month|undefined)$",,
+hhp_retail_com,HHP,original_sku_price,common,regex,"^\$[\d,]+\.?\d*$",,original_sku_price 형식 오류
+hhp_retail_com,HHP,count_of_reviews,common,regex_clean,^\d+$,comma,count_of_reviews 형식 오류
+hhp_retail_com,HHP,star_rating,Amazon,allowed_values,,No customer reviews,
+hhp_retail_com,HHP,star_rating,Bestbuy,allowed_values,,Not yet reviewed,
+hhp_retail_com,HHP,star_rating,Walmart,allowed_values,,No ratings yet,
+hhp_retail_com,HHP,star_rating,common,range_float,0.0~5.0,,star_rating 범위 오류 (0.0~5.0)
+hhp_retail_com,HHP,count_of_star_ratings,Amazon,allowed_values,,No customer reviews,
+hhp_retail_com,HHP,count_of_star_ratings,Bestbuy,allowed_values,,Not yet reviewed,
+hhp_retail_com,HHP,count_of_star_ratings,Walmart,allowed_values,,No ratings yet,
+hhp_retail_com,HHP,count_of_star_ratings,common,regex_clean,^\d+$,comma,count_of_star_ratings 형식 오류
+hhp_retail_com,HHP,detailed_review_content,Amazon,allowed_values,,No customer reviews,
+hhp_retail_com,HHP,detailed_review_content,common,starts_with,review1 - ,,detailed_review_content 형식 오류 (review1 - 로 시작해야 함)
+hhp_retail_com,HHP,number_of_units_purchased_past_month,Amazon,regex_clean,^\d+$,comma_plus_null,number_of_units_purchased_past_month 형식 오류
+hhp_retail_com,HHP,available_quantity_for_purchase,Amazon,regex_clean,^\d+$,comma,available_quantity_for_purchase 형식 오류
+hhp_retail_com,HHP,sku_popularity,Amazon,allowed_values,,Amazon's  Choice|Amazon's Choice,
+hhp_retail_com,HHP,sku_popularity,Amazon,allow_empty,,,
+hhp_retail_com,HHP,trade_in,Amazon,starts_with,Save up to $,,trade_in 형식 오류 (Save up to $ 로 시작해야 함)
+hhp_retail_com,HHP,retailer_membership_discounts,Amazon,starts_with,Or Prime members,,retailer_membership_discounts 형식 오류
+hhp_retail_com,HHP,rank_1,Amazon,starts_with,#,,rank_1 형식 오류 (# 로 시작해야 함)
+hhp_retail_com,HHP,rank_2,Amazon,starts_with,#,,rank_2 형식 오류 (# 로 시작해야 함)
+hhp_retail_com,HHP,summarized_review_content,Amazon,starts_with,Customers,,summarized_review_content 형식 오류 (Customers 로 시작해야 함)
+hhp_retail_com,HHP,savings,Bestbuy,regex,"^\$[\d,]+\.?\d*$",,savings 형식 오류
+hhp_retail_com,HHP,offer,Bestbuy,regex,^\d+$,,offer 형식 오류
+hhp_retail_com,HHP,sku_status,Bestbuy,allowed_values,,Sponsored,
+hhp_retail_com,HHP,sku_status,Bestbuy,allow_empty,,,
+hhp_retail_com,HHP,trade_in,Bestbuy,starts_with,Check your trade-in value.,,trade_in 형식 오류 (Check your trade-in value. 로 시작해야 함)
+hhp_retail_com,HHP,retailer_sku_name_similar,Bestbuy,separator_count,|||~3,,retailer_sku_name_similar 오류 (||| 구분자 3개 필요)
+hhp_retail_com,HHP,recommendation_intent,Bestbuy,regex,^\d+% would recommend to a friend$,,recommendation_intent 형식 오류
+hhp_retail_com,HHP,offer,Walmart,regex,^\d+$,,offer 형식 오류
+hhp_retail_com,HHP,retailer_membership_discounts,Walmart,starts_with,Save with W+,,retailer_membership_discounts 형식 오류
+hhp_retail_com,HHP,available_quantity_for_purchase,Walmart,regex_clean,^\d+$,comma,available_quantity_for_purchase 형식 오류
+hhp_retail_com,HHP,number_of_ppl_purchased_yesterday,Walmart,regex_clean,^\d+$,comma_plus,number_of_ppl_purchased_yesterday 형식 오류
+hhp_retail_com,HHP,number_of_ppl_added_to_carts,Walmart,regex_clean,^\d+$,comma_plus,number_of_ppl_added_to_carts 형식 오류
+hhp_retail_com,HHP,savings,Walmart,regex,"^\$[\d,]+\.?\d*$",,savings 형식 오류
+hhp_retail_com,HHP,discount_type,Walmart,allowed_values,,Price when purchased online,
+hhp_retail_com,HHP,discount_type,Walmart,allow_empty,,,
+youtube_collection_logs,ALL,keyword,common,fk_check,youtube_keywords.keyword|status=active,,keyword 비활성
+youtube_collection_logs,ALL,status,common,enum,,failed|completed,status 값 오류
+youtube_collection_logs,ALL,videos_collected,common,min,0,,videos_collected 음수
+youtube_collection_logs,ALL,comments_collected,common,min,0,,comments_collected 음수
+youtube_videos,ALL,keyword,common,fk_check,youtube_keywords.keyword|status=active,,keyword 비활성
+youtube_videos,ALL,published_at,common,date_compare,<=created_at,,published_at > created_at
+youtube_videos,ALL,channel_custom_url,common,starts_with,@,,channel_url @누락
+youtube_videos,ALL,channel_subscriber_count,common,min,0,,subscriber_count 음수
+youtube_videos,ALL,channel_video_count,common,min,0,,video_count 음수
+youtube_videos,ALL,view_count,common,min,0,,view_count 음수
+youtube_videos,ALL,like_count,common,min,0,,like_count 음수
+youtube_videos,ALL,comment_count,common,min,0,,comment_count 음수
+youtube_videos,ALL,category,common,enum,,TV|HHP,category 오류
+youtube_videos,ALL,engagement_rate,common,min,2.0,,engagement_rate < 2.0
+youtube_videos,ALL,product_sentiment_score,common,range_float,-5.0~5.0,,sentiment 범위 오류
+youtube_comments,ALL,video_id,common,fk_check,youtube_videos.video_id,,video_id 참조 오류
+youtube_comments,ALL,comment_type,common,enum,,top_level|reply,comment_type 오류
+youtube_comments,ALL,parent_comment_id,common,conditional_empty,comment_type=top_level,,parent_comment 오류
+youtube_comments,ALL,like_count,common,min,0,,like_count 음수
+youtube_comments,ALL,reply_count,common,min,0,,reply_count 음수
+youtube_comments,ALL,published_at,common,date_compare,<=created_at,,published_at > created_at
+market_trend,ALL,keyword,common,fk_check,market_mst.keyword|analysis_type=trend,,keyword 미등록
+market_trend,ALL,total_article_number,common,min,0,,total_article_number 음수
+market_trend,ALL,calendar_week,common,regex,^W(0[1-9]|[1-4][0-9]|5[0-2])$,,calendar_week 형식 오류
+market_comp_product,ALL,samsung_series_name,common,fk_check,market_mst.keyword|analysis_type=competitor&content_type=samsung,,samsung_series_name 미등록
+market_comp_product,ALL,comp_brand,common,fk_check,market_mst.keyword|analysis_type=competitor&content_type=comp,,comp_brand 미등록
+market_comp_product,ALL,calender_week,common,regex,^[wW]([1-9]|[1-4][0-9]|5[0-2])$,,calender_week 형식 오류
+market_comp_product,ALL,category,common,enum,,TV|HHP,category 값 오류
+market_comp_event,ALL,comp_brand,common,fk_check,market_comp_product.comp_brand|latest_batch,,comp_brand 미등록
+market_comp_event,ALL,comp_sku_name,common,fk_check,market_comp_product.comp_series_name|latest_batch,,comp_sku_name 미등록
+market_comp_event,ALL,calender_week,common,regex,^[wW]([1-9]|[1-4][0-9]|5[0-2])$,,calender_week 형식 오류
+market_comp_event,ALL,category,common,enum,,TV|HHP,category 값 오류
+openai_forecast_results,ALL,product_name,common,fk_check,openai_keywords.product_name|is_active=true,,product_name 미등록
+openai_forecast_results,ALL,event,common,fk_check,openai_event_mst.event_name|is_active=true,,event 미등록
+openai_forecast_results,ALL,metric_type,common,enum,,Forecasted_NA_sales_change,metric_type 값 오류
+openai_forecast_results,ALL,event_offset,common,range,0~9,,event_offset 범위 오류 (0~9)
+openai_forecast_results,ALL,event_value,common,regex,^-?[0-9]+\.?[0-9]*$,,event_value 형식 오류
+openai_forecast_results,ALL,event_value,common,range_float,-50.0~100.0,,event_value 범위 오류 (-50~100%)
+openai_forecast_results,ALL,week,common,regex,^w[0-9]{1,2}$,,week 형식 오류
+openai_forecast_results,ALL,crawled_at,common,regex,^[0-9]{4}-[0-9]{2}-[0-9]{2}$,,crawled_at 형식 오류

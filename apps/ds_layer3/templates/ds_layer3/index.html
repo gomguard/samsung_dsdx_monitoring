@@ -402,6 +402,14 @@
         background: var(--bg-secondary);
     }
 
+    .retailer-table tbody tr.row-danger {
+        background: #fef2f2;
+    }
+
+    .retailer-table tbody tr.row-danger:hover {
+        background: #fee2e2;
+    }
+
     .retailer-name {
         font-weight: 600;
     }
@@ -1027,7 +1035,8 @@ function renderTable(data) {
     `;
 
     for (const item of data.results) {
-        html += `<tr onclick="openDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${JSON.stringify(item).replace(/"/g, '&quot;')})" title="클릭하여 상세 보기">
+        const rowClass = item.status === 'danger' ? 'row-danger' : '';
+        html += `<tr class="${rowClass}" onclick="openDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${JSON.stringify(item).replace(/"/g, '&quot;')})" title="클릭하여 상세 보기">
             <td>${item.no}</td>
             <td><span class="retailer-name">${item.retailer}</span></td>
             <td>${item.region}</td>

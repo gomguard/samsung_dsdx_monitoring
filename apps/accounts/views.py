@@ -182,6 +182,7 @@ def user_create(request):
         profile = get_or_create_profile(user)
         profile.can_access_dx = request.POST.get('can_access_dx') == 'on'
         profile.can_access_ds = request.POST.get('can_access_ds') == 'on'
+        profile.can_access_report = request.POST.get('can_access_report') == 'on'
         profile.save()
 
         messages.success(request, f'회원 "{username}"이(가) 등록되었습니다.')
@@ -240,6 +241,7 @@ def user_edit(request, user_id):
         profile = get_or_create_profile(user)
         profile.can_access_dx = request.POST.get('can_access_dx') == 'on'
         profile.can_access_ds = request.POST.get('can_access_ds') == 'on'
+        profile.can_access_report = request.POST.get('can_access_report') == 'on'
 
         # 계정 잠금 해제
         if request.POST.get('unlock_account') == 'on':

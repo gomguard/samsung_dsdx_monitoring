@@ -8,13 +8,13 @@ Layer 1 API: 기본 통계 검수 (Foundational Integrity Check)
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
+from apps.common.retail_columns import get_retailer_columns, get_all_retailer_columns
 
 
 # 리테일러 설정
 RETAILERS = ['amazon', 'bestbuy', 'walmart']
 EXPECTED_PER_RETAILER = 300  # 기대값
-OK_THRESHOLD = 250           # 정상 기준 (이상이면 OK)
-WARNING_THRESHOLD = 200      # 주의 기준 (이상이면 WARNING, 미만이면 CRITICAL)
+OK_THRESHOLD = 200           # 정상 기준 (200개 이상이면 OK, 미만이면 CRITICAL)
 
 
 def check_retailer_data(rows, category='TV'):
@@ -49,11 +49,9 @@ def check_retailer_data(rows, category='TV'):
         count = data['count']
         total_count += count
 
-        # 상태 판정: 250 이상 = OK, 200~249 = WARNING, 200 미만 = CRITICAL
+        # 상태 판정: 200 이상 = OK, 200 미만 = CRITICAL
         if count >= OK_THRESHOLD:
             status = 'OK'
-        elif count >= WARNING_THRESHOLD:
-            status = 'WARNING'
         else:
             status = 'CRITICAL'
 
@@ -92,7 +90,6 @@ def check_retailer_data(rows, category='TV'):
             'count': count,
             'expected': EXPECTED_PER_RETAILER,
             'ok_threshold': OK_THRESHOLD,
-            'warning_threshold': WARNING_THRESHOLD,
             'status': status,
             'items': items
         })
@@ -100,8 +97,6 @@ def check_retailer_data(rows, category='TV'):
     # 전체 상태 결정
     if 'CRITICAL' in statuses:
         overall_status = 'CRITICAL'
-    elif 'WARNING' in statuses:
-        overall_status = 'WARNING'
     else:
         overall_status = 'OK'
 
@@ -113,7 +108,9 @@ def layer_stats(request):
 
     # 날짜 파라미터 처리 (기본값: 전일자)
     date_str = request.GET.get('date')
-    today = datetime.now().date()
+    now = datetime.now()
+    today = now.date()
+    now_hour = now.hour
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -134,8 +131,7 @@ def layer_stats(request):
         'thresholds': {
             'expected': EXPECTED_PER_RETAILER,
             'ok': OK_THRESHOLD,
-            'warning': WARNING_THRESHOLD,
-            'description': f'정상: {OK_THRESHOLD}건 이상 | 주의: {WARNING_THRESHOLD}~{OK_THRESHOLD-1}건 | 위험: {WARNING_THRESHOLD}건 미만'
+            'description': f'정상: {OK_THRESHOLD}건 이상 | 위험: {OK_THRESHOLD}건 미만'
         },
         'summary': {
             'total_checked': 0,
@@ -151,79 +147,12 @@ def layer_stats(request):
         cursor = conn.cursor()
 
         # ============================================================
-        # 시간대 정의 (선택한 날짜 기준 오전/오후)
-        # 한국 오전 9시 = UTC 00:00
-        # 한국 오후 9시 = UTC 12:00
+        # 시간대 정의 - CSV에서 로드
         # ============================================================
+        from apps.common.dx_schedules import get_retail_time_slots
 
-        # 현재 시간 기준 상태 판단
-        now = datetime.now()
-        now_hour = now.hour
-
-        # 오전 수집: KST 09:00~14:00 (약 5시간)
-        # 오후 수집: KST 21:00~02:00 (다음날, 약 5시간)
-        #
-        # 상태:
-        # - PENDING (대기중): 수집 시간 도래 전
-        # - COLLECTING (수집중): 수집 진행 중
-        # - OK/WARNING/CRITICAL: 수집 완료 후 결과
-
-        # 조회 날짜가 오늘인 경우만 시간 체크
-        if target_date == today:
-            # 오전 상태 판단: 09시 이전 대기중, 09~14시 수집중, 14시 이후 결과
-            if now_hour < 9:
-                am_status = 'PENDING'
-            elif now_hour < 14:
-                am_status = 'COLLECTING'
-            else:
-                am_status = None
-
-            # 오후 상태 판단: 21시 이전 대기중, 21~02시(다음날) 수집중
-            # 02시 이후는 다음날이므로 오늘 날짜 기준으로는 항상 수집중 또는 대기중
-            if now_hour < 2:
-                # 새벽 0~2시: 전날 오후 수집이 진행 중 (하지만 이건 전날 데이터)
-                # 오늘 오후 수집은 아직 대기중
-                pm_status = 'PENDING'
-            elif now_hour < 21:
-                pm_status = 'PENDING'
-            else:
-                pm_status = 'COLLECTING'
-        elif target_date == today - timedelta(days=1):
-            # 전일자 조회: 오전은 결과, 오후는 새벽 2시 이전이면 수집중
-            am_status = None
-            if now_hour < 2:
-                pm_status = 'COLLECTING'  # 전날 오후 수집이 아직 진행 중
-            else:
-                pm_status = None
-        else:
-            # 그 외 과거 날짜는 모두 결과 표시
-            am_status = None
-            pm_status = None
-
-        # 이전 코드와의 호환성을 위해 pending 변수 유지
-        am_pending = (am_status in ['PENDING', 'COLLECTING'])
-        pm_pending = (pm_status in ['PENDING', 'COLLECTING'])
-
-        time_slots = [
-            {
-                'name': '오전',
-                'start': f'{target_date} 00:00:00',
-                'end': f'{target_date} 12:00:00',
-                'utc_time': f'{target_date} 00:00',
-                'kr_time': f'{target_date} 09:00',
-                'is_pending': am_pending,
-                'time_status': am_status  # PENDING, COLLECTING, or None
-            },
-            {
-                'name': '오후',
-                'start': f'{target_date} 12:00:00',
-                'end': f'{next_day} 00:00:00',
-                'utc_time': f'{target_date} 12:00',
-                'kr_time': f'{target_date} 21:00',
-                'is_pending': pm_pending,
-                'time_status': pm_status  # PENDING, COLLECTING, or None
-            },
-        ]
+        # CSV에서 시간대 슬롯 정보 가져오기 (TV/HHP 공통으로 사용)
+        time_slots = get_retail_time_slots('TV', target_date)
 
         # ============================================================
         # TV Retail 검증 (통합)
@@ -253,10 +182,12 @@ def layer_stats(request):
                 slot_display_status = slot['time_status'] if slot['time_status'] else 'PENDING'
                 # 수집중일 때도 현재까지 수집된 데이터 표시
                 retailer_details, total, _ = check_retailer_data(rows)
+                tv_total_count += total  # PENDING/COLLECTING 상태에서도 수집량 합계에 포함
                 tv_time_slots.append({
                     'name': slot['name'],
-                    'utc_time': slot['utc_time'],
+                    'us_time': slot['us_time'],
                     'kr_time': slot['kr_time'],
+                    'is_dst': slot.get('is_dst', False),
                     'total': total,
                     'expected': EXPECTED_PER_RETAILER * len(RETAILERS),
                     'status': slot_display_status,
@@ -269,8 +200,9 @@ def layer_stats(request):
 
                 tv_time_slots.append({
                     'name': slot['name'],
-                    'utc_time': slot['utc_time'],
+                    'us_time': slot['us_time'],
                     'kr_time': slot['kr_time'],
+                    'is_dst': slot.get('is_dst', False),
                     'total': total,
                     'expected': EXPECTED_PER_RETAILER * len(RETAILERS),
                     'status': slot_status,
@@ -348,10 +280,12 @@ def layer_stats(request):
                 slot_display_status = slot['time_status'] if slot['time_status'] else 'PENDING'
                 # 수집중일 때도 현재까지 수집된 데이터 표시
                 retailer_details, total, _ = check_retailer_data(rows, category='HHP')
+                hhp_total_count += total  # PENDING/COLLECTING 상태에서도 수집량 합계에 포함
                 hhp_time_slots.append({
                     'name': slot['name'],
-                    'utc_time': slot['utc_time'],
+                    'us_time': slot['us_time'],
                     'kr_time': slot['kr_time'],
+                    'is_dst': slot.get('is_dst', False),
                     'total': total,
                     'expected': EXPECTED_PER_RETAILER * len(RETAILERS),
                     'status': slot_display_status,
@@ -364,8 +298,9 @@ def layer_stats(request):
 
                 hhp_time_slots.append({
                     'name': slot['name'],
-                    'utc_time': slot['utc_time'],
+                    'us_time': slot['us_time'],
                     'kr_time': slot['kr_time'],
+                    'is_dst': slot.get('is_dst', False),
                     'total': total,
                     'expected': EXPECTED_PER_RETAILER * len(RETAILERS),
                     'status': slot_status,
@@ -431,10 +366,27 @@ def layer_stats(request):
         # 정상 카테고리 수 계산
         retail_ok_count = sum(1 for s in [tv_overall_status, hhp_overall_status] if s == 'OK')
 
-        # 수집 시간 정보 (오전/오후 공통)
+        # 수집 시간 정보 (오전/오후) - US→KST 자동 변환 (날짜 포함)
+        from apps.common.dx_schedules import get_kst_time_info, get_schedule_kst_info
+        am_kst = get_kst_time_info(0, target_date)  # US 00:00
+        pm_kst = get_kst_time_info(12, target_date)  # US 12:00
+
+        # KST 날짜 계산
+        am_kst_date = next_day if am_kst['next_day'] else target_date
+        pm_kst_date = next_day if pm_kst['next_day'] else target_date
+
         retail_time_info = {
-            'am': {'utc': '00:00', 'kst': '09:00'},
-            'pm': {'utc': '12:00', 'kst': '21:00'}
+            'am': {
+                'us': f'{target_date} 00:00',
+                'kst': f'{am_kst_date} {am_kst["hour"]:02d}:00',
+                'is_dst': am_kst['is_dst']
+            },
+            'pm': {
+                'us': f'{target_date} 12:00',
+                'kst': f'{pm_kst_date} {pm_kst["hour"]:02d}:00',
+                'is_dst': pm_kst['is_dst']
+            },
+            'is_dst': am_kst['is_dst']  # 전체 서머타임 여부
         }
 
         results['checks'].append({
@@ -451,30 +403,38 @@ def layer_stats(request):
         # ============================================================
         # TV Sentiment 검증
         # ============================================================
-        # Sentiment 분석은 다음날 KST 10시(UTC 01시)에 실행됨
-        # 분석 소요시간: 약 4시간 (KST 10시~14시)
-        #
-        # 상태 판단:
-        # - 조회날짜가 오늘 이상: PENDING (아직 분석 대상 아님)
-        # - 조회날짜가 전일자이고 현재 10시 이전: PENDING (분석 시작 전)
-        # - 조회날짜가 전일자이고 현재 10시~14시: ANALYZING (분석중)
-        # - 조회날짜가 전일자이고 현재 14시 이후: 결과 표시
-        # - 그 외 과거: 결과 표시
+        # Sentiment 분석: CSV에서 로드 (US 01:00 ~ 05:00, 다음날 실행)
+        # 분석 소요시간: 약 4시간
 
-        if target_date >= today:
-            sentiment_status = 'PENDING'
-        elif target_date == today - timedelta(days=1):
-            # 전일자 조회: 오늘 시간 기준으로 판단
-            if now_hour < 10:
-                sentiment_status = 'PENDING'
-            elif now_hour < 14:
-                sentiment_status = 'ANALYZING'
-            else:
-                sentiment_status = None  # 결과 표시
-        else:
-            sentiment_status = None  # 과거 데이터는 결과 표시
+        # CSV에서 Sentiment 스케줄 정보 가져오기 (KST 변환 포함)
+        # Sentiment는 target_date 데이터를 target_date 다음날(next_day)에 분석하므로 next_day 기준으로 조회
+        sentiment_info = get_schedule_kst_info('sentiment', next_day, now)
 
-        sentiment_pending = (sentiment_status in ['PENDING', 'ANALYZING'])
+        # sentiment_info가 None인 경우 기본값 사용
+        if not sentiment_info:
+            kst_start = get_kst_time_info(1, next_day)
+            # KST 종료 시간 계산 (시작 + 240분)
+            kr_start_hour = kst_start['hour']
+            kr_start_date = kst_start['date']
+            kr_end_dt = datetime(kr_start_date.year, kr_start_date.month, kr_start_date.day, kr_start_hour, 0, 0) + timedelta(minutes=240)
+            sentiment_info = {
+                'us_start_hour': 1,
+                'collection_duration_min': 240,
+                'kst_start': kst_start,
+                'kst_end': {'full_display': kr_end_dt.strftime('%Y-%m-%d %H:00')},
+                'time_status': None,
+                'is_pending': False,
+                'is_collecting': False,
+                'collection_done': True
+            }
+
+        # Sentiment 상태 판정 (CSV 기반 - next_day 기준으로 계산됨)
+        # time_status: 'PENDING'(대기중), 'COLLECTING'(분석중), None(결과)
+        sentiment_status = sentiment_info['time_status']
+        if sentiment_status == 'COLLECTING':
+            sentiment_status = 'ANALYZING'  # 감성분석은 ANALYZING으로 표시
+
+        sentiment_pending = sentiment_info['is_pending'] or sentiment_info['is_collecting']
 
         # TV 분석 대상 (로그 테이블에서 스냅샷 조회)
         cursor.execute("""
@@ -520,11 +480,22 @@ def layer_stats(request):
         tv_sentiment_ok_slots = 0
         tv_sentiment_active_slots = 0
 
-        # Sentiment 시간대 정의
-        # 분석 실행: 다음날 UTC 01시 (KST 10시)
+        # Sentiment 시간대 정의 - CSV 기반 US→KST 자동 변환 (서머타임 고려)
         sentiment_time_slots_info = [
-            {'period': '오전', 'utc_time': f'{next_day} 01:00', 'kr_time': f'{next_day} 10:00'},
-            {'period': '오후', 'utc_time': f'{next_day} 01:00', 'kr_time': f'{next_day} 10:00'},
+            {
+                'period': '오전',
+                'us_time': f'{next_day} {sentiment_info["us_start_hour"]:02d}:00',
+                'kr_time': sentiment_info['kst_start']['full_display'],
+                'kr_time_end': sentiment_info['kst_end']['full_display'],
+                'is_dst': sentiment_info['kst_start']['is_dst']
+            },
+            {
+                'period': '오후',
+                'us_time': f'{next_day} {sentiment_info["us_start_hour"]:02d}:00',
+                'kr_time': sentiment_info['kst_start']['full_display'],
+                'kr_time_end': sentiment_info['kst_end']['full_display'],
+                'is_dst': sentiment_info['kst_start']['is_dst']
+            },
         ]
 
         for slot_info in sentiment_time_slots_info:
@@ -539,14 +510,14 @@ def layer_stats(request):
                 analyzed = tv_sent_analyzed_details.get(key, 0)
                 rate = round((analyzed / target * 100), 1) if target > 0 else 0
 
-                # 상태 판단: 100%면 분석완료(OK), 아니면 시간대 상태 따름
-                if sentiment_status == 'PENDING':
+                # 상태 판단: CSV 기반 - 100%면 분석완료(OK), 아니면 시간대 상태 따름
+                if sentiment_info['is_pending']:
                     status = 'PENDING'
                 elif target == 0:
                     status = 'PENDING'
                 elif rate >= 100:
                     status = 'OK'  # 100%면 분석완료
-                elif sentiment_status == 'ANALYZING':
+                elif sentiment_info['is_collecting']:
                     status = 'ANALYZING'  # 분석중이면서 100% 미만
                 elif rate >= 90:
                     status = 'WARNING'
@@ -565,14 +536,14 @@ def layer_stats(request):
                 slot_analyzed += analyzed
 
             slot_rate = round((slot_analyzed / slot_target * 100), 1) if slot_target > 0 else 0
-            # 슬롯 상태 판단: 100%면 분석완료(OK), 아니면 시간대 상태 따름
-            if sentiment_status == 'PENDING':
+            # 슬롯 상태 판단: CSV 기반 - 100%면 분석완료(OK), 아니면 시간대 상태 따름
+            if sentiment_info['is_pending']:
                 slot_status = 'PENDING'
             elif slot_target == 0:
                 slot_status = 'PENDING'
             elif slot_rate >= 100:
                 slot_status = 'OK'  # 100%면 분석완료
-            elif sentiment_status == 'ANALYZING':
+            elif sentiment_info['is_collecting']:
                 slot_status = 'ANALYZING'  # 분석중이면서 100% 미만
             elif slot_rate >= 90:
                 slot_status = 'WARNING'
@@ -586,8 +557,10 @@ def layer_stats(request):
 
             tv_sentiment_time_slots.append({
                 'time': period,
-                'utc_time': slot_info['utc_time'],
+                'us_time': slot_info['us_time'],
                 'kr_time': slot_info['kr_time'],
+                'kr_time_end': slot_info['kr_time_end'],
+                'is_dst': slot_info['is_dst'],
                 'target': slot_target,
                 'analyzed': slot_analyzed,
                 'rate': slot_rate,
@@ -596,14 +569,14 @@ def layer_stats(request):
             })
 
         tv_sentiment_rate = round((tv_sentiment_analyzed / tv_sentiment_target * 100), 1) if tv_sentiment_target > 0 else 0
-        # 전체 상태 판단: 100%면 분석완료(OK), 아니면 시간대 상태 따름
-        if sentiment_status == 'PENDING':
+        # 전체 상태 판단: CSV 기반 - 100%면 분석완료(OK), 아니면 시간대 상태 따름
+        if sentiment_info['is_pending']:
             tv_sentiment_status = 'PENDING'
         elif tv_sentiment_target == 0:
             tv_sentiment_status = 'PENDING'
         elif tv_sentiment_rate >= 100:
             tv_sentiment_status = 'OK'  # 100%면 분석완료
-        elif sentiment_status == 'ANALYZING':
+        elif sentiment_info['is_collecting']:
             tv_sentiment_status = 'ANALYZING'  # 분석중이면서 100% 미만
         elif tv_sentiment_rate >= 90:
             tv_sentiment_status = 'WARNING'
@@ -679,14 +652,14 @@ def layer_stats(request):
                 analyzed = hhp_sent_analyzed_details.get(key, 0)
                 rate = round((analyzed / target * 100), 1) if target > 0 else 0
 
-                # 상태 판단: 100%면 분석완료(OK), 아니면 시간대 상태 따름
-                if sentiment_status == 'PENDING':
+                # 상태 판단: CSV 기반 - 100%면 분석완료(OK), 아니면 시간대 상태 따름
+                if sentiment_info['is_pending']:
                     status = 'PENDING'
                 elif target == 0:
                     status = 'PENDING'
                 elif rate >= 100:
                     status = 'OK'  # 100%면 분석완료
-                elif sentiment_status == 'ANALYZING':
+                elif sentiment_info['is_collecting']:
                     status = 'ANALYZING'  # 분석중이면서 100% 미만
                 elif rate >= 90:
                     status = 'WARNING'
@@ -705,14 +678,14 @@ def layer_stats(request):
                 slot_analyzed += analyzed
 
             slot_rate = round((slot_analyzed / slot_target * 100), 1) if slot_target > 0 else 0
-            # 슬롯 상태 판단: 100%면 분석완료(OK), 아니면 시간대 상태 따름
-            if sentiment_status == 'PENDING':
+            # 슬롯 상태 판단: CSV 기반 - 100%면 분석완료(OK), 아니면 시간대 상태 따름
+            if sentiment_info['is_pending']:
                 slot_status = 'PENDING'
             elif slot_target == 0:
                 slot_status = 'PENDING'
             elif slot_rate >= 100:
                 slot_status = 'OK'  # 100%면 분석완료
-            elif sentiment_status == 'ANALYZING':
+            elif sentiment_info['is_collecting']:
                 slot_status = 'ANALYZING'  # 분석중이면서 100% 미만
             elif slot_rate >= 90:
                 slot_status = 'WARNING'
@@ -726,8 +699,10 @@ def layer_stats(request):
 
             hhp_sentiment_time_slots.append({
                 'time': period,
-                'utc_time': slot_info['utc_time'],
+                'us_time': slot_info['us_time'],
                 'kr_time': slot_info['kr_time'],
+                'kr_time_end': slot_info['kr_time_end'],
+                'is_dst': slot_info['is_dst'],
                 'target': slot_target,
                 'analyzed': slot_analyzed,
                 'rate': slot_rate,
@@ -736,14 +711,14 @@ def layer_stats(request):
             })
 
         hhp_sentiment_rate = round((hhp_sentiment_analyzed / hhp_sentiment_target * 100), 1) if hhp_sentiment_target > 0 else 0
-        # 전체 상태 판단: 100%면 분석완료(OK), 아니면 시간대 상태 따름
-        if sentiment_status == 'PENDING':
+        # 전체 상태 판단: CSV 기반 - 100%면 분석완료(OK), 아니면 시간대 상태 따름
+        if sentiment_info['is_pending']:
             hhp_sentiment_status = 'PENDING'
         elif hhp_sentiment_target == 0:
             hhp_sentiment_status = 'PENDING'
         elif hhp_sentiment_rate >= 100:
             hhp_sentiment_status = 'OK'  # 100%면 분석완료
-        elif sentiment_status == 'ANALYZING':
+        elif sentiment_info['is_collecting']:
             hhp_sentiment_status = 'ANALYZING'  # 분석중이면서 100% 미만
         elif hhp_sentiment_rate >= 90:
             hhp_sentiment_status = 'WARNING'
@@ -765,16 +740,16 @@ def layer_stats(request):
         total_sentiment_analyzed = tv_sentiment_analyzed + hhp_sentiment_analyzed
         total_sentiment_rate = round((total_sentiment_analyzed / total_sentiment_target * 100), 1) if total_sentiment_target > 0 else 0
 
-        # 통합 상태 결정 (둘 중 더 나쁜 상태)
+        # 통합 상태 결정: CSV 기반 (둘 중 더 나쁜 상태)
         status_priority = {'OK': 0, 'WARNING': 1, 'ANALYZING': 2, 'CRITICAL': 3, 'PENDING': 4}
         if total_sentiment_target == 0:
             total_sentiment_status = 'PENDING'
-        elif sentiment_status == 'PENDING':
+        elif sentiment_info['is_pending']:
             total_sentiment_status = 'PENDING'
         elif total_sentiment_rate >= 100:
             # 100%면 시간에 관계없이 결과 표시
             total_sentiment_status = 'OK'
-        elif sentiment_status == 'ANALYZING':
+        elif sentiment_info['is_collecting']:
             total_sentiment_status = 'ANALYZING'
         else:
             tv_priority = status_priority.get(tv_sentiment_status, 0)
@@ -795,8 +770,10 @@ def layer_stats(request):
             'rate': total_sentiment_rate,
             'status': total_sentiment_status,
             'check_type': 'sentiment',
-            'utc_time': f'{next_day} 01:00',
-            'kr_time': f'{next_day} 10:00',
+            'us_time': f'{next_day} {sentiment_info["us_start_hour"]:02d}:00',
+            'kr_time': sentiment_info['kst_start']['full_display'],
+            'kr_time_end': sentiment_info['kst_end']['full_display'],
+            'is_dst': sentiment_info['kst_start']['is_dst'],
             'categories': [tv_sentiment_data, hhp_sentiment_data]
         })
 
@@ -805,28 +782,28 @@ def layer_stats(request):
         # ============================================================
         # 기대값(7일 평균) 대비 수집률 기준 (Sentiment와 동일)
         # 기준: 100% 이상 = OK, 90~99% = WARNING, 90% 미만 = CRITICAL
-        #
-        # 수집 시간: 미국시간 12PM = 한국시간 21시
-        # 수집 소요시간: 약 1시간 (21시 ~ 22시)
-        # 26일 실행 → 26일 데이터 수집
-        #
-        # 상태 판단:
-        # - 오늘 데이터 조회 + 21시 이전: PENDING (대기중)
-        # - 오늘 데이터 조회 + 21시~22시: COLLECTING (수집중)
-        # - 오늘 데이터 조회 + 22시 이후: 결과 표시
-        # - 과거 데이터: 결과 표시
+        # 수집 시간: CSV에서 로드 (US 04:00 ~ 08:00)
 
-        if target_date == today:
-            if now_hour < 21:
-                youtube_status = 'PENDING'
-            elif now_hour < 22:
-                youtube_status = 'COLLECTING'
-            else:
-                youtube_status = None  # 결과 표시
-        else:
-            youtube_status = None  # 과거 데이터는 결과 표시
+        # CSV에서 YouTube 스케줄 정보 가져오기 (KST 변환 포함)
+        youtube_info = get_schedule_kst_info('youtube', target_date, now)
 
-        youtube_pending = (youtube_status in ['PENDING', 'COLLECTING'])
+        # youtube_info가 None인 경우 기본값 사용
+        if not youtube_info:
+            kst_start = get_kst_time_info(4, target_date)
+            youtube_info = {
+                'us_start_hour': 4,
+                'collection_duration_min': 240,
+                'kst_start': kst_start,
+                'kst_end': {'full_display': f"{target_date} 22:00"},  # 4시 + 4시간 (KST 18시 + 4시간)
+                'time_status': None,
+                'is_pending': False,
+                'is_collecting': False,
+                'collection_done': True
+            }
+
+        # YouTube 상태 판정 (CSV 기반)
+        youtube_status = youtube_info['time_status']
+        youtube_pending = youtube_info['is_pending'] or youtube_info['is_collecting']
 
         # 전일 YouTube 수집량 (카테고리별)
         cursor.execute("""
@@ -902,19 +879,15 @@ def layer_stats(request):
             else:
                 rate = 100 if log_count > 0 else 0
 
-            # 상태 판정: 시간대 상태 + 결과 기준
-            if youtube_status == 'PENDING':
+            # 상태 판정: CSV 기반 시간대 상태 + 결과 기준
+            if youtube_info['is_pending']:
                 status = 'PENDING'
-            elif youtube_status == 'COLLECTING':
-                # 수집중일 때 100%면 완료, 아니면 수집중
-                if rate >= 100:
-                    status = 'OK'
-                else:
-                    status = 'COLLECTING'
             elif expected == 0:
                 status = 'OK' if log_count > 0 else 'WARNING'
             elif rate >= 100:
                 status = 'OK'
+            elif youtube_info['is_collecting']:
+                status = 'COLLECTING'
             elif rate >= 90:
                 status = 'WARNING'
             else:
@@ -941,19 +914,15 @@ def layer_stats(request):
         else:
             youtube_overall_rate = 100 if youtube_total_actual > 0 else 0
 
-        # 전체 상태 판정: 시간대 상태 + 결과 기준
-        if youtube_status == 'PENDING':
+        # 전체 상태 판정: CSV 기반 시간대 상태 + 결과 기준
+        if youtube_info['is_pending']:
             youtube_overall_status = 'PENDING'
-        elif youtube_status == 'COLLECTING':
-            # 수집중일 때 100%면 완료, 아니면 수집중
-            if youtube_overall_rate >= 100:
-                youtube_overall_status = 'OK'
-            else:
-                youtube_overall_status = 'COLLECTING'
         elif youtube_total_expected == 0:
             youtube_overall_status = 'OK' if youtube_total_actual > 0 else 'WARNING'
         elif youtube_overall_rate >= 100:
             youtube_overall_status = 'OK'
+        elif youtube_info['is_collecting']:
+            youtube_overall_status = 'COLLECTING'
         elif youtube_overall_rate >= 90:
             youtube_overall_status = 'WARNING'
         else:
@@ -973,20 +942,39 @@ def layer_stats(request):
             'rate': round(youtube_overall_rate, 1),
             'status': youtube_overall_status,
             'check_type': 'youtube',
+            'us_time': f'{target_date} {youtube_info["us_start_hour"]:02d}:00',
+            'kr_time': youtube_info['kst_start']['full_display'],
+            'kr_time_end': youtube_info['kst_end']['full_display'],
+            'is_dst': youtube_info['kst_start']['is_dst'],
             'categories': youtube_categories
         })
 
         # ============================================================
         # Market Trend 검증
         # ============================================================
-        # 실행시간: 미국시간 오후 11시 (UTC 기준으로 계산)
+        # 실행시간: CSV에서 로드 (US 23:00 ~ 08:00)
         # 기준: ±30% 이내 = OK, ±30~50% = WARNING, ±50% 초과 = CRITICAL
 
-        # 미국 동부시간 오후 11시 = UTC 04:00 (다음날)
-        # 조회일 기준으로 다음날 UTC 04:00에 실행됨
-        from datetime import time as dt_time
-        market_run_time = datetime.combine(next_day, dt_time(4, 0))  # 다음날 UTC 04:00
-        market_pending = (now < market_run_time)
+        # CSV에서 Market Trend 스케줄 정보 가져오기 (KST 변환 포함)
+        market_trend_info = get_schedule_kst_info('market_trend', target_date, now)
+
+        # market_trend_info가 None인 경우 기본값 사용
+        if not market_trend_info:
+            kst_start = get_kst_time_info(23, target_date)
+            market_trend_info = {
+                'us_start_hour': 23,
+                'collection_duration_min': 300,
+                'kst_start': kst_start,
+                'kst_end': {'full_display': f"{next_day} 18:00"},  # 23시 + 5시간 (KST 13시 + 5시간)
+                'time_status': None,
+                'is_pending': False,
+                'is_collecting': False,
+                'collection_done': True
+            }
+
+        # Market Trend 상태 판정 (CSV 기반)
+        market_pending = market_trend_info['is_pending'] or market_trend_info['is_collecting']
+        market_collection_done = market_trend_info['collection_done']
 
         # Market Trend 기대건수 (market_mst에서 product_line + content_type별 키워드 수)
         cursor.execute("""
@@ -1013,6 +1001,46 @@ def layer_stats(request):
             GROUP BY m.product_line, m.content_type
         """, (target_date,))
         market_collected = {f"{row[0]}_{row[1]}": row[2] for row in cursor.fetchall()}
+
+        # ===== 키워드 커버리지 (등록 키워드 vs 수집 키워드) =====
+        # 등록된 키워드 수 (product_line별)
+        cursor.execute("""
+            SELECT product_line, COUNT(*) as cnt
+            FROM market_mst WHERE analysis_type = 'trend'
+            GROUP BY product_line
+            ORDER BY product_line
+        """)
+        keyword_registered = {row[0]: row[1] for row in cursor.fetchall()}
+
+        # 수집된 고유 키워드 수 (product_line별)
+        cursor.execute("""
+            SELECT m.product_line, COUNT(DISTINCT t.keyword) as cnt
+            FROM market_trend t
+            INNER JOIN market_mst m ON m.analysis_type = 'trend' AND t.keyword = m.keyword
+            WHERE DATE(t.crawl_at_local_time) = %s
+            GROUP BY m.product_line
+        """, (target_date,))
+        keyword_collected = {row[0]: row[1] for row in cursor.fetchall()}
+
+        # 누락된 키워드 목록 조회 (product_line별)
+        cursor.execute("""
+            SELECT m.product_line, m.keyword
+            FROM market_mst m
+            WHERE m.analysis_type = 'trend'
+              AND NOT EXISTS (
+                  SELECT 1 FROM market_trend t
+                  WHERE t.keyword = m.keyword
+                    AND DATE(t.crawl_at_local_time) = %s
+              )
+            ORDER BY m.product_line, m.keyword
+        """, (target_date,))
+        missing_keywords_raw = cursor.fetchall()
+        missing_keywords_by_pl = {}
+        for row in missing_keywords_raw:
+            pl = row[0]
+            if pl not in missing_keywords_by_pl:
+                missing_keywords_by_pl[pl] = []
+            missing_keywords_by_pl[pl].append(row[1])
 
         # 7일 평균 수집건수
         cursor.execute("""
@@ -1064,15 +1092,15 @@ def layer_stats(request):
             else:
                 rate = 0 if collected == 0 else 100
 
-            # 상태 판정: 100% = OK, 90%이상 = WARNING, 90%미만 = CRITICAL
-            if market_pending:
+            # 상태 판정: 100% = OK, 100% 미만 = CRITICAL (CSV 기반)
+            if market_trend_info['is_pending']:
                 status = 'PENDING'
             elif expected == 0:
                 status = 'PENDING'
             elif rate >= 100:
                 status = 'OK'
-            elif rate >= 90:
-                status = 'WARNING'
+            elif market_trend_info['is_collecting']:
+                status = 'COLLECTING'
             else:
                 status = 'CRITICAL'
 
@@ -1109,14 +1137,14 @@ def layer_stats(request):
         else:
             tv_market_rate = 0 if tv_market_total == 0 else 100
 
-        if market_pending:
+        if market_trend_info['is_pending']:
             tv_market_status = 'PENDING'
         elif tv_market_expected == 0:
             tv_market_status = 'PENDING'
         elif tv_market_rate >= 100:
             tv_market_status = 'OK'
-        elif tv_market_rate >= 90:
-            tv_market_status = 'WARNING'
+        elif market_trend_info['is_collecting']:
+            tv_market_status = 'COLLECTING'
         else:
             tv_market_status = 'CRITICAL'
 
@@ -1126,25 +1154,76 @@ def layer_stats(request):
         else:
             hhp_market_rate = 0 if hhp_market_total == 0 else 100
 
-        if market_pending:
+        if market_trend_info['is_pending']:
             hhp_market_status = 'PENDING'
         elif hhp_market_expected == 0:
             hhp_market_status = 'PENDING'
         elif hhp_market_rate >= 100:
             hhp_market_status = 'OK'
-        elif hhp_market_rate >= 90:
-            hhp_market_status = 'WARNING'
+        elif market_trend_info['is_collecting']:
+            hhp_market_status = 'COLLECTING'
         else:
             hhp_market_status = 'CRITICAL'
 
-        # 카테고리 데이터 구성 (Retail/Sentiment와 동일한 구조)
+        # 키워드 커버리지 데이터 구성 (product_line별)
+        tv_kw_registered = keyword_registered.get('TV', 0)
+        tv_kw_collected = keyword_collected.get('TV', 0)
+        tv_kw_missing = missing_keywords_by_pl.get('TV', [])
+        tv_kw_rate = round((tv_kw_collected / tv_kw_registered * 100), 1) if tv_kw_registered > 0 else 100
+
+        hhp_kw_registered = keyword_registered.get('HHP', 0)
+        hhp_kw_collected = keyword_collected.get('HHP', 0)
+        hhp_kw_missing = missing_keywords_by_pl.get('HHP', [])
+        hhp_kw_rate = round((hhp_kw_collected / hhp_kw_registered * 100), 1) if hhp_kw_registered > 0 else 100
+
+        # 전체 키워드 커버리지
+        total_kw_registered = tv_kw_registered + hhp_kw_registered
+        total_kw_collected = tv_kw_collected + hhp_kw_collected
+        total_kw_missing = len(tv_kw_missing) + len(hhp_kw_missing)
+        total_kw_rate = round((total_kw_collected / total_kw_registered * 100), 1) if total_kw_registered > 0 else 100
+
+        # 키워드 커버리지 기준 상태 판정 함수
+        def get_keyword_coverage_status(registered, collected, is_pending, is_collecting):
+            if is_pending:
+                return 'PENDING'
+            if registered == 0:
+                return 'PENDING'
+            rate = (collected / registered) * 100
+            if rate >= 100:
+                return 'OK'
+            elif is_collecting:
+                return 'COLLECTING'
+            else:
+                return 'CRITICAL'
+
+        # TV 키워드 상태 (정상여부 판단용)
+        tv_kw_status = get_keyword_coverage_status(
+            tv_kw_registered, tv_kw_collected,
+            market_trend_info['is_pending'], market_trend_info['is_collecting']
+        )
+
+        # HHP 키워드 상태 (정상여부 판단용)
+        hhp_kw_status = get_keyword_coverage_status(
+            hhp_kw_registered, hhp_kw_collected,
+            market_trend_info['is_pending'], market_trend_info['is_collecting']
+        )
+
+        # 카테고리 데이터 구성 (키워드 커버리지 포함)
         tv_market_data = {
             'name': 'TV',
             'total': tv_market_total,
             'expected': tv_market_expected,
             'rate': round(tv_market_rate, 1),
-            'status': tv_market_status,
-            'items': tv_market_items
+            'status': tv_kw_status,  # 키워드 기준 상태
+            'items': tv_market_items,
+            'keyword_coverage': {
+                'registered': tv_kw_registered,
+                'collected': tv_kw_collected,
+                'missing_count': len(tv_kw_missing),
+                'missing_keywords': tv_kw_missing[:10],  # 최대 10개만
+                'rate': tv_kw_rate,
+                'status': tv_kw_status
+            }
         }
 
         hhp_market_data = {
@@ -1152,28 +1231,31 @@ def layer_stats(request):
             'total': hhp_market_total,
             'expected': hhp_market_expected,
             'rate': round(hhp_market_rate, 1),
-            'status': hhp_market_status,
-            'items': hhp_market_items
+            'status': hhp_kw_status,  # 키워드 기준 상태
+            'items': hhp_market_items,
+            'keyword_coverage': {
+                'registered': hhp_kw_registered,
+                'collected': hhp_kw_collected,
+                'missing_count': len(hhp_kw_missing),
+                'missing_keywords': hhp_kw_missing[:10],  # 최대 10개만
+                'rate': hhp_kw_rate,
+                'status': hhp_kw_status
+            }
         }
 
-        # Market Trend 전체 상태
+        # Market Trend 전체 상태 (키워드 커버리지 기준)
+        market_overall_status = get_keyword_coverage_status(
+            total_kw_registered, total_kw_collected,
+            market_trend_info['is_pending'], market_trend_info['is_collecting']
+        )
+
+        # 수집량 rate (행 건수 기준)
         if market_total_expected > 0:
             market_overall_rate = (market_total_collected / market_total_expected) * 100
         else:
             market_overall_rate = 0 if market_total_collected == 0 else 100
 
-        if market_pending:
-            market_overall_status = 'PENDING'
-        elif market_total_expected == 0:
-            market_overall_status = 'PENDING'
-        elif market_overall_rate >= 100:
-            market_overall_status = 'OK'
-        elif market_overall_rate >= 90:
-            market_overall_status = 'WARNING'
-        else:
-            market_overall_status = 'CRITICAL'
-
-        market_ok_count = sum(1 for s in [tv_market_status, hhp_market_status] if s == 'OK')
+        market_ok_count = sum(1 for s in [tv_kw_status, hhp_kw_status] if s == 'OK')
 
         results['checks'].append({
             'name': 'Market Trend',
@@ -1184,15 +1266,43 @@ def layer_stats(request):
             'status': market_overall_status,
             'check_type': 'market_trend',
             'categories': [tv_market_data, hhp_market_data],
-            'utc_time': f'{target_date} 23:00',
-            'kr_time': f'{next_day} 08:00'
+            'us_time': f'{target_date} {market_trend_info["us_start_hour"]:02d}:00',
+            'kr_time': market_trend_info['kst_start']['full_display'],
+            'kr_time_end': market_trend_info['kst_end']['full_display'],
+            'is_dst': market_trend_info['kst_start']['is_dst'],
+            # 키워드 커버리지 요약
+            'keyword_coverage': {
+                'total_registered': total_kw_registered,
+                'total_collected': total_kw_collected,
+                'total_missing': total_kw_missing,
+                'rate': total_kw_rate,
+                'status': market_overall_status
+            }
         })
 
         # ============================================================
         # Market Competitor 검증 (경쟁품 분석)
         # ============================================================
-        # 실행시간: 분기 첫날 (1/1, 4/1, 7/1, 10/1)
+        # 실행시간: 분기 첫날 (1/1, 4/1, 7/1, 10/1) - CSV에서 로드
         # 카테고리별 (TV/HHP) 분석 건수 확인
+
+        # CSV에서 Market Competitor 스케줄 정보 가져오기
+        comp_schedule_info = get_schedule_kst_info('market_competitor', target_date, now)
+        if not comp_schedule_info:
+            kst_start = get_kst_time_info(23, target_date)
+            kr_start_hour = kst_start['hour']
+            kr_start_date = kst_start['date']
+            kr_end_dt = datetime(kr_start_date.year, kr_start_date.month, kr_start_date.day, kr_start_hour, 0, 0) + timedelta(minutes=300)
+            comp_schedule_info = {
+                'us_start_hour': 23,
+                'collection_duration_min': 300,
+                'kst_start': kst_start,
+                'kst_end': {'full_display': kr_end_dt.strftime('%Y-%m-%d %H:00')},
+                'time_status': None,
+                'is_pending': False,
+                'is_collecting': False,
+                'collection_done': True
+            }
 
         # 조회 날짜가 속한 분기 계산
         target_month = target_date.month
@@ -1216,6 +1326,16 @@ def layer_stats(request):
 
         # 분기 첫날인지 확인 (조회 날짜 기준)
         is_quarter_first = (target_date.day == 1 and target_date.month in [1, 4, 7, 10])
+
+        # 다음 분기 첫날 계산
+        if target_month <= 3:
+            next_quarter_start = f"{target_year}-04-01"
+        elif target_month <= 6:
+            next_quarter_start = f"{target_year}-07-01"
+        elif target_month <= 9:
+            next_quarter_start = f"{target_year}-10-01"
+        else:
+            next_quarter_start = f"{target_year + 1}-01-01"
 
         # 해당 분기에 실행된 배치 조회 (분기 시작일 ~ 분기 종료일)
         cursor.execute("""
@@ -1274,6 +1394,88 @@ def layer_stats(request):
             comp_cnt = comp_brand_counts.get(pl, 0)
             comp_expected[pl] = samsung_cnt * comp_cnt
 
+        # ===== 키워드 커버리지 (삼성 시리즈 × 경쟁사 브랜드 조합) =====
+        # 등록된 삼성 키워드 목록 (product_line별)
+        cursor.execute("""
+            SELECT product_line, keyword
+            FROM market_mst
+            WHERE analysis_type = 'competitor' AND content_type = 'samsung' AND is_active = true
+            ORDER BY product_line, keyword
+        """)
+        comp_samsung_keywords = {}
+        for row in cursor.fetchall():
+            pl = row[0]
+            if pl not in comp_samsung_keywords:
+                comp_samsung_keywords[pl] = []
+            comp_samsung_keywords[pl].append(row[1])
+
+        # 등록된 경쟁사 브랜드 목록 (product_line별)
+        cursor.execute("""
+            SELECT product_line, keyword
+            FROM market_mst
+            WHERE analysis_type = 'competitor' AND content_type = 'comp' AND is_active = true
+            ORDER BY product_line, keyword
+        """)
+        comp_brand_keywords = {}
+        for row in cursor.fetchall():
+            pl = row[0]
+            if pl not in comp_brand_keywords:
+                comp_brand_keywords[pl] = []
+            comp_brand_keywords[pl].append(row[1])
+
+        # 수집된 삼성 시리즈 × 경쟁사 브랜드 조합 (product_line별)
+        comp_collected_combinations = {}
+        if comp_batch_id:
+            cursor.execute("""
+                SELECT
+                    category,
+                    samsung_series_name,
+                    comp_brand
+                FROM market_comp_product
+                WHERE batch_id = %s
+                GROUP BY category, samsung_series_name, comp_brand
+            """, (comp_batch_id,))
+            for row in cursor.fetchall():
+                pl = row[0]
+                if pl not in comp_collected_combinations:
+                    comp_collected_combinations[pl] = set()
+                comp_collected_combinations[pl].add((row[1], row[2]))
+
+        # 키워드 커버리지 계산 (product_line별)
+        comp_keyword_coverage = {}
+        for pl in ['TV', 'HHP']:
+            samsung_kws = set(comp_samsung_keywords.get(pl, []))
+            comp_kws = set(comp_brand_keywords.get(pl, []))
+            collected_combos = comp_collected_combinations.get(pl, set())
+
+            # 수집된 삼성 시리즈와 경쟁사 브랜드 추출
+            collected_samsung = set(combo[0] for combo in collected_combos)
+            collected_comp = set(combo[1] for combo in collected_combos)
+
+            # 누락된 삼성 키워드
+            missing_samsung = samsung_kws - collected_samsung
+            # 누락된 경쟁사 브랜드
+            missing_comp = comp_kws - collected_comp
+
+            # 전체 기대 조합 수 vs 수집된 조합 수
+            expected_combos = len(samsung_kws) * len(comp_kws)
+            collected_combo_count = len(collected_combos)
+
+            combo_rate = round((collected_combo_count / expected_combos * 100), 1) if expected_combos > 0 else 100
+
+            comp_keyword_coverage[pl] = {
+                'samsung_registered': len(samsung_kws),
+                'samsung_collected': len(collected_samsung),
+                'samsung_missing': list(missing_samsung)[:10],
+                'comp_registered': len(comp_kws),
+                'comp_collected': len(collected_comp),
+                'comp_missing': list(missing_comp)[:10],
+                'combo_expected': expected_combos,
+                'combo_collected': collected_combo_count,
+                'combo_rate': combo_rate,
+                'total_missing': len(missing_samsung) + len(missing_comp)
+            }
+
         # Market Competitor 카테고리별 상세 데이터
         comp_categories = []
         comp_total_collected = 0
@@ -1283,6 +1485,7 @@ def layer_stats(request):
         for category in ['TV', 'HHP']:
             collected = comp_collected.get(category, 0)
             expected = comp_expected.get(category, 0)
+            kw_cov = comp_keyword_coverage.get(category, {})
 
             # 수집률 계산
             if expected > 0:
@@ -1290,12 +1493,21 @@ def layer_stats(request):
             else:
                 rate = 0 if collected == 0 else 100
 
-            # 상태 판정
-            if expected == 0:
+            # 키워드 커버리지율 (조합 기준)
+            combo_rate = kw_cov.get('combo_rate', 100)
+
+            # 상태 판정 - 키워드 커버리지 기준
+            if not is_quarter_first:
                 status = 'PENDING'
-            elif rate >= 100:
+            elif comp_schedule_info['is_pending']:
+                status = 'PENDING'
+            elif expected == 0:
+                status = 'PENDING'
+            elif combo_rate >= 100:
                 status = 'OK'
-            elif rate >= 90:
+            elif comp_schedule_info['is_collecting']:
+                status = 'COLLECTING'
+            elif combo_rate >= 90:
                 status = 'WARNING'
             else:
                 status = 'CRITICAL'
@@ -1309,23 +1521,37 @@ def layer_stats(request):
                 'collected': collected,
                 'expected': expected,
                 'rate': round(rate, 1),
-                'status': status
+                'status': status,
+                'keyword_coverage': kw_cov
             })
 
-        # Market Competitor 전체 상태
+        # 전체 키워드 커버리지 계산
+        total_combo_expected = sum(kw.get('combo_expected', 0) for kw in comp_keyword_coverage.values())
+        total_combo_collected = sum(kw.get('combo_collected', 0) for kw in comp_keyword_coverage.values())
+        total_combo_rate = round((total_combo_collected / total_combo_expected * 100), 1) if total_combo_expected > 0 else 100
+        total_kw_missing = sum(kw.get('total_missing', 0) for kw in comp_keyword_coverage.values())
+
+        # Market Competitor 전체 상태 (키워드 커버리지 기준)
+        if not is_quarter_first:
+            comp_overall_status = 'PENDING'
+        elif comp_schedule_info['is_pending']:
+            comp_overall_status = 'PENDING'
+        elif total_combo_expected == 0:
+            comp_overall_status = 'PENDING'
+        elif total_combo_rate >= 100:
+            comp_overall_status = 'OK'
+        elif comp_schedule_info['is_collecting']:
+            comp_overall_status = 'COLLECTING'
+        elif total_combo_rate >= 90:
+            comp_overall_status = 'WARNING'
+        else:
+            comp_overall_status = 'CRITICAL'
+
+        # 수집량 rate (행 건수 기준)
         if comp_total_expected > 0:
             comp_overall_rate = (comp_total_collected / comp_total_expected) * 100
         else:
             comp_overall_rate = 0 if comp_total_collected == 0 else 100
-
-        if comp_total_expected == 0:
-            comp_overall_status = 'PENDING'
-        elif comp_overall_rate >= 100:
-            comp_overall_status = 'OK'
-        elif comp_overall_rate >= 90:
-            comp_overall_status = 'WARNING'
-        else:
-            comp_overall_status = 'CRITICAL'
 
         comp_ok_count = len([s for s in comp_statuses if s == 'OK'])
 
@@ -1343,16 +1569,45 @@ def layer_stats(request):
             'quarter': {
                 'name': quarter_name,
                 'start': quarter_start,
-                'end': quarter_end
+                'end': quarter_end,
+                'next_start': next_quarter_start
             },
-            'is_target_date': is_quarter_first
+            'is_target_date': is_quarter_first,
+            'us_time': f'{quarter_start} {comp_schedule_info["us_start_hour"]:02d}:00',
+            'kr_time': comp_schedule_info['kst_start']['full_display'],
+            'kr_time_end': comp_schedule_info['kst_end']['full_display'],
+            'is_dst': comp_schedule_info['kst_start']['is_dst'],
+            'keyword_coverage': {
+                'total_combo_expected': total_combo_expected,
+                'total_combo_collected': total_combo_collected,
+                'total_combo_rate': total_combo_rate,
+                'total_missing': total_kw_missing
+            }
         })
 
         # ============================================================
         # Market Competitor Event 검증 (경쟁품 이벤트 분석)
         # ============================================================
-        # 실행시간: 매월 첫번째 월요일
+        # 실행시간: 매월 첫번째 월요일 - CSV에서 로드
         # 카테고리별 (TV/HHP) 이벤트 분석 건수 확인
+
+        # CSV에서 Market Competitor Event 스케줄 정보 가져오기
+        event_schedule_info = get_schedule_kst_info('market_competitor_event', target_date, now)
+        if not event_schedule_info:
+            kst_start = get_kst_time_info(23, target_date)
+            kr_start_hour = kst_start['hour']
+            kr_start_date = kst_start['date']
+            kr_end_dt = datetime(kr_start_date.year, kr_start_date.month, kr_start_date.day, kr_start_hour, 0, 0) + timedelta(minutes=300)
+            event_schedule_info = {
+                'us_start_hour': 23,
+                'collection_duration_min': 300,
+                'kst_start': kst_start,
+                'kst_end': {'full_display': kr_end_dt.strftime('%Y-%m-%d %H:00')},
+                'time_status': None,
+                'is_pending': False,
+                'is_collecting': False,
+                'collection_done': True
+            }
 
         # 조회 날짜가 속한 월의 첫번째 월요일 계산
         first_day_of_month = target_date.replace(day=1)
@@ -1365,6 +1620,17 @@ def layer_stats(request):
 
         # 조회 날짜가 첫번째 월요일인지 확인
         is_first_monday = (target_date == first_monday)
+
+        # 다음 달 첫번째 월요일 계산
+        if target_date.month == 12:
+            next_month_first_day = target_date.replace(year=target_date.year + 1, month=1, day=1)
+        else:
+            next_month_first_day = target_date.replace(month=target_date.month + 1, day=1)
+        next_days_until_monday = (7 - next_month_first_day.weekday()) % 7
+        if next_month_first_day.weekday() == 0:  # 이미 월요일이면
+            next_first_monday = next_month_first_day
+        else:
+            next_first_monday = next_month_first_day + timedelta(days=next_days_until_monday)
 
         # 해당 월의 시작일과 종료일
         month_start = first_day_of_month.strftime('%Y-%m-%d')
@@ -1408,6 +1674,7 @@ def layer_stats(request):
         # (이벤트 분석은 경쟁사 브랜드 + 경쟁사 제품 조합별로 1회씩 진행)
         # comp_series_name이 'info_not_available'인 경우 제외
         event_expected = {}
+        event_expected_combos = {}  # 키워드 커버리지용 기대 조합
         if comp_batch_id:
             cursor.execute("""
                 SELECT
@@ -1421,6 +1688,57 @@ def layer_stats(request):
             """, (comp_batch_id,))
             event_expected = {row[0]: row[1] for row in cursor.fetchall()}
 
+            # 기대 조합 목록 (키워드 커버리지용)
+            cursor.execute("""
+                SELECT
+                    category,
+                    comp_brand || '||' || comp_series_name as combo
+                FROM market_comp_product
+                WHERE batch_id = %s
+                  AND comp_series_name != 'info_not_available'
+                GROUP BY category, comp_brand, comp_series_name
+            """, (comp_batch_id,))
+            for row in cursor.fetchall():
+                cat = row[0]
+                if cat not in event_expected_combos:
+                    event_expected_combos[cat] = set()
+                event_expected_combos[cat].add(row[1])
+
+        # 수집된 조합 (키워드 커버리지용)
+        # market_comp_event 테이블에서는 comp_sku_name 컬럼 사용
+        event_collected_combos = {}
+        if event_batch_id:
+            cursor.execute("""
+                SELECT
+                    category,
+                    comp_brand || '||' || comp_sku_name as combo
+                FROM market_comp_event
+                WHERE batch_id = %s
+                GROUP BY category, comp_brand, comp_sku_name
+            """, (event_batch_id,))
+            for row in cursor.fetchall():
+                cat = row[0]
+                if cat not in event_collected_combos:
+                    event_collected_combos[cat] = set()
+                event_collected_combos[cat].add(row[1])
+
+        # 키워드 커버리지 계산 (카테고리별)
+        event_keyword_coverage = {}
+        for pl in ['TV', 'HHP']:
+            expected_combos = event_expected_combos.get(pl, set())
+            collected_combos = event_collected_combos.get(pl, set())
+            missing_combos = expected_combos - collected_combos
+
+            combo_rate = round((len(collected_combos) / len(expected_combos) * 100), 1) if len(expected_combos) > 0 else 100
+
+            event_keyword_coverage[pl] = {
+                'combo_expected': len(expected_combos),
+                'combo_collected': len(collected_combos),
+                'combo_missing': len(missing_combos),
+                'combo_rate': combo_rate,
+                'missing_samples': list(missing_combos)[:5]  # 샘플 5개만
+            }
+
         # Market Competitor Event 카테고리별 상세 데이터
         event_categories = []
         event_total_collected = 0
@@ -1430,6 +1748,7 @@ def layer_stats(request):
         for category in ['TV', 'HHP']:
             collected = event_collected.get(category, 0)
             expected = event_expected.get(category, 0)
+            kw_cov = event_keyword_coverage.get(category, {})
 
             # 수집률 계산
             if expected > 0:
@@ -1437,12 +1756,21 @@ def layer_stats(request):
             else:
                 rate = 0 if collected == 0 else 100
 
-            # 상태 판정
-            if expected == 0:
+            # 키워드 커버리지율 (조합 기준)
+            combo_rate = kw_cov.get('combo_rate', 100)
+
+            # 상태 판정 - 키워드 커버리지 기준
+            if not is_first_monday:
                 status = 'PENDING'
-            elif rate >= 100:
+            elif event_schedule_info['is_pending']:
+                status = 'PENDING'
+            elif expected == 0:
+                status = 'PENDING'
+            elif combo_rate >= 100:
                 status = 'OK'
-            elif rate >= 90:
+            elif event_schedule_info['is_collecting']:
+                status = 'COLLECTING'
+            elif combo_rate >= 90:
                 status = 'WARNING'
             else:
                 status = 'CRITICAL'
@@ -1456,23 +1784,37 @@ def layer_stats(request):
                 'collected': collected,
                 'expected': expected,
                 'rate': round(rate, 1),
-                'status': status
+                'status': status,
+                'keyword_coverage': kw_cov
             })
 
-        # Market Competitor Event 전체 상태
+        # 전체 키워드 커버리지 계산
+        total_event_combo_expected = sum(kw.get('combo_expected', 0) for kw in event_keyword_coverage.values())
+        total_event_combo_collected = sum(kw.get('combo_collected', 0) for kw in event_keyword_coverage.values())
+        total_event_combo_rate = round((total_event_combo_collected / total_event_combo_expected * 100), 1) if total_event_combo_expected > 0 else 100
+        total_event_combo_missing = sum(kw.get('combo_missing', 0) for kw in event_keyword_coverage.values())
+
+        # Market Competitor Event 전체 상태 (키워드 커버리지 기준)
+        if not is_first_monday:
+            event_overall_status = 'PENDING'
+        elif event_schedule_info['is_pending']:
+            event_overall_status = 'PENDING'
+        elif total_event_combo_expected == 0:
+            event_overall_status = 'PENDING'
+        elif total_event_combo_rate >= 100:
+            event_overall_status = 'OK'
+        elif event_schedule_info['is_collecting']:
+            event_overall_status = 'COLLECTING'
+        elif total_event_combo_rate >= 90:
+            event_overall_status = 'WARNING'
+        else:
+            event_overall_status = 'CRITICAL'
+
+        # 수집량 rate (행 건수 기준)
         if event_total_expected > 0:
             event_overall_rate = (event_total_collected / event_total_expected) * 100
         else:
             event_overall_rate = 0 if event_total_collected == 0 else 100
-
-        if event_total_expected == 0:
-            event_overall_status = 'PENDING'
-        elif event_overall_rate >= 100:
-            event_overall_status = 'OK'
-        elif event_overall_rate >= 90:
-            event_overall_status = 'WARNING'
-        else:
-            event_overall_status = 'CRITICAL'
 
         event_ok_count = len([s for s in event_statuses if s == 'OK'])
 
@@ -1491,9 +1833,20 @@ def layer_stats(request):
                 'name': month_name,
                 'start': month_start,
                 'end': month_end,
-                'first_monday': first_monday.strftime('%Y-%m-%d')
+                'first_monday': first_monday.strftime('%Y-%m-%d'),
+                'next_first_monday': next_first_monday.strftime('%Y-%m-%d')
             },
-            'is_target_date': is_first_monday
+            'is_target_date': is_first_monday,
+            'us_time': f'{first_monday.strftime("%Y-%m-%d")} {event_schedule_info["us_start_hour"]:02d}:00',
+            'kr_time': event_schedule_info['kst_start']['full_display'],
+            'kr_time_end': event_schedule_info['kst_end']['full_display'],
+            'is_dst': event_schedule_info['kst_start']['is_dst'],
+            'keyword_coverage': {
+                'total_combo_expected': total_event_combo_expected,
+                'total_combo_collected': total_event_combo_collected,
+                'total_combo_rate': total_event_combo_rate,
+                'total_missing': total_event_combo_missing
+            }
         })
 
         # ============================================================
@@ -1502,34 +1855,40 @@ def layer_stats(request):
         # 전일/오늘 현황 비교
         # 대상 키워드 수: 9주 이내 이벤트 키워드 - 1주 이내 제외 키워드
         # 수집 결과 수: openai_forecast_results 테이블
-        # 수집 시간: UTC 23:00 = KST 다음날 08:00
+        # 수집 시간: CSV에서 로드 (US 23:00 ~ 08:00)
 
-        # 한국 시간 기준 수집 상태 판정
-        import pytz
-        kst = pytz.timezone('Asia/Seoul')
-        now_kst = datetime.now(kst)
+        # CSV에서 Market Demand 스케줄 정보 가져오기 (KST 변환 포함)
+        market_demand_info = get_schedule_kst_info('market_demand', target_date, now)
 
-        # 수집 시작 시간: 분석대상일 다음날 08:00 KST
-        demand_collection_start = kst.localize(datetime.combine(target_date + timedelta(days=1), datetime.min.time().replace(hour=8)))
-        # 수집 완료 시간: 수집 시작 후 30분
-        demand_collection_end = demand_collection_start + timedelta(minutes=30)
+        # market_demand_info가 None인 경우 기본값 사용
+        if not market_demand_info:
+            kst_start = get_kst_time_info(18, target_date)
+            market_demand_info = {
+                'us_start_hour': 18,
+                'collection_duration_min': 300,
+                'kst_start': kst_start,
+                'kst_end': {'full_display': f"{next_day} 04:00"},
+                'time_status': None,
+                'is_pending': False,
+                'is_collecting': False,
+                'collection_done': True
+            }
 
-        # 상태 판정 플래그
-        demand_is_pending = now_kst < demand_collection_start
-        demand_collection_done = now_kst >= demand_collection_end
+        demand_is_pending = market_demand_info['is_pending']
+        demand_collection_done = market_demand_info['collection_done']
 
         def get_demand_stats(query_date):
             """수요증감율 통계 조회 (특정 날짜 기준)"""
             nine_weeks_later = query_date + timedelta(weeks=9)
             one_week_later = query_date + timedelta(weeks=1)
 
-            # 9주 이내 키워드 수 (카테고리별)
+            # 9주 이내 키워드 수 (카테고리별) - 오늘 제외 (수집 스크립트와 동일)
             cursor.execute("""
                 SELECT k.category, COUNT(*) as cnt
                 FROM openai_keywords k
                 JOIN openai_event_mst e ON k.event_name = e.event_name
                 WHERE e.is_active = true
-                AND e.event_date >= %s AND e.event_date <= %s
+                AND e.event_date > %s AND e.event_date <= %s
                 GROUP BY k.category
             """, (query_date.strftime('%Y-%m-%d'), nine_weeks_later.strftime('%Y-%m-%d')))
             target_by_category = {row[0]: row[1] for row in cursor.fetchall()}
@@ -1576,8 +1935,7 @@ def layer_stats(request):
         demand_categories = []
         demand_is_collecting = False
         for category in sorted(target_demand.keys()):
-            target = target_demand.get(category, 0) - excluded_demand.get(category, 0)
-            target = max(0, target)  # 음수 방지
+            target = target_demand.get(category, 0)  # 1주 이내 제외 없이 전체 대상
             result_cnt = result_demand.get(category, 0)
             completion_pct, base_status = calc_demand_status(result_cnt, target)
 
@@ -1612,7 +1970,7 @@ def layer_stats(request):
         # 수요증감율: 100% = OK, 100% 미만 = CRITICAL
         if demand_is_pending:
             demand_overall_status = 'PENDING'
-            demand_description = '대기중 (다음날 08:00 수집 예정)'
+            demand_description = '대기중'
         elif demand_rate >= 100:
             demand_overall_status = 'OK'
             demand_description = f'{demand_ok_count}/{len(demand_categories)} 카테고리 정상'
@@ -1634,45 +1992,49 @@ def layer_stats(request):
             'categories': demand_categories,
             'total_target': demand_total_target,
             'total_collected': demand_total_collected,
-            'rate': demand_rate
+            'rate': demand_rate,
+            'us_time': f'{target_date} {market_demand_info["us_start_hour"]:02d}:00',
+            'kr_time': market_demand_info['kst_start']['full_display'],
+            'kr_time_end': market_demand_info['kst_end']['full_display'],
+            'is_dst': market_demand_info['kst_start']['is_dst']
         })
 
         # ============================================================
         # Market Promotion 검증 (거래선 프로모션)
         # ============================================================
-        # 실행시간: 매주 월요일 (수집은 화요일 03:00 KST)
+        # 실행시간: CSV에서 로드 (US 18:00 ~ 19:00, 화요일)
         # 대상: 9주 이내 이벤트 × 7개 리테일러
         # 기준: 100% = OK, 90%+ = WARNING, 90%- = CRITICAL
 
         # 조회 날짜가 월요일인지 확인 (0=월요일)
         is_monday = target_date.weekday() == 0
 
-        # 한국 시간 기준 수집 상태 판정
-        # 수집 시간: 화요일 03:00 KST (월요일 분석대상일 기준)
-        from datetime import timezone
-        import pytz
-        kst = pytz.timezone('Asia/Seoul')
-        now_kst = datetime.now(kst)
-        today_kst = now_kst.date()
+        # 다음 월요일 계산
+        days_until_monday = (7 - target_date.weekday()) % 7
+        if days_until_monday == 0:
+            days_until_monday = 7  # 오늘이 월요일이면 다음 월요일
+        next_monday = target_date + timedelta(days=days_until_monday)
 
-        # 수집 시작 시간: 분석대상일(월요일) 다음날(화요일) 03:00 KST
-        collection_start_datetime = kst.localize(datetime.combine(target_date + timedelta(days=1), datetime.min.time().replace(hour=3)))
-        # 수집 완료 시간: 수집 시작 후 30분
-        collection_end_datetime = collection_start_datetime + timedelta(minutes=30)
+        # CSV에서 Market Promotion 스케줄 정보 가져오기 (KST 변환 포함)
+        market_promo_info = get_schedule_kst_info('market_promotion', target_date, now)
 
-        # 상태 판정
-        promo_is_collecting = False
-        promo_is_pending = False
-        promo_collection_done = False  # 수집 시간 경과 여부
+        # market_promo_info가 None인 경우 기본값 사용
+        if not market_promo_info:
+            kst_start = get_kst_time_info(18, target_date)
+            market_promo_info = {
+                'us_start_hour': 18,
+                'collection_duration_min': 30,
+                'kst_start': kst_start,
+                'kst_end': {'full_display': f"{kst_start['date']} {(kst_start['hour'] + 1) % 24:02d}:00"},
+                'time_status': None,
+                'is_pending': False,
+                'is_collecting': False,
+                'collection_done': True
+            }
 
-        if is_monday:
-            if now_kst < collection_start_datetime:
-                # 수집 시작 전 → 대기중
-                promo_is_pending = True
-            elif now_kst >= collection_end_datetime:
-                # 수집 시간 경과 (30분 지남) → 결과 표시
-                promo_collection_done = True
-            # else: 수집 중 (03:00 ~ 03:30)
+        promo_is_pending = market_promo_info['is_pending']
+        promo_is_collecting = market_promo_info['is_collecting']
+        promo_collection_done = market_promo_info['collection_done']
 
         # 9주 이내 이벤트 수 조회
         promo_nine_weeks = target_date + timedelta(weeks=9)
@@ -1758,7 +2120,7 @@ def layer_stats(request):
             promo_description = '분석대상일 아님'
         elif promo_is_pending:
             promo_overall_status = 'PENDING'
-            promo_description = '대기중 (화요일 03:00 수집 예정)'
+            promo_description = f'대기중'
         elif promo_expected == 0:
             promo_overall_status = 'PENDING'
             promo_description = '대상 이벤트 없음'
@@ -1788,43 +2150,51 @@ def layer_stats(request):
             'check_type': 'market_promotion',
             'retailers': promo_retailers,
             'event_count': promo_event_count,
-            'is_target_date': is_monday
+            'is_target_date': is_monday,
+            'next_target_date': str(next_monday) if not is_monday else None,
+            'us_time': f'{target_date} {market_promo_info["us_start_hour"]:02d}:00',
+            'kr_time': market_promo_info['kst_start']['full_display'],
+            'kr_time_end': market_promo_info['kst_end']['full_display'],
+            'is_dst': market_promo_info['kst_start']['is_dst']
         })
 
         cursor.close()
         conn.close()
 
         # Summary 계산 (화면 섹션 기준 8개)
-        # 분석대상일이 아닌 항목은 PENDING으로 처리
-        all_statuses = [
-            total_retail_status,                                              # Retail
-            total_sentiment_status,                                           # Retail 감성분석
-            youtube_overall_status,                                           # Consumer (YouTube)
-            market_overall_status,                                            # Market Trend
-            demand_overall_status,                                            # Market 수요증감율
-            comp_overall_status if is_quarter_first else 'PENDING',           # Market Competitor (분기 첫날만)
-            event_overall_status if is_first_monday else 'PENDING',           # Market Competitor Event (매월 첫 월요일만)
-            promo_overall_status                                              # Market Promotion (is_monday 이미 반영됨)
+        # 분석대상일 여부와 상태를 함께 관리
+        check_items = [
+            {'status': total_retail_status, 'is_target': True},                                    # Retail (daily)
+            {'status': total_sentiment_status, 'is_target': True},                                 # Retail 감성분석 (daily)
+            {'status': youtube_overall_status, 'is_target': True},                                 # Consumer YouTube (daily)
+            {'status': market_overall_status, 'is_target': True},                                  # Market Trend (daily)
+            {'status': demand_overall_status, 'is_target': True},                                  # Market 수요증감율 (daily)
+            {'status': comp_overall_status, 'is_target': is_quarter_first},                        # Market Competitor (분기 첫날만)
+            {'status': event_overall_status, 'is_target': is_first_monday},                        # Market Competitor Event (매월 첫 월요일만)
+            {'status': promo_overall_status, 'is_target': is_monday}                               # Market Promotion (월요일만)
         ]
-        active_statuses = [s for s in all_statuses if s not in ('PENDING', 'COLLECTING', 'ANALYZING')]
 
-        passed = len([s for s in active_statuses if s == 'OK'])
-        warning = len([s for s in active_statuses if s == 'WARNING'])
-        failed = len([s for s in active_statuses if s == 'CRITICAL'])
+        # 분석대상인 항목만 필터링
+        target_items = [item for item in check_items if item['is_target']]
+        target_statuses = [item['status'] for item in target_items]
+
+        # 결과가 나온 항목 (PENDING, COLLECTING, ANALYZING 제외)
+        completed_statuses = [s for s in target_statuses if s not in ('PENDING', 'COLLECTING', 'ANALYZING')]
+
+        passed = len([s for s in completed_statuses if s == 'OK'])
+        failed = len([s for s in completed_statuses if s == 'CRITICAL'])
 
         if failed > 0:
             overall_status = 'CRITICAL'
-        elif warning > 0:
-            overall_status = 'WARNING'
         else:
             overall_status = 'OK'
 
         results['summary'] = {
-            'total_checked': len(active_statuses),
+            'total_checked': len(target_items),       # 분석대상인 항목 수
+            'total_completed': len(completed_statuses),  # 결과가 나온 항목 수
             'passed': passed,
-            'warning': warning,
             'failed': failed,
-            'pass_rate': round((passed / len(active_statuses) * 100), 1) if active_statuses else 0,
+            'pass_rate': round((passed / len(target_items) * 100), 1) if target_items else 0,
             'status': overall_status
         }
 
@@ -1947,74 +2317,15 @@ def retail_summary(request):
         summary_data = []
         null_columns_data = []
 
-        # 리테일러별 컬럼 목록 (Layer 2와 동일 - 전체 컬럼)
-        if product_line == 'tv':
-            columns_by_retailer = {
-                'Amazon': [
-                    'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-                    'retailer_sku_name', 'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                    'number_of_units_purchased_past_month', 'final_sku_price', 'original_sku_price',
-                    'shipping_info', 'available_quantity_for_purchase', 'discount_type', 'sku_popularity',
-                    'retailer_membership_discounts', 'rank_1', 'rank_2', 'summarized_review_content',
-                    'detailed_review_content', 'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-                ],
-                'Bestbuy': [
-                    'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-                    'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'savings', 'offer',
-                    'pick_up_availability', 'shipping_availability', 'delivery_availability',
-                    'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                    'estimated_annual_electricity_use', 'retailer_sku_name_similar', 'top_mentions',
-                    'detailed_review_content', 'recommendation_intent', 'promotion_type',
-                    'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-                ],
-                'Walmart': [
-                    'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-                    'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'offer',
-                    'pick_up_availability', 'shipping_availability', 'delivery_availability',
-                    'sku_status', 'retailer_membership_discounts', 'available_quantity_for_purchase',
-                    'inventory_status', 'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts',
-                    'sku_popularity', 'savings', 'discount_type', 'shipping_info', 'count_of_reviews',
-                    'star_rating', 'count_of_star_ratings', 'detailed_review_content',
-                    'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-                ]
-            }
-        else:
-            columns_by_retailer = {
-                'Amazon': [
-                    'country', 'product', 'item', 'account_name', 'page_type', 'product_url', 'main_rank', 'bsr_rank',
-                    'retailer_sku_name', 'number_of_units_purchased_past_month', 'final_sku_price', 'original_sku_price',
-                    'shipping_info', 'available_quantity_for_purchase', 'discount_type',
-                    'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                    'sku_popularity', 'bundle', 'trade_in', 'retailer_membership_discounts', 'rank_1', 'rank_2',
-                    'hhp_carrier', 'hhp_storage', 'hhp_color', 'summarized_review_content', 'detailed_review_content',
-                    'calendar_week', 'crawl_strdatetime'
-                ],
-                'Bestbuy': [
-                    'country', 'product', 'item', 'account_name', 'page_type', 'main_rank', 'bsr_rank', 'trend_rank', 'product_url',
-                    'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'savings', 'offer',
-                    'pick_up_availability', 'shipping_availability', 'delivery_availability',
-                    'sku_status', 'promotion_type', 'trade_in', 'hhp_carrier', 'hhp_storage', 'hhp_color',
-                    'retailer_sku_name_similar', 'top_mentions', 'recommendation_intent',
-                    'count_of_reviews', 'star_rating', 'count_of_star_ratings', 'detailed_review_content',
-                    'calendar_week', 'crawl_strdatetime'
-                ],
-                'Walmart': [
-                    'item', 'account_name', 'page_type', 'product_url',
-                    'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'offer',
-                    'pick_up_availability', 'shipping_availability', 'delivery_availability', 'sku_status',
-                    'retailer_membership_discounts', 'available_quantity_for_purchase', 'inventory_status',
-                    'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts', 'sku_popularity',
-                    'savings', 'discount_type', 'shipping_info', 'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                    'hhp_carrier', 'hhp_storage', 'hhp_color', 'detailed_review_content',
-                    'main_rank', 'bsr_rank', 'calendar_week', 'crawl_strdatetime'
-                ]
-            }
+        # 리테일러별 컬럼 목록 - CSV에서 로드
+        # NULL 검사는 is_null_check=Y인 컬럼만 대상으로 함
 
         for retailer in retailers:
             retailer_rows = []
             retailer_null_cols = []
             retailer_total = 0
-            check_columns = columns_by_retailer.get(retailer, [])
+            # NULL 검사 대상 컬럼 (CSV에서 Y 표시된 컬럼)
+            check_columns = get_retailer_columns(product_line, retailer)
 
             for slot in time_slots:
                 # 시간대별 페이지타입 카운트
@@ -2432,70 +2743,11 @@ def retailer_raw_data(request):
 def retailer_columns_info(request):
     """
     TV/HHP 리테일러별 수집 컬럼 정보 API
+    - CSV 파일(dx_retail_columns.csv)에서 컬럼 정보 로드
     """
-    # TV 리테일러별 컬럼 정의
-    tv_columns = {
-        'Amazon': [
-            'id', 'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-            'retailer_sku_name', 'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-            'number_of_units_purchased_past_month', 'final_sku_price', 'original_sku_price',
-            'shipping_info', 'available_quantity_for_purchase', 'discount_type', 'sku_popularity',
-            'retailer_membership_discounts', 'rank_1', 'rank_2', 'summarized_review_content',
-            'detailed_review_content', 'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-        ],
-        'Bestbuy': [
-            'id', 'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-            'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'savings', 'offer',
-            'pick_up_availability', 'shipping_availability', 'delivery_availability',
-            'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-            'estimated_annual_electricity_use', 'retailer_sku_name_similar', 'top_mentions',
-            'detailed_review_content', 'recommendation_intent', 'promotion_type',
-            'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-        ],
-        'Walmart': [
-            'id', 'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-            'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'offer',
-            'pick_up_availability', 'shipping_availability', 'delivery_availability',
-            'sku_status', 'retailer_membership_discounts', 'available_quantity_for_purchase',
-            'inventory_status', 'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts',
-            'sku_popularity', 'savings', 'discount_type', 'shipping_info', 'count_of_reviews',
-            'star_rating', 'count_of_star_ratings', 'detailed_review_content',
-            'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-        ]
-    }
-
-    # HHP 리테일러별 컬럼 정의
-    hhp_columns = {
-        'Amazon': [
-            'id', 'country', 'product', 'item', 'account_name', 'page_type', 'product_url', 'main_rank', 'bsr_rank',
-            'retailer_sku_name', 'number_of_units_purchased_past_month', 'final_sku_price', 'original_sku_price',
-            'shipping_info', 'available_quantity_for_purchase', 'discount_type',
-            'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-            'sku_popularity', 'bundle', 'trade_in', 'retailer_membership_discounts', 'rank_1', 'rank_2',
-            'hhp_carrier', 'hhp_storage', 'hhp_color', 'summarized_review_content', 'detailed_review_content',
-            'calendar_week', 'crawl_strdatetime'
-        ],
-        'Bestbuy': [
-            'id', 'country', 'product', 'item', 'account_name', 'page_type', 'count_of_reviews',
-            'retailer_sku_name', 'product_url', 'star_rating', 'count_of_star_ratings',
-            'final_sku_price', 'original_sku_price', 'savings', 'offer',
-            'pick_up_availability', 'shipping_availability', 'delivery_availability', 'sku_status',
-            'trade_in', 'hhp_carrier', 'hhp_storage', 'hhp_color', 'detailed_review_content', 'top_mentions',
-            'recommendation_intent', 'main_rank', 'bsr_rank', 'trend_rank',
-            'promotion_type', 'retailer_sku_name_similar', 'calendar_week', 'crawl_strdatetime'
-        ],
-        'Walmart': [
-            'id', 'item', 'account_name', 'page_type', 'product_url',
-            'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'offer',
-            'pick_up_availability', 'shipping_availability', 'delivery_availability', 'sku_status',
-            'retailer_membership_discounts', 'available_quantity_for_purchase', 'inventory_status',
-            'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts',
-            'sku_popularity', 'savings', 'discount_type', 'shipping_info',
-            'hhp_carrier', 'hhp_storage', 'hhp_color', 'retailer_sku_name_similar', 'detailed_review_content',
-            'count_of_reviews', 'star_rating', 'count_of_star_ratings', 'main_rank', 'bsr_rank',
-            'calendar_week', 'crawl_strdatetime'
-        ]
-    }
+    # CSV에서 컬럼 정보 로드
+    tv_columns = get_all_retailer_columns('tv')
+    hhp_columns = get_all_retailer_columns('hhp')
 
     # 모든 컬럼 목록 (합집합) - 알파벳 순 정렬
     all_tv_columns = sorted(set(col for cols in tv_columns.values() for col in cols))
@@ -2908,6 +3160,107 @@ def market_demand_raw_data(request):
 
     except Exception as e:
         results['error'] = str(e)
+
+    return JsonResponse(results)
+
+
+def market_demand_missing_keywords(request):
+    """Market 수요증감율 부족 키워드 상세 API (openai_keywords 기준)"""
+    date_str = request.GET.get('date')
+    category = request.GET.get('category', 'all')  # TV, HHP, or all
+
+    if date_str:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    else:
+        target_date = (datetime.now() - timedelta(days=1)).date()
+
+    results = {
+        'date': str(target_date),
+        'category': category,
+        'missing_keywords': [],
+        'total_missing': 0,
+        'summary': {}
+    }
+
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        nine_weeks_later = target_date + timedelta(weeks=9)
+
+        # 대상 키워드 조회 (9주 이내 이벤트) - 수집 스크립트와 동일 (오늘 제외)
+        target_query = """
+            SELECT k.category, k.product_name, k.event_name, e.event_date
+            FROM openai_keywords k
+            JOIN openai_event_mst e ON k.event_name = e.event_name
+            WHERE e.is_active = true
+            AND e.event_date > %s AND e.event_date <= %s
+            {category_filter}
+            ORDER BY k.category, e.event_date, k.product_name
+        """
+
+        if category != 'all':
+            target_query = target_query.format(category_filter=f"AND k.category = '{category}'")
+        else:
+            target_query = target_query.format(category_filter="")
+
+        cursor.execute(target_query, (target_date.strftime('%Y-%m-%d'), nine_weeks_later.strftime('%Y-%m-%d')))
+        target_keywords = cursor.fetchall()
+
+        # 수집된 키워드 조회 (openai_forecast_results)
+        collected_query = """
+            SELECT DISTINCT k.category, f.product_name,
+                   REPLACE(UPPER(f.event), '_', ' ') as event_name
+            FROM openai_forecast_results f
+            JOIN openai_keywords k ON f.product_name = k.product_name
+                AND REPLACE(UPPER(f.event), '_', ' ') = UPPER(k.event_name)
+            WHERE f.crawled_at::date = %s
+            {category_filter}
+        """
+
+        if category != 'all':
+            collected_query = collected_query.format(category_filter=f"AND k.category = '{category}'")
+        else:
+            collected_query = collected_query.format(category_filter="")
+
+        cursor.execute(collected_query, (target_date.strftime('%Y-%m-%d'),))
+        collected_set = set()
+        for row in cursor.fetchall():
+            collected_set.add((row[0], row[1], row[2].upper()))
+
+        # 부족한 키워드 찾기
+        missing_keywords = []
+        summary_by_category = {}
+
+        for row in target_keywords:
+            cat, product_name, event_name, event_date = row
+            key = (cat, product_name, event_name.upper())
+
+            # 전체 대상 카운트
+            if cat not in summary_by_category:
+                summary_by_category[cat] = {'total': 0, 'missing': 0}
+            summary_by_category[cat]['total'] += 1
+
+            if key not in collected_set:
+                missing_keywords.append({
+                    'category': cat,
+                    'product_name': product_name,
+                    'event_name': event_name,
+                    'event_date': str(event_date)
+                })
+                summary_by_category[cat]['missing'] += 1
+
+        results['missing_keywords'] = missing_keywords
+        results['total_missing'] = len(missing_keywords)
+        results['summary'] = summary_by_category
+
+        cursor.close()
+        conn.close()
+
+    except Exception as e:
+        results['error'] = str(e)
+        import traceback
+        traceback.print_exc()
 
     return JsonResponse(results)
 

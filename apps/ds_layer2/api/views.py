@@ -12,7 +12,7 @@ DS Layer 2 API: 데이터 품질 검수 (NULL 필드 체크)
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_ds_connection
-from config.targets import load_monitoring_targets
+from apps.common.targets import load_monitoring_targets
 
 
 def get_monitoring_targets():
@@ -41,8 +41,9 @@ def get_quality_counts(cursor, table_name, target_date):
 
     results = {
         'total': 0,
-        'title_null': 0,
-        'imageurl_null': 0,  # imageurl이 NULL
+        'title_null': 0,  # title이 NULL인 건 (imageurl 상관없이)
+        'imageurl_null': 0,  # imageurl이 NULL인 건 (title 상관없이)
+        'null_union': 0,  # title NULL 또는 imageurl NULL (중복 제외)
         'imageurl_invalid': 0,  # imageurl이 있지만 형식 오류
         'partial_null': 0,  # 일부만 NULL (비정상)
         'all_null': 0,  # 3개 모두 NULL (정상)
@@ -59,20 +60,27 @@ def get_quality_counts(cursor, table_name, target_date):
         cursor.execute(f"SELECT COUNT(*) FROM ({base_query}) A", (start_datetime, end_datetime))
         results['total'] = cursor.fetchone()[0] or 0
 
-        # 2. title NULL 건수
+        # 2. title NULL 건수 (imageurl 상관없이)
         cursor.execute(f"""
             SELECT COUNT(*) FROM ({base_query}) A
             WHERE title IS NULL OR TRIM(title) = ''
         """, (start_datetime, end_datetime))
         results['title_null'] = cursor.fetchone()[0] or 0
 
-        # 3. imageurl NULL 건수 (title은 유효한데 imageurl이 NULL인 경우)
+        # 3. imageurl NULL 건수 (title 상관없이)
         cursor.execute(f"""
             SELECT COUNT(*) FROM ({base_query}) A
-            WHERE (title IS NOT NULL AND TRIM(title) != '')
-            AND (imageurl IS NULL OR TRIM(imageurl) = '')
+            WHERE imageurl IS NULL OR TRIM(imageurl) = ''
         """, (start_datetime, end_datetime))
         results['imageurl_null'] = cursor.fetchone()[0] or 0
+
+        # 4. title NULL 또는 imageurl NULL (중복 제외한 합집합)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM ({base_query}) A
+            WHERE (title IS NULL OR TRIM(title) = '')
+            OR (imageurl IS NULL OR TRIM(imageurl) = '')
+        """, (start_datetime, end_datetime))
+        results['null_union'] = cursor.fetchone()[0] or 0
 
         # 4. imageurl 무효 건수 (title 유효, imageurl이 있지만 https://로 시작하지 않음)
         cursor.execute(f"""
@@ -159,6 +167,7 @@ def layer_stats(request):
         total_records = 0
         total_title_null = 0
         total_imageurl_null = 0
+        total_null_union = 0
         total_imageurl_invalid = 0
         total_partial_null = 0
         total_all_null = 0
@@ -172,6 +181,7 @@ def layer_stats(request):
 
             title_null = quality.get('title_null', 0)
             imageurl_null = quality.get('imageurl_null', 0)
+            null_union = quality.get('null_union', 0)
             imageurl_invalid = quality.get('imageurl_invalid', 0)
             partial_null = quality.get('partial_null', 0)
             all_null = quality.get('all_null', 0)
@@ -179,13 +189,14 @@ def layer_stats(request):
 
             total_title_null += title_null
             total_imageurl_null += imageurl_null
+            total_null_union += null_union
             total_imageurl_invalid += imageurl_invalid
             total_partial_null += partial_null
             total_all_null += all_null
             total_valid += valid
 
-            # 비정상 건수 = title NULL + imageurl NULL + imageurl 무효 + 부분 NULL
-            error_count = title_null + imageurl_null + imageurl_invalid + partial_null
+            # 비정상 건수 = null_union (중복 제외) + imageurl 무효 + 부분 NULL
+            error_count = null_union + imageurl_invalid + partial_null
 
             # 상태 판정
             if total == 0:
@@ -206,6 +217,7 @@ def layer_stats(request):
                 'total': total,
                 'title_null': title_null,
                 'imageurl_null': imageurl_null,
+                'null_union': null_union,
                 'imageurl_invalid': imageurl_invalid,
                 'partial_null': partial_null,
                 'all_null': all_null,
@@ -217,8 +229,8 @@ def layer_stats(request):
         cursor.close()
         conn.close()
 
-        # 전체 비정상 건수
-        total_error = total_title_null + total_imageurl_null + total_imageurl_invalid + total_partial_null
+        # 전체 비정상 건수 = null_union (중복 제외) + imageurl 무효 + 부분 NULL
+        total_error = total_null_union + total_imageurl_invalid + total_partial_null
 
         # 전체 상태
         if total_records == 0:
@@ -236,6 +248,7 @@ def layer_stats(request):
             'total_records': total_records,
             'title_null': total_title_null,
             'imageurl_null': total_imageurl_null,
+            'null_union': total_null_union,
             'imageurl_invalid': total_imageurl_invalid,
             'partial_null': total_partial_null,
             'all_null': total_all_null,
@@ -261,8 +274,8 @@ def table_null_detail(request):
     특정 테이블의 비정상 데이터 상세 조회 API
 
     error_type:
-    - title_null: title이 NULL인 데이터
-    - imageurl_null: title 유효, imageurl이 NULL
+    - title_null: title이 NULL인 데이터 (imageurl 상관없이)
+    - imageurl_null: imageurl이 NULL인 데이터 (title 상관없이)
     - imageurl_invalid: title 유효, imageurl이 있지만 형식 오류
     - partial_null: title/imageurl 유효, retailprice/ships_from/sold_by 일부만 NULL
     """
@@ -316,10 +329,7 @@ def table_null_detail(request):
         if error_type == 'title_null':
             where_condition = "WHERE title IS NULL OR TRIM(title) = ''"
         elif error_type == 'imageurl_null':
-            where_condition = """
-                WHERE (title IS NOT NULL AND TRIM(title) != '')
-                AND (imageurl IS NULL OR TRIM(imageurl) = '')
-            """
+            where_condition = "WHERE imageurl IS NULL OR TRIM(imageurl) = ''"
         elif error_type == 'imageurl_invalid':
             where_condition = """
                 WHERE (title IS NOT NULL AND TRIM(title) != '')

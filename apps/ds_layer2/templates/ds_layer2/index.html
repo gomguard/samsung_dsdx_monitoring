@@ -356,6 +356,14 @@
         background: var(--bg-secondary);
     }
 
+    .retailer-table tbody tr.row-danger {
+        background: #fef2f2;
+    }
+
+    .retailer-table tbody tr.row-danger:hover {
+        background: #fee2e2;
+    }
+
     .retailer-name {
         font-weight: 600;
     }
@@ -699,7 +707,7 @@
 <div id="nullTab" class="tab-content active">
     <div class="error-summary">
         <div class="error-summary-title">NULL 검증 현황</div>
-        <div class="error-grid null-grid">
+        <div class="error-grid null-grid" style="grid-template-columns: repeat(5, 1fr);">
             <div class="error-item danger-bg">
                 <div class="error-name">Title NULL</div>
                 <div class="error-value danger" id="titleNull">-</div>
@@ -709,6 +717,11 @@
                 <div class="error-name">ImageURL NULL</div>
                 <div class="error-value danger" id="imageurlNull">-</div>
                 <div class="error-desc">이미지 URL 누락</div>
+            </div>
+            <div class="error-item danger-bg">
+                <div class="error-name">NULL 검증 건수</div>
+                <div class="error-value danger" id="nullUnion">-</div>
+                <div class="error-desc">중복 제외</div>
             </div>
             <div class="error-item warning-bg">
                 <div class="error-name">부분 NULL</div>
@@ -874,6 +887,7 @@ function updateSummary(data) {
         // NULL 검증 탭
         document.getElementById('titleNull').textContent = (data.summary.title_null || 0).toLocaleString();
         document.getElementById('imageurlNull').textContent = (data.summary.imageurl_null || 0).toLocaleString();
+        document.getElementById('nullUnion').textContent = (data.summary.null_union || 0).toLocaleString();
         document.getElementById('partialNull').textContent = (data.summary.partial_null || 0).toLocaleString();
         const validNullTotal = (data.summary.valid || 0) + (data.summary.all_null || 0);
         document.getElementById('validCountNull').textContent = validNullTotal.toLocaleString();
@@ -913,11 +927,13 @@ function renderNullTable(data) {
     `;
 
     for (const item of data.results) {
-        const nullError = item.title_null + (item.imageurl_null || 0) + item.partial_null;
-        const nullStatus = item.total === 0 ? 'pending' : nullError === 0 ? 'success' : nullError < item.total * 0.05 ? 'warning' : 'danger';
+        // null_union: title NULL 또는 imageurl NULL (중복 제외한 합집합)
+        const nullError = (item.null_union || 0) + item.partial_null;
+        const nullStatus = item.total === 0 ? 'pending' : nullError === 0 ? 'success' : 'danger';
         const validTotal = item.valid + item.all_null;
+        const rowClass = nullStatus === 'danger' ? 'row-danger' : '';
         html += `
-            <tr onclick="openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.title_null}, ${item.imageurl_null || 0}, ${item.partial_null})" title="클릭하여 상세 보기">
+            <tr class="${rowClass}" onclick="openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.title_null}, ${item.imageurl_null || 0}, ${item.partial_null})" title="클릭하여 상세 보기">
                 <td>${item.no}</td>
                 <td><span class="retailer-name">${item.retailer}</span></td>
                 <td>${item.region}</td>
@@ -968,10 +984,11 @@ function renderFormatTable(data) {
 
     for (const item of data.results) {
         const formatError = item.imageurl_invalid;
-        const formatStatus = item.total === 0 ? 'pending' : formatError === 0 ? 'success' : formatError < item.total * 0.05 ? 'warning' : 'danger';
+        const formatStatus = item.total === 0 ? 'pending' : formatError === 0 ? 'success' : 'danger';
         const validTotal = item.total - formatError;
+        const rowClass = formatStatus === 'danger' ? 'row-danger' : '';
         html += `
-            <tr onclick="openFormatDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.imageurl_invalid})" title="클릭하여 상세 보기">
+            <tr class="${rowClass}" onclick="openFormatDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.imageurl_invalid})" title="클릭하여 상세 보기">
                 <td>${item.no}</td>
                 <td><span class="retailer-name">${item.retailer}</span></td>
                 <td>${item.region}</td>

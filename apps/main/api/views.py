@@ -6,7 +6,7 @@
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
-from apps.common.schedule import ALL_SCHEDULES, get_daily_schedules
+from apps.common.dx_schedules import load_collection_schedules, get_schedules_by_type
 
 
 def dashboard_stats(request):
@@ -219,16 +219,18 @@ def dashboard_stats(request):
         }
 
         # ============================================================
-        # 수집 현황 (스케줄 기반)
+        # 수집 현황 (CSV 기반 스케줄)
         # ============================================================
-        daily_schedules = get_daily_schedules()
+        all_schedules = load_collection_schedules()
+        # daily 스케줄만 필터링
+        daily_schedules = [s for s in all_schedules if s['schedule_type'] == 'daily']
         for schedule in daily_schedules[:5]:  # 상위 5개만
             data['collection_status'].append({
                 'name': schedule['name'],
-                'source': schedule['source'],
-                'frequency': schedule['frequency'],
-                'time': schedule['time'],
-                'category': schedule['category']
+                'category': schedule['category'],
+                'schedule_type': schedule['schedule_type'],
+                'us_start_hour': schedule['us_start_hour'],
+                'description': schedule['description']
             })
 
     except Exception as e:
@@ -245,14 +247,14 @@ def dashboard_stats(request):
 
 
 def collection_schedule(request):
-    """수집 스케줄 API"""
+    """수집 스케줄 API (CSV 기반)"""
+    check_type = request.GET.get('check_type')
     category = request.GET.get('category')
 
-    if category:
-        from apps.common.schedule import get_schedule_by_category
-        schedules = get_schedule_by_category(category)
+    if check_type:
+        schedules = get_schedules_by_type(check_type, category)
     else:
-        schedules = ALL_SCHEDULES
+        schedules = load_collection_schedules()
 
     return JsonResponse({
         'total': len(schedules),

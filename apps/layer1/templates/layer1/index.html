@@ -44,14 +44,14 @@
 
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 16px;
         margin-bottom: 24px;
     }
 
-    @media (max-width: 1024px) {
+    @media (max-width: 768px) {
         .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 1fr;
         }
     }
 
@@ -725,6 +725,11 @@
         color: var(--text-secondary);
     }
 
+    .sentiment-retailer-count.large {
+        font-size: 15px;
+        font-weight: 600;
+    }
+
     .sentiment-retailer-rate {
         font-weight: 700;
         font-size: 14px;
@@ -741,12 +746,14 @@
     /* Retail Retailer Item */
     .retail-retailer-item {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
         padding: 10px 12px;
         border-radius: 6px;
         margin-bottom: 8px;
         background: var(--bg-primary);
+        gap: 8px;
     }
 
     .retail-retailer-item:last-child {
@@ -763,6 +770,8 @@
         display: flex;
         flex-direction: column;
         gap: 2px;
+        flex: 1;
+        min-width: 120px;
     }
 
     .retail-retailer-name {
@@ -1620,6 +1629,35 @@
     .btn-close-summary:hover {
         color: var(--text-primary);
     }
+
+    .field-select-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .field-select-item {
+        padding: 10px 12px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.2s;
+    }
+
+    .field-select-item:hover {
+        background: #dbeafe;
+        border-color: #3b82f6;
+    }
+
+    .field-select-item.selected {
+        background: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+    }
 </style>
 {% endblock %}
 
@@ -1657,10 +1695,6 @@
     <div class="stat-card">
         <div class="label">정상</div>
         <div class="value" id="total-passed" style="color: var(--color-ok);">-</div>
-    </div>
-    <div class="stat-card">
-        <div class="label">주의</div>
-        <div class="value" id="total-warning" style="color: var(--color-warning);">-</div>
     </div>
     <div class="stat-card">
         <div class="label">실패</div>
@@ -1899,6 +1933,29 @@
     </div>
 </div>
 
+<div class="raw-data-modal-overlay" id="demandMissingModal">
+    <div class="raw-data-modal">
+        <div class="raw-data-modal-header">
+            <div>
+                <div class="raw-data-modal-title" id="demandMissingModalTitle">수요증감율 부족 키워드</div>
+                <div class="raw-data-modal-subtitle" id="demandMissingModalSubtitle"></div>
+            </div>
+            <div class="raw-data-modal-actions">
+                <button class="btn-close-modal" onclick="closeDemandMissingModal()">&times;</button>
+            </div>
+        </div>
+        <div class="raw-data-count" id="demandMissingDataCount"></div>
+        <div class="raw-data-modal-body">
+            <div class="raw-data-table-wrapper" id="demandMissingTableWrapper">
+                <div class="raw-data-loading" id="demandMissingLoading">
+                    <div class="raw-data-loading-spinner"></div>
+                    데이터를 불러오는 중...
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="raw-data-modal-overlay" id="marketPromotionModal">
     <div class="raw-data-modal">
         <div class="raw-data-modal-header">
@@ -2022,7 +2079,6 @@ async function loadStats() {
         // Summary stats
         document.getElementById('total-checked').textContent = data.summary.total_checked;
         document.getElementById('total-passed').textContent = data.summary.passed;
-        document.getElementById('total-warning').textContent = data.summary.warning || 0;
         document.getElementById('total-failed').textContent = data.summary.failed;
 
         // Failed count badge
@@ -2031,8 +2087,6 @@ async function loadStats() {
         failedCountEl.textContent = totalIssues + ' 건';
         if (totalIssues === 0) {
             failedCountEl.classList.add('ok');
-        } else if (data.summary.failed === 0) {
-            failedCountEl.classList.add('warning');
         }
 
         // 데일리 체크 타입과 분석대상일별 체크 타입 분류
@@ -2231,16 +2285,23 @@ function renderRetailCheck(check, checkIdx) {
     const hasCategories = check.categories && check.categories.length > 0;
     const statusClass = getStatusClass(check.status);
 
-    // 시간 정보
-    const timeInfo = check.time_info || { am: { utc: '00:00', kst: '09:00' }, pm: { utc: '12:00', kst: '21:00' } };
+    // 시간 정보 (날짜 포함): US(NY) 00:00 KST 2026-01-05 14:00
+    const timeInfo = check.time_info || { am: { us: '00:00', kst: '14:00' }, pm: { us: '12:00', kst: '02:00' } };
+    const isDst = timeInfo.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
 
+    // US 시간에서 시간만 추출
+    const amUsTime = timeInfo.am.us ? timeInfo.am.us.split(' ')[1] || timeInfo.am.us : '00:00';
+    const pmUsTime = timeInfo.pm.us ? timeInfo.pm.us.split(' ')[1] || timeInfo.pm.us : '12:00';
+
+    // Retail은 오전/오후를 가로로 표시
     const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
         '<div class="time-slot-header" style="cursor: default;">' +
             '<div class="time-slot-info">' +
                 '<span class="time-slot-name">수집 시간</span>' +
-                '<span class="time-slot-time">' +
-                    '<span class="utc">오전 UTC ' + timeInfo.am.utc + ' KST ' + timeInfo.am.kst + '</span>' +
-                    '<span class="kst" style="margin-left: 16px;">오후 UTC ' + timeInfo.pm.utc + ' KST ' + timeInfo.pm.kst + '</span>' +
+                '<span class="time-slot-time" style="display: flex; flex-direction: row; align-items: center; gap: 24px;">' +
+                    '<span class="utc">[오전] US(NY) ' + amUsTime + ' ' + kstLabel + ' ' + timeInfo.am.kst + '</span>' +
+                    '<span class="utc">[오후] US(NY) ' + pmUsTime + ' ' + kstLabel + ' ' + timeInfo.pm.kst + '</span>' +
                 '</span>' +
             '</div>' +
         '</div>' +
@@ -2266,8 +2327,7 @@ function renderRetailCheck(check, checkIdx) {
                 '<div class="check-description">' + check.description + '</div>' +
             '</div>' +
             '<div class="check-criteria">' +
-                '<span class="criteria-item ok">정상: 250↑</span>' +
-                '<span class="criteria-item warning">주의: 200~249</span>' +
+                '<span class="criteria-item ok">정상: 200↑</span>' +
                 '<span class="criteria-item critical">심각: 200↓</span>' +
                 '<button class="btn-columns-info" onclick="event.stopPropagation(); openColumnsModal()">수집 항목 정보</button>' +
                 '<button class="btn-columns-info" onclick="event.stopPropagation(); openSummaryModal()">상세 현황</button>' +
@@ -2362,16 +2422,20 @@ function renderSentimentCheck(check, checkIdx) {
     const hasCategories = check.categories && check.categories.length > 0;
     const statusClass = getStatusClass(check.status);
 
-    const utcTime = check.utc_time ? check.utc_time.split(' ')[1] : '01:00';
-    const kstTime = check.kr_time ? check.kr_time.split(' ')[1] : '10:00';
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 2026-01-06 01:00 KST 2026-01-06 15:00
+    // 감성분석은 다음날 실행되므로 날짜 포함해서 표시
+    const usTime = check.us_time || '';
+    const krTime = check.kr_time || '';
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
 
     const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
         '<div class="time-slot-header" style="cursor: default;">' +
             '<div class="time-slot-info">' +
                 '<span class="time-slot-name">분석 시간</span>' +
                 '<span class="time-slot-time">' +
-                    '<span class="utc">UTC ' + utcTime + '</span>' +
-                    '<span class="kst">KST ' + kstTime + '</span>' +
+                    '<span class="utc">US(NY) ' + usTime + '</span>' +
+                    '<span class="kst">' + kstLabel + ' ' + krTime + '</span>' +
                 '</span>' +
             '</div>' +
         '</div>' +
@@ -2398,8 +2462,7 @@ function renderSentimentCheck(check, checkIdx) {
             '</div>' +
             '<div class="check-criteria">' +
                 '<span class="criteria-item ok">정상: 100%</span>' +
-                '<span class="criteria-item warning">주의: 90%↑</span>' +
-                '<span class="criteria-item critical">심각: 90%↓</span>' +
+                '<span class="criteria-item critical">심각: 100% 미만</span>' +
             '</div>' +
             '<div class="check-stats">' +
                 '<div class="check-stat">' +
@@ -2502,14 +2565,20 @@ function renderYouTubeCheck(check, checkIdx) {
     const statusClass = getStatusClass(check.status);
 
     const rateDisplay = (check.rate || 0) + '%';
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 04:00 KST 2026-01-05 18:00
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '04:00';
+    const krTime = check.kr_time || '';
 
     const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
         '<div class="time-slot-header" style="cursor: default;">' +
             '<div class="time-slot-info">' +
                 '<span class="time-slot-name">수집 시간</span>' +
                 '<span class="time-slot-time">' +
-                    '<span class="utc">UTC 12:00</span>' +
-                    '<span class="kst">KST 21:00</span>' +
+                    '<span class="utc">US(NY) ' + usTime + '</span>' +
+                    '<span class="kst">' + kstLabel + ' ' + krTime + '</span>' +
                 '</span>' +
             '</div>' +
         '</div>' +
@@ -2538,19 +2607,47 @@ function renderYouTubeCheck(check, checkIdx) {
             columnsContent +
         '</div>';
     } else {
+        // 카테고리가 없을 때도 동일한 형식으로 기본 구조 표시
+        const defaultCategories = ['TV', 'HHP'];
+        const defaultColumnsHtml = defaultCategories.map(function(catName) {
+            return '<div class="sentiment-column">' +
+                '<div class="sentiment-column-header">' +
+                    '<span class="sentiment-column-title">' + catName + '</span>' +
+                    '<div class="sentiment-column-stats">' +
+                        '<span class="status-badge pending"><span class="status-dot"></span>대기중</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="sentiment-retailer-list">' +
+                    '<div class="sentiment-retailer-item pending">' +
+                        '<span class="sentiment-retailer-name">로그</span>' +
+                        '<div class="sentiment-retailer-stats">' +
+                            '<span class="sentiment-retailer-count">0/0</span>' +
+                            '<span class="sentiment-retailer-rate pending">0%</span>' +
+                            '<span class="status-badge pending"><span class="status-dot"></span>대기중</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="sentiment-retailer-item pending">' +
+                        '<span class="sentiment-retailer-name">비디오</span>' +
+                        '<div class="sentiment-retailer-stats">' +
+                            '<span class="sentiment-retailer-count">0</span>' +
+                            '<span class="status-badge pending"><span class="status-dot"></span>대기중</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="sentiment-retailer-item pending">' +
+                        '<span class="sentiment-retailer-name">댓글</span>' +
+                        '<div class="sentiment-retailer-stats">' +
+                            '<span class="sentiment-retailer-count">0</span>' +
+                            '<span class="status-badge pending"><span class="status-dot"></span>대기중</span>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+
         categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
             timeHeader +
             '<div class="sentiment-two-column show">' +
-                '<div class="sentiment-column">' +
-                    '<div class="sentiment-column-header">' +
-                        '<span class="sentiment-column-title">TV</span>' +
-                    '</div>' +
-                '</div>' +
-                '<div class="sentiment-column">' +
-                    '<div class="sentiment-column-header">' +
-                        '<span class="sentiment-column-title">HHP</span>' +
-                    '</div>' +
-                '</div>' +
+                defaultColumnsHtml +
             '</div>' +
         '</div>';
     }
@@ -2566,8 +2663,7 @@ function renderYouTubeCheck(check, checkIdx) {
             '</div>' +
             '<div class="check-criteria">' +
                 '<span class="criteria-item ok">정상: 100%+</span>' +
-                '<span class="criteria-item warning">주의: 90~99%</span>' +
-                '<span class="criteria-item critical">위험: 90%↓</span>' +
+                '<span class="criteria-item critical">심각: 100% 미만</span>' +
             '</div>' +
             '<div class="check-stats">' +
                 '<div class="check-stat">' +
@@ -2637,17 +2733,19 @@ function renderMarketTrendCheck(check, checkIdx) {
     const hasCategories = check.categories && check.categories.length > 0;
     const statusClass = getStatusClass(check.status);
 
-    // 수집 시간 정보
-    const utcTime = check.utc_time ? check.utc_time.split(' ')[1] || check.utc_time : '04:00';
-    const krTime = check.kr_time ? check.kr_time.split(' ')[1] || check.kr_time : '13:00';
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 23:00 KST 2026-01-06 13:00
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '23:00';
+    const krTime = check.kr_time || '';
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
 
     const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
         '<div class="time-slot-header" style="cursor: default;">' +
             '<div class="time-slot-info">' +
                 '<span class="time-slot-name">수집 시간</span>' +
                 '<span class="time-slot-time">' +
-                    '<span class="utc">UTC ' + utcTime + '</span>' +
-                    '<span class="kst">KST ' + krTime + '</span>' +
+                    '<span class="utc">US(NY) ' + usTime + '</span>' +
+                    '<span class="kst">' + kstLabel + ' ' + krTime + '</span>' +
                 '</span>' +
             '</div>' +
         '</div>' +
@@ -2655,10 +2753,55 @@ function renderMarketTrendCheck(check, checkIdx) {
 
     let categoriesHtml = '';
     if (hasCategories) {
+        // TV, HHP 순서로 정렬
+        const sortOrder = ['TV', 'HHP'];
+        const sortedCategories = [...check.categories].sort((a, b) => {
+            const aIdx = sortOrder.indexOf(a.name);
+            const bIdx = sortOrder.indexOf(b.name);
+            if (aIdx === -1 && bIdx === -1) return 0;
+            if (aIdx === -1) return 1;
+            if (bIdx === -1) return -1;
+            return aIdx - bIdx;
+        });
+
+        // TV/HHP 카드를 2열로 배치 (YouTube와 동일한 구조)
+        const categoryCardsHtml = sortedCategories.map(cat => {
+            const hasItems = cat.items && cat.items.length > 0;
+
+            // Event/News 아이템들을 세로로 표시 (YouTube의 로그/비디오/댓글과 동일한 스타일)
+            let itemsHtml = '';
+            if (hasItems) {
+                itemsHtml = cat.items.map(item => {
+                    const itemStatusClass = getStatusClass(item.status);
+                    return '<div class="sentiment-retailer-item ' + itemStatusClass + '" onclick="openMarketTrendModal(\'' + cat.name + '\', \'' + item.name + '\')" style="cursor: pointer;">' +
+                        '<span class="sentiment-retailer-name">' + item.name + '</span>' +
+                        '<div class="sentiment-retailer-stats">' +
+                            '<span class="sentiment-retailer-count">' + item.collected.toLocaleString() + '/' + item.expected.toLocaleString() + '</span>' +
+                            '<span class="sentiment-retailer-rate ' + itemStatusClass + '">' + item.rate + '%</span>' +
+                            getStatusBadge(item.status) +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            }
+
+            // TV/HHP 카드 (YouTube와 동일한 구조)
+            return '<div class="sentiment-column">' +
+                '<div class="sentiment-column-header">' +
+                    '<span class="sentiment-column-title">' + cat.name + '</span>' +
+                    '<div class="sentiment-column-stats">' +
+                        getStatusBadge(cat.status) +
+                    '</div>' +
+                '</div>' +
+                '<div class="sentiment-retailer-list">' +
+                    itemsHtml +
+                '</div>' +
+            '</div>';
+        }).join('');
+
         categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
             timeHeader +
-            '<div class="sentiment-categories">' +
-                check.categories.map((cat, catIdx) => renderMarketTrendCategory(cat, checkIdx, catIdx)).join('') +
+            '<div class="sentiment-two-column show">' +
+                categoryCardsHtml +
             '</div>' +
         '</div>';
     }
@@ -2674,8 +2817,7 @@ function renderMarketTrendCheck(check, checkIdx) {
             '</div>' +
             '<div class="check-criteria">' +
                 '<span class="criteria-item ok">정상: 100%</span>' +
-                '<span class="criteria-item warning">주의: 90%↑</span>' +
-                '<span class="criteria-item critical">심각: 90%↓</span>' +
+                '<span class="criteria-item critical">심각: 100% 미만</span>' +
             '</div>' +
             '<div class="check-stats">' +
                 '<div class="check-stat">' +
@@ -2693,13 +2835,20 @@ function renderMarketCompetitorCheck(check, checkIdx) {
     const hasCategories = check.categories && check.categories.length > 0;
     const statusClass = getStatusClass(check.status);
     const isTargetDate = check.is_target_date;
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
 
     // 분기 정보
     const quarterStart = check.quarter?.start || '';
     const quarterEnd = check.quarter?.end || '';
+    const nextQuarterStart = check.quarter?.next_start || '';
     const quarterDisplay = quarterStart && quarterEnd
         ? `이번분기 대상(${quarterStart} ~ ${quarterEnd})`
         : '';
+
+    // 수집 시간 정보
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '';
+    const krTime = check.kr_time || '';
 
     // 마지막 실행 시간 포맷팅
     let lastRunDisplay = '';
@@ -2714,16 +2863,40 @@ function renderMarketCompetitorCheck(check, checkIdx) {
         });
     }
 
-    // 시간 헤더
-    const timeHeader = `
-        <div class="time-slot-item" style="margin-bottom: 16px;">
-            <div class="time-slot-header" style="cursor: default;">
-                <div class="time-slot-info">
-                    <span class="time-slot-name">${quarterDisplay}</span>
+    // 스케줄 헤더 (한 섹션에 통합)
+    let scheduleHeader = '';
+    if (isTargetDate && usTime) {
+        // 분석대상일: 수집 시간 + 분기 정보
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">수집 시간</span>
+                        <span class="time-slot-time">
+                            <span class="utc">US(NY) ${usTime}</span>
+                            <span class="kst">${kstLabel} ${krTime}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">${quarterDisplay}</span>
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
+        `;
+    } else {
+        // 분석대상일 아님: 다음 분석일 + 분기 정보
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">다음 분석일</span>
+                        <span class="time-slot-time">
+                            <span class="kst">${nextQuarterStart}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">${quarterDisplay}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 
     // TV, HHP 순서로 정렬
     const sortOrder = ['TV', 'HHP'];
@@ -2736,27 +2909,44 @@ function renderMarketCompetitorCheck(check, checkIdx) {
         return aIdx - bIdx;
     }) : [];
 
+    // 키워드 커버리지 정보
+    const kwCoverage = check.keyword_coverage || {};
+    const kwComboRate = kwCoverage.total_combo_rate || 100;
+    const kwMissing = kwCoverage.total_missing || 0;
+    const kwStatusClass = getStatusClass(check.status);
+
     let categoriesHtml = '';
     if (hasCategories) {
         categoriesHtml = `
             <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${timeHeader}
+                ${scheduleHeader}
                 <div class="sentiment-two-column show">
                     ${sortedCategories.map(cat => {
-                        // 분석대상일이 아니면 pending 상태로 표시
-                        const displayStatus = isTargetDate ? cat.status : 'PENDING';
-                        const catStatusClass = getStatusClass(displayStatus);
-                        const statusBadgeHtml = isTargetDate ? getStatusBadge(cat.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
+                        const catKw = cat.keyword_coverage || {};
+                        const kwStatus = catKw.combo_rate >= 100 ? 'OK' : 'CRITICAL';
+                        const statusBadgeHtml = isTargetDate || check.batch_id ? getStatusBadge(kwStatus) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
                         return `
-                            <div class="sentiment-column ${catStatusClass}"
-                                 style="cursor: pointer;"
-                                 title="${cat.category} 경쟁품 분석">
+                            <div class="sentiment-column">
                                 <div class="sentiment-column-header">
                                     <span class="sentiment-column-title">${cat.category}</span>
                                     <div class="sentiment-column-stats">
-                                        <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.expected.toLocaleString()}</span>
-                                        <span class="sentiment-column-rate ${catStatusClass}">${cat.rate}%</span>
                                         ${statusBadgeHtml}
+                                    </div>
+                                </div>
+                                <div class="sentiment-retailer-list">
+                                    <div class="sentiment-retailer-item ${getStatusClass(kwStatus)}">
+                                        <span class="sentiment-retailer-name">키워드</span>
+                                        <div class="sentiment-retailer-stats">
+                                            <span class="sentiment-retailer-count">${catKw.combo_collected || 0}/${catKw.combo_expected || 0}</span>
+                                            <span class="sentiment-retailer-rate ${getStatusClass(kwStatus)}">${catKw.combo_rate || 100}%</span>
+                                            ${getStatusBadge(kwStatus)}
+                                        </div>
+                                    </div>
+                                    <div class="sentiment-retailer-item ${getStatusClass(kwStatus)}">
+                                        <span class="sentiment-retailer-name">수집량</span>
+                                        <div class="sentiment-retailer-stats">
+                                            <span class="sentiment-retailer-count large">${cat.collected.toLocaleString()}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -2775,19 +2965,32 @@ function renderMarketCompetitorCheck(check, checkIdx) {
         const defaultCategories = ['TV', 'HHP'];
         categoriesHtml = `
             <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${timeHeader}
+                ${scheduleHeader}
                 <div class="sentiment-two-column show">
                     ${defaultCategories.map(catName => {
                         return `
-                            <div class="sentiment-column pending"
-                                 style="cursor: pointer;"
-                                 title="${catName} 경쟁품 분석">
+                            <div class="sentiment-column">
                                 <div class="sentiment-column-header">
                                     <span class="sentiment-column-title">${catName}</span>
                                     <div class="sentiment-column-stats">
-                                        <span class="sentiment-column-count">0/0</span>
-                                        <span class="sentiment-column-rate pending">0%</span>
                                         <span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>
+                                    </div>
+                                </div>
+                                <div class="sentiment-retailer-list">
+                                    <div class="sentiment-retailer-item pending">
+                                        <span class="sentiment-retailer-name">키워드</span>
+                                        <div class="sentiment-retailer-stats">
+                                            <span class="sentiment-retailer-count">0/0</span>
+                                            <span class="sentiment-retailer-rate pending">0%</span>
+                                            <span class="status-badge pending"><span class="status-dot"></span>대기중</span>
+                                        </div>
+                                    </div>
+                                    <div class="sentiment-retailer-item pending">
+                                        <span class="sentiment-retailer-name">수집량</span>
+                                        <div class="sentiment-retailer-stats">
+                                            <span class="sentiment-retailer-count large">0</span>
+                                            <span class="status-badge pending"><span class="status-dot"></span>대기중</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -2798,14 +3001,14 @@ function renderMarketCompetitorCheck(check, checkIdx) {
         `;
     }
 
-    // 분석률 또는 분석대상일 아님 표시
+    // 분석률 또는 분석대상일 아님 표시 - 키워드 기준 (100% 아니면 심각)
     const statsHtml = isTargetDate
         ? `
             <div class="check-stat">
-                <div class="value ${statusClass}">${check.rate}%</div>
-                <div class="label">분석률</div>
+                <div class="value ${kwComboRate >= 100 ? 'ok' : 'critical'}">${kwComboRate}%</div>
+                <div class="label">키워드</div>
             </div>
-            ${getStatusBadge(check.status)}
+            ${getStatusBadge(kwComboRate >= 100 ? 'OK' : 'CRITICAL')}
         `
         : `
             <span class="status-badge pending">
@@ -2826,8 +3029,7 @@ function renderMarketCompetitorCheck(check, checkIdx) {
                 </div>
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
-                    <span class="criteria-item warning">주의: 90%↑</span>
-                    <span class="criteria-item critical">심각: 90%↓</span>
+                    <span class="criteria-item critical">심각: 100% 미만</span>
                 </div>
                 <div class="check-stats">
                     ${statsHtml}
@@ -2842,13 +3044,20 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
     const hasCategories = check.categories && check.categories.length > 0;
     const statusClass = getStatusClass(check.status);
     const isTargetDate = check.is_target_date;
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
 
     // 월 정보
     const monthName = check.month?.name || '';
     const firstMonday = check.month?.first_monday || '';
+    const nextFirstMonday = check.month?.next_first_monday || '';
     const monthDisplay = monthName && firstMonday
         ? `${monthName} 대상 (첫번째 월요일: ${firstMonday})`
         : '';
+
+    // 수집 시간 정보
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '';
+    const krTime = check.kr_time || '';
 
     // 마지막 실행 시간 포맷팅
     let lastRunDisplay = '';
@@ -2863,16 +3072,40 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
         });
     }
 
-    // 시간 헤더
-    const timeHeader = `
-        <div class="time-slot-item" style="margin-bottom: 16px;">
-            <div class="time-slot-header" style="cursor: default;">
-                <div class="time-slot-info">
-                    <span class="time-slot-name">${monthDisplay}</span>
+    // 스케줄 헤더 (한 섹션에 통합)
+    let scheduleHeader = '';
+    if (isTargetDate && usTime) {
+        // 분석대상일: 수집 시간 + 월 정보
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">수집 시간</span>
+                        <span class="time-slot-time">
+                            <span class="utc">US(NY) ${usTime}</span>
+                            <span class="kst">${kstLabel} ${krTime}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">${monthDisplay}</span>
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
+        `;
+    } else {
+        // 분석대상일 아님: 다음 분석일 + 월 정보
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">다음 분석일</span>
+                        <span class="time-slot-time">
+                            <span class="kst">${nextFirstMonday}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">${monthDisplay}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 
     // TV, HHP 순서로 정렬
     const sortOrder = ['TV', 'HHP'];
@@ -2889,7 +3122,7 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
     if (hasCategories) {
         categoriesHtml = `
             <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${timeHeader}
+                ${scheduleHeader}
                 <div class="sentiment-two-column show">
                     ${sortedCategories.map(cat => {
                         // 분석대상일이 아니면 pending 상태로 표시
@@ -2924,7 +3157,7 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
         const defaultCategories = ['TV', 'HHP'];
         categoriesHtml = `
             <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${timeHeader}
+                ${scheduleHeader}
                 <div class="sentiment-two-column show">
                     ${defaultCategories.map(catName => {
                         return `
@@ -2947,14 +3180,19 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
         `;
     }
 
-    // 분석률 또는 분석대상일 아님 표시
+    // 전체 수집률 계산
+    const totalCollected = sortedCategories.reduce((sum, c) => sum + (c.collected || 0), 0);
+    const totalExpected = sortedCategories.reduce((sum, c) => sum + (c.expected || 0), 0);
+    const totalRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
+
+    // 분석률 또는 분석대상일 아님 표시 (100% 아니면 심각)
     const statsHtml = isTargetDate
         ? `
             <div class="check-stat">
-                <div class="value ${statusClass}">${check.rate}%</div>
-                <div class="label">분석률</div>
+                <div class="value ${totalRate >= 100 ? 'ok' : 'critical'}">${totalRate}%</div>
+                <div class="label">수집률</div>
             </div>
-            ${getStatusBadge(check.status)}
+            ${getStatusBadge(totalRate >= 100 ? 'OK' : 'CRITICAL')}
         `
         : `
             <span class="status-badge pending">
@@ -2975,8 +3213,7 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
                 </div>
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
-                    <span class="criteria-item warning">주의: 90%↑</span>
-                    <span class="criteria-item critical">심각: 90%↓</span>
+                    <span class="criteria-item critical">심각: 100% 미만</span>
                 </div>
                 <div class="check-stats">
                     ${statsHtml}
@@ -2990,6 +3227,12 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
 function renderMarketDemandCheck(check, checkIdx) {
     const statusClass = getStatusClass(check.status);
     const hasCategories = check.categories && check.categories.length > 0;
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 23:00 KST 2026-01-06 13:00
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '23:00';
+    const krTime = check.kr_time || '';
 
     // 수집 시간 헤더 (Market Trend와 동일)
     const timeHeader = `
@@ -2998,8 +3241,8 @@ function renderMarketDemandCheck(check, checkIdx) {
                 <div class="time-slot-info">
                     <span class="time-slot-name">수집 시간</span>
                     <span class="time-slot-time">
-                        <span class="utc">UTC 23:00</span>
-                        <span class="kst">KST 08:00</span>
+                        <span class="utc">US(NY) ${usTime}</span>
+                        <span class="kst">${kstLabel} ${krTime}</span>
                     </span>
                 </div>
             </div>
@@ -3028,9 +3271,10 @@ function renderMarketDemandCheck(check, checkIdx) {
                 <div class="sentiment-two-column show">
                     ${sortedCategories.map((cat, catIdx) => {
                         const catStatusClass = getStatusClass(cat.status);
+                        const missingCount = cat.target - cat.collected;
                         return `
-                            <div class="sentiment-column ${catStatusClass}" onclick="openMarketDemandModal('${cat.category}')" style="cursor: pointer;">
-                                <div class="sentiment-column-header">
+                            <div class="sentiment-column ${catStatusClass}">
+                                <div class="sentiment-column-header" onclick="openMarketDemandModal('${cat.category}')" style="cursor: pointer;">
                                     <span class="sentiment-column-title">${cat.category}</span>
                                     <div class="sentiment-column-stats">
                                         <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.target.toLocaleString()}</span>
@@ -3038,6 +3282,13 @@ function renderMarketDemandCheck(check, checkIdx) {
                                         ${getStatusBadge(cat.status)}
                                     </div>
                                 </div>
+                                ${missingCount > 0 ? `
+                                <div class="sentiment-column-actions" style="padding: 8px 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+                                    <button class="btn-missing-keywords" onclick="event.stopPropagation(); openDemandMissingModal('${cat.category}');" style="font-size: 12px; padding: 4px 8px; background: rgba(255,100,100,0.2); border: 1px solid rgba(255,100,100,0.5); color: #ff6b6b; border-radius: 4px; cursor: pointer;">
+                                        부족 키워드 보기 (${missingCount}건)
+                                    </button>
+                                </div>
+                                ` : ''}
                             </div>
                         `;
                     }).join('')}
@@ -3057,9 +3308,8 @@ function renderMarketDemandCheck(check, checkIdx) {
                     <div class="check-description">${check.description}</div>
                 </div>
                 <div class="check-criteria">
-                    <span class="criteria-item ok">정상: 90% 이상</span>
-                    <span class="criteria-item warning">주의: 70~90%</span>
-                    <span class="criteria-item critical">위험: 70% 미만</span>
+                    <span class="criteria-item ok">정상: 100%</span>
+                    <span class="criteria-item critical">심각: 100% 미만</span>
                 </div>
                 <div class="check-stats">
                     <div class="check-stat">
@@ -3078,25 +3328,53 @@ function renderMarketPromotionCheck(check, checkIdx) {
     const hasRetailers = check.retailers && check.retailers.length > 0;
     const statusClass = getStatusClass(check.status);
     const isTargetDate = check.is_target_date;
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 18:00 KST 2026-01-05 08:00
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '18:00';
+    const krTime = check.kr_time || '';
 
     // 수집률 표시
     const rateDisplay = `${check.rate || 0}%`;
 
-    // 시간 헤더 (YouTube와 동일한 스타일)
-    const timeHeader = `
-        <div class="time-slot-item" style="margin-bottom: 16px;">
-            <div class="time-slot-header" style="cursor: default;">
-                <div class="time-slot-info">
-                    <span class="time-slot-name">수집 시간</span>
-                    <span class="time-slot-time">
-                        <span class="utc">UTC 18:00</span>
-                        <span class="kst">KST +1 03:00</span>
-                    </span>
-                    <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">(매주 월요일)</span>
+    // 다음 분석일 정보
+    const nextTargetDate = check.next_target_date || '';
+
+    // 스케줄 헤더 (Market Competitor Event와 동일한 스타일)
+    let scheduleHeader = '';
+    if (isTargetDate) {
+        // 분석대상일: 수집 시간 표시
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">수집 시간</span>
+                        <span class="time-slot-time">
+                            <span class="utc">US(NY) ${usTime}</span>
+                            <span class="kst">${kstLabel} ${krTime}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">(매주 월요일)</span>
+                    </div>
                 </div>
             </div>
-        </div>
-    `;
+        `;
+    } else {
+        // 분석대상일 아님: 다음 분석일 표시
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">다음 분석일</span>
+                        <span class="time-slot-time">
+                            <span class="kst">${nextTargetDate}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">(매주 월요일)</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 
     let contentHtml = '';
     const isPending = check.status === 'PENDING';
@@ -3106,7 +3384,7 @@ function renderMarketPromotionCheck(check, checkIdx) {
         // retailer가 있으면 항상 카드 표시 (분석대상일 여부와 관계없이)
         contentHtml = `
             <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${timeHeader}
+                ${scheduleHeader}
                 <div class="sentiment-two-column show">
                     ${check.retailers.map(r => {
                         // 분석대상일이 아니면 pending으로 표시
@@ -3176,8 +3454,7 @@ function renderMarketPromotionCheck(check, checkIdx) {
                 </div>
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
-                    <span class="criteria-item warning">주의: 90%↑</span>
-                    <span class="criteria-item critical">심각: 90%↓</span>
+                    <span class="criteria-item critical">심각: 100% 미만</span>
                 </div>
                 <div class="check-stats">
                     ${statsHtml}
@@ -4721,6 +4998,113 @@ function closeMarketDemandModal() {
     var modal = document.getElementById('marketDemandModal');
     modal.classList.remove('show');
     document.body.style.overflow = '';
+}
+
+// 수요증감율 부족 키워드 모달
+var demandMissingDataState = {
+    category: 'all',
+    data: []
+};
+
+function openDemandMissingModal(category) {
+    var modal = document.getElementById('demandMissingModal');
+    var titleEl = document.getElementById('demandMissingModalTitle');
+    var subtitleEl = document.getElementById('demandMissingModalSubtitle');
+    var countEl = document.getElementById('demandMissingDataCount');
+    var wrapperEl = document.getElementById('demandMissingTableWrapper');
+    var currentDate = document.getElementById('target-date').value;
+
+    demandMissingDataState.category = category;
+
+    titleEl.textContent = '수요증감율 부족 키워드 - ' + category;
+    subtitleEl.textContent = currentDate;
+    countEl.innerHTML = '';
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+
+    loadDemandMissingData();
+}
+
+function closeDemandMissingModal() {
+    var modal = document.getElementById('demandMissingModal');
+    modal.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+function loadDemandMissingData() {
+    var wrapperEl = document.getElementById('demandMissingTableWrapper');
+    var countEl = document.getElementById('demandMissingDataCount');
+    var currentDate = document.getElementById('target-date').value;
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    var url = '/layer1/api/market-demand-missing/?category=' + encodeURIComponent(demandMissingDataState.category) +
+              '&date=' + encodeURIComponent(currentDate);
+
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.error) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                return;
+            }
+
+            demandMissingDataState.data = data.missing_keywords || [];
+
+            // 요약 정보 표시
+            var summaryHtml = '';
+            if (data.summary) {
+                var summaryParts = [];
+                for (var cat in data.summary) {
+                    var s = data.summary[cat];
+                    summaryParts.push(cat + ': ' + s.missing + '/' + s.total + '건 부족');
+                }
+                summaryHtml = summaryParts.length > 0 ? ' (' + summaryParts.join(', ') + ')' : '';
+            }
+            countEl.innerHTML = '총 <strong>' + (data.total_missing || 0).toLocaleString() + '</strong>건 부족' + summaryHtml;
+
+            if (demandMissingDataState.data.length === 0) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">부족한 키워드가 없습니다</div>';
+                return;
+            }
+
+            renderDemandMissingTable();
+        })
+        .catch(function(error) {
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+        });
+}
+
+function renderDemandMissingTable() {
+    var wrapperEl = document.getElementById('demandMissingTableWrapper');
+    var columns = ['category', 'product_name', 'event_name', 'event_date'];
+    var columnLabels = ['카테고리', '제품명', '이벤트명', '이벤트일자'];
+
+    var colgroupHtml = '<colgroup><col style="width: 50px;"><col style="width: 80px;"><col><col><col style="width: 120px;"></colgroup>';
+
+    var headerHtml = '<thead><tr><th>#</th>';
+    columnLabels.forEach(function(label) {
+        headerHtml += '<th>' + label + '</th>';
+    });
+    headerHtml += '</tr></thead>';
+
+    var bodyHtml = '<tbody>';
+    demandMissingDataState.data.forEach(function(item, idx) {
+        bodyHtml += '<tr>';
+        bodyHtml += '<td>' + (idx + 1) + '</td>';
+        bodyHtml += '<td>' + (item.category || '') + '</td>';
+        bodyHtml += '<td>' + (item.product_name || '') + '</td>';
+        bodyHtml += '<td>' + (item.event_name || '') + '</td>';
+        bodyHtml += '<td>' + (item.event_date || '') + '</td>';
+        bodyHtml += '</tr>';
+    });
+    bodyHtml += '</tbody>';
+
+    var tableHtml = '<table class="raw-data-table">' + colgroupHtml + headerHtml + bodyHtml + '</table>';
+    wrapperEl.innerHTML = tableHtml;
 }
 
 function loadMarketDemandData() {
