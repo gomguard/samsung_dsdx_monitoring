@@ -1486,10 +1486,7 @@
                            tableName === 'YouTube Videos' ? 'youtube_videos' :
                            tableName === 'TV Retail' ? 'tv_retail' :
                            tableName === 'HHP Retail' ? 'hhp_retail' :
-                           tableName === 'Market' && retailer === 'Trend' ? 'market_trend' :
-                           tableName === 'Market' && retailer === 'Product' ? 'market_product' :
-                           tableName === 'Market' && retailer === 'Event' ? 'market_event' :
-                           tableName === 'Market' && retailer === 'Forecast' ? 'market_forecast' :
+                           tableName === 'Market' ? 'market' :
                            tableName.toLowerCase().replace(' ', '_');
 
         // 상태 저장
@@ -1532,8 +1529,10 @@
 
     // NULL 필드별 요약 표시
     function renderNullFieldSummary(data, tableParam) {
+        console.log('renderNullFieldSummary data:', data);
         const body = document.getElementById('modal-body');
         const records = data.records || data.results || [];
+        console.log('records:', records);
         const date = data.date || getSelectedDate();
 
         // 필드별 건수 집계
@@ -1583,9 +1582,12 @@
 
     // NULL 필드별 상세 데이터 표시
     function showNullFieldDetail(fieldName) {
+        console.log('showNullFieldDetail fieldName:', fieldName);
         const body = document.getElementById('modal-body');
         const data = modalState.nullFieldsData;
+        console.log('showNullFieldDetail data:', data);
         const records = data.records || data.results || [];
+        console.log('showNullFieldDetail records:', records);
         const displayConfig = data.display_config || {};
         const queryConfig = data.query_config || {};
         const dateColumn = data.date_column || 'crawl_datetime';
@@ -1597,6 +1599,7 @@
             const nullFields = record.null_fields || [];
             return nullFields.includes(fieldName);
         });
+        console.log('filteredRecords:', filteredRecords);
 
         modalState.selectedField = fieldName;
 
@@ -1662,6 +1665,7 @@
             const items = [...new Set(filteredRecords.map(r => r.item).filter(Boolean))].sort();
             if (items.length > 0 && isRetail) {
                 const inClause = items.map(item => `'${item}'`).join(', ');
+                const itemListDisplay = items.join(', ');
 
                 // 테이블명 결정
                 const tableName = tableParam === 'tv_retail' ? 'tv_retail_com' : 'hhp_retail_com';
@@ -1677,7 +1681,7 @@ WHERE account_name = '${retailerName}'
   AND item IN (${inClause})
   AND DATE(${dateColumn}::timestamp) >= DATE('${date}') - INTERVAL '2 days'
   AND DATE(${dateColumn}::timestamp) <= DATE('${date}')
-ORDER BY item, ${dateColumn} DESC;`;
+ORDER BY item, ${dateColumn} ASC;`;
 
                 html += `
                     <div class="item-query-section">
@@ -1686,7 +1690,7 @@ ORDER BY item, ${dateColumn} DESC;`;
                                 <span class="item-copy-title">Item 목록 (${items.length}개)</span>
                                 <button class="btn-copy" onclick="copyToClipboard(this.parentElement.nextElementSibling)">복사</button>
                             </div>
-                            <div class="item-copy-content">${inClause}</div>
+                            <div class="item-copy-content">${itemListDisplay}</div>
                         </div>
                         <div class="query-box">
                             <div class="item-copy-header">

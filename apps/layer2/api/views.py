@@ -1026,6 +1026,9 @@ def null_detail(request):
         actual_table = category_config['table_name']
         date_col = category_config.get('date_column', 'created_at')
         all_null_check_cols = list(category_config['columns'].keys())
+        print(f"[DEBUG] check_name={check_name}, actual_table={actual_table}, date_col={date_col}")
+        print(f"[DEBUG] all_null_check_cols={all_null_check_cols}")
+        print(f"[DEBUG] category_config columns={category_config['columns']}")
 
         # WHERE 조건 생성
         where_conditions = []
@@ -1070,8 +1073,11 @@ def null_detail(request):
             """
             params = [target_date]
 
+        print(f"[DEBUG] query={query}")
+        print(f"[DEBUG] params={params}")
         cursor.execute(query, params)
         rows = cursor.fetchall()
+        print(f"[DEBUG] rows count={len(rows)}")
 
         # 컬럼 인덱스 매핑
         col_index = {col: idx for idx, col in enumerate(select_cols)}
@@ -1108,6 +1114,10 @@ def null_detail(request):
 
             record_data['null_fields'] = null_fields
             results.append(record_data)
+
+        print(f"[DEBUG] results count={len(results)}")
+        if results:
+            print(f"[DEBUG] first result={results[0]}")
 
         # display_config, query_config 생성
         display_config = {}

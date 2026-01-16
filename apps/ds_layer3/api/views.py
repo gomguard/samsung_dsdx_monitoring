@@ -319,18 +319,20 @@ def recurring_detail(request):
 
         items = []
         if paged_urls:
-            # 가장 최근 날짜의 상품 정보 조회
-            date_str_fmt = target_date.strftime('%Y%m%d')
-            start_datetime = f"{date_str_fmt}0000"
+            # N일치 데이터 조회 (날짜별로 에러 발생 여부 확인)
+            start_date = target_date - timedelta(days=days-1)
+            start_datetime = start_date.strftime('%Y%m%d') + '0000'
             next_date = (target_date + timedelta(days=1)).strftime('%Y%m%d')
             end_datetime = f"{next_date}0000"
 
             placeholders = ', '.join(['%s'] * len(paged_urls))
             query = f"""
-                SELECT DISTINCT title, retailprice, ships_from, sold_by, imageurl, producturl
+                SELECT DISTINCT title, retailprice, ships_from, sold_by, imageurl, producturl,
+                       LEFT(crawl_strdatetime, 8) as crawl_date
                 FROM samsung_ds_retail_com.{table_name}
                 WHERE crawl_strdatetime >= %s AND crawl_strdatetime < %s
                 AND producturl IN ({placeholders})
+                ORDER BY producturl, crawl_date ASC
             """
 
             cursor.execute(query, [start_datetime, end_datetime] + paged_urls)
@@ -338,7 +340,10 @@ def recurring_detail(request):
 
             for row in rows:
                 producturl = row[5] or ''
+                crawl_date = row[6] or ''
                 recurring_days = filtered_products.get(producturl, 0)
+                # 날짜 포맷 변환 (20260114 -> 2026-01-14)
+                formatted_date = f"{crawl_date[:4]}-{crawl_date[4:6]}-{crawl_date[6:8]}" if len(crawl_date) >= 8 else crawl_date
                 items.append({
                     'title': row[0] or '',
                     'retailprice': row[1] or '',
@@ -346,6 +351,7 @@ def recurring_detail(request):
                     'sold_by': row[3] or '',
                     'imageurl': row[4] or '',
                     'producturl': producturl,
+                    'crawl_date': formatted_date,
                     'recurring_days': recurring_days,
                     'is_new': recurring_days == 1
                 })

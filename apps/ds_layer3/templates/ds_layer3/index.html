@@ -608,10 +608,20 @@
         border-color: {{ layer.color }};
     }
 
+    /* 테이블 스크롤 컨테이너 */
+    .table-scroll-container {
+        overflow-x: auto;
+        overflow-y: auto;
+        max-height: 450px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+    }
+
     .detail-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 13px;
+        table-layout: fixed;
     }
 
     .detail-table th,
@@ -619,6 +629,9 @@
         padding: 12px 16px;
         text-align: left;
         border-bottom: 1px solid var(--border-color);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .detail-table th {
@@ -627,13 +640,29 @@
         color: var(--text-secondary);
         position: sticky;
         top: 0;
+        z-index: 1;
+        cursor: default;
+        user-select: none;
+        position: relative;
+    }
+
+    .detail-table th .resize-handle {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 5px;
+        cursor: col-resize;
+        background: transparent;
+    }
+
+    .detail-table th .resize-handle:hover,
+    .detail-table th .resize-handle.resizing {
+        background: #3b82f6;
     }
 
     .detail-table td {
         max-width: 300px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
     }
 
     .detail-table td.title-cell {
@@ -655,6 +684,16 @@
         object-fit: cover;
         border-radius: 4px;
     }
+
+    /* 기본 열 너비 */
+    .col-date { width: 100px; }
+    .col-image { width: 70px; }
+    .col-title { width: 350px; }
+    .col-price { width: 80px; }
+    .col-ships { width: 100px; }
+    .col-sold { width: 100px; }
+    .col-status { width: 70px; }
+    .col-link { width: 60px; }
 
     .null-value {
         color: #dc2626;
@@ -1212,16 +1251,18 @@ function renderDetailTable(data) {
     }
 
     let html = `
+        <div class="table-scroll-container">
         <table class="detail-table">
             <thead>
                 <tr>
-                    <th>이미지</th>
-                    <th>제품명</th>
-                    <th>가격</th>
-                    <th>Ships From</th>
-                    <th>Sold By</th>
-                    <th>상태</th>
-                    <th>링크</th>
+                    <th class="col-date">수집일<div class="resize-handle"></div></th>
+                    <th class="col-image">이미지<div class="resize-handle"></div></th>
+                    <th class="col-title">제품명<div class="resize-handle"></div></th>
+                    <th class="col-price">가격<div class="resize-handle"></div></th>
+                    <th class="col-ships">Ships From<div class="resize-handle"></div></th>
+                    <th class="col-sold">Sold By<div class="resize-handle"></div></th>
+                    <th class="col-status">상태<div class="resize-handle"></div></th>
+                    <th class="col-link">링크</th>
                 </tr>
             </thead>
             <tbody>
@@ -1235,6 +1276,7 @@ function renderDetailTable(data) {
 
         html += `
             <tr>
+                <td>${item.crawl_date || '-'}</td>
                 <td>${imgSrc ? `<img src="${imgSrc}" class="thumb" onerror="this.style.display='none'">` : '<span class="null-value">무효</span>'}</td>
                 <td class="title-cell" title="${item.title}">${item.title || '<span class="null-value">NULL</span>'}</td>
                 <td>${item.retailprice || '<span class="null-value">NULL</span>'}</td>
@@ -1246,8 +1288,9 @@ function renderDetailTable(data) {
         `;
     }
 
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     document.getElementById('modalContent').innerHTML = html;
+    initColumnResize();
 }
 
 function updatePagination(data) {
@@ -1281,6 +1324,46 @@ function nextPage() {
 function closeModal() {
     document.getElementById('detailModal').classList.add('hidden');
     document.body.style.overflow = '';
+}
+
+// 열 크기 조절 기능
+function initColumnResize() {
+    const handles = document.querySelectorAll('.detail-table .resize-handle');
+    handles.forEach(handle => {
+        handle.addEventListener('mousedown', initResize);
+    });
+}
+
+let currentTh = null;
+let startX = 0;
+let startWidth = 0;
+
+function initResize(e) {
+    e.preventDefault();
+    currentTh = e.target.parentElement;
+    startX = e.pageX;
+    startWidth = currentTh.offsetWidth;
+
+    e.target.classList.add('resizing');
+    document.addEventListener('mousemove', doResize);
+    document.addEventListener('mouseup', stopResize);
+}
+
+function doResize(e) {
+    if (!currentTh) return;
+    const diff = e.pageX - startX;
+    const newWidth = Math.max(50, startWidth + diff);
+    currentTh.style.width = newWidth + 'px';
+}
+
+function stopResize(e) {
+    if (currentTh) {
+        const handle = currentTh.querySelector('.resize-handle');
+        if (handle) handle.classList.remove('resizing');
+    }
+    currentTh = null;
+    document.removeEventListener('mousemove', doResize);
+    document.removeEventListener('mouseup', stopResize);
 }
 
 function closeModalOnOverlay(event) {
