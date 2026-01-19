@@ -719,6 +719,65 @@
         background: #4caf50;
     }
 
+    /* 크로스필드 검증 쿼리 토글 */
+    .rule-summary-card-wrapper {
+        margin-bottom: 8px;
+    }
+
+    .btn-show-query {
+        background: #6366f1;
+        color: white;
+        border: none;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-left: 8px;
+        vertical-align: middle;
+    }
+
+    .btn-show-query:hover {
+        background: #4f46e5;
+    }
+
+    .crossfield-query-box {
+        background: #1e293b;
+        border-radius: 6px;
+        padding: 12px;
+        margin-top: 8px;
+        position: relative;
+    }
+
+    .crossfield-query-box pre {
+        color: #e2e8f0;
+        font-size: 12px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        white-space: pre-wrap;
+        word-break: break-all;
+        margin: 0;
+        padding-right: 60px;
+        max-height: 150px;
+        overflow-y: auto;
+    }
+
+    .crossfield-query-box .btn-copy-query {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: #475569;
+        color: white;
+        border: none;
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        cursor: pointer;
+    }
+
+    .crossfield-query-box .btn-copy-query:hover {
+        background: #64748b;
+    }
+
     /* 뒤로가기 버튼 */
     .btn-back {
         background: #6b7280;
@@ -1572,17 +1631,37 @@ ORDER BY item, ${dateColumn} ASC;`;
                 if (ruleSummary.length === 0) {
                     html += '<p>논리 오류 데이터가 없습니다.</p>';
                 } else {
+                    // 플레이스홀더 치환용 정보
+                    const tableName = data.table_name || '';
+                    const dateCol = data.date_col || '';
+                    const noReviewTexts = data.no_review_texts || '';
+                    const targetDate = data.date || '';
+
                     html += '<div class="rule-summary-container">';
-                    ruleSummary.forEach(rule => {
+                    ruleSummary.forEach((rule, idx) => {
                         // field1 ↔ field2 형식으로 표시
                         const fieldDisplay = `${rule.field1} ↔ ${rule.field2}`;
+                        const queryId = `crossfield-query-${idx}`;
+                        // 플레이스홀더 치환된 쿼리
+                        const displayQuery = replaceCrossfieldQueryPlaceholders(rule.query, tableName, dateCol, noReviewTexts, targetDate);
+                        // 상세보기 타이틀: field1 ↔ field2 (설명)
+                        const detailTitle = `${fieldDisplay} (${rule.error_message})`;
                         html += `
-                            <div class="rule-summary-card" onclick="loadCrossfieldRuleDetail('${data.product_line.toLowerCase()}', '${rule.rule_id}', '${data.date}', '${fieldDisplay}')">
-                                <div class="rule-info">
-                                    <div class="rule-name">${fieldDisplay}</div>
-                                    <div class="rule-desc">${rule.error_message}</div>
+                            <div class="rule-summary-card-wrapper">
+                                <div class="rule-summary-card" onclick="loadCrossfieldRuleDetail('${data.product_line.toLowerCase()}', '${rule.rule_id}', '${data.date}', '${detailTitle}')">
+                                    <div class="rule-info">
+                                        <div class="rule-name">
+                                            ${fieldDisplay}
+                                            <button class="btn-show-query" onclick="event.stopPropagation(); toggleCrossfieldQuery('${queryId}')" title="검증 쿼리 보기">SQL</button>
+                                        </div>
+                                        <div class="rule-desc">${rule.error_message}</div>
+                                    </div>
+                                    <div class="rule-count${rule.error_count === 0 ? ' zero' : ''}">${rule.error_count}건</div>
                                 </div>
-                                <div class="rule-count${rule.error_count === 0 ? ' zero' : ''}">${rule.error_count}건</div>
+                                <div id="${queryId}" class="crossfield-query-box" style="display: none;">
+                                    <pre>${displayQuery}</pre>
+                                    <button class="btn-copy-query" onclick="copyQueryToClipboard(this.previousElementSibling)">복사</button>
+                                </div>
                             </div>
                         `;
                     });
@@ -1634,6 +1713,25 @@ ORDER BY item, ${dateColumn} ASC;`;
     // 모달 닫기
     function closeModal() {
         document.getElementById('detail-modal').classList.remove('show');
+    }
+
+    // 크로스필드 쿼리 플레이스홀더 치환
+    function replaceCrossfieldQueryPlaceholders(query, tableName, dateCol, noReviewTexts, targetDate) {
+        if (!query) return '쿼리 없음';
+        let result = query;
+        result = result.replace(/\{table\}/g, tableName || 'table_name');
+        result = result.replace(/\{date_col\}/g, dateCol || 'crawl_datetime');
+        result = result.replace(/\{no_review_texts\}/g, noReviewTexts || "'No customer reviews', 'Not yet reviewed', 'No ratings yet'");
+        result = result.replace(/%s/g, `'${targetDate}'`);
+        return result;
+    }
+
+    // 크로스필드 검증 쿼리 토글
+    function toggleCrossfieldQuery(queryId) {
+        const queryBox = document.getElementById(queryId);
+        if (queryBox) {
+            queryBox.style.display = queryBox.style.display === 'none' ? 'block' : 'none';
+        }
     }
 
     // 크로스필드 데이터 날짜 변경 시 재로드
@@ -1700,6 +1798,11 @@ ORDER BY item, ${dateColumn} ASC;`;
                 // 전역에 저장 (리테일러 클릭 시 사용)
                 window.crossfieldRetailerData = retailerData;
                 window.crossfieldAnomalies = anomalies;
+                window.crossfieldProductLine = productLine;
+                window.crossfieldDate = date;
+                window.crossfieldRuleName = ruleName;  // 검증 항목 이름 저장
+                window.crossfieldSelectFields = data.select_fields || '';  // 조회쿼리용 필드 목록
+                window.crossfieldValidationType = data.validation_type || '';  // 검증 타입 저장
 
                 // 리테일러 목록만 표시
                 html += '<div class="retailer-list-container">';
@@ -1741,18 +1844,43 @@ ORDER BY item, ${dateColumn} ASC;`;
         });
     }
 
+    // SQL 포맷팅 함수 (한줄 쿼리를 보기 좋게 정리)
+    function formatSQL(sql) {
+        if (!sql) return sql;
+        // 공백 정리 (연속 공백을 하나로)
+        let formatted = sql.replace(/\s+/g, ' ').trim();
+        // 주요 키워드 앞에 줄바꿈 추가
+        const keywords = ['SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'ORDER BY', 'GROUP BY', 'HAVING', 'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'LIMIT', 'OFFSET'];
+        keywords.forEach(kw => {
+            // 키워드가 문자열 중간에 있을 때만 줄바꿈 (맨 앞 SELECT 제외)
+            const regex = new RegExp(`\\s+(${kw})\\s+`, 'gi');
+            formatted = formatted.replace(regex, `\n${kw} `);
+        });
+        // AND 들여쓰기
+        formatted = formatted.replace(/\nAND /gi, '\n    AND ');
+        formatted = formatted.replace(/\nOR /gi, '\n    OR ');
+        return formatted;
+    }
+
     // 쿼리 박스용 복사 함수
     function copyQueryToClipboard(element) {
         const text = element.textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            const btn = element.previousElementSibling.querySelector('.btn-copy');
+        const formattedSQL = formatSQL(text);
+        navigator.clipboard.writeText(formattedSQL).then(() => {
+            // 버튼 찾기 (여러 위치 지원)
+            let btn = element.previousElementSibling?.querySelector?.('.btn-copy');
+            if (!btn) btn = element.previousElementSibling?.querySelector?.('.btn-copy-query');
+            if (!btn && element.nextElementSibling?.classList?.contains('btn-copy-query')) {
+                btn = element.nextElementSibling;
+            }
             if (btn) {
                 const originalText = btn.textContent;
+                const originalBg = btn.style.background;
                 btn.textContent = '복사됨!';
                 btn.style.background = '#22c55e';
                 setTimeout(() => {
                     btn.textContent = originalText;
-                    btn.style.background = '#3b82f6';
+                    btn.style.background = originalBg || '#3b82f6';
                 }, 1500);
             }
         }).catch(err => {
@@ -1794,6 +1922,16 @@ ORDER BY item, ${dateColumn} ASC;`;
     }
 
     // 카테고리별 특성 규칙별 상세 데이터 로드
+    // 마스터 테이블 상세보기 상태 저장
+    let masterTableDetailState = {
+        data: null,
+        displayName: '',
+        ruleId: '',
+        date: '',
+        ruleName: '',
+        currentRetailer: 'all'
+    };
+
     async function loadCategorySpecRuleDetail(displayName, ruleId, date, ruleName) {
         document.getElementById('modal-title').textContent = ruleName;
         document.getElementById('modal-body').innerHTML = '<p style="text-align:center;">데이터를 불러오는 중...</p>';
@@ -1807,6 +1945,13 @@ ORDER BY item, ${dateColumn} ASC;`;
                 return;
             }
 
+            // 마스터 테이블인 경우 리테일러별 탭 표시
+            if (data.is_master_table) {
+                masterTableDetailState = { data, displayName, ruleId, date, ruleName, currentRetailer: 'all' };
+                renderMasterTableDetail(data, ruleName, 'all');
+                return;
+            }
+
             let html = '';
 
             // 뒤로가기 버튼
@@ -1814,6 +1959,41 @@ ORDER BY item, ${dateColumn} ASC;`;
 
             const anomalies = data.anomalies || [];
             const displayColumns = data.display_columns || [];
+
+            // Item 목록 추출 (중복 제거)
+            const items = [...new Set(anomalies.map(row => row.item).filter(item => item))];
+
+            if (items.length > 0) {
+                // product_line에 따라 테이블명 결정
+                const productLine = (data.product_line || '').toUpperCase();
+                const tableName = productLine.includes('HHP') ? 'hhp_item_mst' : 'tv_item_mst';
+                const inClauseWithQuotes = items.map(item => `'${item}'`).join(', ');
+                const itemListDisplay = items.join(', ');
+
+                const query = `SELECT id, account_name, item, is_product, product_url
+FROM ${tableName}
+WHERE item IN (${inClauseWithQuotes})
+ORDER BY account_name, item;`;
+
+                // Item 목록 + 조회 쿼리 레이아웃
+                html += `
+                <div class="query-section" style="display: flex; gap: 16px; margin-bottom: 16px;">
+                    <div class="item-list-box" style="flex: 0 0 300px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px;">
+                        <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 13px; font-weight: 600; color: #dc2626;">Item 목록 (${items.length}개)</span>
+                            <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('category-item-list'))" style="padding: 4px 10px; font-size: 11px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+                        </div>
+                        <div id="category-item-list" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${itemListDisplay}</div>
+                    </div>
+                    <div class="query-box" style="flex: 1; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px;">
+                        <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 13px; font-weight: 600; color: #374151;">조회 쿼리 (${tableName})</span>
+                            <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('category-query-box'))" style="padding: 4px 10px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+                        </div>
+                        <pre id="category-query-box" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #1e40af; background: #dbeafe; padding: 10px; border-radius: 6px; margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto;">${query}</pre>
+                    </div>
+                </div>`;
+            }
 
             if (anomalies.length === 0) {
                 html += '<p>해당 규칙에 대한 이상치 데이터가 없습니다.</p>';
@@ -1887,6 +2067,145 @@ ORDER BY item, ${dateColumn} ASC;`;
         }
     }
 
+    // 마스터 테이블 상세보기 렌더링 (리테일러별 탭)
+    function renderMasterTableDetail(data, ruleName, selectedRetailer) {
+        const retailerCounts = data.retailer_counts || {};
+        const retailerData = data.retailer_data || {};
+        const allAnomalies = data.anomalies || [];
+        const displayColumns = data.display_columns || [];
+
+        // 선택된 리테일러에 따른 데이터 필터링
+        let filteredData = [];
+        if (selectedRetailer === 'all') {
+            filteredData = allAnomalies;
+        } else {
+            filteredData = retailerData[selectedRetailer] || [];
+        }
+
+        let html = '';
+
+        // 뒤로가기 버튼
+        html += `<button class="btn-back" onclick="backToCategorySpecSummary()">← 뒤로가기</button>`;
+
+        // 리테일러 탭
+        const retailers = Object.keys(retailerCounts).sort();
+        const totalCount = allAnomalies.length;
+
+        html += `<div class="retailer-tabs" style="display: flex; gap: 8px; margin: 16px 0; flex-wrap: wrap;">`;
+
+        // All 탭
+        const allActiveClass = selectedRetailer === 'all' ? 'active' : '';
+        html += `<button class="retailer-tab ${allActiveClass}" onclick="switchMasterTableRetailer('all')" style="padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 13px; ${selectedRetailer === 'all' ? 'background: #3b82f6; color: white; border-color: #3b82f6;' : 'background: white; color: #374151;'}">
+            All <span style="font-weight: 600;">(${totalCount})</span>
+        </button>`;
+
+        // 각 리테일러 탭
+        retailers.forEach(retailer => {
+            const count = retailerCounts[retailer];
+            const isActive = selectedRetailer === retailer;
+            html += `<button class="retailer-tab ${isActive ? 'active' : ''}" onclick="switchMasterTableRetailer('${retailer}')" style="padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 13px; ${isActive ? 'background: #3b82f6; color: white; border-color: #3b82f6;' : 'background: white; color: #374151;'}">
+                ${retailer} <span style="font-weight: 600;">(${count})</span>
+            </button>`;
+        });
+
+        html += `</div>`;
+
+        // Item 목록 추출 (중복 제거)
+        const items = [...new Set(filteredData.map(row => row.item).filter(item => item))];
+
+        if (items.length > 0) {
+            const productLine = (data.product_line || '').toUpperCase();
+            const tableName = productLine.includes('HHP') ? 'hhp_item_mst' : 'tv_item_mst';
+            const inClauseWithQuotes = items.map(item => `'${item}'`).join(', ');
+            const itemListDisplay = items.join(', ');
+
+            // 리테일러 조건 추가
+            let retailerCondition = '';
+            if (selectedRetailer !== 'all') {
+                retailerCondition = `\n  AND account_name = '${selectedRetailer}'`;
+            }
+
+            const query = `SELECT id, account_name, item, is_product, product_url
+FROM ${tableName}
+WHERE item IN (${inClauseWithQuotes})${retailerCondition}
+ORDER BY account_name, item;`;
+
+            html += `
+            <div class="query-section" style="display: flex; gap: 16px; margin-bottom: 16px;">
+                <div class="item-list-box" style="flex: 0 0 300px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px;">
+                    <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 13px; font-weight: 600; color: #dc2626;">Item 목록 (${items.length}개)</span>
+                        <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('master-item-list'))" style="padding: 4px 10px; font-size: 11px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+                    </div>
+                    <div id="master-item-list" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${itemListDisplay}</div>
+                </div>
+                <div class="query-box" style="flex: 1; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px;">
+                    <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 13px; font-weight: 600; color: #374151;">조회 쿼리 (${tableName})</span>
+                        <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('master-query-box'))" style="padding: 4px 10px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+                    </div>
+                    <pre id="master-query-box" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #1e40af; background: #dbeafe; padding: 10px; border-radius: 6px; margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto;">${query}</pre>
+                </div>
+            </div>`;
+        }
+
+        // 데이터 테이블
+        if (filteredData.length === 0) {
+            html += '<p>해당 리테일러에 대한 이상치 데이터가 없습니다.</p>';
+        } else {
+            html += '<div class="table-scroll-container"><table class="detail-table"><thead><tr>';
+            html += '<th>No.</th>';
+
+            if (displayColumns.length > 0) {
+                displayColumns.forEach(col => {
+                    html += `<th>${col.label}</th>`;
+                });
+            } else {
+                html += '<th>ID</th><th>Item</th><th>Retailer</th><th>SKU</th><th>URL</th>';
+            }
+            html += '</tr></thead><tbody>';
+
+            filteredData.forEach((row, idx) => {
+                html += '<tr>';
+                html += `<td>${idx + 1}</td>`;
+
+                if (displayColumns.length > 0) {
+                    displayColumns.forEach(col => {
+                        const value = row[col.key];
+                        if (col.key.toLowerCase().includes('url') && value) {
+                            html += `<td><a href="${value}" target="_blank" style="color: #1976d2;">링크</a></td>`;
+                        } else {
+                            html += `<td>${value !== null && value !== undefined ? value : '-'}</td>`;
+                        }
+                    });
+                } else {
+                    html += `<td>${row.id || '-'}</td>`;
+                    html += `<td>${row.item || '-'}</td>`;
+                    html += `<td>${row.account_name || '-'}</td>`;
+                    html += `<td>${row.sku || '-'}</td>`;
+                    if (row.product_url) {
+                        html += `<td><a href="${row.product_url}" target="_blank" style="color: #1976d2;">링크</a></td>`;
+                    } else {
+                        html += '<td>-</td>';
+                    }
+                }
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+        }
+
+        const displayCount = selectedRetailer === 'all' ? totalCount : (retailerCounts[selectedRetailer] || 0);
+        document.getElementById('modal-title').textContent = `${ruleName} - ${selectedRetailer === 'all' ? '전체' : selectedRetailer} (${displayCount}건)`;
+        document.getElementById('modal-body').innerHTML = html;
+    }
+
+    // 마스터 테이블 리테일러 탭 전환
+    function switchMasterTableRetailer(retailer) {
+        masterTableDetailState.currentRetailer = retailer;
+        renderMasterTableDetail(masterTableDetailState.data, masterTableDetailState.ruleName, retailer);
+    }
+
     // 카테고리별 특성 규칙 요약으로 돌아가기
     function backToCategorySpecSummary() {
         if (window.categorySpecSummaryData && window.categorySpecTitle) {
@@ -1907,14 +2226,95 @@ ORDER BY item, ${dateColumn} ASC;`;
         let html = '';
         html += `<button class="btn-back" onclick="backToRetailerList()">← 뒤로가기</button>`;
 
-        // IN절 표시
-        const inClause = items.map(item => `'${item}'`).join(', ');
+        // 3일치 조회 쿼리 생성
+        const productLine = window.crossfieldProductLine || 'HHP';
+        const date = window.crossfieldDate || new Date().toISOString().slice(0, 10);
+        const tableName = productLine.toUpperCase() === 'HHP' ? 'hhp_retail_com' : 'tv_retail_com';
+        const dateCol = productLine.toUpperCase() === 'HHP' ? 'crawl_strdatetime' : 'crawl_datetime';
+
+        // select_fields가 있으면 CSV에서 지정한 필드 사용, 없으면 동적 추출
+        let dynamicCols = [];
+        const selectFieldsRaw = window.crossfieldSelectFields || '';
+        if (selectFieldsRaw) {
+            // 파이프(|)로 구분된 필드 목록 파싱
+            dynamicCols = selectFieldsRaw.split('|').map(f => f.trim()).filter(f => f);
+        } else {
+            // 기존 로직: 고정 컬럼 제외하고 동적 추출
+            const excludeCols = ['id', 'item', dateCol, 'account_name', 'product_url', 'page_type'];
+            if (rows.length > 0) {
+                Object.keys(rows[0]).forEach(key => {
+                    if (!excludeCols.includes(key)) {
+                        dynamicCols.push(key);
+                    }
+                });
+            }
+        }
+
+        // 순서: id, account_name, item, crawl_datetime, 동적컬럼, (validation컬럼), product_url
+        const inClauseWithQuotes = items.map(item => `'${item}'`).join(', ');
+        const itemListDisplay = items.join(', ');
+
+        // cross_detail_mismatch 타입이면 validation_tag 컬럼 추가 (리테일러별 패턴)
+        const validationType = window.crossfieldValidationType || '';
+        let validationTagCol = '';
+        if (validationType === 'cross_detail_mismatch') {
+            if (productLine.toUpperCase() === 'TV') {
+                // TV: 리테일러별 패턴 다름
+                if (retailer === 'Amazon') {
+                    // Amazon: {N}-
+                    validationTagCol = `
+    LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-' AS expected_pattern,
+    CASE WHEN LOWER(detailed_review_content) LIKE '%' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,`;
+                } else if (retailer === 'Bestbuy') {
+                    // Bestbuy: review {N}-
+                    validationTagCol = `
+    'review ' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-' AS expected_pattern,
+    CASE WHEN LOWER(detailed_review_content) LIKE '%review ' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,`;
+                } else {
+                    // Walmart: review{N}-
+                    validationTagCol = `
+    'review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-' AS expected_pattern,
+    CASE WHEN LOWER(detailed_review_content) LIKE '%review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,`;
+                }
+            } else {
+                // HHP: 모든 리테일러 동일 패턴 (review{N} -)
+                validationTagCol = `
+    'review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || ' -' AS expected_pattern,
+    CASE WHEN LOWER(detailed_review_content) LIKE '%review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || ' -%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,`;
+            }
+        }
+
+        // 순서: id, account_name, item, crawl_datetime, 동적컬럼, (validation컬럼), product_url
+        let selectCols = ['id', 'account_name', 'item', dateCol, ...dynamicCols].join(', ');
+
+        const query = `SELECT ${selectCols},${validationTagCol}
+    product_url
+FROM ${tableName}
+WHERE account_name = '${retailer}'
+    AND item IN (${inClauseWithQuotes})
+    AND DATE(${dateCol}::timestamp) >= DATE('${date}') - INTERVAL '2 days'
+    AND DATE(${dateCol}::timestamp) <= DATE('${date}')
+ORDER BY item, ${dateCol};`;
+
+        // 필드누락 상세보기와 동일한 레이아웃 (Item 목록 + 3일치 조회 쿼리 나란히)
+        const retailerSafe = retailer.replace(/[^a-zA-Z0-9]/g, '');
         html += `
-            <div class="retailer-items-section" style="margin-bottom: 16px;">
-                <div class="retailer-items-header">${retailer} - Item 목록 (${items.length}건)</div>
-                <div class="retailer-items-in-clause" onclick="copyToClipboard(this)" title="클릭하여 복사">${inClause}</div>
-            </div>
-        `;
+            <div class="query-section" style="display: flex; gap: 16px; margin-bottom: 16px;">
+                <div class="item-list-box" style="flex: 0 0 300px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px;">
+                    <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 13px; font-weight: 600; color: #dc2626;">${retailer} - Item 목록 (${items.length}개)</span>
+                        <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('item-list-${retailerSafe}'))" style="padding: 4px 10px; font-size: 11px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+                    </div>
+                    <div id="item-list-${retailerSafe}" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${itemListDisplay}</div>
+                </div>
+                <div class="query-box" style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                    <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 13px; font-weight: 600; color: #374151;">3일치 조회 쿼리</span>
+                        <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('query-box-${retailerSafe}'))" style="padding: 4px 10px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+                    </div>
+                    <pre id="query-box-${retailerSafe}" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto; margin: 0;">${query}</pre>
+                </div>
+            </div>`;
 
         // 동적으로 컬럼 추출 (id, item, account_name, page_type 제외)
         const excludeKeys = ['id', 'item', 'account_name', 'page_type'];
@@ -1940,24 +2340,24 @@ ORDER BY item, ${dateColumn} ASC;`;
         }
         html += '</tr></thead><tbody>';
 
-        // item별 색상 매핑 (회색/흰색 교대)
-        const itemColorMap = {};
+        // product_url별 색상 매핑 (회색/흰색 교대)
+        const urlColorMap = {};
         let colorIndex = 0;
         rows.forEach(row => {
-            const item = row.item || '-';
-            if (!(item in itemColorMap)) {
-                itemColorMap[item] = colorIndex % 2 === 0 ? '#f5f5f5' : '#ffffff';
+            const url = row.product_url || '-';
+            if (!(url in urlColorMap)) {
+                urlColorMap[url] = colorIndex % 2 === 0 ? '#f5f5f5' : '#ffffff';
                 colorIndex++;
             }
         });
 
         rows.forEach((row, idx) => {
-            const item = row.item || '-';
-            const bgColor = itemColorMap[item];
+            const url = row.product_url || '-';
+            const bgColor = urlColorMap[url];
             html += `<tr style="background-color: ${bgColor};">`;
             html += `<td>${idx + 1}</td>`;
             html += `<td>${row.id || '-'}</td>`;
-            html += `<td>${item}</td>`;
+            html += `<td>${row.item || '-'}</td>`;
             html += `<td>${row.page_type || '-'}</td>`;
             otherKeys.forEach(key => {
                 const value = row[key];
@@ -1978,7 +2378,11 @@ ORDER BY item, ${dateColumn} ASC;`;
 
         // 현재 모달 제목 저장
         window.crossfieldCurrentTitle = document.getElementById('modal-title').textContent;
-        document.getElementById('modal-title').textContent = `${retailer} (${rows.length}건)`;
+
+        // 타이틀: 검증항목 : productLine retailer (건수)
+        const productLineDisplay = (window.crossfieldProductLine || 'HHP').toUpperCase();
+        const ruleNameDisplay = window.crossfieldRuleName || '';
+        document.getElementById('modal-title').textContent = `${ruleNameDisplay} : ${productLineDisplay} ${retailer} (${rows.length}건)`;
         document.getElementById('modal-body').innerHTML = html;
     }
 
@@ -2436,23 +2840,25 @@ ORDER BY item, ${dateColumn} ASC;`;
         // 테이블 (세로 스크롤)
         html += '<div style="max-height: calc(70vh - 180px); overflow-y: auto;">';
         html += '<table class="detail-table"><thead><tr>';
-        html += '<th style="width: 50%; position: sticky; top: 0; background: #f8f9fa;">필드명</th>';
-        html += '<th style="width: 25%; text-align: right; position: sticky; top: 0; background: #f8f9fa;">누락 건수</th>';
-        html += '<th style="width: 25%; text-align: right; position: sticky; top: 0; background: #f8f9fa;">비고</th>';
+        html += '<th style="width: 40%; position: sticky; top: 0; background: #f8f9fa;">필드명</th>';
+        html += '<th style="width: 20%; text-align: right; position: sticky; top: 0; background: #f8f9fa;">누락 item 수</th>';
+        html += '<th style="width: 20%; text-align: right; position: sticky; top: 0; background: #f8f9fa;">누락 건수</th>';
+        html += '<th style="width: 20%; text-align: right; position: sticky; top: 0; background: #f8f9fa;">비고</th>';
         html += '</tr></thead><tbody>';
 
         missingFields.forEach(f => {
-            const count = f.today_missing_items || 0;
+            const itemCount = f.today_missing_items || 0;
+            const rowCount = f.today_null_rows || 0;
             let statusClass = '';
             let statusText = '';
 
-            if (count >= 20) {
+            if (itemCount >= 20) {
                 statusClass = 'color: #dc2626; font-weight: 600;';
                 statusText = '심각';
-            } else if (count >= 10) {
+            } else if (itemCount >= 10) {
                 statusClass = 'color: #f59e0b; font-weight: 600;';
                 statusText = '주의';
-            } else if (count > 0) {
+            } else if (itemCount > 0) {
                 statusClass = 'color: #6b7280;';
                 statusText = '경미';
             }
@@ -2460,7 +2866,8 @@ ORDER BY item, ${dateColumn} ASC;`;
             // 필드명 클릭 시 상세 보기
             html += `<tr style="cursor: pointer;" onclick="viewFieldMissingDetail('${retailer}', '${f.column}', '${date}')">
                 <td style="font-weight: 500; color: #2563eb;">${f.column}</td>
-                <td style="text-align: right; ${statusClass}">${count}건</td>
+                <td style="text-align: right; ${statusClass}">${itemCount}개</td>
+                <td style="text-align: right; ${statusClass}">${rowCount}건</td>
                 <td style="text-align: right; ${statusClass}">${statusText}</td>
             </tr>`;
         });
@@ -2516,14 +2923,18 @@ ORDER BY item, ${dateColumn} ASC;`;
         // 고유 item 목록 추출
         const uniqueItems = [...new Set(items.map(row => row.item).filter(Boolean))];
 
+        // 누락 item 수와 누락 데이터 수 (API에서 반환)
+        const missingItemCount = data.missing_item_count || uniqueItems.length;
+        const todayNullCount = data.today_null_count || 0;
+
         // 상단: 뒤로가기 + 정보
         let html = `<div style="margin-bottom: 12px; padding: 12px; background: var(--bg-primary); border-radius: 8px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
             <button onclick="viewMissingSummary('${retailer}', '${data.date}')" style="padding: 6px 12px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">← 뒤로가기</button>
             <span style="color: #6b7280;">|</span>
             <span><strong>필드:</strong> <span style="color: #dc2626;">${field}</span></span>
             <span><strong>기간:</strong> ${data.prev_dates?.[0] || ''} ~ ${data.date || ''}</span>
-            <span><strong>누락 item:</strong> ${uniqueItems.length}개</span>
-            <span><strong>총 행:</strong> ${items.length}건</span>
+            <span><strong>누락 item 수:</strong> <span style="color: #dc2626;">${missingItemCount}개</span></span>
+            <span><strong>누락 데이터 수:</strong> <span style="color: #dc2626;">${todayNullCount}건</span></span>
         </div>`;
 
         // 누락 item 목록 및 조회 쿼리 표시
@@ -3421,11 +3832,6 @@ ORDER BY item, ${dateColumn} ASC;`;
                     example: '오류: final=$99, original=$999 (90% 할인)'
                 },
                 {
-                    title: '상위 순위 ↔ count_of_star_ratings 일관성',
-                    description: 'main_rank 또는 bsr_rank가 10위 이내인 상품인데 리뷰가 없는 경우 검토가 필요합니다.',
-                    example: '검토: main_rank=3, count_of_star_ratings=0'
-                },
-                {
                     title: 'count_of_reviews ↔ detailed_review_content 일관성',
                     description: '리테일러별 형식으로 검증합니다. Amazon: "N-" 형식, Bestbuy: "|" 구분자 개수, Walmart: "reviewN" 형식',
                     example: 'Amazon: 5- / Bestbuy: 구분자 19개=리뷰 20개 / Walmart: review5'
@@ -3456,11 +3862,6 @@ ORDER BY item, ${dateColumn} ASC;`;
                     title: '할인율 90% 이상 검증',
                     description: '두 가격 필드 간 할인율이 90% 이상인 경우 비정상적인 가격 관계로 판정합니다.',
                     example: '오류: final=$99, original=$999 (90% 할인)'
-                },
-                {
-                    title: '상위 순위 ↔ count_of_star_ratings 일관성',
-                    description: 'main_rank 또는 bsr_rank가 10위 이내인 상품인데 리뷰가 없는 경우 검토가 필요합니다.',
-                    example: '검토: main_rank=3, count_of_star_ratings=0'
                 },
                 {
                     title: 'count_of_reviews ↔ detailed_review_content 일관성',

@@ -69,6 +69,86 @@ def get_all_no_review_texts():
     return "'No customer reviews', 'Not yet reviewed', 'No ratings yet'"
 
 
+def validate_review_detail_match(row, product_line, return_detail=False):
+    """count_of_reviews와 detailed_review_content 매칭 검증 (후처리)
+
+    Args:
+        row: dict - 쿼리 결과 행 (count_of_reviews, detailed_review_content, account_name 포함)
+        product_line: str - 'tv' 또는 'hhp'
+        return_detail: bool - True면 상세 정보(dict) 반환, False면 bool만 반환
+
+    Returns:
+        return_detail=False: bool - True면 불일치(에러), False면 정상
+        return_detail=True: dict - {
+            'is_error': bool,
+            'reason': str,
+            'expected_pattern': str,
+            'pattern_found': bool,
+            'max_review_num': int
+        }
+
+    패턴 규칙:
+        - TV Amazon: {N}- (예: 1-, 2-, ..., 10-)
+        - TV Bestbuy: review {N}- (예: review 1-, review 2-)
+        - TV Walmart: review{N}- (예: review1-, review2-)
+        - HHP (all): review{N} - (예: review1 -, review2 -)
+    """
+    count_of_reviews = row.get('count_of_reviews', '')
+    detailed_review_content = row.get('detailed_review_content', '')
+    account_name = row.get('account_name', '')
+
+    def make_result(is_error, reason='', pattern='', found=False, max_num=0):
+        if return_detail:
+            return {
+                'is_error': is_error,
+                'reason': reason,
+                'expected_pattern': pattern,
+                'pattern_found': found,
+                'max_review_num': max_num
+            }
+        return is_error
+
+    # count_of_reviews 파싱
+    try:
+        review_count = int(str(count_of_reviews).replace(',', ''))
+    except (ValueError, TypeError):
+        return make_result(False, '리뷰 수 파싱 불가')
+
+    if review_count <= 0:
+        return make_result(False, '리뷰 수 0 이하')
+
+    # detailed_review_content가 없으면 에러
+    if not detailed_review_content or detailed_review_content.strip() == '':
+        return make_result(True, '본문 없음', '', False, min(review_count, 20))
+
+    # no_review_texts 체크
+    no_review_texts = ['No customer reviews', 'Not yet reviewed', 'No ratings yet']
+    if detailed_review_content in no_review_texts:
+        return make_result(True, '리뷰없음 텍스트', '', False, min(review_count, 20))
+
+    # 검증할 리뷰 번호 (최대 20까지만)
+    max_review_num = min(review_count, 20)
+
+    # 패턴 생성 (product_line과 account_name에 따라)
+    if product_line.lower() in ['tv', 'tv_retail']:
+        if account_name == 'Amazon':
+            pattern = f"{max_review_num}-"
+        elif account_name == 'Bestbuy':
+            pattern = f"review {max_review_num}-"
+        else:  # Walmart
+            pattern = f"review{max_review_num}-"
+    else:  # HHP
+        pattern = f"review{max_review_num} -"
+
+    # 패턴이 detailed_review_content에 있는지 확인
+    pattern_found = pattern.lower() in detailed_review_content.lower()
+
+    if pattern_found:
+        return make_result(False, '정상', pattern, True, max_review_num)
+    else:
+        return make_result(True, f'패턴 "{pattern}" 없음', pattern, False, max_review_num)
+
+
 def get_category_display_name(category, rules=None):
     """category 코드를 화면에 표시할 이름으로 변환 (CSV의 category_name 사용)"""
     # rules가 전달되면 첫 번째 규칙의 category_name 사용
@@ -139,21 +219,19 @@ def validate_all_category_specs(target_date):
             if not query_template:
                 continue
 
-            # 날짜 컬럼 결정
-            date_col = 'crawl_strdatetime' if 'hhp' in table_name else 'crawl_datetime::timestamp'
-            if 'forecast' in table_name or 'market' in table_name:
-                date_col = 'crawled_at'
+            # CSV에서 date_column 읽기 (빈값이면 날짜 필터 없음)
+            date_col = rule.get('date_column', '').strip()
+            has_date_filter = bool(date_col)
 
             try:
-                # 전체 건수 쿼리 (테이블별)
-                if 'forecast' in table_name or 'openai' in table_name:
-                    total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE(crawled_at) = %s"
-                elif 'hhp' in table_name:
-                    total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE(crawl_strdatetime) = %s"
+                # 전체 건수 쿼리 (date_column 기반)
+                if has_date_filter:
+                    total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE({date_col}) = %s"
+                    cursor.execute(total_query, (target_date,))
                 else:
-                    total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE(crawl_datetime::timestamp) = %s"
+                    total_query = f"SELECT COUNT(*) FROM {table_name}"
+                    cursor.execute(total_query)
 
-                cursor.execute(total_query, (target_date,))
                 total_count = cursor.fetchone()[0] or 0
 
                 # 이상치 쿼리 실행
@@ -162,7 +240,12 @@ def validate_all_category_specs(target_date):
                 # CSV에서 이미 %%로 이스케이프된 경우는 그대로 유지
                 if '%%' not in query:
                     query = query.replace('%', '%%').replace('%%s', '%s')
-                cursor.execute(query, (target_date,))
+
+                # date_column이 있으면 날짜 파라미터 전달, 없으면 파라미터 없이 실행
+                if has_date_filter:
+                    cursor.execute(query, (target_date,))
+                else:
+                    cursor.execute(query)
                 anomaly_count = cursor.rowcount
 
                 cat_total += total_count
@@ -200,14 +283,19 @@ def validate_all_category_specs(target_date):
 
 
 def execute_crossfield_query(rule, table_name, date_col, target_date, product_line='tv'):
-    """CSV 규칙의 쿼리를 실행하고 결과 건수 반환"""
+    """CSV 규칙의 쿼리를 실행하고 결과 건수 반환
+
+    예외 처리된 record_id는 결과에서 제외됨
+    """
     query_template = rule.get('query', '')
+    rule_id = str(rule.get('rule_id', ''))
+
     if not query_template:
-        print(f"[DEBUG] Rule {rule.get('rule_id')}: query_template is empty")
+        print(f"[DEBUG] Rule {rule_id}: query_template is empty")
         return 0, []
 
     if not query_template.strip().upper().startswith('SELECT'):
-        print(f"[DEBUG] Rule {rule.get('rule_id')}: query does not start with SELECT: {query_template[:50]}...")
+        print(f"[DEBUG] Rule {rule_id}: query does not start with SELECT: {query_template[:50]}...")
         return 0, []
 
     # 쿼리 템플릿 변수 치환
@@ -232,10 +320,19 @@ def execute_crossfield_query(rule, table_name, date_col, target_date, product_li
 
         # 결과를 dict 리스트로 변환
         results = [dict(zip(columns, row)) for row in rows]
-        return len(rows), results
+
+        # cross_detail_mismatch 타입은 Python 후처리로 필터링
+        validation_type = rule.get('validation_type', '')
+        if validation_type == 'cross_detail_mismatch':
+            # product_line 추출 (tv_retail -> tv, hhp_retail -> hhp)
+            pl = 'tv' if 'tv' in product_line.lower() else 'hhp'
+            # 실제 에러인 행만 필터링 (validate_review_detail_match가 True를 반환하면 에러)
+            results = [r for r in results if validate_review_detail_match(r, pl)]
+
+        return len(results), results
     except Exception as e:
         import traceback
-        print(f"[ERROR] Crossfield query failed for rule {rule.get('rule_id')}: {e}")
+        print(f"[ERROR] Crossfield query failed for rule {rule_id}: {e}")
         print(f"[DEBUG] Query: {query[:500]}...")
         print(f"[DEBUG] Traceback: {traceback.format_exc()}")
         return 0, []
@@ -285,10 +382,17 @@ def validate_crossfield_by_csv(target_date, category='tv_retail'):
             'display_name': rule.get('display_name'),
             'field1': rule.get('field1'),
             'field2': rule.get('field2'),
+            'validation_type': rule.get('validation_type'),  # 검증 타입 추가
             'error_message': rule.get('error_message'),
             'error_count': error_count,
-            'error_details': error_details  # 전체 상세 반환
+            'error_details': error_details,  # 전체 상세 반환
+            'query': rule.get('query', ''),  # 검증 쿼리 추가
+            'select_fields': rule.get('select_fields', '')  # 조회쿼리용 필드 목록 (파이프 구분)
         })
+
+    # 테이블/컬럼 정보도 결과에 포함 (프론트엔드 플레이스홀더 치환용)
+    results['table_name'] = table_name
+    results['date_col'] = date_col
 
     return results
 
@@ -439,49 +543,6 @@ def validate_cross_field(row_data, account_name='Amazon', product_line='tv'):
                             })
             except (ValueError, TypeError):
                 pass
-
-    # 6. 상위 순위인데 리뷰 0개 (순위 10위 이내인데 리뷰 없음) - 크로스 필드 검증
-    if main_rank is not None:
-        try:
-            rank_val = int(main_rank)
-            if rank_val <= 10:
-                count_str = str(count_of_star_ratings).strip() if count_of_star_ratings else ''
-                if count_str == '' or count_str in no_review_texts:
-                    errors.append({
-                        'field': 'main_rank ↔ count_of_star_ratings',
-                        'value': f'main_rank={rank_val}, count_of_star_ratings={count_of_star_ratings}',
-                        'error': f'상위 순위({rank_val}위)인데 리뷰가 없음'
-                    })
-                elif count_str.replace(',', '').isdigit() and int(count_str.replace(',', '')) == 0:
-                    errors.append({
-                        'field': 'main_rank ↔ count_of_star_ratings',
-                        'value': f'main_rank={rank_val}, count_of_star_ratings=0',
-                        'error': f'상위 순위({rank_val}위)인데 리뷰 수가 0'
-                    })
-        except (ValueError, TypeError):
-            pass
-
-    # 8. bsr_rank가 10위 이내인데 리뷰가 없는 경우 (검토 필요)
-    bsr_rank = row_data.get('bsr_rank')
-    if bsr_rank is not None and str(bsr_rank).strip() != '':
-        try:
-            rank_val = int(bsr_rank)
-            if rank_val <= 10:
-                count_str = str(count_of_star_ratings).strip() if count_of_star_ratings else ''
-                if count_str == '' or count_str in no_review_texts:
-                    errors.append({
-                        'field': 'bsr_rank ↔ count_of_star_ratings',
-                        'value': f'bsr_rank={rank_val}, count_of_star_ratings={count_of_star_ratings}',
-                        'error': f'베스트셀러 상위({rank_val}위)인데 리뷰가 없음'
-                    })
-                elif count_str.replace(',', '').isdigit() and int(count_str.replace(',', '')) == 0:
-                    errors.append({
-                        'field': 'bsr_rank ↔ count_of_star_ratings',
-                        'value': f'bsr_rank={rank_val}, count_of_star_ratings=0',
-                        'error': f'베스트셀러 상위({rank_val}위)인데 리뷰 수가 0'
-                    })
-        except (ValueError, TypeError):
-            pass
 
     # 9. count_of_reviews와 detail_review_content 일관성 검증
     # 리테일러/제품군별 형식:
@@ -1214,6 +1275,8 @@ def cross_field_detail(request):
                 if str(rule_result['rule_id']) == str(rule_id):
                     # 해당 규칙의 상세 데이터 반환
                     anomalies = []
+                    validation_type = rule_result.get('validation_type', '')
+
                     for detail in rule_result['error_details']:
                         # 모든 컬럼 포함
                         anomaly = {
@@ -1225,6 +1288,13 @@ def cross_field_detail(request):
                         for key, value in detail.items():
                             if key not in ['item', 'account_name', 'page_type']:
                                 anomaly[key] = value
+
+                        # cross_detail_mismatch 타입이면 validation_tag 추가
+                        if validation_type == 'cross_detail_mismatch':
+                            validation_info = validate_review_detail_match(detail, product_line, return_detail=True)
+                            anomaly['validation_tag'] = validation_info.get('reason', '')
+                            anomaly['expected_pattern'] = validation_info.get('expected_pattern', '')
+
                         anomalies.append(anomaly)
 
                     # account_name, item, crawl_datetime 순으로 정렬
@@ -1241,9 +1311,11 @@ def cross_field_detail(request):
                         'rule_name': rule_result['rule_name'],
                         'field1': rule_result['field1'],
                         'field2': rule_result['field2'],
+                        'validation_type': validation_type,  # 검증 타입 추가
                         'error_message': rule_result['error_message'],
                         'total_anomalies': rule_result['error_count'],
-                        'anomalies': anomalies
+                        'anomalies': anomalies,
+                        'select_fields': rule_result.get('select_fields', '')  # 조회쿼리용 필드 목록
                     })
 
             return JsonResponse({'error': f'Rule {rule_id} not found'})
@@ -1257,16 +1329,26 @@ def cross_field_detail(request):
                 'rule_name': r['rule_name'],
                 'field1': r['field1'],
                 'field2': r['field2'],
+                'validation_type': r.get('validation_type', ''),  # 검증 타입 추가
                 'error_message': r['error_message'],
-                'error_count': r['error_count']
+                'error_count': r['error_count'],
+                'query': r.get('query', ''),  # 검증 쿼리 추가
+                'select_fields': r.get('select_fields', '')  # 조회쿼리용 필드 목록
             })
             total_anomalies += r['error_count']
+
+        # 테이블/컬럼 정보 (플레이스홀더 치환용)
+        table_name = crossfield_result.get('table_name', '')
+        date_col = crossfield_result.get('date_col', '')
 
         return JsonResponse({
             'date': str(target_date),
             'product_line': product_line.upper(),
             'total_anomalies': total_anomalies,
-            'rule_summary': rule_summary
+            'rule_summary': rule_summary,
+            'table_name': table_name,
+            'date_col': date_col,
+            'no_review_texts': get_all_no_review_texts()
         })
 
     except Exception as e:
@@ -2305,21 +2387,19 @@ def category_spec_detail(request):
                 if not query_template:
                     continue
 
-                # 날짜 컬럼 결정
-                date_col = 'crawl_strdatetime' if 'hhp' in table_name else 'crawl_datetime::timestamp'
-                if 'forecast' in table_name or 'openai' in table_name:
-                    date_col = 'crawled_at'
+                # CSV에서 date_column 읽기 (빈값이면 날짜 필터 없음)
+                date_col = rule.get('date_column', '').strip()
+                has_date_filter = bool(date_col)
 
                 try:
-                    # 전체 건수 쿼리
-                    if 'forecast' in table_name or 'openai' in table_name:
-                        total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE(crawled_at) = %s"
-                    elif 'hhp' in table_name:
-                        total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE(crawl_strdatetime) = %s"
+                    # 전체 건수 쿼리 (date_column 기반)
+                    if has_date_filter:
+                        total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE({date_col}) = %s"
+                        cursor.execute(total_query, (target_date,))
                     else:
-                        total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE(crawl_datetime::timestamp) = %s"
+                        total_query = f"SELECT COUNT(*) FROM {table_name}"
+                        cursor.execute(total_query)
 
-                    cursor.execute(total_query, (target_date,))
                     total_count = cursor.fetchone()[0] or 0
 
                     # 이상치 쿼리 실행
@@ -2327,7 +2407,11 @@ def category_spec_detail(request):
                     # LIKE 절의 %를 %%로 이스케이프 (파라미터 바인딩 충돌 방지)
                     if '%%' not in query:
                         query = query.replace('%', '%%').replace('%%s', '%s')
-                    cursor.execute(query, (target_date,))
+
+                    if has_date_filter:
+                        cursor.execute(query, (target_date,))
+                    else:
+                        cursor.execute(query)
                     anomaly_count = cursor.rowcount
 
                     rules_summary.append({
@@ -2384,14 +2468,10 @@ def category_spec_detail(request):
             conn.close()
             return JsonResponse({'error': '규칙을 찾을 수 없습니다.', 'anomalies': []})
 
-        # 테이블과 날짜 컬럼 설정
+        # 테이블과 날짜 컬럼 설정 (CSV의 date_column 사용)
         table_name = target_rule.get('table_name', 'tv_retail_com')
-        if 'forecast' in table_name or 'openai' in table_name:
-            date_col = 'crawled_at'
-        elif 'hhp' in table_name:
-            date_col = 'crawl_strdatetime'
-        else:
-            date_col = 'crawl_datetime::timestamp'
+        date_col = target_rule.get('date_column', '').strip()
+        has_date_filter = bool(date_col)
 
         # CSV에서 쿼리 가져와서 실행
         query_template = target_rule.get('query', '')
@@ -2400,7 +2480,12 @@ def category_spec_detail(request):
             # LIKE 절의 %를 %%로 이스케이프 (파라미터 바인딩 충돌 방지)
             if '%%' not in query:
                 query = query.replace('%', '%%').replace('%%s', '%s')
-            cursor.execute(query, (target_date,))
+
+            # date_column이 있으면 날짜 파라미터 전달, 없으면 파라미터 없이 실행
+            if has_date_filter:
+                cursor.execute(query, (target_date,))
+            else:
+                cursor.execute(query)
         else:
             cursor.close()
             conn.close()
@@ -2434,13 +2519,26 @@ def category_spec_detail(request):
                     db_col, display_name = col_pair.split(':', 1)
                     display_columns.append({'key': db_col.strip(), 'label': display_name.strip()})
 
+        # 마스터 테이블인 경우 리테일러별로 그룹화
+        is_master_table = table_name.endswith('_mst')
+        retailer_data = {}
+        if is_master_table and anomalies:
+            for row in anomalies:
+                retailer_name = row.get('account_name', 'Unknown')
+                if retailer_name not in retailer_data:
+                    retailer_data[retailer_name] = []
+                retailer_data[retailer_name].append(row)
+
         return JsonResponse({
             'date': str(target_date),
             'product_line': target_rule.get('product_line', product_line).upper(),
             'check_type': check_type,
             'total_anomalies': len(anomalies),
             'display_columns': display_columns,
-            'anomalies': anomalies
+            'anomalies': anomalies,
+            'is_master_table': is_master_table,
+            'retailer_data': retailer_data,
+            'retailer_counts': {k: len(v) for k, v in retailer_data.items()} if is_master_table else {}
         })
 
     except Exception as e:
@@ -2551,11 +2649,12 @@ def field_missing_detection(request):
             rows = cursor.fetchall()
 
             # 각 필드별 누락 카운트 계산
-            field_stats = {col: {'prev_count': 0, 'missing_count': 0} for col in columns_to_check}
+            field_stats = {col: {'prev_count': 0, 'missing_count': 0, 'missing_items': []} for col in columns_to_check}
             num_cols = len(columns_to_check)
 
             for row in rows:
                 # row: (item, prev_col1, prev_col2, ..., today_col1, today_col2, ...)
+                item_name = row[0]
                 for i, col in enumerate(columns_to_check):
                     prev_val = row[1 + i]  # prev 값들
                     today_val = row[1 + num_cols + i]  # today 값들
@@ -2563,6 +2662,24 @@ def field_missing_detection(request):
                         field_stats[col]['prev_count'] += 1
                         if today_val == 1:
                             field_stats[col]['missing_count'] += 1
+                            field_stats[col]['missing_items'].append(item_name)
+
+            # 각 필드별 오늘 날짜 누락 데이터 수(행 수) 조회
+            for col in columns_to_check:
+                stats = field_stats[col]
+                if stats['missing_count'] > 0 and stats['missing_items']:
+                    # 누락 item들의 오늘 날짜 NULL 행 수 조회
+                    safe_col = f'"{col}"'
+                    placeholders = ', '.join(['%s'] * len(stats['missing_items']))
+                    null_count_query = f"""
+                        SELECT COUNT(*) FROM {table_name}
+                        WHERE account_name = %s
+                        AND DATE({date_column}) = %s
+                        AND item IN ({placeholders})
+                        AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = '')
+                    """
+                    cursor.execute(null_count_query, (ret, target_date, *stats['missing_items']))
+                    stats['today_null_rows'] = cursor.fetchone()[0] or 0
 
             # 결과 집계
             for col in columns_to_check:
@@ -2574,6 +2691,7 @@ def field_missing_detection(request):
                         'column': col,
                         'prev_had_value_items': stats['prev_count'],
                         'today_missing_items': stats['missing_count'],
+                        'today_null_rows': stats.get('today_null_rows', 0),  # 누락 데이터 수 (행 수)
                         'missing_rate': round(stats['missing_count'] / stats['prev_count'] * 100, 2) if stats['prev_count'] > 0 else 0
                     })
 
@@ -3004,6 +3122,7 @@ def field_missing_detail_by_field(request):
 
         # 데이터 변환
         all_data = []
+        today_null_count = 0  # 오늘 날짜의 NULL 행 수
         for row in rows:
             row_dict = {}
             for i, col_name in enumerate(column_names):
@@ -3014,6 +3133,12 @@ def field_missing_detail_by_field(request):
                     val = val[:100] + '...'
                 row_dict[col_name] = val
             all_data.append(row_dict)
+
+            # 오늘 날짜이고 해당 필드가 NULL인 경우 카운트
+            crawl_date = row_dict.get('crawl_datetime', '')[:10] if row_dict.get('crawl_datetime') else ''
+            field_val = row_dict.get(field)
+            if crawl_date == str(target_date) and (field_val is None or field_val == ''):
+                today_null_count += 1
 
         cursor.close()
         conn.close()
@@ -3027,6 +3152,8 @@ def field_missing_detail_by_field(request):
             'field': field,
             'columns': column_names,
             'total_rows': len(all_data),
+            'missing_item_count': len(missing_items),  # 누락 item 수
+            'today_null_count': today_null_count,  # 오늘 날짜의 누락 데이터 수
             'data': all_data
         })
 
@@ -3087,7 +3214,7 @@ def category_rules(request):
         - category: category 코드로 필터링 (tv_retail, hhp_retail, market_forecast 등)
         - display_name: 화면 표시 이름으로 필터링 (TV 카테고리 특성, Forecast 등)
     """
-    category = request.GET.get('category', '')
+    category_param = request.GET.get('category', '')
     display_name = request.GET.get('display_name', '')
 
     try:
@@ -3106,7 +3233,7 @@ def category_rules(request):
             # display_name에 해당하는 category 찾기
             target_category = display_to_category.get(display_name, '')
             if target_category:
-                category = target_category
+                category_param = target_category
 
         # category별 필터링
         filtered_rules = []
@@ -3114,7 +3241,7 @@ def category_rules(request):
             rule_category = rule.get('category', '').lower()
 
             # 지정된 category만 포함, 없으면 전체
-            if not category or category == 'all' or rule_category == category:
+            if not category_param or category_param == 'all' or rule_category == category_param:
                 filtered_rules.append({
                     'rule_id': rule.get('rule_id'),
                     'rule_name': rule.get('rule_name'),
@@ -3131,7 +3258,7 @@ def category_rules(request):
 
         return JsonResponse({
             'status': 'success',
-            'category': category or 'all',
+            'category': category_param or 'all',
             'total_rules': len(filtered_rules),
             'rules': filtered_rules
         })
@@ -3140,3 +3267,5 @@ def category_rules(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'status': 'error', 'message': str(e)})
+
+
