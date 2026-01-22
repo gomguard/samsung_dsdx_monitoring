@@ -1,0 +1,5 @@
+rule_id,rule_name,display_name,description,product_line,table_name,date_column,check_column,check_type,threshold_percent,threshold_min_value,comparison_type
+1,tv_price_change,TV 가격 급변,50% 초과 가격 변동 (오전↔전일오후/오후↔당일오전),tv,tv_retail_com,crawl_datetime,final_sku_price,price,50,0,am_pm
+2,tv_review_change,TV 리뷰 수 급변,50% 이상 & 30개 이상 리뷰 수 증가 (오전↔전일오후/오후↔당일오전),tv,tv_retail_com,crawl_datetime,count_of_star_ratings,review,50,30,am_pm
+3,hhp_price_change,HHP 가격 급변,50% 초과 가격 변동 (오전↔전일오후/오후↔당일오전),hhp,hhp_retail_com,crawl_strdatetime,final_sku_price,price,50,0,am_pm
+4,hhp_review_change,HHP 리뷰 수 급변,50% 이상 & 30개 이상 리뷰 수 증가 (오전↔전일오후/오후↔당일오전),hhp,hhp_retail_com,crawl_strdatetime,count_of_star_ratings,review,50,30,am_pm

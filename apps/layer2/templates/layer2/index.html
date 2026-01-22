@@ -1694,10 +1694,9 @@
         } else {
             // item 목록 및 쿼리 섹션을 테이블 위에 먼저 표시
             const items = [...new Set(filteredRecords.map(r => r.item).filter(Boolean))].sort();
-            if (items.length > 0 && isRetail) {
-                const inClause = items.map(item => `'${item}'`).join(', ');
-                const itemListDisplay = items.join(', ');
+            const ids = filteredRecords.map(r => r.id).filter(Boolean);
 
+            if (isRetail) {
                 // 테이블명 결정
                 const tableName = tableParam === 'tv_retail' ? 'tv_retail_com' : 'hhp_retail_com';
                 const retailerName = modalState.retailer || '';
@@ -1705,8 +1704,12 @@
                 // 쿼리 칼럼 결정 (query_config에서 가져오거나 기본값 사용)
                 const queryCols = queryColumns.length > 0 ? queryColumns.join(', ') : '*';
 
-                // 3일치 조회 쿼리 생성
-                const query3Days = `SELECT ${queryCols}
+                if (items.length > 0) {
+                    // item이 있는 경우: item 기반 쿼리
+                    const inClause = items.map(item => `'${item}'`).join(', ');
+                    const itemListDisplay = items.join(', ');
+
+                    const query3Days = `SELECT ${queryCols}
 FROM ${tableName}
 WHERE account_name = '${retailerName}'
   AND item IN (${inClause})
@@ -1714,24 +1717,52 @@ WHERE account_name = '${retailerName}'
   AND DATE(${dateColumn}::timestamp) <= DATE('${date}')
 ORDER BY item, ${dateColumn} ASC;`;
 
-                html += `
-                    <div class="item-query-section">
-                        <div class="item-list-box">
-                            <div class="item-copy-header">
-                                <span class="item-copy-title">Item 목록 (${items.length}개)</span>
-                                <button class="btn-copy" onclick="copyToClipboard(this.parentElement.nextElementSibling)">복사</button>
+                    html += `
+                        <div class="item-query-section">
+                            <div class="item-list-box">
+                                <div class="item-copy-header">
+                                    <span class="item-copy-title">Item 목록 (${items.length}개)</span>
+                                    <button class="btn-copy" onclick="copyToClipboard(this.parentElement.nextElementSibling)">복사</button>
+                                </div>
+                                <div class="item-copy-content">${itemListDisplay}</div>
                             </div>
-                            <div class="item-copy-content">${itemListDisplay}</div>
-                        </div>
-                        <div class="query-box">
-                            <div class="item-copy-header">
-                                <span class="item-copy-title">3일치 조회 쿼리 (${date} 기준)</span>
-                                <button class="btn-copy" onclick="copyToClipboard(this.parentElement.nextElementSibling)">복사</button>
+                            <div class="query-box">
+                                <div class="item-copy-header">
+                                    <span class="item-copy-title">3일치 조회 쿼리 (${date} 기준)</span>
+                                    <button class="btn-copy" onclick="copyToClipboard(this.parentElement.nextElementSibling)">복사</button>
+                                </div>
+                                <pre class="query-content">${query3Days}</pre>
                             </div>
-                            <pre class="query-content">${query3Days}</pre>
                         </div>
-                    </div>
-                `;
+                    `;
+                } else if (ids.length > 0) {
+                    // item이 NULL인 경우: ID 기반 쿼리
+                    const idInClause = ids.join(', ');
+                    const idListDisplay = ids.join(', ');
+
+                    const queryById = `SELECT ${queryCols}
+FROM ${tableName}
+WHERE id IN (${idInClause});`;
+
+                    html += `
+                        <div class="item-query-section">
+                            <div class="item-list-box">
+                                <div class="item-copy-header">
+                                    <span class="item-copy-title">ID 목록 (${ids.length}개)</span>
+                                    <button class="btn-copy" onclick="copyToClipboard(this.parentElement.nextElementSibling)">복사</button>
+                                </div>
+                                <div class="item-copy-content">${idListDisplay}</div>
+                            </div>
+                            <div class="query-box">
+                                <div class="item-copy-header">
+                                    <span class="item-copy-title">ID 기반 조회 쿼리</span>
+                                    <button class="btn-copy" onclick="copyToClipboard(this.parentElement.nextElementSibling)">복사</button>
+                                </div>
+                                <pre class="query-content">${queryById}</pre>
+                            </div>
+                        </div>
+                    `;
+                }
             }
 
             html += '<div class="modal-table-wrapper"><table class="modal-table"><thead><tr>';

@@ -1316,7 +1316,7 @@ def format_detail(request):
                     })
 
         # YouTube 테이블 형식 오류 상세 조회
-        elif table == 'youtube' and retailer == 'Logs':
+        elif table == 'youtube_logs' or (table == 'youtube' and retailer == 'Logs'):
             # 먼저 active 키워드 목록 조회
             cursor.execute("SELECT keyword FROM youtube_keywords WHERE status = 'active'")
             active_keywords = set(row[0] for row in cursor.fetchall())
@@ -1379,10 +1379,12 @@ def format_detail(request):
                         'errors': errors
                     })
 
-        elif table == 'youtube' and retailer == 'Videos':
+        elif table == 'youtube_videos' or (table == 'youtube' and retailer == 'Videos'):
+            # youtube_videos 테이블은 id 컬럼이 없고 video_id가 PK
             cursor.execute("""
-                SELECT v.id, v.video_id, v.keyword, v.channel_custom_url, v.category,
-                       v.engagement_rate, v.product_sentiment_score, v.published_at, v.created_at
+                SELECT v.video_id, v.keyword, v.channel_custom_url, v.category,
+                       v.engagement_rate, v.product_sentiment_score, v.published_at, v.created_at,
+                       v.channel_subscriber_count, v.channel_video_count, v.view_count, v.like_count, v.comment_count
                 FROM youtube_videos v
                 WHERE DATE(v.created_at) = %s
                   AND (
@@ -1392,60 +1394,105 @@ def format_detail(request):
                       OR (v.category IS NOT NULL AND v.category NOT IN ('TV', 'HHP'))
                       OR (v.engagement_rate IS NOT NULL AND v.engagement_rate < 2.0)
                       OR (v.product_sentiment_score IS NOT NULL AND (v.product_sentiment_score < -5.0 OR v.product_sentiment_score > 5.0))
+                      OR (v.channel_subscriber_count IS NOT NULL AND v.channel_subscriber_count < 0)
+                      OR (v.channel_video_count IS NOT NULL AND v.channel_video_count < 0)
+                      OR (v.view_count IS NOT NULL AND v.view_count < 0)
+                      OR (v.like_count IS NOT NULL AND v.like_count < 0)
+                      OR (v.comment_count IS NOT NULL AND v.comment_count < 0)
                   )
                 ORDER BY v.created_at DESC
                 LIMIT 50
             """, (target_date,))
             rows = cursor.fetchall()
+            # row[0]=video_id, row[1]=keyword, row[2]=channel_custom_url, row[3]=category,
+            # row[4]=engagement_rate, row[5]=product_sentiment_score, row[6]=published_at, row[7]=created_at,
+            # row[8]=channel_subscriber_count, row[9]=channel_video_count, row[10]=view_count, row[11]=like_count, row[12]=comment_count
             for row in rows:
                 errors = []
-                if row[3] and not row[3].startswith('@'):
+                if row[2] and not row[2].startswith('@'):
                     errors.append({
                         'field': 'channel_custom_url',
-                        'value': str(row[3])[:50],
+                        'value': str(row[2])[:50],
                         'rule': '@로 시작',
                         'reason': '@ 누락'
                     })
-                if row[4] and row[4] not in ('TV', 'HHP'):
+                if row[3] and row[3] not in ('TV', 'HHP'):
                     errors.append({
                         'field': 'category',
-                        'value': str(row[4]),
+                        'value': str(row[3]),
                         'rule': 'TV 또는 HHP',
-                        'reason': f'허용되지 않은 값: {row[4]}'
+                        'reason': f'허용되지 않은 값: {row[3]}'
                     })
-                if row[5] is not None and row[5] < 2.0:
+                if row[4] is not None and row[4] < 2.0:
                     errors.append({
                         'field': 'engagement_rate',
-                        'value': str(row[5]),
+                        'value': str(row[4]),
                         'rule': '2.0 이상',
                         'reason': '기준치 미달'
                     })
-                if row[6] is not None and (row[6] < -5.0 or row[6] > 5.0):
+                if row[5] is not None and (row[5] < -5.0 or row[5] > 5.0):
                     errors.append({
                         'field': 'product_sentiment_score',
-                        'value': str(row[6]),
+                        'value': str(row[5]),
                         'rule': '-5.0 ~ 5.0 범위',
                         'reason': '범위 초과'
                     })
-                if row[7] and row[8] and row[7] > row[8]:
+                if row[6] and row[7] and row[6] > row[7]:
                     errors.append({
                         'field': 'published_at',
-                        'value': str(row[7])[:19],
+                        'value': str(row[6])[:19],
                         'rule': 'published_at <= created_at',
                         'reason': '수집일보다 미래의 발행일'
                     })
-                results.append({
-                    'id': row[0],
-                    'video_id': row[1],
-                    'keyword': row[2],
-                    'channel_custom_url': row[3],
-                    'category': row[4],
-                    'engagement_rate': float(row[5]) if row[5] else None,
-                    'product_sentiment_score': float(row[6]) if row[6] else None,
-                    'errors': errors
-                })
+                # 음수 검사 (요약 쿼리와 동일)
+                if row[8] is not None and row[8] < 0:
+                    errors.append({
+                        'field': 'channel_subscriber_count',
+                        'value': str(row[8]),
+                        'rule': '0 이상',
+                        'reason': '음수값'
+                    })
+                if row[9] is not None and row[9] < 0:
+                    errors.append({
+                        'field': 'channel_video_count',
+                        'value': str(row[9]),
+                        'rule': '0 이상',
+                        'reason': '음수값'
+                    })
+                if row[10] is not None and row[10] < 0:
+                    errors.append({
+                        'field': 'view_count',
+                        'value': str(row[10]),
+                        'rule': '0 이상',
+                        'reason': '음수값'
+                    })
+                if row[11] is not None and row[11] < 0:
+                    errors.append({
+                        'field': 'like_count',
+                        'value': str(row[11]),
+                        'rule': '0 이상',
+                        'reason': '음수값'
+                    })
+                if row[12] is not None and row[12] < 0:
+                    errors.append({
+                        'field': 'comment_count',
+                        'value': str(row[12]),
+                        'rule': '0 이상',
+                        'reason': '음수값'
+                    })
+                if errors:
+                    results.append({
+                        'id': row[0],  # video_id를 id로 사용
+                        'video_id': row[0],
+                        'keyword': row[1],
+                        'channel_custom_url': row[2],
+                        'category': row[3],
+                        'engagement_rate': float(row[4]) if row[4] else None,
+                        'product_sentiment_score': float(row[5]) if row[5] else None,
+                        'errors': errors
+                    })
 
-        elif table == 'youtube' and retailer == 'Comments':
+        elif table == 'youtube_comments' or (table == 'youtube' and retailer == 'Comments'):
             # 각 레코드별 오류 검증 플래그를 SQL에서 직접 계산
             cursor.execute("""
                 SELECT c.comment_id, c.video_id, c.comment_type, c.parent_comment_id, c.like_count, c.reply_count,
@@ -1876,7 +1923,7 @@ def anomaly_detail(request):
                 SELECT d.item, d.account_name, d.period, d.dup_count,
                        t.id, t.product_url, t.crawl_datetime, t.page_type, t.main_rank, t.bsr_rank
                 FROM duplicate_groups d
-                JOIN tv_retail_com t ON t.item = d.item
+                JOIN tv_retail_com t ON t.item IS NOT DISTINCT FROM d.item
                     AND t.account_name = d.account_name
                     AND DATE(t.crawl_datetime::timestamp) = %s
                     AND CASE WHEN EXTRACT(HOUR FROM t.crawl_datetime::timestamp) < 12 THEN '오전' ELSE '오후' END = d.period
@@ -1927,7 +1974,7 @@ def anomaly_detail(request):
                 SELECT d.item, d.account_name, d.period, d.dup_count,
                        h.id, h.product_url, h.crawl_strdatetime, h.page_type, h.main_rank, h.bsr_rank, h.trend_rank
                 FROM duplicate_groups d
-                JOIN hhp_retail_com h ON h.item = d.item
+                JOIN hhp_retail_com h ON h.item IS NOT DISTINCT FROM d.item
                     AND h.account_name = d.account_name
                     AND DATE(h.crawl_strdatetime::timestamp) = %s
                     AND CASE WHEN EXTRACT(HOUR FROM h.crawl_strdatetime::timestamp) < 12 THEN '오전' ELSE '오후' END = d.period

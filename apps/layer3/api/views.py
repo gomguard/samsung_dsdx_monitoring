@@ -12,6 +12,7 @@ from django.http import JsonResponse
 from django.conf import settings
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
+from apps.common.retail_columns import get_timeseries_rules
 
 
 # ============================================================
@@ -656,297 +657,210 @@ def layer_stats(request):
         cursor = conn.cursor()
 
         # ============================================================
-        # 1. 시계열 이상치 탐지 (전일 대비 급격한 변화)
+        # 1. 시계열 이상치 탐지 (CSV 기반 - 전일 대비 급격한 변화)
         # ============================================================
-        if product_line in ['tv', 'all']:
-            # TV 전체 건수
+        timeseries_rules = get_timeseries_rules()
+
+        # 제품라인별로 필터링
+        if product_line != 'all':
+            timeseries_rules = [r for r in timeseries_rules if r['product_line'] == product_line]
+
+        # 테이블별 전체 건수 캐시
+        table_totals = {}
+
+        # HHP용 별도 커넥션 (TV와 데이터 타입 충돌 방지)
+        hhp_conn = None
+        hhp_cursor = None
+
+        for rule in timeseries_rules:
+            table_name = rule['table_name']
+            date_column = rule['date_column']
+            check_column = rule['check_column']
+            check_type = rule['check_type']
+            threshold_pct = rule['threshold_percent'] / 100.0
+            threshold_min = rule['threshold_min_value']
+            pl = rule['product_line']
+
+            # HHP는 별도 커넥션 사용
+            if pl == 'hhp':
+                if hhp_conn is None:
+                    hhp_conn = get_dx_connection()
+                    hhp_cursor = hhp_conn.cursor()
+                curr_cursor = hhp_cursor
+            else:
+                curr_cursor = cursor
+
+            # 테이블 전체 건수 조회 (캐시)
+            if table_name not in table_totals:
+                try:
+                    curr_cursor.execute(f"""
+                        SELECT COUNT(*) FROM {table_name}
+                        WHERE DATE({date_column}::timestamp) = %s
+                    """, (target_date,))
+                    table_totals[table_name] = curr_cursor.fetchone()[0] or 0
+                except Exception as e:
+                    print(f"{table_name} total count error: {e}")
+                    table_totals[table_name] = 0
+
+            table_total = table_totals[table_name]
+
+            # 시계열 이상치 쿼리 실행
+            anomaly_count = 0
+            try:
+                if check_type == 'price':
+                    # 가격 변동 체크
+                    query = f"""
+                        WITH today_am AS (
+                            SELECT item, account_name,
+                                   CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE({check_column}, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as val
+                            FROM {table_name}
+                            WHERE DATE({date_column}::timestamp) = %s
+                            AND EXTRACT(HOUR FROM {date_column}::timestamp) < 12
+                            AND {check_column} IS NOT NULL
+                            AND {check_column} LIKE '$%%'
+                        ),
+                        today_pm AS (
+                            SELECT item, account_name,
+                                   CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE({check_column}, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as val
+                            FROM {table_name}
+                            WHERE DATE({date_column}::timestamp) = %s
+                            AND EXTRACT(HOUR FROM {date_column}::timestamp) >= 12
+                            AND {check_column} IS NOT NULL
+                            AND {check_column} LIKE '$%%'
+                        ),
+                        yesterday_pm AS (
+                            SELECT item, account_name,
+                                   CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE({check_column}, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as val
+                            FROM {table_name}
+                            WHERE DATE({date_column}::timestamp) = %s
+                            AND EXTRACT(HOUR FROM {date_column}::timestamp) >= 12
+                            AND {check_column} IS NOT NULL
+                            AND {check_column} LIKE '$%%'
+                        ),
+                        am_changes AS (
+                            SELECT t.item FROM today_am t
+                            JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
+                            WHERE t.val > 0 AND y.val > 0
+                            AND ABS(t.val - y.val) / NULLIF(y.val, 0) > {threshold_pct}
+                        ),
+                        pm_changes AS (
+                            SELECT t.item FROM today_pm t
+                            JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
+                            WHERE t.val > 0 AND a.val > 0
+                            AND ABS(t.val - a.val) / NULLIF(a.val, 0) > {threshold_pct}
+                        )
+                        SELECT (SELECT COUNT(*) FROM am_changes) + (SELECT COUNT(*) FROM pm_changes)
+                    """
+                    curr_cursor.execute(query, (target_date, target_date, prev_date))
+                    anomaly_count = curr_cursor.fetchone()[0] or 0
+
+                elif check_type == 'review':
+                    # 리뷰 수 변동 체크
+                    query = f"""
+                        WITH today_am AS (
+                            SELECT item, account_name,
+                                   CAST(REPLACE({check_column}, ',', '') AS INTEGER) as val
+                            FROM {table_name}
+                            WHERE DATE({date_column}::timestamp) = %s
+                            AND EXTRACT(HOUR FROM {date_column}::timestamp) < 12
+                            AND {check_column} IS NOT NULL
+                            AND {check_column} ~ '^[0-9,]+$'
+                        ),
+                        today_pm AS (
+                            SELECT item, account_name,
+                                   CAST(REPLACE({check_column}, ',', '') AS INTEGER) as val
+                            FROM {table_name}
+                            WHERE DATE({date_column}::timestamp) = %s
+                            AND EXTRACT(HOUR FROM {date_column}::timestamp) >= 12
+                            AND {check_column} IS NOT NULL
+                            AND {check_column} ~ '^[0-9,]+$'
+                        ),
+                        yesterday_pm AS (
+                            SELECT item, account_name,
+                                   CAST(REPLACE({check_column}, ',', '') AS INTEGER) as val
+                            FROM {table_name}
+                            WHERE DATE({date_column}::timestamp) = %s
+                            AND EXTRACT(HOUR FROM {date_column}::timestamp) >= 12
+                            AND {check_column} IS NOT NULL
+                            AND {check_column} ~ '^[0-9,]+$'
+                        ),
+                        am_changes AS (
+                            SELECT t.item FROM today_am t
+                            JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
+                            WHERE y.val > 0
+                            AND (t.val - y.val)::float / y.val > {threshold_pct}
+                            AND (t.val - y.val) >= {threshold_min}
+                        ),
+                        pm_changes AS (
+                            SELECT t.item FROM today_pm t
+                            JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
+                            WHERE a.val > 0
+                            AND (t.val - a.val)::float / a.val > {threshold_pct}
+                            AND (t.val - a.val) >= {threshold_min}
+                        )
+                        SELECT (SELECT COUNT(*) FROM am_changes) + (SELECT COUNT(*) FROM pm_changes)
+                    """
+                    curr_cursor.execute(query, (target_date, target_date, prev_date))
+                    anomaly_count = curr_cursor.fetchone()[0] or 0
+
+            except Exception as e:
+                print(f"Timeseries rule {rule['rule_name']} error: {e}")
+
+            total_checked += table_total
+            total_anomalies += anomaly_count
+
+            # 임계값 표시 문자열
+            if check_type == 'price':
+                threshold_str = f">{int(rule['threshold_percent'])}%"
+            else:
+                threshold_str = f"+{int(rule['threshold_percent'])}%"
+
+            results['checks'].append({
+                'category': '시계열 이상치',
+                'name': rule['display_name'],
+                'description': rule['description'],
+                'checked': table_total,
+                'passed': table_total - anomaly_count,
+                'failed': anomaly_count,
+                'threshold': threshold_str,
+                'status': get_status(anomaly_count, table_total, needs_review=(check_type == 'review' and anomaly_count > 0))
+            })
+
+        # TV/HHP 전체 건수 저장 (아래 쿼리들에서 사용)
+        tv_total = table_totals.get('tv_retail_com', 0)
+        hhp_total = table_totals.get('hhp_retail_com', 0)
+
+        # TV 전체 건수가 없으면 직접 조회
+        if tv_total == 0 and product_line in ['tv', 'all']:
             try:
                 cursor.execute("""
                     SELECT COUNT(*) FROM tv_retail_com
                     WHERE DATE(crawl_datetime::timestamp) = %s
                 """, (target_date,))
                 tv_total = cursor.fetchone()[0] or 0
-            except:
-                tv_total = 0
-
-            # TV 가격 급변 탐지 (50% 초과) - 오전/오후 구분 비교
-            # 오전(AM) 데이터는 전일 오후(PM)와 비교, 오후(PM) 데이터는 당일 오전(AM)과 비교
-            # final_sku_price가 문자열($999.99 형식)인 경우 처리
-            tv_price_change_daily = 0
-            try:
-                cursor.execute("""
-                    WITH today_am AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                    ),
-                    today_pm AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) >= 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                    ),
-                    yesterday_pm AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) >= 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                    ),
-                    -- 오전 vs 전일오후 비교
-                    am_changes AS (
-                        SELECT t.item FROM today_am t
-                        JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
-                        WHERE t.price > 0 AND y.price > 0
-                        AND ABS(t.price - y.price) / NULLIF(y.price, 0) > 0.5
-                    ),
-                    -- 오후 vs 당일오전 비교
-                    pm_changes AS (
-                        SELECT t.item FROM today_pm t
-                        JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-                        WHERE t.price > 0 AND a.price > 0
-                        AND ABS(t.price - a.price) / NULLIF(a.price, 0) > 0.5
-                    )
-                    SELECT (SELECT COUNT(*) FROM am_changes) + (SELECT COUNT(*) FROM pm_changes)
-                """, (target_date, target_date, prev_date))
-                tv_price_change_daily = cursor.fetchone()[0] or 0
-            except Exception as e:
-                print(f"TV price change daily error: {e}")
-
-            total_checked += tv_total
-            total_anomalies += tv_price_change_daily
-
-            results['checks'].append({
-                'category': '시계열 이상치',
-                'name': 'TV 가격 급변',
-                'description': '50% 초과 가격 변동 (오전↔전일오후, 오후↔당일오전)',
-                'checked': tv_total,
-                'passed': tv_total - tv_price_change_daily,
-                'failed': tv_price_change_daily,
-                'threshold': '>50%',
-                'status': get_status(tv_price_change_daily, tv_total)
-            })
-
-            # TV 리뷰 수 급변 탐지 - 오전/오후 구분 비교
-            tv_review_change = 0
-            try:
-                cursor.execute("""
-                    WITH today_am AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12
-                        AND count_of_star_ratings IS NOT NULL
-                        AND count_of_star_ratings ~ '^[0-9,]+$'
-                    ),
-                    today_pm AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) >= 12
-                        AND count_of_star_ratings IS NOT NULL
-                        AND count_of_star_ratings ~ '^[0-9,]+$'
-                    ),
-                    yesterday_pm AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) >= 12
-                        AND count_of_star_ratings IS NOT NULL
-                        AND count_of_star_ratings ~ '^[0-9,]+$'
-                    ),
-                    am_changes AS (
-                        SELECT t.item FROM today_am t
-                        JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
-                        WHERE y.review_count > 0
-                        AND (t.review_count - y.review_count)::float / y.review_count > 0.5
-                        AND (t.review_count - y.review_count) >= 30
-                    ),
-                    pm_changes AS (
-                        SELECT t.item FROM today_pm t
-                        JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-                        WHERE a.review_count > 0
-                        AND (t.review_count - a.review_count)::float / a.review_count > 0.5
-                        AND (t.review_count - a.review_count) >= 30
-                    )
-                    SELECT (SELECT COUNT(*) FROM am_changes) + (SELECT COUNT(*) FROM pm_changes)
-                """, (target_date, target_date, prev_date))
-                tv_review_change = cursor.fetchone()[0] or 0
+                table_totals['tv_retail_com'] = tv_total
             except:
                 pass
-            total_anomalies += tv_review_change
 
-            results['checks'].append({
-                'category': '시계열 이상치',
-                'name': 'TV 리뷰 수 급변',
-                'description': '50% 이상 & 30개 이상 리뷰 수 증가 (오전↔전일오후, 오후↔당일오전)',
-                'checked': tv_total,
-                'passed': tv_total - tv_review_change,
-                'failed': tv_review_change,
-                'threshold': '+50%',
-                'status': get_status(tv_review_change, tv_total, needs_review=tv_review_change > 0)
-            })
-
-        # HHP 시계열 - 별도 커넥션 사용 (TV와 데이터 타입 충돌 방지)
-        if product_line in ['hhp', 'all']:
-            # HHP용 별도 커넥션
-            hhp_conn = get_dx_connection()
-            hhp_cursor = hhp_conn.cursor()
-
-            # HHP 전체 건수
+        # HHP 전체 건수가 없으면 직접 조회
+        if hhp_total == 0 and product_line in ['hhp', 'all']:
+            if hhp_conn is None:
+                hhp_conn = get_dx_connection()
+                hhp_cursor = hhp_conn.cursor()
             try:
                 hhp_cursor.execute("""
                     SELECT COUNT(*) FROM hhp_retail_com
                     WHERE DATE(crawl_strdatetime) = %s
                 """, (target_date,))
                 hhp_total = hhp_cursor.fetchone()[0] or 0
-            except Exception as e:
-                print(f"HHP total count error: {e}")
-                hhp_total = 0
-
-            # HHP 가격 급변 탐지 (50% 초과) - 오전/오후 구분 비교
-            # 오전(AM) 데이터는 전일 오후(PM)와 비교, 오후(PM) 데이터는 당일 오전(AM)과 비교
-            hhp_price_change_daily = 0
-            try:
-                hhp_cursor.execute("""
-                    WITH today_am AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) < 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                    ),
-                    today_pm AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) >= 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                    ),
-                    yesterday_pm AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) >= 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                    ),
-                    -- 오전 vs 전일오후 비교
-                    am_changes AS (
-                        SELECT t.item FROM today_am t
-                        JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
-                        WHERE t.price > 0 AND y.price > 0
-                        AND ABS(t.price - y.price) / NULLIF(y.price, 0) > 0.5
-                    ),
-                    -- 오후 vs 당일오전 비교
-                    pm_changes AS (
-                        SELECT t.item FROM today_pm t
-                        JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-                        WHERE t.price > 0 AND a.price > 0
-                        AND ABS(t.price - a.price) / NULLIF(a.price, 0) > 0.5
-                    )
-                    SELECT (SELECT COUNT(*) FROM am_changes) + (SELECT COUNT(*) FROM pm_changes)
-                """, (target_date, target_date, prev_date))
-                hhp_price_change_daily = hhp_cursor.fetchone()[0] or 0
-            except Exception as e:
-                print(f"HHP price change daily error: {e}")
-                pass
-
-            total_checked += hhp_total
-            total_anomalies += hhp_price_change_daily
-
-            results['checks'].append({
-                'category': '시계열 이상치',
-                'name': 'HHP 가격 급변',
-                'description': '50% 초과 가격 변동 (오전↔전일오후, 오후↔당일오전)',
-                'checked': hhp_total,
-                'passed': hhp_total - hhp_price_change_daily,
-                'failed': hhp_price_change_daily,
-                'threshold': '>50%',
-                'status': get_status(hhp_price_change_daily, hhp_total)
-            })
-
-            # HHP 리뷰 수 급변 탐지 - 오전/오후 구분 비교
-            hhp_review_change = 0
-            try:
-                hhp_cursor.execute("""
-                    WITH today_am AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) < 12
-                        AND count_of_star_ratings IS NOT NULL
-                        AND count_of_star_ratings ~ '^[0-9,]+$'
-                    ),
-                    today_pm AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) >= 12
-                        AND count_of_star_ratings IS NOT NULL
-                        AND count_of_star_ratings ~ '^[0-9,]+$'
-                    ),
-                    yesterday_pm AS (
-                        SELECT item, account_name,
-                               CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) >= 12
-                        AND count_of_star_ratings IS NOT NULL
-                        AND count_of_star_ratings ~ '^[0-9,]+$'
-                    ),
-                    am_changes AS (
-                        SELECT t.item FROM today_am t
-                        JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
-                        WHERE y.review_count > 0
-                        AND (t.review_count - y.review_count)::float / y.review_count > 0.5
-                        AND (t.review_count - y.review_count) >= 30
-                    ),
-                    pm_changes AS (
-                        SELECT t.item FROM today_pm t
-                        JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-                        WHERE a.review_count > 0
-                        AND (t.review_count - a.review_count)::float / a.review_count > 0.5
-                        AND (t.review_count - a.review_count) >= 30
-                    )
-                    SELECT (SELECT COUNT(*) FROM am_changes) + (SELECT COUNT(*) FROM pm_changes)
-                """, (target_date, target_date, prev_date))
-                hhp_review_change = hhp_cursor.fetchone()[0] or 0
+                table_totals['hhp_retail_com'] = hhp_total
             except:
                 pass
-            total_anomalies += hhp_review_change
 
-            results['checks'].append({
-                'category': '시계열 이상치',
-                'name': 'HHP 리뷰 수 급변',
-                'description': '50% 이상 & 30개 이상 리뷰 수 증가 (오전↔전일오후, 오후↔당일오전)',
-                'checked': hhp_total,
-                'passed': hhp_total - hhp_review_change,
-                'failed': hhp_review_change,
-                'threshold': '+50%',
-                'status': get_status(hhp_review_change, hhp_total, needs_review=hhp_review_change > 0)
-            })
-
-            # HHP 커넥션은 아직 닫지 않음 - 아래 HHP 쿼리들에서 계속 사용
+        # HHP 커넥션은 아직 닫지 않음 - 아래 HHP 쿼리들에서 계속 사용
+        if hhp_conn is None and product_line in ['hhp', 'all']:
+            hhp_conn = get_dx_connection()
+            hhp_cursor = hhp_conn.cursor()
 
         # ============================================================
         # 2. 크로스 필드 논리 검증 (CSV 기반)

@@ -2255,6 +2255,7 @@ ORDER BY account_name, item;`;
         const itemListDisplay = items.join(', ');
 
         // cross_detail_mismatch 타입이면 validation_tag 컬럼 추가 (리테일러별 패턴)
+        // 순서: id, account_name, item, crawl_datetime, expected_pattern, validation_tag, count_of_reviews, detailed_review_content, product_url
         const validationType = window.crossfieldValidationType || '';
         let validationTagCol = '';
         if (validationType === 'cross_detail_mismatch') {
@@ -2284,11 +2285,11 @@ ORDER BY account_name, item;`;
             }
         }
 
-        // 순서: id, account_name, item, crawl_datetime, 동적컬럼, (validation컬럼), product_url
-        let selectCols = ['id', 'account_name', 'item', dateCol, ...dynamicCols].join(', ');
+        // 순서: id, account_name, item, crawl_datetime, (validation컬럼), 동적컬럼, product_url
+        let selectCols = ['id', 'account_name', 'item', dateCol].join(', ');
 
         const query = `SELECT ${selectCols},${validationTagCol}
-    product_url
+    ${dynamicCols.join(', ')}, product_url
 FROM ${tableName}
 WHERE account_name = '${retailer}'
     AND item IN (${inClauseWithQuotes})

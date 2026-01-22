@@ -17,7 +17,7 @@ tv,shipping_info,Y,N,Y,N,N
 tv,available_quantity_for_purchase,Y,N,Y,N,N
 tv,discount_type,Y,N,Y,N,N
 tv,sku_popularity,Y,N,Y,N,N
-tv,retailer_membership_discounts,Y,N,Y,N,N
+tv,retailer_membership_discounts,N,N,N,N,N
 tv,rank_1,Y,N,N,N,N
 tv,rank_2,Y,N,N,N,N
 tv,summarized_review_content,Y,N,N,N,N
@@ -65,7 +65,7 @@ hhp,discount_type,Y,N,Y,N,N
 hhp,sku_popularity,Y,N,Y,N,N
 hhp,bundle,Y,N,N,N,N
 hhp,trade_in,Y,Y,N,N,N
-hhp,retailer_membership_discounts,Y,N,Y,N,N
+hhp,retailer_membership_discounts,N,N,N,N,N
 hhp,rank_1,Y,N,N,N,N
 hhp,rank_2,Y,N,N,N,N
 hhp,summarized_review_content,Y,N,N,N,N
@@ -73,7 +73,7 @@ hhp,savings,N,Y,Y,N,N
 hhp,offer,N,Y,Y,N,N
 hhp,pick_up_availability,N,Y,Y,N,N
 hhp,shipping_availability,N,Y,Y,N,N
-hhp,delivery_availability,N,Y,Y,N,N
+hhp,delivery_availability,N,N,Y,N,N
 hhp,sku_status,N,Y,Y,N,N
 hhp,promotion_type,N,Y,N,N,Y
 hhp,retailer_sku_name_similar,N,Y,Y,N,N

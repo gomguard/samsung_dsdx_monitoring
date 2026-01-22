@@ -936,3 +936,90 @@ def reload_format_rules():
     global _format_rules_cache
     _format_rules_cache = None
     return load_format_rules()
+
+
+# ============================================================
+# 시계열 이상치 규칙 관련 함수
+# dx_timeseries_rules.csv 사용
+# ============================================================
+
+TIMESERIES_RULES_CSV_PATH = CSV_DIR / 'dx_timeseries_rules.csv'
+_timeseries_rules_cache = None
+
+
+def load_timeseries_rules():
+    """
+    dx_timeseries_rules.csv에서 시계열 이상치 규칙 로드
+
+    CSV 구조:
+    - rule_id: 규칙 ID
+    - rule_name: 규칙명 (코드용)
+    - display_name: 표시명
+    - description: 설명
+    - product_line: tv, hhp
+    - table_name: 테이블명
+    - date_column: 날짜 컬럼
+    - check_column: 검사 컬럼
+    - check_type: price, review
+    - threshold_percent: 변동률 임계값 (%)
+    - threshold_min_value: 최소 변동량 (리뷰 수 등)
+    - comparison_type: am_pm (오전/오후 비교)
+
+    Returns: list of rule dicts
+    """
+    global _timeseries_rules_cache
+    if _timeseries_rules_cache is not None:
+        return _timeseries_rules_cache
+
+    rules = []
+
+    try:
+        with open(TIMESERIES_RULES_CSV_PATH, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rules.append({
+                    'rule_id': row['rule_id'],
+                    'rule_name': row['rule_name'],
+                    'display_name': row['display_name'],
+                    'description': row['description'],
+                    'product_line': row['product_line'],
+                    'table_name': row['table_name'],
+                    'date_column': row['date_column'],
+                    'check_column': row['check_column'],
+                    'check_type': row['check_type'],
+                    'threshold_percent': float(row['threshold_percent']),
+                    'threshold_min_value': int(row['threshold_min_value']),
+                    'comparison_type': row['comparison_type']
+                })
+
+        _timeseries_rules_cache = rules
+        print(f"[INFO] Timeseries rules loaded from CSV: {len(rules)} rules")
+    except Exception as e:
+        print(f"[ERROR] Failed to load timeseries rules CSV: {e}")
+
+    return rules
+
+
+def get_timeseries_rules(product_line=None):
+    """
+    시계열 이상치 규칙 반환
+
+    Args:
+        product_line: 'tv', 'hhp', 또는 None (전체)
+
+    Returns:
+        list: 규칙 목록
+    """
+    rules = load_timeseries_rules()
+
+    if product_line:
+        return [r for r in rules if r['product_line'] == product_line]
+
+    return rules
+
+
+def reload_timeseries_rules():
+    """캐시 초기화 후 다시 로드"""
+    global _timeseries_rules_cache
+    _timeseries_rules_cache = None
+    return load_timeseries_rules()
