@@ -351,6 +351,31 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .date-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-left: 12px;
+    }
+    .date-badge.today {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .date-badge.yesterday {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+    .date-badge.past {
+        background: #f3f4f6;
+        color: #6b7280;
     }
 
     .date-picker-wrapper {
@@ -1683,6 +1708,7 @@
     </div>
     <div class="date-info" id="date-info">
         <span class="current-date"></span>
+        <span class="date-badge" id="date-badge"></span>
     </div>
 </div>
 
@@ -2072,9 +2098,25 @@ async function loadStats() {
         const response = await fetch(url);
         const data = await response.json();
 
-        // 조회 날짜 정보 표시
+        // 조회 날짜 정보 표시 + 오늘/전일 뱃지
         const dateInfo = document.getElementById('date-info');
-        dateInfo.innerHTML = `<span class="current-date">${data.target_date}</span> 수집 현황`;
+        const today = new Date().toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        const targetDate = data.target_date;
+
+        let badgeClass = 'past';
+        let badgeText = '';
+        if (targetDate === today) {
+            badgeClass = 'today';
+            badgeText = 'TODAY';
+        } else if (targetDate === yesterday) {
+            badgeClass = 'yesterday';
+            badgeText = 'D-1';
+        } else {
+            const diffDays = Math.floor((new Date(today) - new Date(targetDate)) / 86400000);
+            badgeText = `D-${diffDays}`;
+        }
+        dateInfo.innerHTML = `<span class="current-date">${targetDate}</span> 수집 현황 <span class="date-badge ${badgeClass}">${badgeText}</span>`;
 
         // Summary stats
         document.getElementById('total-checked').textContent = data.summary.total_checked;

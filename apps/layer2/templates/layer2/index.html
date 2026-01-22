@@ -54,6 +54,31 @@
         justify-content: space-between;
         flex-wrap: wrap;
         gap: 16px;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .date-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-left: 8px;
+    }
+    .date-badge.today {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .date-badge.yesterday {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+    .date-badge.past {
+        background: #f3f4f6;
+        color: #6b7280;
     }
 
     .filter-left {
@@ -1469,7 +1494,22 @@
     }
 
     function updateCurrentInfo(date) {
-        document.getElementById('current-info').innerHTML = `<strong>${date}</strong> DX 검증 현황`;
+        const today = new Date().toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+        let badgeClass = 'past';
+        let badgeText = '';
+        if (date === today) {
+            badgeClass = 'today';
+            badgeText = 'TODAY';
+        } else if (date === yesterday) {
+            badgeClass = 'yesterday';
+            badgeText = 'D-1';
+        } else {
+            const diffDays = Math.floor((new Date(today) - new Date(date)) / 86400000);
+            badgeText = `D-${diffDays}`;
+        }
+        document.getElementById('current-info').innerHTML = `<strong>${date}</strong> DX 검증 현황 <span class="date-badge ${badgeClass}">${badgeText}</span>`;
     }
 
     // ==================== 모달 함수 ====================

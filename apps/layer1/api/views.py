@@ -2680,49 +2680,29 @@ def retailer_raw_data(request):
         conn = get_dx_connection()
         cursor = conn.cursor()
 
+        # CSV 파일에서 해당 리테일러의 컬럼 목록 가져오기
+        product_line = 'tv' if category == 'TV' else 'hhp'
+        csv_columns = get_retailer_columns(product_line, retailer)
+
+        # id는 항상 맨 앞에 포함
+        columns = ['id'] + [col for col in csv_columns if col != 'id']
+
         if category == 'TV':
-            # TV 컬럼 (BestBuy 기준)
-            columns = [
-                'id', 'item', 'account_name', 'page_type', 'product_url', 'screen_size',
-                'retailer_sku_name', 'final_sku_price', 'original_sku_price', 'savings', 'offer',
-                'pick_up_availability', 'shipping_availability', 'delivery_availability',
-                'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                'estimated_annual_electricity_use', 'retailer_sku_name_similar', 'top_mentions',
-                'detailed_review_content', 'recommendation_intent', 'promotion_type',
-                'main_rank', 'bsr_rank', 'calendar_week', 'crawl_datetime'
-            ]
-
-            query = f"""
-                SELECT {', '.join(columns)}
-                FROM tv_retail_com
-                WHERE LOWER(account_name) = LOWER(%s)
-                AND crawl_datetime >= %s
-                AND crawl_datetime < %s
-                ORDER BY id DESC
-                LIMIT 500
-            """
+            date_column = 'crawl_datetime'
+            table_name = 'tv_retail_com'
         else:
-            # HHP 컬럼
-            columns = [
-                'id', 'item', 'account_name', 'page_type', 'product_url',
-                'retailer_sku_name', 'count_of_reviews', 'star_rating', 'count_of_star_ratings',
-                'number_of_units_purchased_past_month', 'final_sku_price', 'original_sku_price',
-                'shipping_info', 'available_quantity_for_purchase', 'discount_type',
-                'sku_popularity', 'retailer_membership_discounts', 'rank_1', 'rank_2',
-                'hhp_carrier', 'hhp_storage', 'hhp_color',
-                'summarized_review_content', 'detailed_review_content',
-                'main_rank', 'bsr_rank', 'trend_rank', 'calendar_week', 'crawl_strdatetime'
-            ]
+            date_column = 'crawl_strdatetime'
+            table_name = 'hhp_retail_com'
 
-            query = f"""
-                SELECT {', '.join(columns)}
-                FROM hhp_retail_com
-                WHERE LOWER(account_name) = LOWER(%s)
-                AND crawl_strdatetime >= %s
-                AND crawl_strdatetime < %s
-                ORDER BY id DESC
-                LIMIT 500
-            """
+        query = f"""
+            SELECT {', '.join(columns)}
+            FROM {table_name}
+            WHERE LOWER(account_name) = LOWER(%s)
+            AND {date_column} >= %s
+            AND {date_column} < %s
+            ORDER BY id DESC
+            LIMIT 500
+        """
 
         cursor.execute(query, (retailer, start_time, end_time))
         rows = cursor.fetchall()

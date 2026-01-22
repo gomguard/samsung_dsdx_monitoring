@@ -2449,6 +2449,7 @@ def category_spec_detail(request):
             'check_type': check_type,
             'total_anomalies': len(anomalies),
             'display_columns': display_columns,
+            'table_name': table_name,
             'anomalies': anomalies,
             'is_master_table': is_master_table,
             'retailer_data': retailer_data,
@@ -2943,9 +2944,10 @@ def field_missing_detail_by_field(request):
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
-    # CSV에서 리테일러별 수집 필드 로드
+    # CSV에서 리테일러별 수집 필드 및 related_columns 로드
     csv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config', 'csv', 'dx_retail_columns.csv')
     display_fields = []
+    related_columns = []
 
     try:
         with open(csv_path, 'r', encoding='utf-8') as f:
@@ -2955,6 +2957,9 @@ def field_missing_detail_by_field(request):
                     col_name = row['column_name']
                     if row.get(retailer, 'N') == 'Y':
                         display_fields.append(col_name)
+                    # 현재 필드의 related_columns 가져오기
+                    if col_name == field and row.get('related_columns'):
+                        related_columns = [c.strip() for c in row['related_columns'].split('|') if c.strip()]
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': f'CSV 로드 실패: {str(e)}'})
 
@@ -2973,8 +2978,12 @@ def field_missing_detail_by_field(request):
 
         safe_field = f'"{field}"'
 
-        # SELECT 컬럼 구성: id, 수집시간, item, URL, 누락필드만
+        # SELECT 컬럼 구성: 필수(id, 수집시간, item, URL) + 현재필드 + 관련필드(CSV)
         select_cols = ['id', date_column, 'item', 'product_url', safe_field]
+        # related_columns 추가 (해당 리테일러에서 수집하는 필드만)
+        for rel_col in related_columns:
+            if rel_col in display_fields and rel_col != field:
+                select_cols.append(f'"{rel_col}"')
         select_clause = ', '.join(select_cols)
 
         # 먼저 요약 API와 동일한 방식으로 누락 item 목록 추출
@@ -2999,6 +3008,12 @@ def field_missing_detail_by_field(request):
 
         if not missing_items:
             # 누락 item이 없으면 빈 결과 반환
+            # 컬럼명 목록 생성 (related_columns 포함)
+            column_names = ['id', 'crawl_datetime', 'item', 'product_url', field]
+            for rel_col in related_columns:
+                if rel_col in display_fields and rel_col != field:
+                    column_names.append(rel_col)
+
             cursor.close()
             conn.close()
             return JsonResponse({
@@ -3008,7 +3023,7 @@ def field_missing_detail_by_field(request):
                 'product_line': product_line.upper(),
                 'retailer': retailer,
                 'field': field,
-                'columns': ['id', 'crawl_datetime', 'item', 'product_url', field],
+                'columns': column_names,
                 'total_rows': 0,
                 'data': []
             })
@@ -3031,8 +3046,11 @@ def field_missing_detail_by_field(request):
 
         rows = cursor.fetchall()
 
-        # 컬럼명 목록: id, 수집시간, item, URL, 누락필드
+        # 컬럼명 목록: 필수 + 현재필드 + 관련필드
         column_names = ['id', 'crawl_datetime', 'item', 'product_url', field]
+        for rel_col in related_columns:
+            if rel_col in display_fields and rel_col != field:
+                column_names.append(rel_col)
 
         # 데이터 변환
         all_data = []

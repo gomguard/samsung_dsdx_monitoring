@@ -53,6 +53,31 @@
         align-items: center;
         gap: 16px;
         flex-wrap: wrap;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .date-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-left: 8px;
+    }
+    .date-badge.today {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .date-badge.yesterday {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+    .date-badge.past {
+        background: #f3f4f6;
+        color: #6b7280;
     }
 
     .filter-group {
@@ -1101,6 +1126,9 @@
     </div>
     <button class="btn-search" onclick="loadData()">조회</button>
     <button class="btn-today" onclick="setToday()">오늘</button>
+    <div class="filter-group" style="margin-left: auto;">
+        <span id="current-info" style="font-weight: 600; color: var(--text-secondary);"></span>
+    </div>
 </div>
 
 <!-- Layer4 LLM 분석 섹션 -->
@@ -1271,6 +1299,7 @@
             const data = await response.json();
             currentData = data;
             renderData(data);
+            updateCurrentInfo(date);
 
             // 필드 누락 데이터도 다시 로드
             loadAllRetailersMissing();
@@ -1278,6 +1307,26 @@
             console.error('Error:', error);
             document.getElementById('categories-container').innerHTML = '<div class="loading">데이터 로드 실패</div>';
         }
+    }
+
+    // 조회 날짜 정보 표시
+    function updateCurrentInfo(date) {
+        const today = new Date().toISOString().split('T')[0];
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+        let badgeClass = 'past';
+        let badgeText = '';
+        if (date === today) {
+            badgeClass = 'today';
+            badgeText = 'TODAY';
+        } else if (date === yesterday) {
+            badgeClass = 'yesterday';
+            badgeText = 'D-1';
+        } else {
+            const diffDays = Math.floor((new Date(today) - new Date(date)) / 86400000);
+            badgeText = `D-${diffDays}`;
+        }
+        document.getElementById('current-info').innerHTML = `<strong>${date}</strong> 검증 현황 <span class="date-badge ${badgeClass}">${badgeText}</span>`;
     }
 
     // 데이터 렌더링
@@ -1966,11 +2015,17 @@ ORDER BY item, ${dateColumn} ASC;`;
             if (items.length > 0) {
                 // product_line에 따라 테이블명 결정
                 const productLine = (data.product_line || '').toUpperCase();
-                const tableName = productLine.includes('HHP') ? 'hhp_item_mst' : 'tv_item_mst';
+                const tableName = data.table_name || (productLine.includes('HHP') ? 'hhp_item_mst' : 'tv_item_mst');
                 const inClauseWithQuotes = items.map(item => `'${item}'`).join(', ');
                 const itemListDisplay = items.join(', ');
 
-                const query = `SELECT id, account_name, item, is_product, product_url
+                // display_columns 기반으로 SELECT 컬럼 동적 생성
+                let selectColumns = 'id, account_name, item, is_product, product_url';  // 기본값
+                if (displayColumns.length > 0) {
+                    selectColumns = displayColumns.map(col => col.key).join(', ');
+                }
+
+                const query = `SELECT ${selectColumns}
 FROM ${tableName}
 WHERE item IN (${inClauseWithQuotes})
 ORDER BY account_name, item;`;
@@ -2115,7 +2170,7 @@ ORDER BY account_name, item;`;
 
         if (items.length > 0) {
             const productLine = (data.product_line || '').toUpperCase();
-            const tableName = productLine.includes('HHP') ? 'hhp_item_mst' : 'tv_item_mst';
+            const tableName = data.table_name || (productLine.includes('HHP') ? 'hhp_item_mst' : 'tv_item_mst');
             const inClauseWithQuotes = items.map(item => `'${item}'`).join(', ');
             const itemListDisplay = items.join(', ');
 
@@ -2125,7 +2180,13 @@ ORDER BY account_name, item;`;
                 retailerCondition = `\n  AND account_name = '${selectedRetailer}'`;
             }
 
-            const query = `SELECT id, account_name, item, is_product, product_url
+            // display_columns 기반으로 SELECT 컬럼 동적 생성
+            let selectColumns = 'id, account_name, item, is_product, product_url';  // 기본값
+            if (displayColumns.length > 0) {
+                selectColumns = displayColumns.map(col => col.key).join(', ');
+            }
+
+            const query = `SELECT ${selectColumns}
 FROM ${tableName}
 WHERE item IN (${inClauseWithQuotes})${retailerCondition}
 ORDER BY account_name, item;`;
@@ -2947,7 +3008,9 @@ ORDER BY item, ${dateCol};`;
             const dateColumn = productLine === 'hhp' ? 'crawl_strdatetime' : 'crawl_datetime';
             const queryDate = data.date || '';
 
-            const query = `SELECT id, item, ${dateColumn}, account_name, ${field}, product_url
+            // API에서 반환한 컬럼 목록 사용 (필수 + 현재필드 + 관련필드)
+            const queryColumns = columns.join(', ');
+            const query = `SELECT ${queryColumns}
 FROM ${tableName}
 WHERE account_name = '${retailer}'
   AND item IN (${inClause})
