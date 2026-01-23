@@ -118,7 +118,7 @@ def get_retailer_list():
             reader = csv.DictReader(f)
             # 헤더에서 product_line, column_name, duplicate_key 제외한 컬럼이 리테일러
             headers = reader.fieldnames or []
-            excluded = ['product_line', 'column_name', 'duplicate_key', 'skip_missing_check']
+            excluded = ['product_line', 'column_name', 'duplicate_key', 'skip_missing_check', 'related_columns']
             return [h for h in headers if h not in excluded]
     except Exception as e:
         print(f"[ERROR] Failed to get retailer list: {e}")

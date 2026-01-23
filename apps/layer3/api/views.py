@@ -2682,10 +2682,11 @@ def field_missing_detail_all(request):
             date_column = 'crawl_strdatetime'
             date_cast = 'crawl_strdatetime'
 
-        # SELECT 절 구성: id, crawl_datetime, item, product_url + 표시 필드들
-        select_cols = ['id', date_column, 'item', 'product_url']
+        # SELECT 절 구성: id, crawl_datetime, item + 표시 필드들 + product_url(마지막)
+        select_cols = ['id', date_column, 'item']
         for col in display_fields:
             select_cols.append(f'"{col}"')
+        select_cols.append('product_url')  # URL은 마지막에
 
         select_clause = ', '.join(select_cols)
 
@@ -2712,8 +2713,8 @@ def field_missing_detail_all(request):
 
         rows = cursor.fetchall()
 
-        # 컬럼명 목록
-        column_names = ['id', 'crawl_datetime', 'item', 'product_url'] + display_fields
+        # 컬럼명 목록 (product_url은 마지막)
+        column_names = ['id', date_column, 'item'] + display_fields + ['product_url']
 
         # 데이터 변환
         all_data = []
@@ -2722,10 +2723,10 @@ def field_missing_detail_all(request):
             for i, col_name in enumerate(column_names):
                 val = row[i]
                 # datetime 변환
-                if col_name == 'crawl_datetime' and val:
+                if col_name == date_column and val:
                     val = str(val)
-                # 긴 텍스트 자르기
-                if val and isinstance(val, str) and len(val) > 100:
+                # 긴 텍스트 자르기 (product_url은 링크 동작을 위해 제외)
+                if val and isinstance(val, str) and len(val) > 100 and col_name != 'product_url':
                     val = val[:100] + '...'
                 row_dict[col_name] = val
             all_data.append(row_dict)
@@ -2978,12 +2979,13 @@ def field_missing_detail_by_field(request):
 
         safe_field = f'"{field}"'
 
-        # SELECT 컬럼 구성: 필수(id, 수집시간, item, URL) + 현재필드 + 관련필드(CSV)
-        select_cols = ['id', date_column, 'item', 'product_url', safe_field]
+        # SELECT 컬럼 구성: 필수(id, 수집시간, item) + 현재필드 + 관련필드(CSV) + URL(마지막)
+        select_cols = ['id', date_column, 'item', safe_field]
         # related_columns 추가 (해당 리테일러에서 수집하는 필드만)
         for rel_col in related_columns:
             if rel_col in display_fields and rel_col != field:
                 select_cols.append(f'"{rel_col}"')
+        select_cols.append('product_url')  # URL은 마지막에
         select_clause = ', '.join(select_cols)
 
         # 먼저 요약 API와 동일한 방식으로 누락 item 목록 추출
@@ -3008,11 +3010,12 @@ def field_missing_detail_by_field(request):
 
         if not missing_items:
             # 누락 item이 없으면 빈 결과 반환
-            # 컬럼명 목록 생성 (related_columns 포함)
-            column_names = ['id', 'crawl_datetime', 'item', 'product_url', field]
+            # 컬럼명 목록 생성 (select_cols와 동일한 순서: id, date_column, item, field, related_columns, product_url)
+            column_names = ['id', date_column, 'item', field]
             for rel_col in related_columns:
                 if rel_col in display_fields and rel_col != field:
                     column_names.append(rel_col)
+            column_names.append('product_url')
 
             cursor.close()
             conn.close()
@@ -3046,11 +3049,12 @@ def field_missing_detail_by_field(request):
 
         rows = cursor.fetchall()
 
-        # 컬럼명 목록: 필수 + 현재필드 + 관련필드
-        column_names = ['id', 'crawl_datetime', 'item', 'product_url', field]
+        # 컬럼명 목록: select_cols와 동일한 순서 (id, date_column, item, field, related_columns, product_url)
+        column_names = ['id', date_column, 'item', field]
         for rel_col in related_columns:
             if rel_col in display_fields and rel_col != field:
                 column_names.append(rel_col)
+        column_names.append('product_url')
 
         # 데이터 변환
         all_data = []
@@ -3059,15 +3063,16 @@ def field_missing_detail_by_field(request):
             row_dict = {}
             for i, col_name in enumerate(column_names):
                 val = row[i]
-                if col_name == 'crawl_datetime' and val:
+                if col_name == date_column and val:
                     val = str(val)
-                if val and isinstance(val, str) and len(val) > 100:
+                # product_url은 자르지 않음 (링크 동작 필요)
+                if val and isinstance(val, str) and len(val) > 100 and col_name != 'product_url':
                     val = val[:100] + '...'
                 row_dict[col_name] = val
             all_data.append(row_dict)
 
             # 오늘 날짜이고 해당 필드가 NULL인 경우 카운트
-            crawl_date = row_dict.get('crawl_datetime', '')[:10] if row_dict.get('crawl_datetime') else ''
+            crawl_date = row_dict.get(date_column, '')[:10] if row_dict.get(date_column) else ''
             field_val = row_dict.get(field)
             if crawl_date == str(target_date) and (field_val is None or field_val == ''):
                 today_null_count += 1

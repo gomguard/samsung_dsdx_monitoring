@@ -55,8 +55,8 @@
         flex-wrap: wrap;
         gap: 16px;
         position: sticky;
-        top: 0;
-        z-index: 100;
+        top: 64px;
+        z-index: 99;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
@@ -104,7 +104,7 @@
         border: 1px solid var(--border-color);
         border-radius: 8px;
         font-size: 14px;
-        min-width: 150px;
+        width: 140px;  /* 고정 너비로 OS 요일 표시 방지 */
     }
 
     .filter-input:focus {
@@ -1108,6 +1108,7 @@
         <div class="filter-group">
             <label for="target-date">조회 날짜</label>
             <input type="date" id="target-date" class="filter-input">
+            <span id="weekday-display" style="margin-left: 8px; font-weight: 500; color: var(--text-secondary);"></span>
         </div>
         <button class="search-btn" onclick="handleSearch()">조회</button>
         <button class="today-btn" onclick="setToday()">오늘</button>
@@ -1185,6 +1186,20 @@
         fetchDXStats();
     });
 
+    // 요일 표시 업데이트
+    function updateWeekday() {
+        const dateInput = document.getElementById('target-date');
+        const weekdayDisplay = document.getElementById('weekday-display');
+        if (dateInput.value && weekdayDisplay) {
+            const date = new Date(dateInput.value + 'T00:00:00');
+            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+            const weekday = weekdays[date.getDay()];
+            const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+            weekdayDisplay.textContent = `(${weekday})`;
+            weekdayDisplay.style.color = isWeekend ? 'var(--color-critical)' : 'var(--text-secondary)';
+        }
+    }
+
     function initDatePicker() {
         const dateInput = document.getElementById('target-date');
         const urlParams = new URLSearchParams(window.location.search);
@@ -1200,12 +1215,17 @@
 
         const today = new Date();
         dateInput.max = today.toISOString().split('T')[0];
+
+        // 날짜 변경 시 요일 업데이트
+        dateInput.addEventListener('change', updateWeekday);
+        updateWeekday();
     }
 
     function setToday() {
         const dateInput = document.getElementById('target-date');
         const today = new Date();
         dateInput.value = today.toISOString().split('T')[0];
+        updateWeekday();
         handleSearch();
     }
 

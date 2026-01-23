@@ -352,8 +352,8 @@
         align-items: center;
         justify-content: space-between;
         position: sticky;
-        top: 0;
-        z-index: 100;
+        top: 64px;
+        z-index: 99;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
@@ -396,6 +396,7 @@
         border-radius: 6px;
         font-size: 14px;
         color: var(--text-primary);
+        width: 140px;  /* 고정 너비로 OS 요일 표시 방지 */
     }
 
     .date-input:focus {
@@ -1703,6 +1704,7 @@
     <div class="date-picker-wrapper">
         <label for="target-date">조회 날짜</label>
         <input type="date" id="target-date" class="date-input">
+        <span id="weekday-display" style="margin-left: 8px; font-weight: 500; color: var(--text-secondary);"></span>
         <button onclick="loadAllData()" class="btn-refresh">조회</button>
         <button onclick="setToday()" class="btn-today">오늘</button>
     </div>
@@ -2066,6 +2068,20 @@ function toggleSentimentCategory(element, checkIdx, catIdx) {
     }
 }
 
+// 요일 표시 업데이트
+function updateWeekday() {
+    const dateInput = document.getElementById('target-date');
+    const weekdayDisplay = document.getElementById('weekday-display');
+    if (dateInput.value && weekdayDisplay) {
+        const date = new Date(dateInput.value + 'T00:00:00');
+        const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+        const weekday = weekdays[date.getDay()];
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        weekdayDisplay.textContent = `(${weekday})`;
+        weekdayDisplay.style.color = isWeekend ? 'var(--color-critical)' : 'var(--text-secondary)';
+    }
+}
+
 // 날짜 초기화 (기본값: 전일자)
 function initDate() {
     const dateInput = document.getElementById('target-date');
@@ -2076,6 +2092,10 @@ function initDate() {
     // 최대 날짜를 오늘로 제한
     const today = new Date();
     dateInput.max = today.toISOString().split('T')[0];
+
+    // 날짜 변경 시 요일 업데이트
+    dateInput.addEventListener('change', updateWeekday);
+    updateWeekday();
 }
 
 // 오늘 날짜로 설정 후 조회
@@ -2083,6 +2103,7 @@ function setToday() {
     const dateInput = document.getElementById('target-date');
     const today = new Date();
     dateInput.value = today.toISOString().split('T')[0];
+    updateWeekday();
     loadAllData();
 }
 
