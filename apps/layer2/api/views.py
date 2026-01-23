@@ -1060,7 +1060,7 @@ def null_detail(request):
             if retailer:
                 query += " AND account_name = %s"
                 params.append(retailer)
-            query += f" ORDER BY account_name, {date_col} LIMIT 200"
+            query += f" ORDER BY account_name, {date_col}"
         else:
             # 그 외 테이블
             query = f"""
@@ -1069,7 +1069,6 @@ def null_detail(request):
                 WHERE DATE({date_col}) = %s
                   AND ({where_conds})
                 ORDER BY {date_col} DESC
-                LIMIT 200
             """
             params = [target_date]
 
