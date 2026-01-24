@@ -1891,11 +1891,12 @@ WHERE id IN (${idInClause});`;
         initColumnResize();
     }
 
-    // 클립보드 복사 함수
+    // 클립보드 복사 함수 (HTTPS/HTTP 모두 지원)
     function copyToClipboard(element) {
         const text = element.textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            const btn = element.previousElementSibling.querySelector('.btn-copy');
+        const btn = element.previousElementSibling.querySelector('.btn-copy');
+
+        function showSuccess() {
             if (btn) {
                 const originalText = btn.textContent;
                 btn.textContent = '복사됨!';
@@ -1905,10 +1906,38 @@ WHERE id IN (${idInClause});`;
                     btn.style.background = '';
                 }, 1500);
             }
-        }).catch(err => {
+        }
+
+        // HTTPS에서는 clipboard API 사용
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(showSuccess).catch(err => {
+                console.error('복사 실패:', err);
+                fallbackCopy(text, showSuccess);
+            });
+        } else {
+            // HTTP에서는 execCommand 사용
+            fallbackCopy(text, showSuccess);
+        }
+    }
+
+    // HTTP 환경용 폴백 복사 함수
+    function fallbackCopy(text, onSuccess) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            onSuccess();
+        } catch (err) {
             console.error('복사 실패:', err);
             alert('복사에 실패했습니다.');
-        });
+        }
+        document.body.removeChild(textArea);
     }
 
     // 텍스트 길이 기반 열 너비 계산

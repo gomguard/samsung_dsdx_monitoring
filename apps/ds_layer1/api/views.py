@@ -8,7 +8,8 @@ from django.http import JsonResponse
 from datetime import datetime, timedelta, date
 from apps.common.db import get_ds_connection
 from config.config import FILE_SERVER_CONFIG
-from apps.common.targets import load_monitoring_targets, get_retailer_map
+from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_local_time, get_retailer_map, format_time
+from apps.ds_layer2.api.views import get_quality_counts_by_time_range
 import pytz
 import paramiko
 
@@ -38,6 +39,72 @@ def get_crawl_count(cursor, table_name, target_date):
         return result[0] if result else 0
     except Exception as e:
         return -1
+
+
+def get_crawl_count_by_time_range(cursor, table_name, target_date, start_time, end_time):
+    """특정 시간 범위 내의 크롤링 데이터 수 조회
+    start_time, end_time: 'HH:MM' 형식
+    end_time이 None이면 다음날 00:00까지
+    """
+    date_str = target_date.strftime('%Y%m%d')
+    start_datetime = f"{date_str}{start_time.replace(':', '')}00"
+
+    if end_time:
+        end_datetime = f"{date_str}{end_time.replace(':', '')}00"
+    else:
+        # 다음날 00:00
+        next_date = (target_date + timedelta(days=1)).strftime('%Y%m%d')
+        end_datetime = f"{next_date}0000"
+
+    query = f"""
+        SELECT COUNT(*) as cnt FROM (
+            SELECT DISTINCT * FROM samsung_ds_retail_com.{table_name}
+            WHERE crawl_strdatetime >= %s AND crawl_strdatetime < %s
+        ) A
+    """
+
+    try:
+        cursor.execute(query, (start_datetime, end_datetime))
+        result = cursor.fetchone()
+        return result[0] if result else 0
+    except Exception as e:
+        return -1
+
+
+def get_batches_for_date(target_date):
+    """특정 날짜의 배치 목록을 리테일러별로 그룹화하여 반환"""
+    batches_by_retailer = {}
+
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT id, retailer, start_time, memo
+            FROM ssd_crawl_db.ds_collection_batch_log
+            WHERE date = %s
+            ORDER BY retailer, start_time
+        """
+        cursor.execute(query, (target_date,))
+        rows = cursor.fetchall()
+
+        for row in rows:
+            retailer = row[1]
+            if retailer not in batches_by_retailer:
+                batches_by_retailer[retailer] = []
+
+            batches_by_retailer[retailer].append({
+                'id': row[0],
+                'start_time': format_time(row[2]) if row[2] else '00:00',
+                'memo': row[3]
+            })
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error loading batches: {e}")
+
+    return batches_by_retailer
 
 
 def get_expected_count(cursor, country, mall_name):
@@ -117,6 +184,7 @@ def get_collection_status(korea_time_str, target_date, completion_rate):
 def layer_stats(request):
     """DS Layer 1 전체 통계 API"""
     date_str = request.GET.get('date')
+    batch_view = request.GET.get('batch_view', 'final')  # 'final' or 'all'
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -136,13 +204,28 @@ def layer_stats(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
+        # 배치 정보 로드
+        batches_by_retailer = get_batches_for_date(target_date)
+
         total_expected = 0
         total_actual = 0
         results = []
 
         for idx, (table_name, retailer, region, korea_time, country, mall_name) in enumerate(get_monitoring_targets(), 1):
             expected = get_expected_count(cursor, country, mall_name)
-            actual = get_crawl_count(cursor, table_name, target_date)
+            retailer_batches = batches_by_retailer.get(retailer, [])
+
+            # 'final' 뷰이고 배치가 있으면, 마지막 배치만 조회
+            final_start_time = None
+            final_end_time = None
+            if len(retailer_batches) >= 1 and batch_view == 'final':
+                # 마지막 배치의 시간 범위
+                last_batch = retailer_batches[-1]
+                final_start_time = last_batch['start_time']
+                final_end_time = None  # 다음날까지
+                actual = get_crawl_count_by_time_range(cursor, table_name, target_date, final_start_time, final_end_time)
+            else:
+                actual = get_crawl_count(cursor, table_name, target_date)
 
             # 완료율 계산
             if expected > 0 and actual >= 0:
@@ -160,7 +243,7 @@ def layer_stats(request):
             # 상태 판단 (시간 기반)
             status = get_collection_status(korea_time, target_date, completion_rate)
 
-            results.append({
+            result_item = {
                 'no': idx,
                 'table_name': table_name,
                 'retailer': retailer,
@@ -170,8 +253,44 @@ def layer_stats(request):
                 'expected': expected,
                 'actual': actual,
                 'completion_rate': completion_rate,
-                'status': status
-            })
+                'status': status,
+                'has_multi_batch': False,
+                'batches': [],
+                'final_start_time': final_start_time,
+                'final_end_time': final_end_time
+            }
+
+            # 배치 정보 추가 (2개 이상이고 'all' 뷰인 경우)
+            if len(retailer_batches) >= 2 and batch_view == 'all':
+                result_item['has_multi_batch'] = True
+                batch_details = []
+
+                for i, batch in enumerate(retailer_batches):
+                    start_time = batch['start_time']
+                    # 다음 배치의 시작시간 = 이 배치의 종료시간
+                    end_time = retailer_batches[i + 1]['start_time'] if i + 1 < len(retailer_batches) else None
+
+                    # 배치별 건수 조회
+                    batch_count = get_crawl_count_by_time_range(cursor, table_name, target_date, start_time, end_time)
+                    batch_completion = round((batch_count / expected) * 100, 1) if expected > 0 else 0
+
+                    # 배치별 L2 이상 건수 조회
+                    l2_quality = get_quality_counts_by_time_range(cursor, table_name, target_date, start_time, end_time)
+                    l2_error_count = l2_quality.get('error_count', 0)
+
+                    batch_details.append({
+                        'id': batch['id'],
+                        'start_time': start_time,
+                        'end_time': end_time if end_time else '다음날',
+                        'memo': batch['memo'],
+                        'actual': batch_count,
+                        'completion_rate': batch_completion,
+                        'l2_error_count': l2_error_count
+                    })
+
+                result_item['batches'] = batch_details
+
+            results.append(result_item)
 
         # 전체 완료율
         total_completion_rate = round((total_actual / total_expected) * 100, 1) if total_expected > 0 else 0
@@ -295,6 +414,12 @@ def table_detail(request):
     table_name = request.GET.get('table')
     page = int(request.GET.get('page', 1))
     page_size = int(request.GET.get('page_size', 50))
+    # 배치별 시간 범위 파라미터 (HH:MM 형식)
+    start_time = request.GET.get('start_time')
+    end_time = request.GET.get('end_time')
+    # 정렬 파라미터
+    sort_by = request.GET.get('sort_by', 'crawl_strdatetime')
+    sort_order = request.GET.get('sort_order', 'asc')
 
     if not table_name:
         return JsonResponse({'error': '테이블명을 입력하세요.'})
@@ -315,6 +440,10 @@ def table_detail(request):
         'table': table_name,
         'page': page,
         'page_size': page_size,
+        'start_time': start_time,
+        'end_time': end_time,
+        'sort_by': sort_by,
+        'sort_order': sort_order,
         'data': []
     }
 
@@ -323,9 +452,18 @@ def table_detail(request):
         cursor = conn.cursor()
 
         date_str_fmt = target_date.strftime('%Y%m%d')
-        start_datetime = f"{date_str_fmt}0000"
-        next_date = (target_date + timedelta(days=1)).strftime('%Y%m%d')
-        end_datetime = f"{next_date}0000"
+
+        # 시간 범위가 지정된 경우 해당 범위로 필터링
+        if start_time:
+            start_datetime = f"{date_str_fmt}{start_time.replace(':', '')}00"
+        else:
+            start_datetime = f"{date_str_fmt}0000"
+
+        if end_time and end_time != '다음날':
+            end_datetime = f"{date_str_fmt}{end_time.replace(':', '')}00"
+        else:
+            next_date = (target_date + timedelta(days=1)).strftime('%Y%m%d')
+            end_datetime = f"{next_date}0000"
 
         # 전체 건수 조회
         count_query = f"""
@@ -339,13 +477,20 @@ def table_detail(request):
 
         # 페이징된 데이터 조회
         offset = (page - 1) * page_size
+
+        # 정렬 컬럼 검증 (SQL Injection 방지)
+        valid_sort_columns = ['crawl_strdatetime', 'title', 'retailprice', 'ships_from', 'sold_by']
+        if sort_by not in valid_sort_columns:
+            sort_by = 'crawl_strdatetime'
+        sort_direction = 'DESC' if sort_order.lower() == 'desc' else 'ASC'
+
         query = f"""
-            SELECT title, retailprice, ships_from, sold_by, imageurl, producturl
+            SELECT title, retailprice, ships_from, sold_by, imageurl, producturl, crawl_strdatetime
             FROM (
                 SELECT DISTINCT * FROM samsung_ds_retail_com.{table_name}
                 WHERE crawl_strdatetime >= %s AND crawl_strdatetime < %s
             ) A
-            ORDER BY title
+            ORDER BY {sort_by} {sort_direction}, title
             LIMIT %s OFFSET %s
         """
 
@@ -354,13 +499,21 @@ def table_detail(request):
 
         items = []
         for row in rows:
+            # crawl_strdatetime 포맷 변환 (YYYYMMDDHHMM00 -> YYYY-MM-DD HH:MM.000)
+            # crawl_strdatetime 포맷팅 (YYYYMMDDHHMMSS... -> YYYY-MM-DD HH:MM:SS)
+            crawl_dt = row[6] or ''
+            if crawl_dt and len(crawl_dt) >= 14:
+                crawl_dt = f"{crawl_dt[0:4]}-{crawl_dt[4:6]}-{crawl_dt[6:8]} {crawl_dt[8:10]}:{crawl_dt[10:12]}:{crawl_dt[12:14]}"
+            elif crawl_dt and len(crawl_dt) >= 12:
+                crawl_dt = f"{crawl_dt[0:4]}-{crawl_dt[4:6]}-{crawl_dt[6:8]} {crawl_dt[8:10]}:{crawl_dt[10:12]}:00"
             items.append({
                 'title': row[0] or '',
                 'retailprice': row[1] or '',
                 'ships_from': row[2] or '',
                 'sold_by': row[3] or '',
                 'imageurl': row[4] or '',
-                'producturl': row[5] or ''
+                'producturl': row[5] or '',
+                'crawl_datetime': crawl_dt
             })
 
         cursor.close()
@@ -513,6 +666,261 @@ def format_size(size_bytes):
         return f"{size_bytes / (1024 * 1024):.1f} MB"
     else:
         return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+
+def batch_list(request):
+    """배치 로그 목록 조회 API (해당 날짜)"""
+    date_str = request.GET.get('date')
+
+    if date_str:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    else:
+        target_date = (datetime.now() - timedelta(days=1)).date()
+
+    data = {
+        'timestamp': datetime.now().isoformat(),
+        'date': str(target_date),
+        'batches': []
+    }
+
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        # 해당 날짜의 배치 로그 조회
+        query = """
+            SELECT id, date, retailer, start_time, memo, created_at
+            FROM ssd_crawl_db.ds_collection_batch_log
+            WHERE date = %s
+            ORDER BY retailer, start_time
+        """
+        cursor.execute(query, (target_date,))
+        rows = cursor.fetchall()
+
+        batches = []
+        for row in rows:
+            batches.append({
+                'id': row[0],
+                'date': str(row[1]),
+                'retailer': row[2],
+                'start_time': format_time(row[3]) if row[3] else None,
+                'memo': row[4],
+                'created_at': row[5].isoformat() if row[5] else None
+            })
+
+        cursor.close()
+        conn.close()
+
+        data['batches'] = batches
+
+    except Exception as e:
+        data['error'] = str(e)
+
+    return JsonResponse(data)
+
+
+def batch_init(request):
+    """배치 로그 초기화 API (해당 날짜에 기본 배치 생성)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST 요청만 허용됩니다.'}, status=405)
+
+    import json
+    try:
+        body = json.loads(request.body)
+        date_str = body.get('date')
+    except:
+        date_str = request.POST.get('date')
+
+    if not date_str:
+        return JsonResponse({'error': '날짜를 입력하세요.'}, status=400)
+
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
+
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        # 이미 해당 날짜에 배치가 있는지 확인
+        check_query = """
+            SELECT COUNT(*) FROM ssd_crawl_db.ds_collection_batch_log
+            WHERE date = %s
+        """
+        cursor.execute(check_query, (target_date,))
+        count = cursor.fetchone()[0]
+
+        if count > 0:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'message': '이미 배치가 존재합니다.', 'created': 0})
+
+        # 모니터링 대상 목록에서 기본 배치 생성 (local_time 사용)
+        targets = load_monitoring_targets_with_local_time()
+        insert_query = """
+            INSERT INTO ssd_crawl_db.ds_collection_batch_log
+            (date, retailer, start_time, memo)
+            VALUES (%s, %s, %s, %s)
+        """
+
+        created_count = 0
+        for table_name, retailer, region, korea_time, local_time, country, mall_name in targets:
+            cursor.execute(insert_query, (target_date, retailer, local_time + ':00', None))
+            created_count += 1
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'message': f'{created_count}개 배치가 생성되었습니다.', 'created': created_count})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def batch_create(request):
+    """배치 로그 추가 API"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST 요청만 허용됩니다.'}, status=405)
+
+    import json
+    try:
+        body = json.loads(request.body)
+    except:
+        return JsonResponse({'error': '잘못된 요청 형식입니다.'}, status=400)
+
+    date_str = body.get('date')
+    retailer = body.get('retailer')
+    start_time = body.get('start_time')
+    memo = body.get('memo', '')
+
+    if not date_str or not retailer or not start_time:
+        return JsonResponse({'error': '필수 필드가 누락되었습니다.'}, status=400)
+
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        insert_query = """
+            INSERT INTO ssd_crawl_db.ds_collection_batch_log
+            (date, retailer, start_time, memo)
+            VALUES (%s, %s, %s, %s)
+        """
+        cursor.execute(insert_query, (date_str, retailer, start_time, memo))
+        conn.commit()
+
+        # 새로 생성된 ID 가져오기
+        cursor.execute("SELECT LAST_INSERT_ID()")
+        new_id = cursor.fetchone()[0]
+
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'message': '배치가 추가되었습니다.', 'id': new_id})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def batch_update(request):
+    """배치 로그 수정 API"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST 요청만 허용됩니다.'}, status=405)
+
+    import json
+    try:
+        body = json.loads(request.body)
+    except:
+        return JsonResponse({'error': '잘못된 요청 형식입니다.'}, status=400)
+
+    batch_id = body.get('id')
+    start_time = body.get('start_time')
+    memo = body.get('memo')
+
+    if not batch_id:
+        return JsonResponse({'error': 'ID가 필요합니다.'}, status=400)
+
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        # 업데이트할 필드 동적 구성
+        updates = []
+        params = []
+
+        if start_time is not None:
+            updates.append("start_time = %s")
+            params.append(start_time)
+
+        if memo is not None:
+            updates.append("memo = %s")
+            params.append(memo)
+
+        if not updates:
+            return JsonResponse({'error': '수정할 필드가 없습니다.'}, status=400)
+
+        params.append(batch_id)
+
+        update_query = f"""
+            UPDATE ssd_crawl_db.ds_collection_batch_log
+            SET {', '.join(updates)}
+            WHERE id = %s
+        """
+        cursor.execute(update_query, params)
+        conn.commit()
+
+        affected = cursor.rowcount
+        cursor.close()
+        conn.close()
+
+        if affected == 0:
+            return JsonResponse({'error': '해당 배치를 찾을 수 없습니다.'}, status=404)
+
+        return JsonResponse({'message': '배치가 수정되었습니다.'})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def batch_delete(request):
+    """배치 로그 삭제 API"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST 요청만 허용됩니다.'}, status=405)
+
+    import json
+    try:
+        body = json.loads(request.body)
+    except:
+        return JsonResponse({'error': '잘못된 요청 형식입니다.'}, status=400)
+
+    batch_id = body.get('id')
+
+    if not batch_id:
+        return JsonResponse({'error': 'ID가 필요합니다.'}, status=400)
+
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        delete_query = """
+            DELETE FROM ssd_crawl_db.ds_collection_batch_log
+            WHERE id = %s
+        """
+        cursor.execute(delete_query, (batch_id,))
+        conn.commit()
+
+        affected = cursor.rowcount
+        cursor.close()
+        conn.close()
+
+        if affected == 0:
+            return JsonResponse({'error': '해당 배치를 찾을 수 없습니다.'}, status=404)
+
+        return JsonResponse({'message': '배치가 삭제되었습니다.'})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 def fileserver_stats(request):

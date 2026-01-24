@@ -14,4 +14,11 @@ urlpatterns = [
     path('api/table/', api_views.table_detail, name='api_table_detail'),
     path('api/range/', api_views.date_range_stats, name='api_date_range'),
     path('api/fileserver/', api_views.fileserver_stats, name='api_fileserver'),
+
+    # Batch management API
+    path('api/batch/', api_views.batch_list, name='api_batch_list'),
+    path('api/batch/init/', api_views.batch_init, name='api_batch_init'),
+    path('api/batch/create/', api_views.batch_create, name='api_batch_create'),
+    path('api/batch/update/', api_views.batch_update, name='api_batch_update'),
+    path('api/batch/delete/', api_views.batch_delete, name='api_batch_delete'),
 ]

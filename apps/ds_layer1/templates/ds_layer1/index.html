@@ -84,10 +84,6 @@
         display: flex;
         align-items: center;
         gap: 12px;
-        background: white;
-        padding: 12px 20px;
-        border-radius: 12px;
-        border: 1px solid var(--border-color);
     }
 
     .date-selector label {
@@ -133,25 +129,56 @@
         color: white;
     }
 
+    /* View Toggle Buttons */
     .view-toggle {
         display: flex;
         gap: 8px;
     }
 
     .view-toggle button {
-        padding: 10px 16px;
-        background: white;
-        border: 1px solid var(--border-color);
+        padding: 10px 24px;
         border-radius: 8px;
-        font-size: 13px;
+        font-size: 14px;
+        font-weight: 600;
         cursor: pointer;
         transition: all 0.2s;
+        border: 1px solid var(--border-color);
+        background: white;
+        color: var(--text-secondary);
+    }
+
+    .view-toggle button:hover {
+        background: #f1f5f9;
     }
 
     .view-toggle button.active {
         background: {{ layer.color }};
         color: white;
         border-color: {{ layer.color }};
+    }
+
+    /* Fixed Date Bar - below menu bar (64px) */
+    .date-bar {
+        position: sticky;
+        top: 64px;
+        z-index: 99;
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 16px 24px;
+        margin-bottom: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    @media (max-width: 768px) {
+        .date-bar {
+            flex-direction: column;
+            gap: 12px;
+            align-items: flex-start;
+        }
     }
 
     /* Summary Cards */
@@ -217,70 +244,6 @@
     .summary-value.warning { color: #d97706; }
     .summary-value.danger { color: #dc2626; }
 
-    /* Region Cards */
-    .region-section {
-        margin-bottom: 24px;
-    }
-
-    .region-card {
-        background: white;
-        border-radius: 16px;
-        border: 1px solid var(--border-color);
-        overflow: hidden;
-        margin-bottom: 16px;
-    }
-
-    .region-header {
-        padding: 16px 24px;
-        background: var(--bg-primary);
-        border-bottom: 1px solid var(--border-color);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .region-title {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .region-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-    }
-
-    .region-name {
-        font-size: 16px;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
-    .region-stats {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-    }
-
-    .region-stat {
-        text-align: right;
-    }
-
-    .region-stat-value {
-        font-size: 18px;
-        font-weight: 700;
-    }
-
-    .region-stat-label {
-        font-size: 11px;
-        color: var(--text-secondary);
-    }
-
     .status-badge {
         display: inline-flex;
         align-items: center;
@@ -314,6 +277,11 @@
     .status-badge.collecting {
         background: #eff6ff;
         color: #2563eb;
+    }
+
+    .status-badge.over100 {
+        background: #f0fdf4;
+        color: #7c3aed;
     }
 
     .status-badge.error {
@@ -412,6 +380,7 @@
     .completion-fill.warning { background: #d97706; }
     .completion-fill.danger { background: #dc2626; }
     .completion-fill.collecting { background: #3b82f6; }
+    .completion-fill.over100 { background: #7c3aed; }
 
     /* All Table View */
     .all-table-section {
@@ -467,30 +436,6 @@
 
     .retailer-table tbody tr:hover {
         background: var(--bg-secondary);
-    }
-
-    /* 날짜 범위 선택 */
-    .date-range-selector {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        background: white;
-        padding: 12px 20px;
-        border-radius: 12px;
-        border: 1px solid var(--border-color);
-    }
-
-    .date-range-selector label {
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text-secondary);
-    }
-
-    .date-range-selector input[type="date"] {
-        padding: 8px 12px;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        font-size: 14px;
     }
 
     /* 모달 스타일 */
@@ -640,6 +585,34 @@
         border-radius: 4px;
     }
 
+    /* 정렬 가능한 헤더 */
+    .detail-table th.sortable {
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.2s;
+    }
+
+    .detail-table th.sortable:hover {
+        background: #e2e8f0;
+    }
+
+    .detail-table th.sortable::after {
+        content: '⇅';
+        margin-left: 6px;
+        color: #94a3b8;
+        font-size: 11px;
+    }
+
+    .detail-table th.sortable.asc::after {
+        content: '▲';
+        color: #4338ca;
+    }
+
+    .detail-table th.sortable.desc::after {
+        content: '▼';
+        color: #4338ca;
+    }
+
     /* 페이지네이션 */
     .pagination {
         display: flex;
@@ -669,57 +642,6 @@
         font-size: 13px;
         color: var(--text-secondary);
     }
-
-    /* 날짜 범위 뷰 */
-    .range-view-section {
-        background: white;
-        border-radius: 16px;
-        border: 1px solid var(--border-color);
-        overflow: hidden;
-    }
-
-    .range-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-    }
-
-    .range-table th,
-    .range-table td {
-        padding: 10px 12px;
-        text-align: center;
-        border: 1px solid var(--border-color);
-    }
-
-    .range-table th {
-        background: var(--bg-primary);
-        font-weight: 600;
-        color: var(--text-secondary);
-    }
-
-    .range-table th.retailer-col {
-        text-align: left;
-        min-width: 150px;
-    }
-
-    .range-table td.retailer-col {
-        text-align: left;
-        font-weight: 600;
-    }
-
-    .range-table .date-cell {
-        min-width: 80px;
-    }
-
-    .range-table .rate-cell {
-        font-weight: 600;
-    }
-
-    .range-table .rate-cell.success { color: #059669; background: #ecfdf5; }
-    .range-table .rate-cell.warning { color: #d97706; background: #fffbeb; }
-    .range-table .rate-cell.danger { color: #dc2626; background: #fef2f2; }
-    .range-table .rate-cell.pending { color: #6b7280; background: #f3f4f6; }
-    .range-table .rate-cell.collecting { color: #2563eb; background: #eff6ff; }
 
     /* Main Tabs */
     .main-tabs {
@@ -854,22 +776,345 @@
         border-bottom: none;
     }
 
+    /* 배치 확장 버튼 */
     .expand-btn {
-        background: none;
+        padding: 4px 10px;
+        background: #e0e7ff;
+        color: #4338ca;
         border: none;
-        cursor: pointer;
-        color: {{ layer.color }};
+        border-radius: 6px;
         font-size: 12px;
-        padding: 4px 8px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-left: 8px;
+        transition: all 0.2s;
     }
 
     .expand-btn:hover {
-        text-decoration: underline;
+        background: #c7d2fe;
+    }
+
+    .expand-btn.expanded {
+        background: #4338ca;
+        color: white;
+    }
+
+    /* 배치 서브 행 */
+    .batch-sub-row {
+        background: #f8fafc !important;
+    }
+
+    .batch-sub-row td {
+        padding: 10px 16px !important;
+        font-size: 12px !important;
+        color: var(--text-secondary);
+    }
+
+    .batch-sub-row:hover {
+        background: #f1f5f9 !important;
+    }
+
+    .batch-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding-left: 20px;
+    }
+
+    .batch-indicator::before {
+        content: '└';
+        color: #94a3b8;
+    }
+
+    .batch-time {
+        font-family: monospace;
+        color: #6366f1;
+        background: #e0e7ff;
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+
+    .batch-memo {
+        color: #64748b;
+        font-style: italic;
+    }
+
+    .batch-error-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .batch-error-badge.has-error {
+        background: #fef2f2;
+        color: #dc2626;
+    }
+
+    .batch-error-badge.no-error {
+        background: #ecfdf5;
+        color: #059669;
+    }
+
+    /* Batch Management Styles */
+    .btn-batch {
+        background: #6366f1;
+        color: white;
+        margin-left: 8px;
+    }
+
+    .btn-batch:hover {
+        background: #4f46e5;
+    }
+
+    .batch-modal .modal-content {
+        max-width: 1100px;
+    }
+
+    .batch-modal .modal-body {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    .batch-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .batch-table th,
+    .batch-table td {
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .batch-table th {
+        background: #f8fafc;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .batch-table input[type="time"] {
+        padding: 6px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+    }
+
+    .batch-table input[type="text"] {
+        padding: 6px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+        width: 280px;
+    }
+
+    .batch-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-sm {
+        padding: 6px 12px;
+        font-size: 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        border: none;
+    }
+
+    .btn-save {
+        background: #059669;
+        color: white;
+    }
+
+    .btn-save:hover {
+        background: #047857;
+    }
+
+    .btn-delete {
+        background: #dc2626;
+        color: white;
+    }
+
+    .btn-delete:hover {
+        background: #b91c1c;
+    }
+
+    .btn-add {
+        background: #3b82f6;
+        color: white;
+    }
+
+    .btn-add:hover {
+        background: #2563eb;
+    }
+
+    .batch-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 16px;
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+    }
+
+    .batch-toolbar select {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+        min-width: 150px;
+    }
+
+    .batch-info {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .batch-empty {
+        text-align: center;
+        padding: 40px;
+        color: var(--text-secondary);
+    }
+
+    .btn-init {
+        background: #f59e0b;
+        color: white;
+    }
+
+    .btn-init:hover {
+        background: #d97706;
+    }
+
+    /* Toast 알림 */
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .toast {
+        min-width: 300px;
+        max-width: 450px;
+        padding: 16px 20px;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        animation: toastSlideIn 0.3s ease;
+        background: white;
+        border: 1px solid #e2e8f0;
+    }
+
+    .toast.hiding {
+        animation: toastSlideOut 0.3s ease forwards;
+    }
+
+    @keyframes toastSlideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes toastSlideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+
+    .toast-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .toast-icon svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .toast.success .toast-icon {
+        background: #dcfce7;
+        color: #16a34a;
+    }
+
+    .toast.error .toast-icon {
+        background: #fee2e2;
+        color: #dc2626;
+    }
+
+    .toast.warning .toast-icon {
+        background: #fef3c7;
+        color: #d97706;
+    }
+
+    .toast.info .toast-icon {
+        background: #dbeafe;
+        color: #2563eb;
+    }
+
+    .toast-content {
+        flex: 1;
+    }
+
+    .toast-title {
+        font-weight: 600;
+        font-size: 14px;
+        color: #1e293b;
+        margin-bottom: 2px;
+    }
+
+    .toast-message {
+        font-size: 13px;
+        color: #64748b;
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        color: #94a3b8;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+
+    .toast-close:hover {
+        background: #f1f5f9;
+        color: #64748b;
     }
 </style>
 {% endblock %}
 
 {% block content %}
+<!-- Toast 알림 컨테이너 -->
+<div id="toastContainer" class="toast-container"></div>
+
 <!-- Layer Header -->
 <div class="layer-header">
     <div class="header-content">
@@ -894,25 +1139,20 @@
 
 <!-- Collection Tab Content -->
 <div id="collectionTabContent">
-<!-- Controls -->
-<div class="controls-bar">
-    <div class="date-selector" id="singleDateSelector">
+<!-- Fixed Date Bar -->
+<div class="date-bar">
+    <div class="date-selector">
         <label>조회 날짜</label>
         <input type="date" id="targetDate">
         <button class="btn btn-primary" onclick="loadData()">조회</button>
         <button class="btn btn-today" onclick="goToday()">오늘</button>
-    </div>
-    <div class="date-range-selector hidden" id="rangeDateSelector">
-        <label>기간</label>
-        <input type="date" id="startDate">
-        <span>~</span>
-        <input type="date" id="endDate">
-        <button class="btn btn-primary" onclick="loadRangeData()">조회</button>
+        {% if user.is_staff %}
+        <button class="btn btn-batch" onclick="openBatchModal()">배치관리</button>
+        {% endif %}
     </div>
     <div class="view-toggle">
-        <button id="viewAll" class="active" onclick="setView('all')">전체</button>
-        <button id="viewRegion" onclick="setView('region')">지역별</button>
-        <button id="viewRange" onclick="setView('range')">기간별</button>
+        <button class="active" onclick="setBatchView('final')">최종</button>
+        <button onclick="setBatchView('all')">전체</button>
     </div>
 </div>
 
@@ -968,15 +1208,6 @@
     </div>
 </div>
 
-<!-- Region View -->
-<div id="regionView" class="region-section hidden">
-    <div class="loading" id="regionLoading">
-        <div class="loading-spinner"></div>
-        데이터를 불러오는 중...
-    </div>
-    <div id="regionContent"></div>
-</div>
-
 <!-- All Table View -->
 <div id="allView" class="all-table-section">
     <div class="all-table-header">
@@ -987,18 +1218,6 @@
         데이터를 불러오는 중...
     </div>
     <div id="allContent"></div>
-</div>
-
-<!-- Range View -->
-<div id="rangeView" class="range-view-section hidden">
-    <div class="all-table-header">
-        <div class="all-table-title">기간별 수집 현황</div>
-    </div>
-    <div class="loading" id="rangeLoading">
-        <div class="loading-spinner"></div>
-        데이터를 불러오는 중...
-    </div>
-    <div id="rangeContent" style="overflow-x: auto;"></div>
 </div>
 </div><!-- End of collectionTabContent -->
 
@@ -1039,6 +1258,44 @@
     </div>
 </div>
 
+<!-- 배치 관리 모달 (admin only) -->
+{% if user.is_staff %}
+<div id="batchModal" class="modal-overlay batch-modal hidden" onclick="closeBatchModalOnOverlay(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title">배치 관리</div>
+                <div class="modal-subtitle" id="batchModalDate"></div>
+            </div>
+            <button class="modal-close" onclick="closeBatchModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="batch-toolbar">
+                <div>
+                    <label>리테일러: </label>
+                    <select id="batchRetailerFilter" onchange="filterBatches()">
+                        <option value="">전체</option>
+                    </select>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-init" onclick="initBatches()">기본 배치 생성</button>
+                    <button class="btn btn-sm btn-add" onclick="showAddBatchForm()">+ 배치 추가</button>
+                </div>
+            </div>
+            <div class="loading hidden" id="batchLoading">
+                <div class="loading-spinner"></div>
+                데이터를 불러오는 중...
+            </div>
+            <div id="batchContent"></div>
+        </div>
+        <div class="modal-footer">
+            <span class="batch-info" id="batchInfo"></span>
+            <button class="btn btn-primary" onclick="closeBatchModal()">닫기</button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- 상세 모달 -->
 <div id="detailModal" class="modal-overlay hidden" onclick="closeModalOnOverlay(event)">
     <div class="modal-content" onclick="event.stopPropagation()">
@@ -1070,17 +1327,58 @@
 
 {% block extra_js %}
 <script>
-let currentView = 'all';
 let currentMainTab = 'collection';
 let statsData = null;
-let instancesData = null;
-let rangeData = null;
 let fileserverData = null;
+let currentBatchView = 'final'; // 'final' or 'all'
 
 // 모달 관련 변수
 let currentTableName = '';
 let currentPage = 1;
 let totalPages = 1;
+
+// Toast 알림 함수
+function showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    const icons = {
+        success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+        error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
+        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+        info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
+    };
+
+    const titles = {
+        success: '완료',
+        error: '오류',
+        warning: '알림',
+        info: '안내'
+    };
+
+    toast.innerHTML = `
+        <div class="toast-icon">${icons[type]}</div>
+        <div class="toast-content">
+            <div class="toast-title">${titles[type]}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    `;
+
+    container.appendChild(toast);
+
+    // 자동 제거
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     // 어제 날짜를 기본값으로
@@ -1088,12 +1386,6 @@ document.addEventListener('DOMContentLoaded', function() {
     yesterday.setDate(yesterday.getDate() - 1);
     document.getElementById('targetDate').value = yesterday.toISOString().split('T')[0];
     document.getElementById('fileserverDate').value = yesterday.toISOString().split('T')[0];
-
-    // 날짜 범위 기본값 (최근 7일)
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    document.getElementById('startDate').value = weekAgo.toISOString().split('T')[0];
-    document.getElementById('endDate').value = yesterday.toISOString().split('T')[0];
 
     loadData();
 });
@@ -1109,6 +1401,20 @@ function setMainTab(tab) {
     if (tab === 'fileserver' && !fileserverData) {
         loadFileserverData();
     }
+}
+
+// 배치 뷰 전환 (최종/전체)
+function setBatchView(view) {
+    currentBatchView = view;
+
+    // 버튼 활성화 상태 변경
+    const buttons = document.querySelectorAll('.view-toggle button');
+    buttons.forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === (view === 'final' ? '최종' : '전체'));
+    });
+
+    // 데이터 다시 로드 (API에서 batch_view에 맞는 데이터 조회)
+    loadData();
 }
 
 // Fileserver 데이터 로드
@@ -1204,31 +1510,6 @@ function goTodayFileserver() {
     loadFileserverData();
 }
 
-function setView(view) {
-    currentView = view;
-
-    document.getElementById('viewRegion').classList.toggle('active', view === 'region');
-    document.getElementById('viewAll').classList.toggle('active', view === 'all');
-    document.getElementById('viewRange').classList.toggle('active', view === 'range');
-
-    document.getElementById('regionView').classList.toggle('hidden', view !== 'region');
-    document.getElementById('allView').classList.toggle('hidden', view !== 'all');
-    document.getElementById('rangeView').classList.toggle('hidden', view !== 'range');
-
-    // 날짜 선택 UI 전환
-    document.getElementById('singleDateSelector').classList.toggle('hidden', view === 'range');
-    document.getElementById('rangeDateSelector').classList.toggle('hidden', view !== 'range');
-
-    // Summary 표시/숨김
-    document.querySelector('.summary-grid').classList.toggle('hidden', view === 'range');
-
-    if (view === 'range' && !rangeData) {
-        loadRangeData();
-    } else {
-        renderData();
-    }
-}
-
 function goToday() {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('targetDate').value = today;
@@ -1241,36 +1522,30 @@ async function loadData() {
     const date = document.getElementById('targetDate').value;
 
     // Show loading
-    document.getElementById('regionLoading').classList.remove('hidden');
     document.getElementById('allLoading').classList.remove('hidden');
-    document.getElementById('regionContent').innerHTML = '';
     document.getElementById('allContent').innerHTML = '';
 
     try {
         // Fetch all APIs in parallel (Layer1 + Layer2)
-        const [statsResponse, instancesResponse, layer2Response] = await Promise.all([
-            fetch(`/ds/layer1/api/stats/?date=${date}`),
-            fetch(`/ds/layer1/api/instances/?date=${date}`),
-            fetch(`/ds/layer2/api/stats/?date=${date}`)
+        const [statsResponse, layer2Response] = await Promise.all([
+            fetch(`/ds/layer1/api/stats/?date=${date}&batch_view=${currentBatchView}`),
+            fetch(`/ds/layer2/api/stats/?date=${date}&batch_view=${currentBatchView}`)
         ]);
 
         statsData = await statsResponse.json();
-        instancesData = await instancesResponse.json();
         layer2Data = await layer2Response.json();
 
         // Update summary
         updateSummary(statsData);
 
-        // Render current view
-        renderData();
+        // Render view
+        renderAllView(statsData);
 
     } catch (error) {
         console.error('Error loading data:', error);
-        document.getElementById('regionContent').innerHTML = '<div class="loading">데이터 로드 실패</div>';
         document.getElementById('allContent').innerHTML = '<div class="loading">데이터 로드 실패</div>';
     }
 
-    document.getElementById('regionLoading').classList.add('hidden');
     document.getElementById('allLoading').classList.add('hidden');
 }
 
@@ -1294,181 +1569,6 @@ function updateSummary(data) {
         rateEl.textContent = rate + '%';
         rateEl.className = 'summary-value ' + getStatusClass(rate);
     }
-}
-
-function renderData() {
-    if (currentView === 'region' && instancesData) {
-        renderRegionView(instancesData);
-    } else if (currentView === 'all' && statsData) {
-        renderAllView(statsData);
-    } else if (currentView === 'range' && rangeData) {
-        renderRangeView(rangeData);
-    }
-}
-
-async function loadRangeData() {
-    const startDate = document.getElementById('startDate').value;
-    const endDate = document.getElementById('endDate').value;
-
-    document.getElementById('rangeLoading').classList.remove('hidden');
-    document.getElementById('rangeContent').innerHTML = '';
-
-    try {
-        const response = await fetch(`/ds/layer1/api/range/?start_date=${startDate}&end_date=${endDate}`);
-        rangeData = await response.json();
-
-        if (rangeData.error) {
-            document.getElementById('rangeContent').innerHTML = `<div class="loading">${rangeData.error}</div>`;
-        } else {
-            renderRangeView(rangeData);
-        }
-    } catch (error) {
-        console.error('Error loading range data:', error);
-        document.getElementById('rangeContent').innerHTML = '<div class="loading">데이터 로드 실패</div>';
-    }
-
-    document.getElementById('rangeLoading').classList.add('hidden');
-}
-
-function renderRangeView(data) {
-    const container = document.getElementById('rangeContent');
-
-    if (!data.retailers || data.retailers.length === 0) {
-        container.innerHTML = '<div class="loading">데이터가 없습니다.</div>';
-        return;
-    }
-
-    let html = '<table class="range-table"><thead><tr>';
-    html += '<th class="retailer-col">리테일러</th>';
-    html += '<th>지역</th>';
-    html += '<th>예상</th>';
-
-    // 날짜 헤더
-    for (const date of data.dates) {
-        const d = new Date(date);
-        html += `<th class="date-cell">${(d.getMonth()+1)}/${d.getDate()}</th>`;
-    }
-    html += '</tr></thead><tbody>';
-
-    for (const retailer of data.retailers) {
-        html += '<tr>';
-        html += `<td class="retailer-col">${retailer.retailer} <span class="country-badge">${retailer.country}</span></td>`;
-        html += `<td>${retailer.region}</td>`;
-        html += `<td>${retailer.expected.toLocaleString()}</td>`;
-
-        for (const stat of retailer.daily_stats) {
-            const statusClass = getStatusClass(stat.completion_rate);
-            html += `<td class="rate-cell ${statusClass}">${stat.completion_rate}%</td>`;
-        }
-        html += '</tr>';
-    }
-
-    html += '</tbody></table>';
-    container.innerHTML = html;
-}
-
-function renderRegionView(data) {
-    const container = document.getElementById('regionContent');
-
-    if (!data.regions || Object.keys(data.regions).length === 0) {
-        container.innerHTML = '<div class="loading">데이터가 없습니다.</div>';
-        return;
-    }
-
-    let html = '';
-
-    // 지역 아이콘 매핑
-    const regionIcons = {
-        '미국(오하이오)': { emoji: '🇺🇸', color: '#3b82f6' },
-        '아시아(도쿄)': { emoji: '🇯🇵', color: '#ec4899' },
-        '아시아(뭄바이)': { emoji: '🇮🇳', color: '#f97316' },
-        '아시아(서울)': { emoji: '🇰🇷', color: '#0ea5e9' },
-        '유럽(런던)': { emoji: '🇬🇧', color: '#1e40af' },
-        '유럽(밀라노)': { emoji: '🇮🇹', color: '#16a34a' },
-        '유럽(스페인)': { emoji: '🇪🇸', color: '#dc2626' },
-        '유럽(파리)': { emoji: '🇫🇷', color: '#2563eb' },
-        '유럽(프랑크푸르트)': { emoji: '🇩🇪', color: '#eab308' },
-        '호주': { emoji: '🇦🇺', color: '#14b8a6' }
-    };
-
-    for (const [regionName, region] of Object.entries(data.regions)) {
-        const icon = regionIcons[regionName] || { emoji: '🌍', color: '#6b7280' };
-        const statusClass = getStatusClass(region.completion_rate);
-
-        html += `
-        <div class="region-card">
-            <div class="region-header">
-                <div class="region-title">
-                    <div class="region-icon" style="background: ${icon.color}20; color: ${icon.color};">
-                        ${icon.emoji}
-                    </div>
-                    <span class="region-name">${regionName}</span>
-                </div>
-                <div class="region-stats">
-                    <div class="region-stat">
-                        <div class="region-stat-value">${region.total_actual.toLocaleString()} / ${region.total_expected.toLocaleString()}</div>
-                        <div class="region-stat-label">수집 / 예상</div>
-                    </div>
-                    <span class="status-badge ${statusClass}">
-                        <span class="status-dot"></span>
-                        ${region.completion_rate}%
-                    </span>
-                </div>
-            </div>
-            <table class="retailer-table">
-                <thead>
-                    <tr>
-                        <th>리테일러</th>
-                        <th>국가</th>
-                        <th>수집시간(KST)</th>
-                        <th>예상</th>
-                        <th>실제</th>
-                        <th>완료율</th>
-                        <th>상태</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
-        for (const retailer of region.retailers) {
-            const retailerStatus = retailer.status;
-            const l2Status = getLayer2Status(retailer.retailer);
-            // 수집중/대기중일 때는 L2 태그 표시 안함
-            const showL2Badge = l2Status && retailerStatus !== 'collecting' && retailerStatus !== 'pending';
-            const l2Badge = showL2Badge ? `<span class="layer2-badge ${l2Status.status}" title="L2 비정상: ${l2Status.error_count}건">L2 확인</span>` : '';
-            html += `
-                <tr onclick="openDetail('${retailer.table_name}', '${retailer.retailer}', '${retailer.country}')" title="클릭하여 상세 보기">
-                    <td><span class="retailer-name">${retailer.retailer}</span>${l2Badge}</td>
-                    <td><span class="country-badge">${retailer.country}</span></td>
-                    <td>${retailer.korea_time}</td>
-                    <td>${retailer.expected.toLocaleString()}</td>
-                    <td>${retailer.actual.toLocaleString()}</td>
-                    <td>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <div class="completion-bar">
-                                <div class="completion-fill ${retailerStatus}" style="width: ${Math.min(retailer.completion_rate, 100)}%"></div>
-                            </div>
-                            <span>${retailer.completion_rate}%</span>
-                        </div>
-                    </td>
-                    <td>
-                        <span class="status-badge ${retailerStatus}">
-                            <span class="status-dot"></span>
-                            ${getStatusLabel(retailerStatus)}
-                        </span>
-                    </td>
-                </tr>
-            `;
-        }
-
-        html += `
-                </tbody>
-            </table>
-        </div>
-        `;
-    }
-
-    container.innerHTML = html;
 }
 
 function renderAllView(data) {
@@ -1498,15 +1598,26 @@ function renderAllView(data) {
     `;
 
     for (const item of data.results) {
-        const statusClass = item.status;
+        // 100% 초과 시 'over100' 상태로 표시
+        const statusClass = item.completion_rate > 100 ? 'over100' : item.status;
         const l2Status = getLayer2Status(item.retailer);
         // 수집중/대기중일 때는 L2 태그 표시 안함
         const showL2Badge = l2Status && statusClass !== 'collecting' && statusClass !== 'pending';
         const l2Badge = showL2Badge ? `<span class="layer2-badge ${l2Status.status}" title="L2 비정상: ${l2Status.error_count}건">L2 확인</span>` : '';
+
+        // 배치 펼침 버튼 (배치가 2개 이상이고, 전체 뷰일 때만)
+        const expandBtn = (item.has_multi_batch && currentBatchView === 'all')
+            ? `<button class="expand-btn" onclick="event.stopPropagation(); toggleBatchRows('${item.retailer}')" id="expandBtn_${item.retailer}">▶ 배치별</button>`
+            : '';
+
+        // 최종 모드에서 마지막 배치 시간 범위가 있으면 사용
+        const finalStartTime = item.final_start_time ? `'${item.final_start_time}'` : 'null';
+        const finalEndTime = item.final_end_time ? `'${item.final_end_time}'` : 'null';
+
         html += `
-            <tr onclick="openDetail('${item.table_name}', '${item.retailer}', '${item.country}')" title="클릭하여 상세 보기">
+            <tr onclick="openDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${finalStartTime}, ${finalEndTime})" title="클릭하여 상세 보기" data-retailer="${item.retailer}">
                 <td>${item.no}</td>
-                <td><span class="retailer-name">${item.retailer}</span>${l2Badge}</td>
+                <td><span class="retailer-name">${item.retailer}</span>${l2Badge} ${expandBtn}</td>
                 <td>${item.region}</td>
                 <td><span class="country-badge">${item.country}</span></td>
                 <td>${item.korea_time}</td>
@@ -1528,6 +1639,52 @@ function renderAllView(data) {
                 </td>
             </tr>
         `;
+
+        // 배치별 하위 행 (숨김 상태로 시작) - 전체 뷰일 때만 렌더링
+        if (item.has_multi_batch && item.batches && currentBatchView === 'all') {
+            for (const batch of item.batches) {
+                const batchStatusClass = batch.completion_rate >= 95 ? 'success' :
+                                         batch.completion_rate >= 80 ? 'warning' : 'danger';
+                // L2 이상 건수 배지
+                const l2ErrorCount = batch.l2_error_count || 0;
+                const l2Badge = l2ErrorCount > 0
+                    ? `<span class="batch-error-badge has-error">L2: ${l2ErrorCount}건</span>`
+                    : '';
+                // end_time이 '다음날'이면 null로 전달
+                const endTimeParam = batch.end_time === '다음날' ? 'null' : `'${batch.end_time}'`;
+                html += `
+                    <tr class="batch-sub-row hidden" data-parent="${item.retailer}"
+                        onclick="openDetail('${item.table_name}', '${item.retailer}', '${item.country}', '${batch.start_time}', ${endTimeParam})"
+                        title="클릭하여 배치 상세 보기">
+                        <td></td>
+                        <td colspan="3">
+                            <span class="batch-indicator">
+                                <span class="batch-time">${batch.start_time} ~ ${batch.end_time}</span>
+                                <span class="batch-memo">${batch.memo || ''}</span>
+                                ${l2Badge}
+                            </span>
+                        </td>
+                        <td></td>
+                        <td>${item.expected.toLocaleString()}</td>
+                        <td>${batch.actual.toLocaleString()}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div class="completion-bar">
+                                    <div class="completion-fill ${batchStatusClass}" style="width: ${Math.min(batch.completion_rate, 100)}%"></div>
+                                </div>
+                                <span>${batch.completion_rate}%</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="status-badge ${batchStatusClass}">
+                                <span class="status-dot"></span>
+                                ${getStatusLabel(batchStatusClass)}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
     }
 
     html += `
@@ -1538,12 +1695,41 @@ function renderAllView(data) {
     container.innerHTML = html;
 }
 
+function toggleBatchRows(retailer) {
+    const subRows = document.querySelectorAll(`.batch-sub-row[data-parent="${retailer}"]`);
+    const btn = document.getElementById(`expandBtn_${retailer}`);
+
+    if (subRows.length === 0) return;
+
+    const isExpanded = !subRows[0].classList.contains('hidden');
+
+    subRows.forEach(row => {
+        if (isExpanded) {
+            row.classList.add('hidden');
+        } else {
+            row.classList.remove('hidden');
+        }
+    });
+
+    // 버튼 텍스트 및 스타일 변경
+    if (btn) {
+        if (isExpanded) {
+            btn.textContent = '▶ 배치별';
+            btn.classList.remove('expanded');
+        } else {
+            btn.textContent = '▼ 접기';
+            btn.classList.add('expanded');
+        }
+    }
+}
+
 function getStatusClass(rateOrStatus) {
     // API에서 받은 status 문자열이면 그대로 반환
     if (typeof rateOrStatus === 'string') {
         return rateOrStatus;
     }
     // 숫자(완료율)면 기존 로직
+    if (rateOrStatus > 100) return 'over100';  // 100% 초과 (재실행)
     if (rateOrStatus >= 95) return 'success';
     if (rateOrStatus >= 80) return 'warning';
     return 'danger';
@@ -1556,17 +1742,29 @@ function getStatusLabel(status) {
         'danger': '이상',
         'pending': '대기중',
         'collecting': '수집중',
-        'error': '오류'
+        'error': '오류',
+        'over100': '재실행'
     };
     return labels[status] || '확인필요';
 }
 
 // 모달 관련 함수
-async function openDetail(tableName, retailerName, country) {
+let currentStartTime = null;
+let currentEndTime = null;
+let currentSortBy = 'crawl_strdatetime';
+let currentSortOrder = 'asc';
+
+async function openDetail(tableName, retailerName, country, startTime = null, endTime = null) {
     currentTableName = tableName;
     currentPage = 1;
+    currentStartTime = startTime;
+    currentEndTime = endTime;
+    currentSortBy = 'crawl_strdatetime';
+    currentSortOrder = 'asc';
 
-    document.getElementById('modalTitle').textContent = `${retailerName} (${country})`;
+    // 배치별 조회인 경우 시간 범위 표시
+    const timeRange = startTime ? ` (${startTime} ~ ${endTime || '다음날'})` : '';
+    document.getElementById('modalTitle').textContent = `${retailerName} (${country})${timeRange}`;
     document.getElementById('modalSubtitle').textContent = `테이블: ${tableName}`;
     document.getElementById('detailModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -1581,7 +1779,18 @@ async function loadDetailData() {
     document.getElementById('modalContent').innerHTML = '';
 
     try {
-        const response = await fetch(`/ds/layer1/api/table/?table=${currentTableName}&date=${date}&page=${currentPage}&page_size=50`);
+        let url = `/ds/layer1/api/table/?table=${currentTableName}&date=${date}&page=${currentPage}&page_size=50`;
+        // 시간 범위 파라미터 추가
+        if (currentStartTime) {
+            url += `&start_time=${encodeURIComponent(currentStartTime)}`;
+        }
+        if (currentEndTime) {
+            url += `&end_time=${encodeURIComponent(currentEndTime)}`;
+        }
+        // 정렬 파라미터 추가
+        url += `&sort_by=${currentSortBy}&sort_order=${currentSortOrder}`;
+
+        const response = await fetch(url);
         const data = await response.json();
 
         if (data.error) {
@@ -1600,25 +1809,39 @@ async function loadDetailData() {
 }
 
 function renderDetailTable(data) {
+    // 정렬 상태에 따른 클래스 결정
+    const getSortClass = (column) => {
+        if (currentSortBy === column) {
+            return `sortable ${currentSortOrder}`;
+        }
+        return 'sortable';
+    };
+
     let html = `
         <table class="detail-table">
             <thead>
                 <tr>
+                    <th>No</th>
+                    <th class="${getSortClass('crawl_strdatetime')}" onclick="sortBy('crawl_strdatetime')">수집일시</th>
                     <th>이미지</th>
-                    <th>제품명</th>
-                    <th>가격</th>
-                    <th>Ships From</th>
-                    <th>Sold By</th>
+                    <th class="${getSortClass('title')}" onclick="sortBy('title')">제품명</th>
+                    <th class="${getSortClass('retailprice')}" onclick="sortBy('retailprice')">가격</th>
+                    <th class="${getSortClass('ships_from')}" onclick="sortBy('ships_from')">Ships From</th>
+                    <th class="${getSortClass('sold_by')}" onclick="sortBy('sold_by')">Sold By</th>
                     <th>링크</th>
                 </tr>
             </thead>
             <tbody>
     `;
 
-    for (const item of data.data) {
+    const startNo = (currentPage - 1) * 50 + 1;
+    data.data.forEach((item, index) => {
+        const rowNo = startNo + index;
         const imgSrc = item.imageurl && item.imageurl.startsWith('http') ? item.imageurl : '';
         html += `
             <tr>
+                <td style="text-align: center; color: #64748b;">${rowNo}</td>
+                <td style="font-size: 12px; color: #6b7280; white-space: nowrap;">${item.crawl_datetime || '-'}</td>
                 <td>${imgSrc ? `<img src="${imgSrc}" class="thumb" onerror="this.style.display='none'">` : '-'}</td>
                 <td class="title-cell" title="${item.title}">${item.title || '-'}</td>
                 <td>${item.retailprice || '-'}</td>
@@ -1627,7 +1850,7 @@ function renderDetailTable(data) {
                 <td>${item.producturl ? `<a href="${item.producturl}" target="_blank">보기</a>` : '-'}</td>
             </tr>
         `;
-    }
+    });
 
     html += '</tbody></table>';
     document.getElementById('modalContent').innerHTML = html;
@@ -1654,6 +1877,18 @@ function nextPage() {
     }
 }
 
+function sortBy(column) {
+    // 같은 컬럼 클릭 시 정렬 순서 토글, 다른 컬럼 클릭 시 오름차순으로 시작
+    if (currentSortBy === column) {
+        currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortBy = column;
+        currentSortOrder = 'asc';
+    }
+    currentPage = 1; // 정렬 변경 시 첫 페이지로
+    loadDetailData();
+}
+
 function closeModal() {
     document.getElementById('detailModal').classList.add('hidden');
     document.body.style.overflow = '';
@@ -1669,7 +1904,414 @@ function closeModalOnOverlay(event) {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeModal();
+        closeBatchModal();
     }
 });
+
+{% if user.is_staff %}
+// ========== 배치 관리 기능 (admin only) ==========
+let batchData = [];
+let retailerList = [];
+
+async function openBatchModal() {
+    const date = document.getElementById('targetDate').value;
+    document.getElementById('batchModalDate').textContent = date;
+    document.getElementById('batchModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+
+    // 리테일러 목록 초기화 (Layer1 순서 유지)
+    if (retailerList.length === 0 && statsData && statsData.results) {
+        // 순서 유지하면서 중복 제거
+        retailerList = [];
+        statsData.results.forEach(r => {
+            if (!retailerList.includes(r.retailer)) {
+                retailerList.push(r.retailer);
+            }
+        });
+        const select = document.getElementById('batchRetailerFilter');
+        select.innerHTML = '<option value="">전체</option>';
+        retailerList.forEach(r => {
+            select.innerHTML += `<option value="${r}">${r}</option>`;
+        });
+    }
+
+    await loadBatchData();
+}
+
+function closeBatchModal() {
+    document.getElementById('batchModal').classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+function closeBatchModalOnOverlay(event) {
+    if (event.target === event.currentTarget) {
+        closeBatchModal();
+    }
+}
+
+async function loadBatchData() {
+    const date = document.getElementById('targetDate').value;
+
+    document.getElementById('batchLoading').classList.remove('hidden');
+    document.getElementById('batchContent').innerHTML = '';
+
+    try {
+        const response = await fetch(`/ds/layer1/api/batch/?date=${date}`);
+        const data = await response.json();
+
+        if (data.error) {
+            document.getElementById('batchContent').innerHTML = `<div class="batch-empty">${data.error}</div>`;
+        } else {
+            batchData = data.batches || [];
+
+            // 배치가 없으면 자동으로 기본 배치 생성
+            if (batchData.length === 0) {
+                await autoInitBatches(date);
+                return;  // autoInitBatches에서 다시 loadBatchData 호출
+            }
+
+            renderBatchTable();
+        }
+    } catch (error) {
+        console.error('Error loading batch data:', error);
+        document.getElementById('batchContent').innerHTML = '<div class="batch-empty">데이터 로드 실패</div>';
+    }
+
+    document.getElementById('batchLoading').classList.add('hidden');
+}
+
+async function autoInitBatches(date) {
+    try {
+        const response = await fetch('/ds/layer1/api/batch/init/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ date: date })
+        });
+
+        const result = await response.json();
+
+        if (!result.error && result.created > 0) {
+            await loadBatchData();  // 다시 로드
+        } else {
+            document.getElementById('batchLoading').classList.add('hidden');
+            renderBatchTable();
+        }
+    } catch (error) {
+        console.error('Error auto-init batches:', error);
+        document.getElementById('batchLoading').classList.add('hidden');
+    }
+}
+
+function filterBatches() {
+    renderBatchTable();
+}
+
+function renderBatchTable() {
+    const filter = document.getElementById('batchRetailerFilter').value;
+    const filtered = filter ? batchData.filter(b => b.retailer === filter) : batchData;
+
+    if (filtered.length === 0) {
+        document.getElementById('batchContent').innerHTML = `
+            <div class="batch-empty">
+                <p>등록된 배치가 없습니다.</p>
+                <p style="margin-top: 8px; font-size: 12px;">"기본 배치 생성" 버튼을 클릭하여 기본 배치를 생성하세요.</p>
+            </div>
+        `;
+        document.getElementById('batchInfo').textContent = '총 0개 배치';
+        return;
+    }
+
+    // 리테일러별로 그룹화
+    const grouped = {};
+    filtered.forEach(batch => {
+        if (!grouped[batch.retailer]) {
+            grouped[batch.retailer] = [];
+        }
+        grouped[batch.retailer].push(batch);
+    });
+
+    // statsData에서 리테일러 순서 가져오기
+    const retailerOrder = statsData && statsData.results
+        ? statsData.results.map(r => r.retailer)
+        : [];
+
+    // 리테일러 순서대로 정렬
+    const sortedRetailers = Object.keys(grouped).sort((a, b) => {
+        const idxA = retailerOrder.indexOf(a);
+        const idxB = retailerOrder.indexOf(b);
+        if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+        if (idxA === -1) return 1;
+        if (idxB === -1) return -1;
+        return idxA - idxB;
+    });
+
+    let html = `
+        <table class="batch-table">
+            <thead>
+                <tr>
+                    <th>리테일러</th>
+                    <th>시작시간</th>
+                    <th>종료시간</th>
+                    <th>메모</th>
+                    <th>액션</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    for (const retailer of sortedRetailers) {
+        const batches = grouped[retailer];
+        // 시간순 정렬
+        batches.sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+        batches.forEach((batch, idx) => {
+            // 종료시간 계산 (다음 배치 시작시간 또는 23:59:59)
+            const endTime = idx < batches.length - 1 ? batches[idx + 1].start_time.substring(0, 5) : '다음날';
+
+            html += `
+                <tr data-batch-id="${batch.id}">
+                    <td><strong>${batch.retailer}</strong></td>
+                    <td>
+                        <input type="time" value="${batch.start_time.substring(0, 5)}"
+                               id="time_${batch.id}" onchange="markChanged(${batch.id})">
+                    </td>
+                    <td style="color: var(--text-secondary);">${endTime}</td>
+                    <td>
+                        <input type="text" value="${batch.memo || ''}" placeholder="메모 입력"
+                               id="memo_${batch.id}" onchange="markChanged(${batch.id})">
+                    </td>
+                    <td>
+                        <div class="batch-actions">
+                            <button class="btn btn-sm btn-save" onclick="saveBatch(${batch.id})" id="saveBtn_${batch.id}" disabled>저장</button>
+                            <button class="btn btn-sm btn-delete" onclick="deleteBatch(${batch.id})">삭제</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    html += '</tbody></table>';
+    document.getElementById('batchContent').innerHTML = html;
+    document.getElementById('batchInfo').textContent = `총 ${filtered.length}개 배치`;
+}
+
+function markChanged(batchId) {
+    document.getElementById(`saveBtn_${batchId}`).disabled = false;
+}
+
+async function saveBatch(batchId) {
+    const startTime = document.getElementById(`time_${batchId}`).value;
+    const memo = document.getElementById(`memo_${batchId}`).value;
+
+    try {
+        const response = await fetch('/ds/layer1/api/batch/update/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                id: batchId,
+                start_time: startTime + ':00',
+                memo: memo
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.error) {
+            showToast('저장 실패: ' + result.error, 'error');
+        } else {
+            showToast('저장되었습니다.', 'success');
+            document.getElementById(`saveBtn_${batchId}`).disabled = true;
+            await loadBatchData();  // 테이블 새로고침 (종료시간 재계산)
+        }
+    } catch (error) {
+        showToast('저장 중 오류 발생: ' + error, 'error');
+    }
+}
+
+async function deleteBatch(batchId) {
+    if (!confirm('이 배치를 삭제하시겠습니까?')) return;
+
+    try {
+        const response = await fetch('/ds/layer1/api/batch/delete/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ id: batchId })
+        });
+
+        const result = await response.json();
+
+        if (result.error) {
+            showToast('삭제 실패: ' + result.error, 'error');
+        } else {
+            showToast('삭제되었습니다.', 'success');
+            await loadBatchData();
+        }
+    } catch (error) {
+        showToast('삭제 중 오류 발생: ' + error, 'error');
+    }
+}
+
+async function initBatches() {
+    const date = document.getElementById('targetDate').value;
+
+    if (!confirm(`${date} 날짜에 기본 배치를 생성하시겠습니까?`)) return;
+
+    try {
+        const response = await fetch('/ds/layer1/api/batch/init/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ date: date })
+        });
+
+        const result = await response.json();
+
+        if (result.error) {
+            showToast('생성 실패: ' + result.error, 'error');
+        } else {
+            showToast(result.message, 'success');
+            await loadBatchData();
+        }
+    } catch (error) {
+        showToast('생성 중 오류 발생: ' + error, 'error');
+    }
+}
+
+function showAddBatchForm() {
+    const filter = document.getElementById('batchRetailerFilter').value;
+
+    // 리테일러 선택 필수
+    if (!filter) {
+        showToast('먼저 리테일러를 선택하세요.', 'warning');
+        return;
+    }
+
+    // 이미 추가 행이 있으면 무시
+    if (document.getElementById('newBatchRow')) {
+        document.getElementById('newTime').focus();
+        return;
+    }
+
+    // 테이블 tbody에 새 행 추가
+    const tbody = document.querySelector('.batch-table tbody');
+    if (!tbody) {
+        // 테이블이 없으면 빈 테이블 생성
+        document.getElementById('batchContent').innerHTML = `
+            <table class="batch-table">
+                <thead>
+                    <tr>
+                        <th>리테일러</th>
+                        <th>시작시간</th>
+                        <th>종료시간</th>
+                        <th>메모</th>
+                        <th>액션</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        `;
+    }
+
+    const newRow = document.createElement('tr');
+    newRow.id = 'newBatchRow';
+    newRow.style.background = '#eff6ff';
+    newRow.innerHTML = `
+        <td><strong>${filter}</strong> <span style="color: #3b82f6; font-size: 11px;">(신규)</span></td>
+        <td>
+            <input type="time" id="newTime" value="12:00">
+        </td>
+        <td style="color: var(--text-secondary);">-</td>
+        <td>
+            <input type="text" id="newMemo" value="재실행" placeholder="메모 입력">
+        </td>
+        <td>
+            <div class="batch-actions">
+                <button class="btn btn-sm btn-save" onclick="saveNewBatch('${filter}')">저장</button>
+                <button class="btn btn-sm" style="background: #6b7280; color: white;" onclick="cancelNewBatch()">취소</button>
+            </div>
+        </td>
+    `;
+
+    const tableBody = document.querySelector('.batch-table tbody');
+    tableBody.appendChild(newRow);
+    document.getElementById('newTime').focus();
+
+    // 새 행이 보이도록 스크롤
+    newRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function cancelNewBatch() {
+    const newRow = document.getElementById('newBatchRow');
+    if (newRow) {
+        newRow.remove();
+    }
+}
+
+async function saveNewBatch(retailer) {
+    const time = document.getElementById('newTime').value;
+    const memo = document.getElementById('newMemo').value;
+
+    if (!time) {
+        showToast('시작시간을 입력하세요.', 'warning');
+        return;
+    }
+
+    await addBatch(retailer, time, memo || '');
+}
+
+async function addBatch(retailer, time, memo) {
+    const date = document.getElementById('targetDate').value;
+
+    try {
+        const response = await fetch('/ds/layer1/api/batch/create/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                date: date,
+                retailer: retailer,
+                start_time: time + ':00',
+                memo: memo
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.error) {
+            showToast('추가 실패: ' + result.error, 'error');
+        } else {
+            showToast('배치가 추가되었습니다.', 'success');
+            await loadBatchData();
+        }
+    } catch (error) {
+        showToast('추가 중 오류 발생: ' + error, 'error');
+    }
+}
+
+function getCsrfToken() {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrftoken') {
+            return value;
+        }
+    }
+    return '';
+}
+{% endif %}
 </script>
 {% endblock %}

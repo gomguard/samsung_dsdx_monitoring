@@ -38,6 +38,7 @@ tv,sku_status,N,N,Y,N,N,inventory_status
 tv,inventory_status,N,N,Y,N,N,sku_status
 tv,number_of_ppl_purchased_yesterday,N,N,Y,N,N,number_of_ppl_added_to_carts
 tv,number_of_ppl_added_to_carts,N,N,Y,N,N,number_of_ppl_purchased_yesterday
+tv,model_year,Y,Y,Y,N,N,
 hhp,item,Y,Y,Y,Y,N,
 hhp,account_name,Y,Y,Y,Y,N,
 hhp,page_type,Y,Y,Y,N,N,

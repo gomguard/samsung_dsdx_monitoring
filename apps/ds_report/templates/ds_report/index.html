@@ -512,6 +512,10 @@
                         <div class="stat-label">정상 수집</div>
                     </div>
                     <div class="stat-item">
+                        <div class="stat-value" id="rerun-count">-</div>
+                        <div class="stat-label">재실행</div>
+                    </div>
+                    <div class="stat-item">
                         <div class="stat-value" id="issue-count">-</div>
                         <div class="stat-label">특이사항</div>
                     </div>
@@ -816,6 +820,7 @@
         // 요약 통계
         document.getElementById('total-retailers').textContent = data.summary.total_retailers;
         document.getElementById('success-count').textContent = data.summary.success_count;
+        document.getElementById('rerun-count').textContent = data.summary.rerun_count || 0;
         document.getElementById('issue-count').textContent = data.summary.issue_count;
 
         // 리테일러 그리드
@@ -854,9 +859,15 @@
         let text = `ds 모니터링 보고\n\n`;
         text += `수집일시 : ${formattedDate}\n\n`;
 
+        // 재실행 건수
+        const rerunCount = data.reruns ? data.reruns.length : 0;
+
         // [요약]
         text += `[요약]\n`;
         text += `수집현황: ${collectionStatus} (${data.retailers.length}개 리테일러 100% 완료)\n`;
+        if (rerunCount > 0) {
+            text += `재실행: ${rerunCount}건\n`;
+        }
         if (issueCount > 0) {
             text += `데이터품질: 이슈 ${issueCount}건 (${totalIssueItems}건 데이터)\n`;
         } else {
@@ -864,8 +875,22 @@
         }
         text += `파일질라: 정상\n\n`;
 
+        // [재실행]
+        text += `[재실행]\n`;
+        if (data.reruns && data.reruns.length > 0) {
+            const maxRerunRetailerLen = Math.max(...data.reruns.map(r => r.retailer.length));
+            data.reruns.forEach(rerun => {
+                const padding = ' '.repeat(maxRerunRetailerLen - rerun.retailer.length + 2);
+                // 재실행 1번이면 그냥 "재실행", 2번 이상이면 "재실행 (N번)"
+                const rerunText = rerun.count === 1 ? '재실행' : `재실행 (${rerun.count}번)`;
+                text += `${rerun.retailer}${padding}${rerunText}\n`;
+            });
+        } else {
+            text += `없음\n`;
+        }
+
         // [이슈 내용]
-        text += `[이슈 내용]\n`;
+        text += `\n[이슈 내용]\n`;
         if (data.issues && data.issues.length > 0) {
             // 이슈를 리테일러별로 정리
             const maxRetailerLen = Math.max(...data.issues.map(i => i.retailer.length));
@@ -909,10 +934,30 @@
         return text;
     }
 
+    // HTTP 환경용 폴백 복사 함수
+    function fallbackCopy(text, onSuccess, onError) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            if (onSuccess) onSuccess();
+        } catch (err) {
+            console.error('복사 실패:', err);
+            if (onError) onError(err);
+        }
+        document.body.removeChild(textArea);
+    }
+
     function copyReport() {
         const reportText = document.getElementById('report-preview').textContent;
 
-        navigator.clipboard.writeText(reportText).then(() => {
+        function showSuccess() {
             const btn = document.getElementById('copy-btn');
             btn.textContent = '✓ 복사됨!';
             btn.classList.add('copied');
@@ -921,9 +966,15 @@
                 btn.textContent = '📋 클립보드에 복사';
                 btn.classList.remove('copied');
             }, 2000);
-        }).catch(err => {
-            alert('복사 실패: ' + err);
-        });
+        }
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(reportText).then(showSuccess).catch(err => {
+                fallbackCopy(reportText, showSuccess, () => alert('복사 실패: ' + err));
+            });
+        } else {
+            fallbackCopy(reportText, showSuccess, (err) => alert('복사 실패: ' + err));
+        }
     }
 
     // 모니터링 항목 보고서 생성
@@ -992,7 +1043,7 @@
     function copyMonitoringReport() {
         const reportText = document.getElementById('monitoring-preview').textContent;
 
-        navigator.clipboard.writeText(reportText).then(() => {
+        function showSuccess() {
             const btn = document.getElementById('copy-monitoring-btn');
             btn.textContent = '✓ 복사됨!';
             btn.classList.add('copied');
@@ -1001,9 +1052,15 @@
                 btn.textContent = '📋 클립보드에 복사';
                 btn.classList.remove('copied');
             }, 2000);
-        }).catch(err => {
-            alert('복사 실패: ' + err);
-        });
+        }
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(reportText).then(showSuccess).catch(err => {
+                fallbackCopy(reportText, showSuccess, () => alert('복사 실패: ' + err));
+            });
+        } else {
+            fallbackCopy(reportText, showSuccess, (err) => alert('복사 실패: ' + err));
+        }
     }
 </script>
 {% endblock %}

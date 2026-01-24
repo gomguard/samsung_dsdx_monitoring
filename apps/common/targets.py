@@ -1,43 +1,120 @@
 """
 모니터링 대상 설정 로드
-CSV 파일에서 모니터링 타겟 목록을 읽어옴
+DB에서 모니터링 타겟 목록을 읽어옴
 """
 
-import csv
-from pathlib import Path
-
-# CSV 파일 경로 (config/csv 폴더)
-TARGETS_CSV_PATH = Path(__file__).parent.parent.parent / 'config' / 'csv' / 'ds_monitoring_targets.csv'
+from datetime import timedelta
+from apps.common.db import get_ds_connection
 
 # 캐시된 데이터
 _targets_cache = None
 
 
+def format_time(time_value):
+    """TIME 값을 HH:MM 형식 문자열로 변환"""
+    if time_value is None:
+        return '00:00'
+
+    # timedelta인 경우 (MySQL TIME 타입)
+    if isinstance(time_value, timedelta):
+        total_seconds = int(time_value.total_seconds())
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        return f'{hours:02d}:{minutes:02d}'
+
+    # datetime.time인 경우
+    if hasattr(time_value, 'strftime'):
+        return time_value.strftime('%H:%M')
+
+    # 문자열인 경우
+    time_str = str(time_value)
+    # HH:MM:SS 형식에서 HH:MM만 추출
+    parts = time_str.split(':')
+    if len(parts) >= 2:
+        return f'{int(parts[0]):02d}:{int(parts[1]):02d}'
+
+    return time_str
+
+
 def load_monitoring_targets():
     """
-    CSV 파일에서 모니터링 대상 목록을 로드
-    매번 CSV 파일에서 직접 읽음 (캐시 사용 안함)
+    DB에서 모니터링 대상 목록을 로드
 
     Returns:
         list of tuples: (table_name, retailer, region, korea_time, country, mall_name)
     """
-
     targets = []
 
     try:
-        with open(TARGETS_CSV_PATH, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                targets.append((
-                    row['table_name'],
-                    row['retailer'],
-                    row['region'],
-                    row['korea_time'],
-                    row['country'],
-                    row['mall_name']
-                ))
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT table_name, retailer, region, korea_time, country, mall_name
+            FROM ssd_crawl_db.ds_monitoring_targets
+            WHERE is_active = TRUE
+            ORDER BY id
+        """
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        for row in rows:
+            targets.append((
+                row[0],                 # table_name
+                row[1],                 # retailer
+                row[2],                 # region
+                format_time(row[3]),    # korea_time (HH:MM)
+                row[4],                 # country
+                row[5]                  # mall_name
+            ))
+
+        cursor.close()
+        conn.close()
+
     except Exception as e:
-        print(f"Error loading monitoring targets: {e}")
+        print(f"Error loading monitoring targets from DB: {e}")
+
+    return targets
+
+
+def load_monitoring_targets_with_local_time():
+    """
+    DB에서 모니터링 대상 목록을 로드 (local_time 포함)
+
+    Returns:
+        list of tuples: (table_name, retailer, region, korea_time, local_time, country, mall_name)
+    """
+    targets = []
+
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT table_name, retailer, region, korea_time, local_time, country, mall_name
+            FROM ssd_crawl_db.ds_monitoring_targets
+            WHERE is_active = TRUE
+            ORDER BY id
+        """
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        for row in rows:
+            targets.append((
+                row[0],                 # table_name
+                row[1],                 # retailer
+                row[2],                 # region
+                format_time(row[3]),    # korea_time (HH:MM)
+                format_time(row[4]),    # local_time (HH:MM)
+                row[5],                 # country
+                row[6]                  # mall_name
+            ))
+
+        cursor.close()
+        conn.close()
+
+    except Exception as e:
+        print(f"Error loading monitoring targets from DB: {e}")
 
     return targets
 
@@ -60,7 +137,7 @@ def get_retailer_map():
 
 
 def reload_targets():
-    """캐시 초기화 후 다시 로드 (CSV 수정 시 사용)"""
+    """캐시 초기화 후 다시 로드"""
     global _targets_cache
     _targets_cache = None
     return load_monitoring_targets()

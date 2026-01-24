@@ -131,6 +131,64 @@
         border-color: {{ layer.color }};
     }
 
+    /* View Toggle Buttons */
+    .view-toggle {
+        display: flex;
+        gap: 8px;
+    }
+
+    .view-toggle button {
+        padding: 10px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid var(--border-color);
+        background: white;
+        color: var(--text-secondary);
+    }
+
+    .view-toggle button:hover {
+        background: #f1f5f9;
+    }
+
+    .view-toggle button.active {
+        background: {{ layer.color }};
+        color: white;
+        border-color: {{ layer.color }};
+    }
+
+    /* Fixed Date Bar - below menu bar (64px) */
+    .date-bar {
+        position: sticky;
+        top: 64px;
+        z-index: 99;
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 16px 24px;
+        margin-bottom: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .date-bar .date-selector {
+        border: none;
+        padding: 0;
+        background: transparent;
+    }
+
+    @media (max-width: 768px) {
+        .date-bar {
+            flex-direction: column;
+            gap: 12px;
+            align-items: flex-start;
+        }
+    }
+
     .summary-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -436,6 +494,87 @@
 
     .hidden { display: none !important; }
 
+    /* 배치 확장 버튼 */
+    .expand-btn {
+        padding: 4px 10px;
+        background: #e0e7ff;
+        color: #4338ca;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-left: 8px;
+        transition: all 0.2s;
+    }
+
+    .expand-btn:hover {
+        background: #c7d2fe;
+    }
+
+    .expand-btn.expanded {
+        background: #4338ca;
+        color: white;
+    }
+
+    /* 배치 서브 행 */
+    .batch-sub-row {
+        background: #f8fafc !important;
+    }
+
+    .batch-sub-row td {
+        padding: 10px 16px !important;
+        font-size: 12px !important;
+        color: var(--text-secondary);
+    }
+
+    .batch-sub-row:hover {
+        background: #f1f5f9 !important;
+    }
+
+    .batch-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding-left: 20px;
+    }
+
+    .batch-indicator::before {
+        content: '└';
+        color: #94a3b8;
+    }
+
+    .batch-time {
+        font-family: monospace;
+        color: #6366f1;
+        background: #e0e7ff;
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+
+    .batch-memo {
+        color: #64748b;
+        font-style: italic;
+    }
+
+    .batch-error-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .batch-error-badge.has-error {
+        background: #fef2f2;
+        color: #dc2626;
+    }
+
+    .batch-error-badge.no-error {
+        background: #ecfdf5;
+        color: #059669;
+    }
+
     .modal-overlay {
         position: fixed;
         top: 0;
@@ -557,6 +696,32 @@
         top: 0;
     }
 
+    .detail-table th.sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .detail-table th.sortable:hover {
+        background: #e2e8f0;
+    }
+
+    .detail-table th.sortable::after {
+        content: '⇅';
+        margin-left: 6px;
+        color: #94a3b8;
+        font-size: 12px;
+    }
+
+    .detail-table th.sortable.asc::after {
+        content: '▲';
+        color: #4338ca;
+    }
+
+    .detail-table th.sortable.desc::after {
+        content: '▼';
+        color: #4338ca;
+    }
+
     .detail-table td {
         max-width: 300px;
         overflow: hidden;
@@ -636,12 +801,16 @@
     </div>
 </div>
 
-<div class="controls-bar">
+<div class="date-bar">
     <div class="date-selector">
         <label>조회 날짜</label>
         <input type="date" id="targetDate">
         <button class="btn btn-primary" onclick="loadData()">조회</button>
         <button class="btn btn-secondary" onclick="setToday()">오늘</button>
+    </div>
+    <div class="view-toggle">
+        <button class="active" onclick="setBatchView('final')">최종</button>
+        <button onclick="setBatchView('all')">전체</button>
     </div>
 </div>
 
@@ -826,6 +995,11 @@ let currentPage = 1;
 let totalPages = 1;
 let currentRetailerData = {};
 let currentTab = 'null';
+let currentStartTime = null;
+let currentEndTime = null;
+let currentSortBy = 'crawl_strdatetime';
+let currentSortOrder = 'asc';
+let currentBatchView = 'final'; // 'final' or 'all'
 
 document.addEventListener('DOMContentLoaded', function() {
     const yesterday = new Date();
@@ -850,6 +1024,20 @@ function setToday() {
     loadData();
 }
 
+// 배치 뷰 전환 (최종/전체)
+function setBatchView(view) {
+    currentBatchView = view;
+
+    // 버튼 활성화 상태 변경
+    const buttons = document.querySelectorAll('.view-toggle button');
+    buttons.forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === (view === 'final' ? '최종' : '전체'));
+    });
+
+    // 데이터 다시 로드
+    loadData();
+}
+
 async function loadData() {
     const date = document.getElementById('targetDate').value;
     document.getElementById('nullTableLoading').classList.remove('hidden');
@@ -858,7 +1046,7 @@ async function loadData() {
     document.getElementById('formatTableContent').innerHTML = '';
 
     try {
-        const response = await fetch(`/ds/layer2/api/stats/?date=${date}`);
+        const response = await fetch(`/ds/layer2/api/stats/?date=${date}&batch_view=${currentBatchView}`);
         statsData = await response.json();
         updateSummary(statsData);
         renderNullTable(statsData);
@@ -908,7 +1096,7 @@ function renderNullTable(data) {
     }
 
     let html = `
-        <table class="retailer-table">
+        <table class="retailer-table" id="nullTable">
             <thead>
                 <tr>
                     <th>No</th>
@@ -932,10 +1120,20 @@ function renderNullTable(data) {
         const nullStatus = item.total === 0 ? 'pending' : nullError === 0 ? 'success' : 'danger';
         const validTotal = item.valid + item.all_null;
         const rowClass = nullStatus === 'danger' ? 'row-danger' : '';
+
+        // 배치 확장 버튼 (전체 뷰일 때만)
+        const expandBtn = (item.has_multi_batch && currentBatchView === 'all')
+            ? `<button class="expand-btn" onclick="event.stopPropagation(); toggleNullBatchRows('${item.retailer}')" id="nullExpandBtn_${item.retailer}">▶ 배치별</button>`
+            : '';
+
+        // 최종 모드에서 마지막 배치 시간 범위
+        const finalStartTime = item.final_start_time ? `'${item.final_start_time}'` : 'null';
+        const finalEndTime = item.final_end_time ? `'${item.final_end_time}'` : 'null';
+
         html += `
-            <tr class="${rowClass}" onclick="openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.title_null}, ${item.imageurl_null || 0}, ${item.partial_null})" title="클릭하여 상세 보기">
+            <tr class="${rowClass}" onclick="openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.title_null}, ${item.imageurl_null || 0}, ${item.partial_null}, ${finalStartTime}, ${finalEndTime})" title="클릭하여 상세 보기" data-retailer="${item.retailer}">
                 <td>${item.no}</td>
-                <td><span class="retailer-name">${item.retailer}</span></td>
+                <td><span class="retailer-name">${item.retailer}</span>${expandBtn}</td>
                 <td>${item.region}</td>
                 <td><span class="country-badge">${item.country}</span></td>
                 <td>${item.total.toLocaleString()}</td>
@@ -951,6 +1149,36 @@ function renderNullTable(data) {
                 </td>
             </tr>
         `;
+
+        // 배치 서브 행 (전체 뷰일 때만 렌더링)
+        if (item.has_multi_batch && item.batches && currentBatchView === 'all') {
+            for (const batch of item.batches) {
+                const errorBadge = batch.error_count > 0
+                    ? `<span class="batch-error-badge has-error">이상 ${batch.error_count}건</span>`
+                    : `<span class="batch-error-badge no-error">정상</span>`;
+
+                const endTimeParam = batch.end_time === '다음날' ? 'null' : `'${batch.end_time}'`;
+
+                html += `
+                    <tr class="batch-sub-row hidden" data-batch-retailer="${item.retailer}"
+                        onclick="event.stopPropagation(); openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${batch.null_union}, 0, ${batch.partial_null}, '${batch.start_time}', ${endTimeParam})"
+                        title="클릭하여 배치 상세 보기" style="cursor: pointer;">
+                        <td></td>
+                        <td colspan="3">
+                            <span class="batch-indicator">
+                                <span class="batch-time">${batch.start_time} ~ ${batch.end_time}</span>
+                                <span class="batch-memo">${batch.memo || ''}</span>
+                            </span>
+                        </td>
+                        <td>${batch.total.toLocaleString()}</td>
+                        <td class="error-count ${batch.null_union > 0 ? 'has-error' : 'no-error'}">${batch.null_union}</td>
+                        <td>-</td>
+                        <td class="error-count ${batch.partial_null > 0 ? 'has-error' : 'no-error'}">${batch.partial_null}</td>
+                        <td colspan="2">${errorBadge}</td>
+                    </tr>
+                `;
+            }
+        }
     }
 
     html += '</tbody></table>';
@@ -966,7 +1194,7 @@ function renderFormatTable(data) {
     }
 
     let html = `
-        <table class="retailer-table">
+        <table class="retailer-table" id="formatTable">
             <thead>
                 <tr>
                     <th>No</th>
@@ -987,10 +1215,20 @@ function renderFormatTable(data) {
         const formatStatus = item.total === 0 ? 'pending' : formatError === 0 ? 'success' : 'danger';
         const validTotal = item.total - formatError;
         const rowClass = formatStatus === 'danger' ? 'row-danger' : '';
+
+        // 배치 확장 버튼 (전체 뷰일 때만)
+        const expandBtn = (item.has_multi_batch && currentBatchView === 'all')
+            ? `<button class="expand-btn" onclick="event.stopPropagation(); toggleFormatBatchRows('${item.retailer}')" id="formatExpandBtn_${item.retailer}">▶ 배치별</button>`
+            : '';
+
+        // 최종 모드에서 마지막 배치 시간 범위
+        const fmtStartTime = item.final_start_time ? `'${item.final_start_time}'` : 'null';
+        const fmtEndTime = item.final_end_time ? `'${item.final_end_time}'` : 'null';
+
         html += `
-            <tr class="${rowClass}" onclick="openFormatDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.imageurl_invalid})" title="클릭하여 상세 보기">
+            <tr class="${rowClass}" onclick="openFormatDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.imageurl_invalid}, ${fmtStartTime}, ${fmtEndTime})" title="클릭하여 상세 보기" data-retailer="${item.retailer}">
                 <td>${item.no}</td>
-                <td><span class="retailer-name">${item.retailer}</span></td>
+                <td><span class="retailer-name">${item.retailer}</span>${expandBtn}</td>
                 <td>${item.region}</td>
                 <td><span class="country-badge">${item.country}</span></td>
                 <td>${item.total.toLocaleString()}</td>
@@ -1004,6 +1242,34 @@ function renderFormatTable(data) {
                 </td>
             </tr>
         `;
+
+        // 배치 서브 행 (전체 뷰일 때만 렌더링)
+        if (item.has_multi_batch && item.batches && currentBatchView === 'all') {
+            for (const batch of item.batches) {
+                const errorBadge = batch.imageurl_invalid > 0
+                    ? `<span class="batch-error-badge has-error">형식오류 ${batch.imageurl_invalid}건</span>`
+                    : `<span class="batch-error-badge no-error">정상</span>`;
+
+                const endTimeParam = batch.end_time === '다음날' ? 'null' : `'${batch.end_time}'`;
+
+                html += `
+                    <tr class="batch-sub-row hidden" data-format-batch-retailer="${item.retailer}"
+                        onclick="event.stopPropagation(); openFormatDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${batch.imageurl_invalid}, '${batch.start_time}', ${endTimeParam})"
+                        title="클릭하여 배치 상세 보기" style="cursor: pointer;">
+                        <td></td>
+                        <td colspan="3">
+                            <span class="batch-indicator">
+                                <span class="batch-time">${batch.start_time} ~ ${batch.end_time}</span>
+                                <span class="batch-memo">${batch.memo || ''}</span>
+                            </span>
+                        </td>
+                        <td>${batch.total.toLocaleString()}</td>
+                        <td class="error-count ${batch.imageurl_invalid > 0 ? 'has-error' : 'no-error'}">${batch.imageurl_invalid}</td>
+                        <td colspan="2">${errorBadge}</td>
+                    </tr>
+                `;
+            }
+        }
     }
 
     html += '</tbody></table>';
@@ -1021,9 +1287,13 @@ function getStatusLabel(status) {
     return labels[status] || '확인필요';
 }
 
-function openNullDetail(tableName, retailerName, country, titleNull, imageurlNull, partialNull) {
+function openNullDetail(tableName, retailerName, country, titleNull, imageurlNull, partialNull, startTime = null, endTime = null) {
     currentTableName = tableName;
     currentPage = 1;
+    currentStartTime = startTime;
+    currentEndTime = endTime;
+    currentSortBy = 'crawl_strdatetime';
+    currentSortOrder = 'asc';
     currentRetailerData = { title_null: titleNull, imageurl_null: imageurlNull, partial_null: partialNull };
 
     if (titleNull > 0) {
@@ -1036,7 +1306,8 @@ function openNullDetail(tableName, retailerName, country, titleNull, imageurlNul
         currentErrorType = 'title_null';
     }
 
-    document.getElementById('modalTitle').textContent = `${retailerName} (${country}) - NULL 검증`;
+    const timeRange = startTime ? ` (${startTime} ~ ${endTime || '다음날'})` : '';
+    document.getElementById('modalTitle').textContent = `${retailerName} (${country}) - NULL 검증${timeRange}`;
     document.getElementById('modalSubtitle').textContent = `테이블: ${tableName}`;
     document.getElementById('detailModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -1045,13 +1316,18 @@ function openNullDetail(tableName, retailerName, country, titleNull, imageurlNul
     loadDetailData();
 }
 
-function openFormatDetail(tableName, retailerName, country, imageurlInvalid) {
+function openFormatDetail(tableName, retailerName, country, imageurlInvalid, startTime = null, endTime = null) {
     currentTableName = tableName;
     currentPage = 1;
+    currentStartTime = startTime;
+    currentEndTime = endTime;
+    currentSortBy = 'crawl_strdatetime';
+    currentSortOrder = 'asc';
     currentRetailerData = { imageurl_invalid: imageurlInvalid };
     currentErrorType = 'imageurl_invalid';
 
-    document.getElementById('modalTitle').textContent = `${retailerName} (${country}) - 형식 검증`;
+    const timeRange = startTime ? ` (${startTime} ~ ${endTime || '다음날'})` : '';
+    document.getElementById('modalTitle').textContent = `${retailerName} (${country}) - 형식 검증${timeRange}`;
     document.getElementById('modalSubtitle').textContent = `테이블: ${tableName}`;
     document.getElementById('detailModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -1086,6 +1362,8 @@ function renderFormatErrorTypeSelector() {
 function selectErrorType(errorType) {
     currentErrorType = errorType;
     currentPage = 1;
+    currentSortBy = 'crawl_strdatetime';
+    currentSortOrder = 'asc';
     renderNullErrorTypeSelector();
     loadDetailData();
 }
@@ -1096,7 +1374,17 @@ async function loadDetailData() {
     document.getElementById('modalContent').innerHTML = '';
 
     try {
-        const response = await fetch(`/ds/layer2/api/detail/?table=${currentTableName}&error_type=${currentErrorType}&date=${date}&page=${currentPage}&page_size=50`);
+        let url = `/ds/layer2/api/detail/?table=${currentTableName}&error_type=${currentErrorType}&date=${date}&page=${currentPage}&page_size=50`;
+        url += `&sort_by=${currentSortBy}&sort_order=${currentSortOrder}`;
+
+        if (currentStartTime) {
+            url += `&start_time=${currentStartTime}`;
+        }
+        if (currentEndTime) {
+            url += `&end_time=${currentEndTime}`;
+        }
+
+        const response = await fetch(url);
         const data = await response.json();
 
         if (data.error) {
@@ -1120,25 +1408,38 @@ function renderDetailTable(data) {
         return;
     }
 
+    const getSortClass = (column) => {
+        if (currentSortBy === column) {
+            return `sortable ${currentSortOrder}`;
+        }
+        return 'sortable';
+    };
+
     let html = `
         <table class="detail-table">
             <thead>
                 <tr>
+                    <th>No</th>
+                    <th class="${getSortClass('crawl_strdatetime')}" onclick="sortBy('crawl_strdatetime')">수집일시</th>
                     <th>이미지</th>
-                    <th>제품명</th>
-                    <th>가격</th>
-                    <th>Ships From</th>
-                    <th>Sold By</th>
+                    <th class="${getSortClass('title')}" onclick="sortBy('title')">제품명</th>
+                    <th class="${getSortClass('retailprice')}" onclick="sortBy('retailprice')">가격</th>
+                    <th class="${getSortClass('ships_from')}" onclick="sortBy('ships_from')">Ships From</th>
+                    <th class="${getSortClass('sold_by')}" onclick="sortBy('sold_by')">Sold By</th>
                     <th>링크</th>
                 </tr>
             </thead>
             <tbody>
     `;
 
-    for (const item of data.data) {
+    const startNo = (currentPage - 1) * 50 + 1;
+    data.data.forEach((item, index) => {
+        const rowNo = startNo + index;
         const imgSrc = item.imageurl && item.imageurl.startsWith('https://') ? item.imageurl : '';
         html += `
             <tr>
+                <td style="text-align: center; color: #64748b;">${rowNo}</td>
+                <td style="font-family: monospace; font-size: 12px;">${item.crawl_datetime || '-'}</td>
                 <td>${imgSrc ? `<img src="${imgSrc}" class="thumb" onerror="this.style.display='none'">` : '<span class="null-value">무효</span>'}</td>
                 <td class="title-cell" title="${item.title}">${item.title || '<span class="null-value">NULL</span>'}</td>
                 <td>${item.retailprice || '<span class="null-value">NULL</span>'}</td>
@@ -1147,10 +1448,21 @@ function renderDetailTable(data) {
                 <td>${item.producturl ? `<a href="${item.producturl}" target="_blank">보기</a>` : '-'}</td>
             </tr>
         `;
-    }
+    });
 
     html += '</tbody></table>';
     document.getElementById('modalContent').innerHTML = html;
+}
+
+function sortBy(column) {
+    if (currentSortBy === column) {
+        currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSortBy = column;
+        currentSortOrder = 'asc';
+    }
+    currentPage = 1;
+    loadDetailData();
 }
 
 function updatePagination(data) {
@@ -1191,5 +1503,61 @@ document.addEventListener('keydown', function(e) {
         closeModal();
     }
 });
+
+// NULL 테이블 배치 행 토글
+function toggleNullBatchRows(retailer) {
+    const batchRows = document.querySelectorAll(`tr[data-batch-retailer="${retailer}"]`);
+    const expandBtn = document.getElementById(`nullExpandBtn_${retailer}`);
+
+    if (batchRows.length === 0) return;
+
+    const isExpanded = !batchRows[0].classList.contains('hidden');
+
+    batchRows.forEach(row => {
+        if (isExpanded) {
+            row.classList.add('hidden');
+        } else {
+            row.classList.remove('hidden');
+        }
+    });
+
+    if (expandBtn) {
+        if (isExpanded) {
+            expandBtn.textContent = '▶ 배치별';
+            expandBtn.classList.remove('expanded');
+        } else {
+            expandBtn.textContent = '▼ 접기';
+            expandBtn.classList.add('expanded');
+        }
+    }
+}
+
+// Format 테이블 배치 행 토글
+function toggleFormatBatchRows(retailer) {
+    const batchRows = document.querySelectorAll(`tr[data-format-batch-retailer="${retailer}"]`);
+    const expandBtn = document.getElementById(`formatExpandBtn_${retailer}`);
+
+    if (batchRows.length === 0) return;
+
+    const isExpanded = !batchRows[0].classList.contains('hidden');
+
+    batchRows.forEach(row => {
+        if (isExpanded) {
+            row.classList.add('hidden');
+        } else {
+            row.classList.remove('hidden');
+        }
+    });
+
+    if (expandBtn) {
+        if (isExpanded) {
+            expandBtn.textContent = '▶ 배치별';
+            expandBtn.classList.remove('expanded');
+        } else {
+            expandBtn.textContent = '▼ 접기';
+            expandBtn.classList.add('expanded');
+        }
+    }
+}
 </script>
 {% endblock %}

@@ -1902,20 +1902,47 @@ ORDER BY item, ${dateColumn} ASC;`;
         }
     }
 
-    // 클립보드 복사 함수
+    // HTTP 환경용 폴백 복사 함수
+    function fallbackCopy(text, onSuccess, onError) {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            if (onSuccess) onSuccess();
+        } catch (err) {
+            console.error('복사 실패:', err);
+            if (onError) onError(err);
+        }
+        document.body.removeChild(textArea);
+    }
+
+    // 클립보드 복사 함수 (HTTPS/HTTP 모두 지원)
     function copyToClipboard(element) {
         const text = element.textContent;
-        navigator.clipboard.writeText(text).then(() => {
-            const original = element.textContent;
+
+        function showSuccess() {
             element.style.background = '#c8e6c9';
             element.setAttribute('data-copied', 'true');
             setTimeout(() => {
                 element.style.background = '#e3f2fd';
                 element.removeAttribute('data-copied');
             }, 1000);
-        }).catch(err => {
-            console.error('복사 실패:', err);
-        });
+        }
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(showSuccess).catch(err => {
+                console.error('복사 실패:', err);
+                fallbackCopy(text, showSuccess);
+            });
+        } else {
+            fallbackCopy(text, showSuccess);
+        }
     }
 
     // SQL 포맷팅 함수 (한줄 쿼리를 보기 좋게 정리)
@@ -1936,11 +1963,12 @@ ORDER BY item, ${dateColumn} ASC;`;
         return formatted;
     }
 
-    // 쿼리 박스용 복사 함수
+    // 쿼리 박스용 복사 함수 (HTTPS/HTTP 모두 지원)
     function copyQueryToClipboard(element) {
         const text = element.textContent;
         const formattedSQL = formatSQL(text);
-        navigator.clipboard.writeText(formattedSQL).then(() => {
+
+        function showSuccess() {
             // 버튼 찾기 (여러 위치 지원)
             let btn = element.previousElementSibling?.querySelector?.('.btn-copy');
             if (!btn) btn = element.previousElementSibling?.querySelector?.('.btn-copy-query');
@@ -1957,9 +1985,16 @@ ORDER BY item, ${dateColumn} ASC;`;
                     btn.style.background = originalBg || '#3b82f6';
                 }, 1500);
             }
-        }).catch(err => {
-            console.error('복사 실패:', err);
-        });
+        }
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(formattedSQL).then(showSuccess).catch(err => {
+                console.error('복사 실패:', err);
+                fallbackCopy(formattedSQL, showSuccess);
+            });
+        } else {
+            fallbackCopy(formattedSQL, showSuccess);
+        }
     }
 
     // 크로스필드 검증 유형 목록으로 돌아가기

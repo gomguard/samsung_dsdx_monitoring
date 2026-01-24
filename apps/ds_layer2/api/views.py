@@ -12,12 +12,48 @@ DS Layer 2 API: 데이터 품질 검수 (NULL 필드 체크)
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_ds_connection
-from apps.common.targets import load_monitoring_targets
+from apps.common.targets import load_monitoring_targets, format_time
 
 
 def get_monitoring_targets():
     """CSV에서 모니터링 대상 목록 로드"""
     return load_monitoring_targets()
+
+
+def get_batches_for_date(target_date):
+    """특정 날짜의 배치 목록을 리테일러별로 그룹화하여 반환"""
+    batches_by_retailer = {}
+
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT id, retailer, start_time, memo
+            FROM ssd_crawl_db.ds_collection_batch_log
+            WHERE date = %s
+            ORDER BY retailer, start_time
+        """
+        cursor.execute(query, (target_date,))
+        rows = cursor.fetchall()
+
+        for row in rows:
+            retailer = row[1]
+            if retailer not in batches_by_retailer:
+                batches_by_retailer[retailer] = []
+
+            batches_by_retailer[retailer].append({
+                'id': row[0],
+                'start_time': format_time(row[2]) if row[2] else '00:00',
+                'memo': row[3]
+            })
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error loading batches: {e}")
+
+    return batches_by_retailer
 
 # 체크할 NULL 필드 목록
 NULL_CHECK_FIELDS = ['title', 'imageurl', 'retailprice', 'ships_from', 'sold_by']
@@ -141,9 +177,123 @@ def get_quality_counts(cursor, table_name, target_date):
     return results
 
 
+def get_quality_counts_by_time_range(cursor, table_name, target_date, start_time, end_time):
+    """
+    특정 시간 범위 내의 데이터 품질 현황 조회
+    start_time, end_time: 'HH:MM' 형식
+    end_time이 None이면 다음날 00:00까지
+    """
+    date_str = target_date.strftime('%Y%m%d')
+    start_datetime = f"{date_str}{start_time.replace(':', '')}00"
+
+    if end_time:
+        end_datetime = f"{date_str}{end_time.replace(':', '')}00"
+    else:
+        next_date = (target_date + timedelta(days=1)).strftime('%Y%m%d')
+        end_datetime = f"{next_date}0000"
+
+    results = {
+        'total': 0,
+        'title_null': 0,
+        'imageurl_null': 0,
+        'null_union': 0,
+        'imageurl_invalid': 0,
+        'partial_null': 0,
+        'all_null': 0,
+        'valid': 0,
+    }
+
+    try:
+        base_query = f"""
+            SELECT DISTINCT * FROM samsung_ds_retail_com.{table_name}
+            WHERE crawl_strdatetime >= %s AND crawl_strdatetime < %s
+        """
+
+        # 전체 건수
+        cursor.execute(f"SELECT COUNT(*) FROM ({base_query}) A", (start_datetime, end_datetime))
+        results['total'] = cursor.fetchone()[0] or 0
+
+        # title NULL 건수 (imageurl 상관없이)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM ({base_query}) A
+            WHERE title IS NULL OR TRIM(title) = ''
+        """, (start_datetime, end_datetime))
+        results['title_null'] = cursor.fetchone()[0] or 0
+
+        # imageurl NULL 건수 (title 상관없이)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM ({base_query}) A
+            WHERE imageurl IS NULL OR TRIM(imageurl) = ''
+        """, (start_datetime, end_datetime))
+        results['imageurl_null'] = cursor.fetchone()[0] or 0
+
+        # title NULL 또는 imageurl NULL (중복 제외)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM ({base_query}) A
+            WHERE (title IS NULL OR TRIM(title) = '')
+            OR (imageurl IS NULL OR TRIM(imageurl) = '')
+        """, (start_datetime, end_datetime))
+        results['null_union'] = cursor.fetchone()[0] or 0
+
+        # imageurl 무효 (title 유효, imageurl이 있지만 https://로 시작하지 않음)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM ({base_query}) A
+            WHERE (title IS NOT NULL AND TRIM(title) != '')
+            AND (imageurl IS NOT NULL AND TRIM(imageurl) != '')
+            AND imageurl NOT LIKE 'https://%%'
+        """, (start_datetime, end_datetime))
+        results['imageurl_invalid'] = cursor.fetchone()[0] or 0
+
+        # title과 imageurl이 둘 다 유효한 데이터 중에서 검사
+        valid_base = f"""
+            SELECT * FROM ({base_query}) A
+            WHERE (title IS NOT NULL AND TRIM(title) != '')
+            AND (imageurl IS NOT NULL AND imageurl LIKE 'https://%%')
+        """
+
+        # 3개 필드 모두 NULL (정상)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM ({valid_base}) B
+            WHERE (retailprice IS NULL OR TRIM(retailprice) = '')
+            AND (ships_from IS NULL OR TRIM(ships_from) = '')
+            AND (sold_by IS NULL OR TRIM(sold_by) = '')
+        """, (start_datetime, end_datetime))
+        results['all_null'] = cursor.fetchone()[0] or 0
+
+        # 부분 NULL (title/imageurl 유효, retailprice/ships_from/sold_by 중 일부만 NULL)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM ({valid_base}) B
+            WHERE NOT (
+                ((retailprice IS NOT NULL AND TRIM(retailprice) != '')
+                 AND (ships_from IS NOT NULL AND TRIM(ships_from) != '')
+                 AND (sold_by IS NOT NULL AND TRIM(sold_by) != ''))
+                OR
+                ((retailprice IS NULL OR TRIM(retailprice) = '')
+                 AND (ships_from IS NULL OR TRIM(ships_from) = '')
+                 AND (sold_by IS NULL OR TRIM(sold_by) = ''))
+            )
+        """, (start_datetime, end_datetime))
+        results['partial_null'] = cursor.fetchone()[0] or 0
+
+        # 완전히 정상 (title, imageurl 유효 + 3개 필드 모두 유효)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM ({valid_base}) B
+            WHERE (retailprice IS NOT NULL AND TRIM(retailprice) != '')
+            AND (ships_from IS NOT NULL AND TRIM(ships_from) != '')
+            AND (sold_by IS NOT NULL AND TRIM(sold_by) != '')
+        """, (start_datetime, end_datetime))
+        results['valid'] = cursor.fetchone()[0] or 0
+
+    except Exception as e:
+        results['error'] = str(e)
+
+    return results
+
+
 def layer_stats(request):
     """DS Layer 2 전체 데이터 품질 통계 API"""
     date_str = request.GET.get('date')
+    batch_view = request.GET.get('batch_view', 'final')  # 'final' or 'all'
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -163,6 +313,9 @@ def layer_stats(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
+        # 배치 정보 로드
+        batches_by_retailer = get_batches_for_date(target_date)
+
         results = []
         total_records = 0
         total_title_null = 0
@@ -174,7 +327,18 @@ def layer_stats(request):
         total_valid = 0
 
         for idx, (table_name, retailer, region, korea_time, country, mall_name) in enumerate(get_monitoring_targets(), 1):
-            quality = get_quality_counts(cursor, table_name, target_date)
+            retailer_batches = batches_by_retailer.get(retailer, [])
+
+            # 배치가 2개 이상이고 'final' 뷰인 경우, 마지막 배치만 조회
+            final_start_time = None
+            final_end_time = None
+            if len(retailer_batches) >= 2 and batch_view == 'final':
+                last_batch = retailer_batches[-1]
+                final_start_time = last_batch['start_time']
+                final_end_time = None  # 다음날까지
+                quality = get_quality_counts_by_time_range(cursor, table_name, target_date, final_start_time, final_end_time)
+            else:
+                quality = get_quality_counts(cursor, table_name, target_date)
 
             total = quality.get('total', 0)
             total_records += total
@@ -208,6 +372,35 @@ def layer_stats(request):
             else:
                 status = 'danger'
 
+            # 배치 정보 처리 (전체 뷰일 때만)
+            has_multi_batch = len(retailer_batches) >= 2 and batch_view == 'all'
+            batch_details = []
+
+            if has_multi_batch:
+                # 각 배치별 품질 현황 계산
+                for i, batch in enumerate(retailer_batches):
+                    start_time = batch['start_time']
+                    # 다음 배치의 시작시간이 이 배치의 종료시간
+                    if i + 1 < len(retailer_batches):
+                        end_time = retailer_batches[i + 1]['start_time']
+                    else:
+                        end_time = None  # 마지막 배치는 다음날 00:00까지
+
+                    batch_quality = get_quality_counts_by_time_range(cursor, table_name, target_date, start_time, end_time)
+                    batch_error = batch_quality.get('error_count', 0)
+
+                    batch_details.append({
+                        'id': batch['id'],
+                        'start_time': start_time,
+                        'end_time': end_time if end_time else '다음날',
+                        'memo': batch['memo'],
+                        'total': batch_quality.get('total', 0),
+                        'null_union': batch_quality.get('null_union', 0),
+                        'imageurl_invalid': batch_quality.get('imageurl_invalid', 0),
+                        'partial_null': batch_quality.get('partial_null', 0),
+                        'error_count': batch_error
+                    })
+
             results.append({
                 'no': idx,
                 'table_name': table_name,
@@ -223,7 +416,11 @@ def layer_stats(request):
                 'all_null': all_null,
                 'valid': valid,
                 'error_count': error_count,
-                'status': status
+                'status': status,
+                'has_multi_batch': has_multi_batch,
+                'batches': batch_details,
+                'final_start_time': final_start_time,
+                'final_end_time': final_end_time
             })
 
         cursor.close()
@@ -285,6 +482,14 @@ def table_null_detail(request):
     page = int(request.GET.get('page', 1))
     page_size = int(request.GET.get('page_size', 50))
 
+    # 시간 범위 파라미터 (배치별 상세보기)
+    start_time = request.GET.get('start_time')
+    end_time = request.GET.get('end_time')
+
+    # 정렬 파라미터
+    sort_by = request.GET.get('sort_by', 'crawl_strdatetime')
+    sort_order = request.GET.get('sort_order', 'asc')
+
     if not table_name:
         return JsonResponse({'error': '테이블명을 입력하세요.'})
 
@@ -316,9 +521,24 @@ def table_null_detail(request):
         cursor = conn.cursor()
 
         date_str_fmt = target_date.strftime('%Y%m%d')
-        start_datetime = f"{date_str_fmt}0000"
-        next_date = (target_date + timedelta(days=1)).strftime('%Y%m%d')
-        end_datetime = f"{next_date}0000"
+
+        # 시간 범위 처리 (배치별 상세보기)
+        if start_time:
+            start_datetime = f"{date_str_fmt}{start_time.replace(':', '')}00"
+        else:
+            start_datetime = f"{date_str_fmt}0000"
+
+        if end_time and end_time != '다음날':
+            end_datetime = f"{date_str_fmt}{end_time.replace(':', '')}00"
+        else:
+            next_date = (target_date + timedelta(days=1)).strftime('%Y%m%d')
+            end_datetime = f"{next_date}0000"
+
+        # 정렬 컬럼 검증
+        valid_sort_columns = ['crawl_strdatetime', 'title', 'retailprice', 'ships_from', 'sold_by']
+        if sort_by not in valid_sort_columns:
+            sort_by = 'crawl_strdatetime'
+        sort_direction = 'DESC' if sort_order.lower() == 'desc' else 'ASC'
 
         base_query = f"""
             SELECT DISTINCT * FROM samsung_ds_retail_com.{table_name}
@@ -359,10 +579,10 @@ def table_null_detail(request):
         # 페이징된 데이터 조회
         offset = (page - 1) * page_size
         query = f"""
-            SELECT title, retailprice, ships_from, sold_by, imageurl, producturl
+            SELECT title, retailprice, ships_from, sold_by, imageurl, producturl, crawl_strdatetime
             FROM ({base_query}) A
             {where_condition}
-            ORDER BY title
+            ORDER BY {sort_by} {sort_direction}
             LIMIT %s OFFSET %s
         """
 
@@ -371,13 +591,21 @@ def table_null_detail(request):
 
         items = []
         for row in rows:
+            # crawl_strdatetime 포맷팅 (YYYYMMDDHHMMSS... -> YYYY-MM-DD HH:MM:SS)
+            crawl_dt = row[6] or ''
+            if crawl_dt and len(crawl_dt) >= 14:
+                crawl_dt = f"{crawl_dt[0:4]}-{crawl_dt[4:6]}-{crawl_dt[6:8]} {crawl_dt[8:10]}:{crawl_dt[10:12]}:{crawl_dt[12:14]}"
+            elif crawl_dt and len(crawl_dt) >= 12:
+                crawl_dt = f"{crawl_dt[0:4]}-{crawl_dt[4:6]}-{crawl_dt[6:8]} {crawl_dt[8:10]}:{crawl_dt[10:12]}:00"
+
             items.append({
                 'title': row[0] or '',
                 'retailprice': row[1] or '',
                 'ships_from': row[2] or '',
                 'sold_by': row[3] or '',
                 'imageurl': row[4] or '',
-                'producturl': row[5] or ''
+                'producturl': row[5] or '',
+                'crawl_datetime': crawl_dt
             })
 
         cursor.close()
@@ -391,6 +619,10 @@ def table_null_detail(request):
         data['total_count'] = total_count
         data['total_pages'] = (total_count + page_size - 1) // page_size if total_count > 0 else 1
         data['data'] = items
+        data['sort_by'] = sort_by
+        data['sort_order'] = sort_order
+        if start_time:
+            data['time_range'] = f"{start_time} ~ {end_time if end_time else '다음날'}"
 
     except Exception as e:
         data['error'] = str(e)
