@@ -74,24 +74,25 @@ def dx_dashboard(request):
                 'color': '#d97706',
                 'url': '/dx/layer3/',
             },
-            {
-                'number': 4,
-                'name': '문맥/의미 검증',
-                'name_en': 'Context & Meaning Verification',
-                'description': '데이터 내 문맥 불일치 및 의미적 모순 검증',
-                'icon': 'brain',
-                'color': '#7c3aed',
-                'url': '/dx/layer4/',
-            },
-            {
-                'number': 5,
-                'name': '전문가 전수 검수',
-                'name_en': 'The Human Firewall',
-                'description': '검토 필요 태그 기반 전문가 최종 승인',
-                'icon': 'user-check',
-                'color': '#475569',
-                'url': '/dx/layer5/',
-            },
+            # Layer 4, 5 - 추후 개발 예정
+            # {
+            #     'number': 4,
+            #     'name': '문맥/의미 검증',
+            #     'name_en': 'Context & Meaning Verification',
+            #     'description': '데이터 내 문맥 불일치 및 의미적 모순 검증',
+            #     'icon': 'brain',
+            #     'color': '#7c3aed',
+            #     'url': '/dx/layer4/',
+            # },
+            # {
+            #     'number': 5,
+            #     'name': '전문가 전수 검수',
+            #     'name_en': 'The Human Firewall',
+            #     'description': '검토 필요 태그 기반 전문가 최종 승인',
+            #     'icon': 'user-check',
+            #     'color': '#475569',
+            #     'url': '/dx/layer5/',
+            # },
         ]
     }
     return render(request, 'main/dx_dashboard.html', context)

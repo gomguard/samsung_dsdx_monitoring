@@ -6,8 +6,8 @@ app_name = 'layer4'
 
 urlpatterns = [
     path('', views.index, name='index'),
-    path('api/stats/', api_views.layer_stats, name='api_stats'),
-    path('api/sentiment/', api_views.sentiment_distribution, name='api_sentiment'),
-    path('api/unanalyzed/', api_views.unanalyzed_items, name='api_unanalyzed'),
-    path('api/retailer-sentiment/', api_views.retailer_sentiment, name='api_retailer_sentiment'),
+    path('api/status/', api_views.layer4_status, name='api_status'),
+    path('api/save-suspicious/', api_views.save_suspicious, name='api_save_suspicious'),
+    path('api/start-analysis/', api_views.start_analysis, name='api_start_analysis'),
+    path('api/cases/', api_views.get_cases, name='api_cases'),
 ]
