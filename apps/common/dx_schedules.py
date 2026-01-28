@@ -1,16 +1,12 @@
 """
 DX 수집 스케줄 설정 로드
-CSV 파일에서 수집 시간대 설정을 읽어옴
+DB에서 수집 시간대 설정을 읽어옴
 US(NY) 시간 → KST 자동 변환 (서머타임 고려)
 """
 
-import csv
-from pathlib import Path
 from datetime import datetime, timedelta
 import pytz
-
-# CSV 파일 경로 (config/csv 폴더)
-SCHEDULES_CSV_PATH = Path(__file__).parent.parent.parent / 'config' / 'csv' / 'dx_collection_schedules.csv'
+from apps.common.db import execute_dx_query
 
 # 타임존 설정
 NY_TZ = pytz.timezone('America/New_York')
@@ -102,7 +98,7 @@ def get_kst_time_info(us_hour, reference_date=None):
 
 def load_collection_schedules():
     """
-    CSV 파일에서 수집 스케줄 목록을 로드
+    DB에서 수집 스케줄 목록을 로드
 
     Returns:
         list of dict: 스케줄 정보 리스트
@@ -112,27 +108,30 @@ def load_collection_schedules():
     if _schedules_cache is not None:
         return _schedules_cache
 
-    schedules = []
-
     try:
-        with open(SCHEDULES_CSV_PATH, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                # 빈 행 건너뛰기
-                if not row.get('check_type') or not row.get('check_type').strip():
-                    continue
-                schedules.append({
-                    'check_type': row['check_type'],
-                    'name': row['name'],
-                    'category': row['category'],
-                    'us_start_hour': int(row['us_start_hour']),
-                    'collection_duration_min': int(row['collection_duration_min']),
-                    'schedule_type': row['schedule_type'],
-                    'description': row['description']
-                })
+        query = """
+            SELECT check_type, name, category, us_start_hour,
+                   collection_duration_min, schedule_type, description
+            FROM monitoring_collection_schedule
+            WHERE is_active = TRUE
+            ORDER BY id
+        """
+        rows = execute_dx_query(query)
+
+        schedules = []
+        for row in rows:
+            schedules.append({
+                'check_type': row['check_type'],
+                'name': row['name'],
+                'category': row['category'],
+                'us_start_hour': int(row['us_start_hour']),
+                'collection_duration_min': int(row['collection_duration_min']),
+                'schedule_type': row['schedule_type'],
+                'description': row['description']
+            })
         _schedules_cache = schedules
     except Exception as e:
-        print(f"Error loading collection schedules: {e}")
+        print(f"Error loading collection schedules from DB: {e}")
         _schedules_cache = []
 
     return _schedules_cache
@@ -285,7 +284,7 @@ def get_time_slots(check_type, category, target_date, now=None):
 
 
 def reload_schedules():
-    """캐시 초기화 후 다시 로드 (CSV 수정 시 사용)"""
+    """캐시 초기화 후 다시 로드 (DB 데이터 변경 시 사용)"""
     global _schedules_cache
     _schedules_cache = None
     return load_collection_schedules()

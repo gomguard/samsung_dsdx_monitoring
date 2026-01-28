@@ -1100,10 +1100,76 @@
         color: #666;
         font-family: monospace;
     }
+
+    /* 백업 확인 팝업 */
+    .backup-overlay {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 10000;
+        justify-content: center;
+        align-items: center;
+    }
+    .backup-overlay.hidden { display: none; }
+    .backup-box {
+        background: #fff;
+        border-radius: 12px;
+        padding: 32px;
+        min-width: 340px;
+        max-width: 440px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+        text-align: center;
+    }
+    .backup-box .backup-icon {
+        margin-bottom: 16px;
+    }
+    .backup-box .backup-msg {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 24px;
+    }
+    .backup-box .backup-btns {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+    }
+    .backup-box .backup-btn {
+        padding: 10px 28px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+    }
+    .backup-box .btn-confirm {
+        background: {{ layer.color }};
+        color: #fff;
+    }
+    .backup-box .btn-close {
+        background: #f3f4f6;
+        color: #1a1a1a;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
+<!-- 백업 확인 팝업 -->
+<div class="backup-overlay" id="backupOverlay">
+    <div class="backup-box">
+        <div class="backup-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="{{ layer.color }}" stroke-width="2" width="48" height="48">
+                <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
+            </svg>
+        </div>
+        <div class="backup-msg">백업을 진행하셨습니까?</div>
+        <div class="backup-btns">
+            <button class="backup-btn btn-confirm" onclick="confirmBackup()">확인</button>
+            <button class="backup-btn btn-close" onclick="goToLayer1()">닫기</button>
+        </div>
+    </div>
+</div>
 <div class="layer-header">
     <div class="layer-header-content">
         <div class="layer-badge">{{ layer.number }}</div>
@@ -3124,12 +3190,13 @@ ORDER BY item, ${dateColumn} ASC;`;
         });
         html += '</tr></thead>';
 
-        // 바디 - item별로 배경색 번갈아 (흰색/회색), NULL 셀만 빨간 배경
+        // 바디 - item별로 배경색 번갈아 (흰색/회색), 대상일 NULL만 빨간 배경
         html += '<tbody>';
 
         let currentItem = '';
         let itemColorIndex = 0;
         const itemColors = ['#ffffff', '#f3f4f6']; // 흰색, 옅은 회색
+        const targetDate = data.date || ''; // 조회 대상일 (예: 2026-01-26)
 
         items.forEach(row => {
             // item이 바뀌면 색상 인덱스 변경
@@ -3139,18 +3206,26 @@ ORDER BY item, ${dateColumn} ASC;`;
             }
             const rowBgColor = itemColors[itemColorIndex];
 
+            // 행의 날짜가 대상일인지 확인
+            const rowDate = (row.crawl_datetime || row.crawl_strdatetime || '').substring(0, 10);
+            const isTargetDate = rowDate === targetDate;
+
             html += `<tr style="background: ${rowBgColor};">`;
             columns.forEach(col => {
                 let val = row[col];
                 let style = 'padding: 8px 12px; border-bottom: 1px solid #e5e7eb;';
 
-                // 검사 대상 필드 강조 (NULL일 때만 빨간 배경)
-                if (col === field && (val === null || val === undefined || val === '')) {
+                // 검사 대상 필드 강조 (대상일 NULL일 때만 빨간 배경)
+                if (col === field && (val === null || val === undefined || val === '') && isTargetDate) {
                     style += ' background: #fee2e2;';
                 }
 
                 if (val === null || val === undefined || val === '') {
-                    val = '<span style="color: #dc2626; font-weight: 600;">NULL</span>';
+                    if (isTargetDate) {
+                        val = '<span style="color: #dc2626; font-weight: 600;">NULL</span>';
+                    } else {
+                        val = 'NULL';
+                    }
                 } else if (col === 'product_url') {
                     val = `<a href="${val}" target="_blank" style="color: #2563eb; text-decoration: none;">링크</a>`;
                 } else if (col === 'id') {
@@ -3996,6 +4071,15 @@ ORDER BY item, ${dateColumn} ASC;`;
         };
 
         return rulesData[checkName] || [];
+    }
+
+    // 백업 확인 팝업
+    function confirmBackup() {
+        document.getElementById('backupOverlay').classList.add('hidden');
+    }
+
+    function goToLayer1() {
+        window.location.href = '/layer1/';
     }
 </script>
 {% endblock %}

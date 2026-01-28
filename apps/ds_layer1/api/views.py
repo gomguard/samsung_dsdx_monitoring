@@ -924,7 +924,7 @@ def batch_delete(request):
 
 
 def fileserver_stats(request):
-    """파일서버 날짜별 용량 조회 API"""
+    """파일서버 날짜별 용량 조회 API - SFTP 직접 조회"""
     date_str = request.GET.get('date')
 
     if date_str:
@@ -943,6 +943,7 @@ def fileserver_stats(request):
     }
 
     try:
+        # 파일서버 연결
         transport = paramiko.Transport((FILE_SERVER_CONFIG['host'], FILE_SERVER_CONFIG['port']))
         transport.connect(
             username=FILE_SERVER_CONFIG['username'],
@@ -961,6 +962,8 @@ def fileserver_stats(request):
         except Exception:
             country_dirs = []
 
+        retailer_map = get_retailer_map()
+
         for country_code in sorted(country_dirs):
             country_path = f"{base_path}/{country_code}"
 
@@ -977,32 +980,25 @@ def fileserver_stats(request):
             try:
                 sftp.stat(date_path)
             except FileNotFoundError:
-                # 해당 날짜 폴더가 없으면 스킵
                 continue
 
             # 파일 목록 및 용량 조회 (zip 파일만)
             try:
                 files = sftp.listdir_attr(date_path)
-
-                # zip 파일만 필터링
                 zip_files = [f for f in files if f.filename.endswith('.zip') and not (f.st_mode & 0o40000)]
 
-                # 리테일러 이름 찾기 (CSV 기반)
-                retailer_map = get_retailer_map()
-
-                # zip 파일 상세 정보 (리테일러별로 분리)
                 for f in sorted(zip_files, key=lambda x: x.filename):
-                    # 파일명에서 리테일러 추출: 20260102_172616_de_mediamarkt.zip -> mediamarkt
                     filename = f.filename
                     parts = filename.replace('.zip', '').split('_')
-                    # parts: ['20260102', '172616', 'de', 'mediamarkt']
                     if len(parts) >= 4:
                         file_country = parts[2]
-                        file_retailer = '_'.join(parts[3:])  # 리테일러 이름에 _가 있을 수 있음
+                        file_retailer = '_'.join(parts[3:])
                         retailer_key = f"{file_country}_{file_retailer}"
                         retailer_name = retailer_map.get(retailer_key, file_retailer)
                     else:
                         retailer_name = country_code.upper()
+
+                    file_modified = datetime.fromtimestamp(f.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
 
                     total_size += f.st_size
                     total_files += 1
@@ -1016,21 +1012,17 @@ def fileserver_stats(request):
                         'files': [{
                             'name': f.filename,
                             'size': f.st_size,
-                            'modified': datetime.fromtimestamp(f.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                            'modified': file_modified
                         }]
                     })
-            except Exception as e:
+            except Exception:
                 continue
 
         sftp.close()
         transport.close()
 
-        # 고유 국가 수 계산
-        unique_countries = set(item['country_code'] for item in countries_data)
-
-        # 수집현황과 동일한 순서로 정렬 (monitoring_targets.csv 순서 기준)
+        # 수집현황과 동일한 순서로 정렬
         targets = get_monitoring_targets()
-        # retailer 이름으로 순서 매핑 (대소문자, 하이픈 무시)
         def normalize_name(name):
             return name.lower().replace('-', '').replace('_', '')
 
@@ -1041,6 +1033,8 @@ def fileserver_stats(request):
             return retailer_order.get(retailer_name, 999)
 
         countries_data.sort(key=get_sort_key)
+
+        unique_countries = set(item['country_code'] for item in countries_data)
 
         data['countries'] = countries_data
         data['summary'] = {

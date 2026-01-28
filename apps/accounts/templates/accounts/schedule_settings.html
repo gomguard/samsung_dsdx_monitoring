@@ -1,0 +1,638 @@
+{% extends 'accounts/admin_base.html' %}
+{% load static %}
+
+{% block title %}스케줄 설정 - 관리자{% endblock %}
+
+{% block admin_css %}
+<style>
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .admin-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .admin-title-sub {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .btn-add {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 20px;
+        background: #7c3aed;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .btn-add:hover { background: #6d28d9; }
+    .btn-add svg { width: 18px; height: 18px; }
+
+    /* 필터 */
+    .filter-section {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+        align-items: center;
+    }
+
+    .filter-select, .filter-search {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    }
+
+    .filter-select { min-width: 120px; }
+    .filter-search { min-width: 200px; }
+
+    /* 통계 */
+    .stats-row {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .stat-chip {
+        padding: 6px 14px;
+        background: var(--bg-secondary);
+        border-radius: 20px;
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .stat-chip strong {
+        color: var(--text-primary);
+        margin-left: 4px;
+    }
+
+    /* 테이블 */
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    .rc-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        table-layout: fixed;
+    }
+
+    .rc-table thead th {
+        background: var(--bg-secondary);
+        padding: 10px 12px;
+        text-align: left;
+        font-weight: 600;
+        color: var(--text-secondary);
+        border-bottom: 2px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
+        white-space: nowrap;
+    }
+
+    .rc-table thead th:last-child {
+        border-right: none;
+    }
+
+    /* 컬럼 너비 */
+    .rc-table .col-no { width: 45px; text-align: center; }
+    .rc-table .col-country { width: 80px; }
+    .rc-table .col-retailer { width: 150px; }
+    .rc-table .col-korea-time { width: 100px; }
+    .rc-table .col-status { width: 65px; }
+    .rc-table .col-updater { width: 80px; }
+    .rc-table .col-date { width: 130px; }
+    .rc-table .col-actions { width: 140px; }
+
+    .rc-table tbody td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .rc-table tbody td:last-child {
+        border-right: none;
+    }
+
+    .rc-table tbody tr:hover {
+        background: rgba(139, 92, 246, 0.03);
+    }
+
+    .rc-table tbody tr.inactive {
+        opacity: 0.5;
+    }
+
+    /* 액션 버튼 */
+    .action-buttons {
+        display: flex;
+        gap: 4px;
+    }
+
+    .btn-action {
+        padding: 4px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        transition: all 0.2s;
+        white-space: nowrap;
+    }
+
+    .btn-action:hover { background: var(--bg-secondary); }
+    .btn-action.btn-edit:hover { color: #3b82f6; border-color: #3b82f6; }
+    .btn-action.btn-toggle:hover { color: #f59e0b; border-color: #f59e0b; }
+    .btn-action.btn-delete:hover { color: #ef4444; border-color: #ef4444; }
+
+    /* 모달 */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .modal-overlay.show { display: flex; }
+
+    .modal {
+        background: var(--bg-primary);
+        border-radius: 12px;
+        padding: 28px;
+        width: 560px;
+        max-width: 90vw;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .modal-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 20px;
+        color: var(--text-primary);
+    }
+
+    .form-group { margin-bottom: 16px; }
+
+    .form-group label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+    }
+
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 14px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        box-sizing: border-box;
+    }
+
+    .form-group-inline {
+        display: flex;
+        gap: 16px;
+    }
+
+    .form-group-inline .form-group { flex: 1; }
+
+    .form-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .form-checkbox input[type="checkbox"] { width: 16px; height: 16px; }
+
+    .form-checkbox label {
+        font-size: 14px;
+        color: var(--text-primary);
+        margin-bottom: 0;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 24px;
+    }
+
+    .btn-modal {
+        padding: 8px 20px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+    }
+
+    .btn-modal-primary { background: #7c3aed; color: white; }
+    .btn-modal-primary:hover { background: #6d28d9; }
+    .btn-modal-cancel { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-color); }
+    .btn-modal-cancel:hover { background: var(--bg-primary); }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div>
+    <div class="admin-header">
+        <div>
+            <h1 class="admin-title">스케줄 설정</h1>
+            <p class="admin-title-sub">DS 모니터링 대상 스케줄을 관리합니다</p>
+        </div>
+        <button class="btn-add" onclick="openAddModal()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            스케줄 추가
+        </button>
+    </div>
+
+    <!-- 통계 -->
+    <div class="stats-row">
+        <span class="stat-chip">전체<strong id="statTotal">{{ rows|length }}</strong></span>
+        <span class="stat-chip">활성<strong id="statActive">0</strong></span>
+    </div>
+
+    <!-- 필터 -->
+    <div class="filter-section">
+        <select class="filter-select" id="filterRetailer" onchange="applyFilter()">
+            <option value="">전체 리테일러</option>
+        </select>
+        <select class="filter-select" id="filterActive" onchange="applyFilter()">
+            <option value="">전체 상태</option>
+            <option value="true">활성</option>
+            <option value="false">비활성</option>
+        </select>
+        <input class="filter-search" id="filterSearch" placeholder="테이블명/리테일러/몰명 검색..." oninput="applyFilter()">
+    </div>
+
+    <!-- 테이블 -->
+    <div class="table-wrapper">
+        <table class="rc-table">
+            <thead>
+                <tr>
+                    <th class="col-no">No</th>
+                    <th class="col-country">국가</th>
+                    <th class="col-retailer">리테일러</th>
+                    <th class="col-korea-time">한국시간</th>
+                    <th class="col-status">상태</th>
+                    <th class="col-updater">수정자</th>
+                    <th class="col-date">수정일</th>
+                    <th class="col-actions">관리</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                {% for row in rows %}
+                <tr ondblclick="openEditModal(this)" style="cursor:pointer"
+                    data-id="{{ row.id }}"
+                    data-table-name="{{ row.table_name }}"
+                    data-retailer="{{ row.retailer }}"
+                    data-region="{{ row.region|default:'' }}"
+                    data-korea-time="{{ row.korea_time|default:'' }}"
+                    data-local-time="{{ row.local_time|default:'' }}"
+                    data-country="{{ row.country }}"
+                    data-mall-name="{{ row.mall_name }}"
+                    data-active="{{ row.is_active }}"
+                    class="{% if not row.is_active %}inactive{% endif %}">
+                    <td class="col-no">{{ forloop.counter }}</td>
+                    <td class="col-country">{{ row.country|upper }}</td>
+                    <td class="col-retailer"><strong>{{ row.retailer }}</strong></td>
+                    <td class="col-korea-time">{{ row.korea_time|default:'-' }}</td>
+                    <td class="col-status">
+                        <span class="badge {% if row.is_active %}badge-active{% else %}badge-inactive{% endif %}">
+                            {% if row.is_active %}활성{% else %}비활성{% endif %}
+                        </span>
+                    </td>
+                    <td class="col-updater">{{ row.updated_id|default:'-' }}</td>
+                    <td class="col-date">{% if row.updated_at %}{{ row.updated_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
+                    <td class="col-actions">
+                        <div class="action-buttons">
+                            <button class="btn-action btn-edit" onclick="openEditModal(this.closest('tr'))">수정</button>
+                            <button class="btn-action btn-delete" onclick="deleteTarget({{ row.id }})">삭제</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 추가/수정 모달 -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+        <h2 class="modal-title" id="modalTitle">스케줄 추가</h2>
+        <input type="hidden" id="editId" value="">
+
+        <div class="form-group">
+            <label>테이블명 *</label>
+            <input type="text" id="formTableName" placeholder="예: ds_tv_retail_com">
+        </div>
+
+        <div class="form-group-inline">
+            <div class="form-group">
+                <label>리테일러 *</label>
+                <input type="text" id="formRetailer" placeholder="예: Amazon_US">
+            </div>
+            <div class="form-group">
+                <label>리전</label>
+                <input type="text" id="formRegion" placeholder="예: US">
+            </div>
+        </div>
+
+        <div class="form-group-inline">
+            <div class="form-group">
+                <label>한국시간</label>
+                <input type="time" id="formKoreaTime" value="09:00">
+            </div>
+            <div class="form-group">
+                <label>현지시간</label>
+                <input type="time" id="formLocalTime">
+            </div>
+        </div>
+
+        <div class="form-group-inline">
+            <div class="form-group">
+                <label>국가 *</label>
+                <input type="text" id="formCountry" placeholder="예: us">
+            </div>
+            <div class="form-group">
+                <label>몰명 *</label>
+                <input type="text" id="formMallName" placeholder="예: amazon">
+            </div>
+        </div>
+
+        <div class="form-checkbox">
+            <input type="checkbox" id="formIsActive" checked>
+            <label for="formIsActive">활성</label>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-modal btn-modal-cancel" onclick="closeModal()">취소</button>
+            <button class="btn-modal btn-modal-primary" onclick="saveTarget()">저장</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+// 리테일러 필터 옵션 동적 생성
+(function() {
+    const retailers = new Set();
+    document.querySelectorAll('#tableBody tr').forEach(r => {
+        if (r.dataset.retailer) retailers.add(r.dataset.retailer);
+    });
+    const sel = document.getElementById('filterRetailer');
+    [...retailers].sort().forEach(ret => {
+        const opt = document.createElement('option');
+        opt.value = ret;
+        opt.textContent = ret;
+        sel.appendChild(opt);
+    });
+})();
+
+// 통계 업데이트
+function updateStats() {
+    const rows = document.querySelectorAll('#tableBody tr');
+    let total = rows.length, active = 0;
+    rows.forEach(r => {
+        if (r.dataset.active === 'True' || r.dataset.active === 'true') active++;
+    });
+    document.getElementById('statTotal').textContent = total;
+    document.getElementById('statActive').textContent = active;
+}
+
+// 필터
+function applyFilter() {
+    const ret = document.getElementById('filterRetailer').value;
+    const act = document.getElementById('filterActive').value;
+    const search = document.getElementById('filterSearch').value.toLowerCase();
+
+    document.querySelectorAll('#tableBody tr').forEach(row => {
+        let show = true;
+        if (ret && row.dataset.retailer !== ret) show = false;
+        if (act === 'true' && (row.dataset.active !== 'True' && row.dataset.active !== 'true')) show = false;
+        if (act === 'false' && (row.dataset.active === 'True' || row.dataset.active === 'true')) show = false;
+        if (search && !row.dataset.tableName.toLowerCase().includes(search)
+            && !row.dataset.retailer.toLowerCase().includes(search)
+            && !row.dataset.mallName.toLowerCase().includes(search)) show = false;
+        if (show) {
+            row.removeAttribute('data-filtered');
+        } else {
+            row.setAttribute('data-filtered', 'hidden');
+        }
+    });
+}
+
+// CSRF
+function getCsrfToken() {
+    return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+// ========== 모달 ==========
+function openAddModal() {
+    _originalData = null;
+    document.getElementById('modalTitle').textContent = '스케줄 추가';
+    document.getElementById('editId').value = '';
+    document.getElementById('formTableName').value = '';
+    document.getElementById('formRetailer').value = '';
+    document.getElementById('formRegion').value = '';
+    document.getElementById('formKoreaTime').value = '09:00';
+    document.getElementById('formLocalTime').value = '';
+    document.getElementById('formCountry').value = '';
+    document.getElementById('formMallName').value = '';
+    document.getElementById('formIsActive').checked = true;
+    document.getElementById('modalOverlay').classList.add('show');
+}
+
+// 수정 모달 열 때 원본 데이터 저장
+let _originalData = null;
+
+function openEditModal(tr) {
+    const d = tr.dataset;
+    const isBoolTrue = v => v === 'True' || v === 'true';
+    document.getElementById('modalTitle').textContent = '스케줄 수정';
+    document.getElementById('editId').value = d.id;
+    document.getElementById('formTableName').value = d.tableName;
+    document.getElementById('formRetailer').value = d.retailer;
+    document.getElementById('formRegion').value = d.region || '';
+    document.getElementById('formKoreaTime').value = d.koreaTime || '';
+    document.getElementById('formLocalTime').value = d.localTime || '';
+    document.getElementById('formCountry').value = d.country;
+    document.getElementById('formMallName').value = d.mallName;
+    document.getElementById('formIsActive').checked = isBoolTrue(d.active);
+    // 원본 저장
+    _originalData = {
+        table_name: d.tableName,
+        retailer: d.retailer,
+        region: d.region || '',
+        korea_time: d.koreaTime || '',
+        local_time: d.localTime || '',
+        country: d.country,
+        mall_name: d.mallName,
+        is_active: isBoolTrue(d.active),
+    };
+    document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('show');
+}
+
+function saveTarget() {
+    const editId = document.getElementById('editId').value;
+    const data = {
+        table_name: document.getElementById('formTableName').value.trim(),
+        retailer: document.getElementById('formRetailer').value.trim(),
+        region: document.getElementById('formRegion').value.trim(),
+        korea_time: document.getElementById('formKoreaTime').value.trim(),
+        local_time: document.getElementById('formLocalTime').value.trim(),
+        country: document.getElementById('formCountry').value.trim(),
+        mall_name: document.getElementById('formMallName').value.trim(),
+        is_active: document.getElementById('formIsActive').checked,
+    };
+
+    if (!data.table_name) { alert('테이블명을 입력하세요.'); return; }
+    if (!data.retailer) { alert('리테일러를 입력하세요.'); return; }
+    if (!data.country) { alert('국가를 입력하세요.'); return; }
+    if (!data.mall_name) { alert('몰명을 입력하세요.'); return; }
+
+    // 수정 모드: 변경사항 확인
+    if (editId && _originalData) {
+        const hasChange = Object.keys(data).some(k => {
+            if (k === 'is_active') return data[k] !== _originalData[k];
+            return (data[k] || '') !== (_originalData[k] || '');
+        });
+        if (!hasChange) {
+            showToast('변경된 데이터가 없습니다.', 'info');
+            return;
+        }
+    }
+
+    const url = editId
+        ? `/accounts/admin/schedule-settings/${editId}/update/`
+        : '/accounts/admin/schedule-settings/create/';
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(r => {
+        if (!r.ok) return r.text().then(t => { throw new Error('서버 ' + r.status + ': ' + t.substring(0, 200)); });
+        return r.json();
+    })
+    .then(res => {
+        if (res.success) {
+            closeModal();
+            reloadWithFilter();
+        } else {
+            alert(res.error || '오류가 발생했습니다.');
+        }
+    })
+    .catch(err => alert('요청 오류: ' + err.message));
+}
+
+// 필터 상태를 유지하며 새로고침
+function reloadWithFilter() {
+    const params = new URLSearchParams();
+    const ret = document.getElementById('filterRetailer').value;
+    const act = document.getElementById('filterActive').value;
+    const search = document.getElementById('filterSearch').value;
+    if (ret) params.set('ret', ret);
+    if (act) params.set('act', act);
+    if (search) params.set('q', search);
+    if (pager && pager.getCurrentPage() > 1) params.set('page', pager.getCurrentPage());
+    const qs = params.toString();
+    location.href = location.pathname + (qs ? '?' + qs : '');
+}
+
+// 삭제
+async function deleteTarget(id) {
+    if (!await showConfirm('정말 삭제하시겠습니까?')) return;
+    fetch(`/accounts/admin/schedule-settings/${id}/delete/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) reloadWithFilter();
+        else showToast(res.error, 'error');
+    });
+}
+
+// URL 파라미터에서 필터 복원
+(function() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('ret')) document.getElementById('filterRetailer').value = params.get('ret');
+    if (params.get('act')) document.getElementById('filterActive').value = params.get('act');
+    if (params.get('q')) document.getElementById('filterSearch').value = params.get('q');
+})();
+
+// 초기화
+updateStats();
+enableColumnResize('.rc-table');
+const hasUrlParams = !!location.search;
+const pager = enablePagination('#tableBody', {
+    perPage: 25,
+    deferRender: hasUrlParams,
+    onRender: function(visibleRows, start) {
+        visibleRows.forEach((row, i) => {
+            const noCell = row.querySelector('.col-no');
+            if (noCell) noCell.textContent = i + 1;
+        });
+    }
+});
+
+// 필터 후 페이지네이션 갱신
+const _origApplyFilter = applyFilter;
+applyFilter = function() {
+    _origApplyFilter();
+    if (pager) pager.reset();
+};
+
+// URL 파라미터가 있으면 필터 적용 후 페이지 이동
+if (hasUrlParams) {
+    _origApplyFilter();
+    const pageParam = new URLSearchParams(location.search).get('page');
+    if (pageParam && pager) {
+        pager.goTo(parseInt(pageParam));
+    } else {
+        pager.reset();
+    }
+}
+</script>
+{% endblock %}

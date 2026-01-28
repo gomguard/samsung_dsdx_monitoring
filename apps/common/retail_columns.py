@@ -1,15 +1,14 @@
 """
 DX 컬럼 설정 로드
-CSV 파일에서 TV/HHP 리테일러별 컬럼 정보 및 NULL 체크 컬럼 정보를 읽어옴
+DB에서 TV/HHP 리테일러별 컬럼 정보 및 NULL 체크 컬럼 정보를 읽어옴
 """
 
 import csv
 from pathlib import Path
+from apps.common.db import execute_dx_query
 
-# CSV 파일 경로 (config/csv 폴더)
+# CSV 파일 경로 (config/csv 폴더) - 형식검증, 시계열 규칙용
 CSV_DIR = Path(__file__).parent.parent.parent / 'config' / 'csv'
-RETAIL_COLUMNS_CSV_PATH = CSV_DIR / 'dx_retail_columns.csv'
-NULL_CHECK_CSV_PATH = CSV_DIR / 'dx_null_check.csv'
 
 # 캐시된 데이터
 _retail_columns_cache = None
@@ -18,8 +17,8 @@ _null_check_config_cache = None
 
 def load_retail_columns():
     """
-    dx_retail_columns.csv에서 리테일러별 컬럼 정보 로드
-    CSV 구조: product_line, column_name, Amazon, Bestbuy, Walmart
+    DB에서 리테일러별 컬럼 정보 로드
+    테이블: monitoring_retail_columns
     Y 표시된 컬럼은 해당 리테일러에 포함되며 자동으로 NULL 체크 대상
 
     Returns: {
@@ -41,21 +40,30 @@ def load_retail_columns():
     }
 
     try:
-        with open(RETAIL_COLUMNS_CSV_PATH, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                product_line = row['product_line'].lower()
-                column_name = row['column_name']
+        query = """
+            SELECT product_line, column_name, retailer
+            FROM monitoring_retail_columns
+            WHERE is_active = TRUE
+            ORDER BY id
+        """
+        rows = execute_dx_query(query)
 
-                # 각 리테일러별로 Y 표시된 컬럼만 추가
-                for retailer in ['Amazon', 'Bestbuy', 'Walmart']:
-                    if row.get(retailer, '').upper() == 'Y':
-                        result[product_line][retailer].append(column_name)
+        # retailer 값을 표시명으로 매핑
+        retailer_map = {'amazon': 'Amazon', 'bestbuy': 'Bestbuy', 'walmart': 'Walmart'}
+
+        for row in rows:
+            product_line = row['product_line'].lower()
+            column_name = row['column_name']
+            retailer_key = row['retailer'].lower()
+            retailer_name = retailer_map.get(retailer_key)
+
+            if retailer_name and product_line in result:
+                result[product_line][retailer_name].append(column_name)
 
         _retail_columns_cache = result
-        print(f"[INFO] Retail columns loaded from CSV: TV retailers={list(result['tv'].keys())}, HHP retailers={list(result['hhp'].keys())}")
+        print(f"[INFO] Retail columns loaded from DB: TV retailers={list(result['tv'].keys())}, HHP retailers={list(result['hhp'].keys())}")
     except Exception as e:
-        print(f"[ERROR] Failed to load retail columns CSV: {e}")
+        print(f"[ERROR] Failed to load retail columns from DB: {e}")
 
     return result
 
@@ -100,7 +108,7 @@ def get_all_retailer_columns(product_line):
 
 
 def reload_retail_columns():
-    """캐시 초기화 후 다시 로드 (CSV 수정 시 사용)"""
+    """캐시 초기화 후 다시 로드 (DB 데이터 변경 시 사용)"""
     global _retail_columns_cache
     _retail_columns_cache = None
     return load_retail_columns()
@@ -108,26 +116,18 @@ def reload_retail_columns():
 
 def get_retailer_list():
     """
-    CSV에서 리테일러 목록 반환 (헤더에서 추출)
+    리테일러 목록 반환
 
     Returns:
         list: ['Amazon', 'Bestbuy', 'Walmart']
     """
-    try:
-        with open(RETAIL_COLUMNS_CSV_PATH, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            # 헤더에서 product_line, column_name, duplicate_key 제외한 컬럼이 리테일러
-            headers = reader.fieldnames or []
-            excluded = ['product_line', 'column_name', 'duplicate_key', 'skip_missing_check', 'related_columns']
-            return [h for h in headers if h not in excluded]
-    except Exception as e:
-        print(f"[ERROR] Failed to get retailer list: {e}")
-        return ['Amazon', 'Bestbuy', 'Walmart']  # 기본값
+    # 현재 지원하는 리테일러 목록 (DB 컬럼명과 매핑)
+    return ['Amazon', 'Bestbuy', 'Walmart']
 
 
 def get_retail_duplicate_keys(product_line):
     """
-    특정 제품라인(tv/hhp)의 중복검증 키 컬럼 목록 반환 (duplicate_key=Y인 컬럼)
+    특정 제품라인(tv/hhp)의 중복검증 키 컬럼 목록 반환 (duplicate_key=TRUE인 컬럼)
 
     Args:
         product_line: 'tv' 또는 'hhp'
@@ -136,28 +136,80 @@ def get_retail_duplicate_keys(product_line):
         list: ['item', 'account_name'] 등 중복키 컬럼 목록
     """
     try:
-        with open(RETAIL_COLUMNS_CSV_PATH, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            duplicate_keys = []
-            for row in reader:
-                if row['product_line'].lower() == product_line.lower():
-                    if row.get('duplicate_key', 'N').upper() == 'Y':
-                        duplicate_keys.append(row['column_name'])
-            return duplicate_keys
+        query = """
+            SELECT DISTINCT column_name
+            FROM monitoring_retail_columns
+            WHERE product_line = %s AND duplicate_key = TRUE AND is_active = TRUE
+            ORDER BY column_name
+        """
+        rows = execute_dx_query(query, (product_line.lower(),))
+        return [row['column_name'] for row in rows]
     except Exception as e:
-        print(f"[ERROR] Failed to get retail duplicate keys: {e}")
+        print(f"[ERROR] Failed to get retail duplicate keys from DB: {e}")
         return ['item', 'account_name']  # 기본값
 
 
+def get_retail_columns_for_retailer(product_line, retailer):
+    """
+    특정 제품라인/리테일러의 컬럼 목록 반환 (skip_missing_check 제외)
+
+    Args:
+        product_line: 'tv' 또는 'hhp'
+        retailer: 'Amazon', 'Bestbuy', 'Walmart'
+
+    Returns:
+        list: 컬럼명 목록 (skip_missing_check=FALSE인 것만)
+    """
+    try:
+        query = """
+            SELECT column_name
+            FROM monitoring_retail_columns
+            WHERE product_line = %s AND retailer = %s
+                  AND skip_missing_check = FALSE AND is_active = TRUE
+            ORDER BY id
+        """
+        rows = execute_dx_query(query, (product_line.lower(), retailer.lower()))
+        return [row['column_name'] for row in rows]
+    except Exception as e:
+        print(f"[ERROR] Failed to get retail columns for {retailer}: {e}")
+        return []
+
+
+def get_retail_columns_with_related(product_line, retailer):
+    """
+    특정 제품라인/리테일러의 컬럼 목록과 related_columns 반환
+
+    Args:
+        product_line: 'tv' 또는 'hhp'
+        retailer: 'Amazon', 'Bestbuy', 'Walmart'
+
+    Returns:
+        list of dict: [{'column_name': 'screen_size', 'related_columns': 'retailer_sku_name'}, ...]
+    """
+    try:
+        query = """
+            SELECT column_name, related_columns
+            FROM monitoring_retail_columns
+            WHERE product_line = %s AND retailer = %s AND is_active = TRUE
+            ORDER BY id
+        """
+        rows = execute_dx_query(query, (product_line.lower(), retailer.lower()))
+        return [{'column_name': row['column_name'], 'related_columns': row['related_columns'] or ''} for row in rows]
+    except Exception as e:
+        print(f"[ERROR] Failed to get retail columns with related for {retailer}: {e}")
+        return []
+
+
 # ============================================================
-# NULL 검증 설정 관련 함수 (dx_null_check.csv)
+# NULL 검증 설정 관련 함수 (monitoring_null_check 테이블)
 # category -> check_name -> columns 계층 구조로 관리
+# DB에 데이터 추가 시 동적으로 반영됨
 # ============================================================
 
 def load_null_check_config():
     """
-    dx_null_check.csv에서 NULL 검증 설정 로드
-    CSV 구조: category, check_name, table_name, check_column, check_type, date_column, display_columns, query_columns
+    DB에서 NULL 검증 설정 로드
+    테이블: monitoring_null_check
     - category: 대시보드 테이블 그룹 (예: tv_retail, hhp_retail, youtube, market)
     - check_name: 검증 카테고리 (예: amazon_tv, youtube_logs, market_trend)
     - table_name: 테이블명 (예: tv_retail_com)
@@ -189,38 +241,45 @@ def load_null_check_config():
     result = {}
 
     try:
-        with open(NULL_CHECK_CSV_PATH, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                category = row.get('category', '')
-                check_name = row['check_name']
-                table_name = row['table_name']
-                check_column = row['check_column']
-                check_type = row.get('check_type', 'both')
-                date_column = row.get('date_column', '')
-                display_columns = row.get('display_columns', '')
-                query_columns = row.get('query_columns', '')
-                query_days = int(row.get('query_days', '0') or '0')
+        query = """
+            SELECT category, check_name, table_name, check_column, check_type,
+                   date_column, display_columns, query_columns, query_days
+            FROM monitoring_null_check
+            WHERE is_active = TRUE
+            ORDER BY id
+        """
+        rows = execute_dx_query(query)
 
-                if check_name not in result:
-                    result[check_name] = {
-                        'category': category,
-                        'table_name': table_name,
-                        'date_column': date_column,
-                        'columns': {}
-                    }
+        for row in rows:
+            category = row.get('category', '')
+            check_name = row['check_name']
+            table_name = row['table_name']
+            check_column = row['check_column']
+            check_type = row.get('check_type', 'both')
+            date_column = row.get('date_column', '')
+            display_columns = row.get('display_columns', '') or ''
+            query_columns = row.get('query_columns', '') or ''
+            query_days = int(row.get('query_days', 0) or 0)
 
-                result[check_name]['columns'][check_column] = {
-                    'check_type': check_type,
-                    'display_columns': [col.strip() for col in display_columns.split('|') if col.strip()],
-                    'query_columns': [col.strip() for col in query_columns.split('|') if col.strip()],
-                    'query_days': query_days
+            if check_name not in result:
+                result[check_name] = {
+                    'category': category,
+                    'table_name': table_name,
+                    'date_column': date_column,
+                    'columns': {}
                 }
 
+            result[check_name]['columns'][check_column] = {
+                'check_type': check_type,
+                'display_columns': [col.strip() for col in display_columns.split('|') if col.strip()],
+                'query_columns': [col.strip() for col in query_columns.split('|') if col.strip()],
+                'query_days': query_days
+            }
+
         _null_check_config_cache = result
-        print(f"[INFO] Null check config loaded from CSV: categories={list(result.keys())}")
+        print(f"[INFO] Null check config loaded from DB: categories={list(result.keys())}")
     except Exception as e:
-        print(f"[ERROR] Failed to load null check CSV: {e}")
+        print(f"[ERROR] Failed to load null check config from DB: {e}")
 
     return result
 
@@ -599,7 +658,7 @@ def get_check_names_by_table(table_name):
 
 
 def reload_null_check_config():
-    """캐시 초기화 후 다시 로드 (CSV 수정 시 사용)"""
+    """캐시 초기화 후 다시 로드 (DB 데이터 변경 시 사용)"""
     global _null_check_config_cache
     _null_check_config_cache = None
     return load_null_check_config()
@@ -610,8 +669,86 @@ reload_null_display_config = reload_null_check_config
 
 
 # ============================================================
+# 필드 누락 예외 규칙 (monitoring_missing_exclude_rules)
+# 특정 리테일러/필드에서 NULL이 허용되는 조건 관리
+# ============================================================
+
+_missing_exclude_cache = None
+_missing_exclude_cache_time = None
+_MISSING_EXCLUDE_TTL = 60  # 캐시 유효시간 (초)
+
+
+def load_missing_exclude_rules():
+    """
+    DB에서 필드 누락 예외 규칙 로드 (60초 TTL 캐시)
+    테이블: monitoring_missing_exclude_rules
+
+    Returns: {
+        ('Amazon', 'tv_retail_com', 'original_sku_price'): [
+            "final_sku_price LIKE 'To see our price%' OR final_sku_price = 'See price in cart'"
+        ],
+        ...
+    }
+    """
+    import time
+    global _missing_exclude_cache, _missing_exclude_cache_time
+
+    now = time.time()
+    if _missing_exclude_cache is not None and _missing_exclude_cache_time and (now - _missing_exclude_cache_time) < _MISSING_EXCLUDE_TTL:
+        return _missing_exclude_cache
+
+    result = {}
+
+    try:
+        query = """
+            SELECT retailer, table_name, field_name, exclude_condition
+            FROM monitoring_missing_exclude_rules
+            WHERE is_active = TRUE
+            ORDER BY id
+        """
+        rows = execute_dx_query(query)
+
+        for row in rows:
+            key = (row['retailer'], row['table_name'], row['field_name'])
+            if key not in result:
+                result[key] = []
+            result[key].append(row['exclude_condition'])
+
+        _missing_exclude_cache = result
+        _missing_exclude_cache_time = now
+    except Exception as e:
+        print(f"[ERROR] Failed to load missing exclude rules from DB: {e}")
+        result = {}
+
+    return result
+
+
+def get_missing_exclude_conditions(retailer, table_name, field_name):
+    """
+    특정 리테일러/테이블/필드의 예외 조건 목록 반환
+
+    Args:
+        retailer: 'Amazon', 'Bestbuy', 'Walmart'
+        table_name: 'tv_retail_com', 'hhp_retail_com'
+        field_name: 'original_sku_price' 등
+
+    Returns:
+        list: exclude_condition 문자열 리스트
+    """
+    rules = load_missing_exclude_rules()
+    return rules.get((retailer, table_name, field_name), [])
+
+
+def reload_missing_exclude_rules():
+    """캐시 초기화 후 다시 로드"""
+    global _missing_exclude_cache
+    _missing_exclude_cache = None
+    return load_missing_exclude_rules()
+
+
+# ============================================================
 # 중복검증 관련 함수
-# dx_retail_columns.csv의 duplicate_key 사용
+# monitoring_retail_columns 테이블의 duplicate_key 사용
 # ============================================================
 
 def get_duplicate_key_columns(product_line):
@@ -680,14 +817,14 @@ def get_duplicate_check_query(product_line, use_period=False):
 
 import re
 
-FORMAT_RULES_CSV_PATH = CSV_DIR / 'dx_format_rules.csv'
 _format_rules_cache = None
 
 
 def load_format_rules():
     """
-    dx_format_rules.csv에서 형식검증 규칙 로드
-    CSV 구조: table_name, product_line, column_name, retailer, validation_type, validation_rule, allowed_values, error_message
+    DB에서 형식검증 규칙 로드
+    테이블: monitoring_format_rules
+    DB에 데이터 추가 시 reload_format_rules() 호출하면 즉시 반영
 
     Returns: {
         'tv_retail_com': {
@@ -712,40 +849,47 @@ def load_format_rules():
     result = {}
 
     try:
-        with open(FORMAT_RULES_CSV_PATH, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                table_name = row['table_name']
-                product_line = row['product_line'].upper()  # TV, HHP, ALL
-                column_name = row['column_name']
-                retailer = row['retailer']
-                validation_type = row['validation_type']
-                validation_rule = row.get('validation_rule', '')
-                allowed_values = row.get('allowed_values', '')
-                error_message = row.get('error_message', '')
+        query = """
+            SELECT table_name, product_line, column_name, retailer,
+                   validation_type, validation_rule, allowed_values, error_message
+            FROM monitoring_format_rules
+            WHERE is_active = TRUE
+            ORDER BY id
+        """
+        rows = execute_dx_query(query)
 
-                if table_name not in result:
-                    result[table_name] = {}
-                if product_line not in result[table_name]:
-                    result[table_name][product_line] = {}
-                if column_name not in result[table_name][product_line]:
-                    result[table_name][product_line][column_name] = []
+        for row in rows:
+            table_name = row['table_name']
+            product_line = (row['product_line'] or 'ALL').upper()  # TV, HHP, ALL
+            column_name = row['column_name']
+            retailer = row['retailer'] or 'common'
+            validation_type = row['validation_type']
+            validation_rule = row.get('validation_rule') or ''
+            allowed_values = row.get('allowed_values') or ''
+            error_message = row.get('error_message') or ''
 
-                # allowed_values 파싱 (파이프 구분)
-                allowed_list = [v.strip() for v in allowed_values.split('|') if v.strip()] if allowed_values else []
+            if table_name not in result:
+                result[table_name] = {}
+            if product_line not in result[table_name]:
+                result[table_name][product_line] = {}
+            if column_name not in result[table_name][product_line]:
+                result[table_name][product_line][column_name] = []
 
-                result[table_name][product_line][column_name].append({
-                    'retailer': retailer,
-                    'type': validation_type,
-                    'rule': validation_rule,
-                    'allowed': allowed_list,
-                    'error': error_message
-                })
+            # allowed_values 파싱 (파이프 구분)
+            allowed_list = [v.strip() for v in allowed_values.split('|') if v.strip()] if allowed_values else []
+
+            result[table_name][product_line][column_name].append({
+                'retailer': retailer,
+                'type': validation_type,
+                'rule': validation_rule,
+                'allowed': allowed_list,
+                'error': error_message
+            })
 
         _format_rules_cache = result
-        print(f"[INFO] Format rules loaded from CSV: tables={list(result.keys())}")
+        print(f"[INFO] Format rules loaded from DB: tables={list(result.keys())}")
     except Exception as e:
-        print(f"[ERROR] Failed to load format rules CSV: {e}")
+        print(f"[ERROR] Failed to load format rules from DB: {e}")
 
     return result
 
@@ -932,7 +1076,7 @@ def _apply_validation_rule(val, rule, field_name):
 
 
 def reload_format_rules():
-    """캐시 초기화 후 다시 로드 (CSV 수정 시 사용)"""
+    """캐시 초기화 후 다시 로드 (DB 데이터 변경 시 사용)"""
     global _format_rules_cache
     _format_rules_cache = None
     return load_format_rules()

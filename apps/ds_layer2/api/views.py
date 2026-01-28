@@ -81,6 +81,7 @@ def get_quality_counts(cursor, table_name, target_date):
         'imageurl_null': 0,  # imageurl이 NULL인 건 (title 상관없이)
         'null_union': 0,  # title NULL 또는 imageurl NULL (중복 제외)
         'imageurl_invalid': 0,  # imageurl이 있지만 형식 오류
+        'price_zero': 0,  # retailprice가 0원인 건
         'partial_null': 0,  # 일부만 NULL (비정상)
         'all_null': 0,  # 3개 모두 NULL (정상)
         'valid': 0,  # 완전히 정상
@@ -127,7 +128,15 @@ def get_quality_counts(cursor, table_name, target_date):
         """, (start_datetime, end_datetime))
         results['imageurl_invalid'] = cursor.fetchone()[0] or 0
 
-        # 5. title과 imageurl이 둘 다 유효한 데이터 중에서 검사
+        # 5. retailprice 0원 (title 유효, retailprice가 0 또는 $0, $0.00 등)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM ({base_query}) A
+            WHERE (title IS NOT NULL AND TRIM(title) != '')
+            AND (retailprice = '0' OR retailprice REGEXP '^\\\\$?0(\\\\.0+)?$')
+        """, (start_datetime, end_datetime))
+        results['price_zero'] = cursor.fetchone()[0] or 0
+
+        # 6. title과 imageurl이 둘 다 유효한 데이터 중에서 검사
         # (title 유효 AND imageurl이 https://로 시작)
         valid_base = f"""
             SELECT * FROM ({base_query}) A
@@ -198,6 +207,7 @@ def get_quality_counts_by_time_range(cursor, table_name, target_date, start_time
         'imageurl_null': 0,
         'null_union': 0,
         'imageurl_invalid': 0,
+        'price_zero': 0,
         'partial_null': 0,
         'all_null': 0,
         'valid': 0,
@@ -243,6 +253,14 @@ def get_quality_counts_by_time_range(cursor, table_name, target_date, start_time
             AND imageurl NOT LIKE 'https://%%'
         """, (start_datetime, end_datetime))
         results['imageurl_invalid'] = cursor.fetchone()[0] or 0
+
+        # retailprice 0원 (title 유효, retailprice가 0 또는 $0, $0.00 등)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM ({base_query}) A
+            WHERE (title IS NOT NULL AND TRIM(title) != '')
+            AND (retailprice = '0' OR retailprice REGEXP '^\\\\$?0(\\\\.0+)?$')
+        """, (start_datetime, end_datetime))
+        results['price_zero'] = cursor.fetchone()[0] or 0
 
         # title과 imageurl이 둘 다 유효한 데이터 중에서 검사
         valid_base = f"""
@@ -322,6 +340,7 @@ def layer_stats(request):
         total_imageurl_null = 0
         total_null_union = 0
         total_imageurl_invalid = 0
+        total_price_zero = 0
         total_partial_null = 0
         total_all_null = 0
         total_valid = 0
@@ -347,6 +366,7 @@ def layer_stats(request):
             imageurl_null = quality.get('imageurl_null', 0)
             null_union = quality.get('null_union', 0)
             imageurl_invalid = quality.get('imageurl_invalid', 0)
+            price_zero = quality.get('price_zero', 0)
             partial_null = quality.get('partial_null', 0)
             all_null = quality.get('all_null', 0)
             valid = quality.get('valid', 0)
@@ -355,12 +375,13 @@ def layer_stats(request):
             total_imageurl_null += imageurl_null
             total_null_union += null_union
             total_imageurl_invalid += imageurl_invalid
+            total_price_zero += price_zero
             total_partial_null += partial_null
             total_all_null += all_null
             total_valid += valid
 
-            # 비정상 건수 = null_union (중복 제외) + imageurl 무효 + 부분 NULL
-            error_count = null_union + imageurl_invalid + partial_null
+            # 비정상 건수 = null_union (중복 제외) + imageurl 무효 + 0원 + 부분 NULL
+            error_count = null_union + imageurl_invalid + price_zero + partial_null
 
             # 상태 판정
             if total == 0:
@@ -406,12 +427,13 @@ def layer_stats(request):
                 'table_name': table_name,
                 'retailer': retailer,
                 'region': region,
-                'country': country.upper(),
+                'country': country,
                 'total': total,
                 'title_null': title_null,
                 'imageurl_null': imageurl_null,
                 'null_union': null_union,
                 'imageurl_invalid': imageurl_invalid,
+                'price_zero': price_zero,
                 'partial_null': partial_null,
                 'all_null': all_null,
                 'valid': valid,
@@ -426,8 +448,8 @@ def layer_stats(request):
         cursor.close()
         conn.close()
 
-        # 전체 비정상 건수 = null_union (중복 제외) + imageurl 무효 + 부분 NULL
-        total_error = total_null_union + total_imageurl_invalid + total_partial_null
+        # 전체 비정상 건수 = null_union (중복 제외) + imageurl 무효 + 0원 + 부분 NULL
+        total_error = total_null_union + total_imageurl_invalid + total_price_zero + total_partial_null
 
         # 전체 상태
         if total_records == 0:
@@ -447,6 +469,7 @@ def layer_stats(request):
             'imageurl_null': total_imageurl_null,
             'null_union': total_null_union,
             'imageurl_invalid': total_imageurl_invalid,
+            'price_zero': total_price_zero,
             'partial_null': total_partial_null,
             'all_null': total_all_null,
             'valid': total_valid,
@@ -497,7 +520,7 @@ def table_null_detail(request):
     if table_name not in valid_tables:
         return JsonResponse({'error': '유효하지 않은 테이블명입니다.'})
 
-    valid_error_types = ['title_null', 'imageurl_null', 'imageurl_invalid', 'partial_null']
+    valid_error_types = ['title_null', 'imageurl_null', 'imageurl_invalid', 'price_zero', 'partial_null']
     if error_type not in valid_error_types:
         return JsonResponse({'error': f'유효하지 않은 에러 타입입니다.'})
 
@@ -555,6 +578,11 @@ def table_null_detail(request):
                 WHERE (title IS NOT NULL AND TRIM(title) != '')
                 AND (imageurl IS NOT NULL AND TRIM(imageurl) != '')
                 AND imageurl NOT LIKE 'https://%%'
+            """
+        elif error_type == 'price_zero':
+            where_condition = """
+                WHERE (title IS NOT NULL AND TRIM(title) != '')
+                AND (retailprice = '0' OR retailprice REGEXP '^\\\\$?0(\\\\.0+)?$')
             """
         else:  # partial_null
             where_condition = """
@@ -615,7 +643,7 @@ def table_null_detail(request):
 
         data['retailer'] = retailer_info[1] if retailer_info else table_name
         data['region'] = retailer_info[2] if retailer_info else ''
-        data['country'] = retailer_info[4].upper() if retailer_info else ''
+        data['country'] = retailer_info[4] if retailer_info else ''
         data['total_count'] = total_count
         data['total_pages'] = (total_count + page_size - 1) // page_size if total_count > 0 else 1
         data['data'] = items

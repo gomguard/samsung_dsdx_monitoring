@@ -776,6 +776,30 @@
         border-bottom: none;
     }
 
+    /* 용량 복사 버튼 */
+    .btn-copy-size {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        background: #4338ca;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-copy-size:hover {
+        background: #3730a3;
+    }
+
+    .btn-copy-size.copied {
+        background: #059669;
+    }
+
     /* 배치 확장 버튼 */
     .expand-btn {
         padding: 4px 10px;
@@ -1234,7 +1258,16 @@
 
     <div class="fileserver-section">
         <div class="fileserver-header">
-            <div class="fileserver-title">파일서버 용량 현황</div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="fileserver-title">파일서버 용량 현황</div>
+                <button class="btn-copy-size" onclick="copyFileSizes()" id="copySizeBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>용량 복사</span>
+                </button>
+            </div>
             <div class="fileserver-summary" id="fileserverSummary">
                 <div class="fileserver-stat">
                     <div class="fileserver-stat-value" id="fsTotalCountries">-</div>
@@ -1435,7 +1468,7 @@ async function loadFileserverData() {
         }
     } catch (error) {
         console.error('Error loading fileserver data:', error);
-        document.getElementById('fileserverContent').innerHTML = '<div class="loading">파일서버 연결 실패</div>';
+        document.getElementById('fileserverContent').innerHTML = '<div class="loading">데이터 조회 실패</div>';
     }
 
     document.getElementById('fileserverLoading').classList.add('hidden');
@@ -1495,6 +1528,82 @@ function renderFileserverData(data) {
 
     html += '</tbody></table>';
     container.innerHTML = html;
+}
+
+// 파일 용량 복사 (탭 구분, 가로 형태)
+function copyFileSizes() {
+    if (!fileserverData || !fileserverData.countries || fileserverData.countries.length === 0) {
+        showToast('복사할 데이터가 없습니다.', 'warning');
+        return;
+    }
+
+    // 모든 파일 용량을 순서대로 추출
+    const sizes = [];
+    fileserverData.countries.forEach(country => {
+        country.files.forEach(file => {
+            sizes.push(file.size);
+        });
+    });
+
+    // 탭으로 구분하여 가로 형태로 복사
+    const text = sizes.join('\t');
+    const btn = document.getElementById('copySizeBtn');
+
+    const onSuccess = () => {
+        if (btn) {
+            btn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>복사 완료!</span>
+            `;
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>용량 복사</span>
+                `;
+                btn.classList.remove('copied');
+            }, 2000);
+        }
+        showToast(`${sizes.length}개 용량 복사 완료`, 'success');
+    };
+
+    const onError = (err) => {
+        console.error('Copy failed:', err);
+        showToast('복사 실패', 'error');
+    };
+
+    // HTTP 환경에서도 동작하도록 fallback 사용
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+            fallbackCopyText(text, onSuccess, onError);
+        });
+    } else {
+        fallbackCopyText(text, onSuccess, onError);
+    }
+}
+
+// HTTP 환경용 폴백 복사 함수
+function fallbackCopyText(text, onSuccess, onError) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    textArea.style.top = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+        document.execCommand('copy');
+        if (onSuccess) onSuccess();
+    } catch (err) {
+        if (onError) onError(err);
+    }
+    document.body.removeChild(textArea);
 }
 
 function toggleFileList(btn) {
@@ -2230,7 +2339,7 @@ function showAddBatchForm() {
     newRow.innerHTML = `
         <td><strong>${filter}</strong> <span style="color: #3b82f6; font-size: 11px;">(신규)</span></td>
         <td>
-            <input type="time" id="newTime" value="12:00">
+            <input type="time" id="newTime" value="09:00">
         </td>
         <td style="color: var(--text-secondary);">-</td>
         <td>

@@ -1,9 +1,9 @@
-{% extends 'base.html' %}
+{% extends 'accounts/admin_base.html' %}
 {% load static %}
 
 {% block title %}회원 관리 - 관리자{% endblock %}
 
-{% block extra_css %}
+{% block admin_css %}
 <style>
     .admin-container {
         max-width: 1400px;
@@ -426,7 +426,7 @@
 </style>
 {% endblock %}
 
-{% block content %}
+{% block admin_content %}
 <div class="admin-container">
     <div class="admin-header">
         <div>
@@ -671,10 +671,10 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}
+{% block admin_js %}
 <script>
-function toggleUserActive(userId) {
-    if (!confirm('이 회원의 상태를 변경하시겠습니까?')) return;
+async function toggleUserActive(userId) {
+    if (!await showConfirm('이 회원의 상태를 변경하시겠습니까?')) return;
 
     fetch(`/accounts/admin/user/${userId}/toggle-active/`, {
         method: 'POST',
@@ -689,19 +689,19 @@ function toggleUserActive(userId) {
             const badge = document.getElementById(`status-${userId}`);
             badge.textContent = data.is_active ? '활성' : '비활성';
             badge.className = `badge ${data.is_active ? 'badge-active' : 'badge-inactive'}`;
-            alert(data.message);
+            showToast(data.message, 'success');
         } else {
-            alert(data.error || '오류가 발생했습니다.');
+            showToast(data.error || '오류가 발생했습니다.', 'error');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('오류가 발생했습니다.');
+        showToast('오류가 발생했습니다.', 'error');
     });
 }
 
-function deleteUser(userId, username) {
-    if (!confirm(`정말 "${username}" 회원을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+async function deleteUser(userId, username) {
+    if (!await showConfirm(`정말 "${username}" 회원을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
 
     fetch(`/accounts/admin/user/${userId}/delete/`, {
         method: 'POST',
@@ -715,14 +715,14 @@ function deleteUser(userId, username) {
         if (data.success) {
             const row = document.querySelector(`tr[data-user-id="${userId}"]`);
             if (row) row.remove();
-            alert(data.message);
+            showToast(data.message, 'success');
         } else {
-            alert(data.error || '오류가 발생했습니다.');
+            showToast(data.error || '오류가 발생했습니다.', 'error');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('오류가 발생했습니다.');
+        showToast('오류가 발생했습니다.', 'error');
     });
 }
 

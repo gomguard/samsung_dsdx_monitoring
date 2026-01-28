@@ -1,0 +1,282 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}관리자페이지{% endblock %}
+
+{% block extra_css %}
+<style>
+/* 관리자 페이지 레이아웃 */
+.admin-layout {
+    display: flex;
+    min-height: calc(100vh - 64px - 60px);
+    margin: -32px -24px;
+}
+
+/* 좌측 사이드바 */
+.admin-sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    padding: 24px 0;
+}
+
+.sidebar-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0 20px;
+    margin-bottom: 12px;
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+}
+
+.sidebar-menu-item:hover {
+    background: rgba(139, 92, 246, 0.05);
+    color: var(--text-primary);
+}
+
+.sidebar-menu-item.active {
+    background: rgba(139, 92, 246, 0.1);
+    color: #7c3aed;
+    border-left-color: #7c3aed;
+}
+
+.sidebar-menu-item svg {
+    flex-shrink: 0;
+}
+
+/* 우측 컨텐츠 영역 */
+.admin-content {
+    flex: 1;
+    padding: 32px;
+    overflow-x: auto;
+}
+
+/* 토스트 알림 */
+.admin-toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0;
+    z-index: 10001;
+    min-width: 280px;
+    max-width: 420px;
+    padding: 18px 32px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    pointer-events: none;
+}
+.admin-toast.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+.admin-toast.info { background: #6366f1; }
+.admin-toast.success { background: #22c55e; }
+.admin-toast.warn { background: #f59e0b; color: #1a1a1a; }
+.admin-toast.error { background: #ef4444; }
+
+/* 공통 확인 모달 */
+.confirm-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 10002;
+    justify-content: center;
+    align-items: center;
+}
+.confirm-overlay.show { display: flex; }
+.confirm-box {
+    background: var(--bg-primary, #fff);
+    border-radius: 12px;
+    padding: 28px 32px 20px;
+    min-width: 320px;
+    max-width: 440px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    text-align: center;
+}
+.confirm-box .confirm-icon {
+    margin-bottom: 12px;
+}
+.confirm-box .confirm-msg {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-primary, #1a1a1a);
+    line-height: 1.5;
+    margin-bottom: 24px;
+    white-space: pre-line;
+}
+.confirm-box .confirm-btns {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+.confirm-box .confirm-btn {
+    padding: 9px 28px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.confirm-box .confirm-btn:hover { opacity: 0.85; }
+.confirm-box .btn-ok {
+    background: #ef4444;
+    color: #fff;
+}
+.confirm-box .btn-cancel {
+    background: var(--bg-secondary, #f3f4f6);
+    color: var(--text-primary, #1a1a1a);
+}
+</style>
+{% block admin_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+    <!-- 좌측 사이드바 -->
+    <nav class="admin-sidebar">
+        <div class="sidebar-title">공통</div>
+        <ul class="sidebar-menu">
+            <li>
+                <a href="{% url 'accounts:admin_dashboard' %}" class="sidebar-menu-item {% if admin_menu == 'members' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                    회원관리
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-title" style="margin-top: 20px;">DS</div>
+        <ul class="sidebar-menu">
+            <li>
+                <a href="{% url 'accounts:schedule_settings' %}" class="sidebar-menu-item {% if admin_menu == 'schedule' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    스케줄 설정
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-title" style="margin-top: 20px;">DX</div>
+        <ul class="sidebar-menu">
+            <li>
+                <a href="{% url 'accounts:dx_schedule_settings' %}" class="sidebar-menu-item {% if admin_menu == 'dx_schedule' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    수집 스케줄 설정
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'accounts:retail_columns' %}" class="sidebar-menu-item {% if admin_menu == 'retail_columns' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <rect x="3" y="3" width="7" height="7"/>
+                        <rect x="14" y="3" width="7" height="7"/>
+                        <rect x="14" y="14" width="7" height="7"/>
+                        <rect x="3" y="14" width="7" height="7"/>
+                    </svg>
+                    수집항목 관리
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'accounts:exclude_rules' %}" class="sidebar-menu-item {% if admin_menu == 'exclude_rules' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
+                    </svg>
+                    예외조건 관리
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- 우측 컨텐츠 -->
+    <div class="admin-content">
+        {% block admin_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/table-resize.js' %}"></script>
+<script src="{% static 'js/table-pagination.js' %}"></script>
+<div id="adminToast" class="admin-toast info"></div>
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+        <div class="confirm-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40">
+                <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
+            </svg>
+        </div>
+        <div class="confirm-msg" id="confirmMsg"></div>
+        <div class="confirm-btns">
+            <button class="confirm-btn btn-ok" id="confirmOk">확인</button>
+            <button class="confirm-btn btn-cancel" id="confirmCancel">취소</button>
+        </div>
+    </div>
+</div>
+<script>
+function showToast(msg, type) {
+    type = type || 'info';
+    var t = document.getElementById('adminToast');
+    t.textContent = msg;
+    t.className = 'admin-toast ' + type + ' show';
+    clearTimeout(t._tid);
+    t._tid = setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+
+function showConfirm(msg) {
+    return new Promise(function(resolve) {
+        var overlay = document.getElementById('confirmOverlay');
+        document.getElementById('confirmMsg').textContent = msg;
+        overlay.classList.add('show');
+        var ok = document.getElementById('confirmOk');
+        var cancel = document.getElementById('confirmCancel');
+        function cleanup() {
+            overlay.classList.remove('show');
+            ok.removeEventListener('click', onOk);
+            cancel.removeEventListener('click', onCancel);
+            overlay.removeEventListener('click', onBg);
+        }
+        function onOk() { cleanup(); resolve(true); }
+        function onCancel() { cleanup(); resolve(false); }
+        function onBg(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
+        ok.addEventListener('click', onOk);
+        cancel.addEventListener('click', onCancel);
+        overlay.addEventListener('click', onBg);
+    });
+}
+</script>
+{% block admin_js %}{% endblock %}
+{% endblock %}

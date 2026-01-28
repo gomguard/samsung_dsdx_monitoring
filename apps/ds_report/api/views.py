@@ -99,13 +99,14 @@ def get_expected_count(cursor, country, mall_name):
 
 def get_null_issues(cursor, table_name, target_date, start_time=None):
     """
-    특정 테이블의 NULL 필드 이슈 조회
+    특정 테이블의 NULL 필드 및 0원 이슈 조회
     start_time이 있으면 해당 시간부터 다음날까지만 조회 (최종 배치)
 
     Layer 2 검증 로직 기반 + NULL 필드 조합별로 그룹핑:
     - 모든 NULL 필드 조합을 한 번에 조회
     - title, imageurl, retailprice 중 NULL인 필드들을 조합으로 표시
     - ships_from, sold_by는 retailprice와 함께 3개 모두 NULL이면 정상 (이슈 아님)
+    - retailprice가 0원인 경우도 이슈로 표시
     """
     date_str = target_date.strftime('%Y%m%d')
     next_date = (target_date + timedelta(days=1)).strftime('%Y%m%d')
@@ -124,12 +125,13 @@ def get_null_issues(cursor, table_name, target_date, start_time=None):
     """
 
     try:
-        # 모든 NULL 필드 조합을 한 번에 조회
+        # 모든 NULL 필드 조합을 한 번에 조회 (0원 포함)
         cursor.execute(f"""
             SELECT
                 CASE WHEN (title IS NULL OR TRIM(title) = '') THEN 1 ELSE 0 END as title_null,
                 CASE WHEN (imageurl IS NULL OR TRIM(imageurl) = '' OR imageurl NOT LIKE 'https://%%') THEN 1 ELSE 0 END as img_null,
                 CASE WHEN (retailprice IS NULL OR TRIM(retailprice) = '') THEN 1 ELSE 0 END as rp_null,
+                CASE WHEN (retailprice = '0' OR retailprice REGEXP '^\\\\$?0(\\\\.0+)?$') THEN 1 ELSE 0 END as rp_zero,
                 CASE WHEN (ships_from IS NULL OR TRIM(ships_from) = '') THEN 1 ELSE 0 END as sf_null,
                 CASE WHEN (sold_by IS NULL OR TRIM(sold_by) = '') THEN 1 ELSE 0 END as sb_null,
                 COUNT(*) as cnt
@@ -138,15 +140,16 @@ def get_null_issues(cursor, table_name, target_date, start_time=None):
                 CASE WHEN (title IS NULL OR TRIM(title) = '') THEN 1 ELSE 0 END,
                 CASE WHEN (imageurl IS NULL OR TRIM(imageurl) = '' OR imageurl NOT LIKE 'https://%%') THEN 1 ELSE 0 END,
                 CASE WHEN (retailprice IS NULL OR TRIM(retailprice) = '') THEN 1 ELSE 0 END,
+                CASE WHEN (retailprice = '0' OR retailprice REGEXP '^\\\\$?0(\\\\.0+)?$') THEN 1 ELSE 0 END,
                 CASE WHEN (ships_from IS NULL OR TRIM(ships_from) = '') THEN 1 ELSE 0 END,
                 CASE WHEN (sold_by IS NULL OR TRIM(sold_by) = '') THEN 1 ELSE 0 END
         """, (start_datetime, end_datetime))
 
         for row in cursor.fetchall():
-            title_null, img_null, rp_null, sf_null, sb_null, count = row
+            title_null, img_null, rp_null, rp_zero, sf_null, sb_null, count = row
 
             # 모두 정상인 경우 스킵
-            if title_null == 0 and img_null == 0 and rp_null == 0 and sf_null == 0 and sb_null == 0:
+            if title_null == 0 and img_null == 0 and rp_null == 0 and rp_zero == 0 and sf_null == 0 and sb_null == 0:
                 continue
 
             # title, imageurl이 유효하고 retailprice, ships_from, sold_by 3개 모두 NULL인 경우는 정상
@@ -161,6 +164,9 @@ def get_null_issues(cursor, table_name, target_date, start_time=None):
                 null_fields.append('imageurl')
             if rp_null:
                 null_fields.append('retailprice')
+            # 0원 체크 (NULL이 아닌데 0원인 경우)
+            if rp_zero and not rp_null:
+                null_fields.append('retailprice 0원')
             # ships_from, sold_by는 부분 NULL일 때만 표시 (title/imageurl 유효한 경우)
             if title_null == 0 and img_null == 0:
                 if sf_null and not (rp_null and sb_null):  # 부분 NULL
@@ -169,7 +175,10 @@ def get_null_issues(cursor, table_name, target_date, start_time=None):
                     null_fields.append('sold_by')
 
             if null_fields and count > 0:
-                issues.append({'fields': ', '.join(null_fields), 'count': count})
+                # 0원만 있는 경우는 suffix 없이, 나머지는 'null' suffix
+                has_only_zero = len(null_fields) == 1 and null_fields[0] == 'retailprice 0원'
+                suffix = '' if has_only_zero else ' null'
+                issues.append({'fields': ', '.join(null_fields), 'count': count, 'suffix': suffix})
 
     except Exception as e:
         pass
@@ -270,13 +279,13 @@ def report_stats(request):
                     'count': rerun_count
                 })
 
-            # NULL 이슈 체크 (Layer 2 검증 로직과 동일) - 최종 배치 기준
+            # NULL/0원 이슈 체크 (Layer 2 검증 로직과 동일) - 최종 배치 기준
             null_issues = get_null_issues(cursor, table_name, target_date, final_start_time)
             for issue in null_issues:
                 all_issues.append({
                     'retailer': retailer_name,
                     'type': 'null',
-                    'description': f"{issue['fields']} null {issue['count']}건"
+                    'description': f"{issue['fields']}{issue.get('suffix', ' null')} {issue['count']}건"
                 })
 
             # 중복 체크 (다나와만) - 최종 배치 기준

@@ -1,9 +1,9 @@
-{% extends 'base.html' %}
+{% extends 'accounts/admin_base.html' %}
 {% load static %}
 
 {% block title %}{% if mode == 'create' %}회원 등록{% else %}회원 수정{% endif %} - 관리자{% endblock %}
 
-{% block extra_css %}
+{% block admin_css %}
 <style>
     .form-container {
         max-width: 640px;
@@ -262,7 +262,7 @@
 </style>
 {% endblock %}
 
-{% block content %}
+{% block admin_content %}
 <div class="form-container">
     <div class="form-header">
         <a href="{% url 'accounts:admin_dashboard' %}" class="back-link">

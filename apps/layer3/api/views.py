@@ -2485,26 +2485,14 @@ def field_missing_detection(request):
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
-    # CSV에서 리테일러별 수집 필드 로드 (skip_missing_check=Y인 필드 제외)
-    csv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config', 'csv', 'dx_retail_columns.csv')
+    # DB에서 리테일러별 수집 필드 로드 (skip_missing_check=TRUE인 필드 제외)
+    from apps.common.retail_columns import get_retail_columns_for_retailer, get_missing_exclude_conditions
     retail_columns = {}
 
-    try:
-        with open(csv_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row['product_line'].lower() == product_line.lower():
-                    col_name = row['column_name']
-                    # skip_missing_check=Y인 필드는 누락 검사에서 제외
-                    if row.get('skip_missing_check', 'N') == 'Y':
-                        continue
-                    for ret in ['Amazon', 'Bestbuy', 'Walmart']:
-                        if row.get(ret, 'N') == 'Y':
-                            if ret not in retail_columns:
-                                retail_columns[ret] = []
-                            retail_columns[ret].append(col_name)
-    except Exception as e:
-        return JsonResponse({'error': f'CSV 로드 실패: {str(e)}'})
+    for ret in ['Amazon', 'Bestbuy', 'Walmart']:
+        cols = get_retail_columns_for_retailer(product_line, ret)
+        if cols:
+            retail_columns[ret] = cols
 
     try:
         conn = get_dx_connection()
@@ -2551,7 +2539,17 @@ def field_missing_detection(request):
             for col in columns_to_check:
                 safe_col = f'"{col}"'
                 case_prev.append(f"MAX(CASE WHEN DATE({date_column}) IN ('{prev_date_1}', '{prev_date_2}') AND {safe_col} IS NOT NULL AND CAST({safe_col} AS TEXT) != '' THEN 1 ELSE 0 END) as prev_{col.replace(' ', '_')}")
-                case_today.append(f"MAX(CASE WHEN DATE({date_column}) = '{target_date}' AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = '') THEN 1 ELSE 0 END) as today_{col.replace(' ', '_')}")
+
+                # exclude 조건 적용
+                exclude_conds = get_missing_exclude_conditions(ret, table_name, col)
+                exclude_sql = ""
+                if exclude_conds:
+                    # psycopg2에서 %를 %%로 이스케이프 (LIKE 패턴 등)
+                    exclude_parts = " OR ".join([f"({c.replace('%', '%%')})" for c in exclude_conds])
+                    exclude_sql = f" AND NOT ({exclude_parts})"
+                    print(f"[DEBUG] exclude applied: {ret}/{col} -> {exclude_sql}")
+
+                case_today.append(f"MAX(CASE WHEN DATE({date_column}) = '{target_date}' AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = ''){exclude_sql} THEN 1 ELSE 0 END) as today_{col.replace(' ', '_')}")
 
             query = f"""
                 SELECT item, {', '.join(case_prev)}, {', '.join(case_today)}
@@ -2586,12 +2584,19 @@ def field_missing_detection(request):
                     # 누락 item들의 오늘 날짜 NULL 행 수 조회
                     safe_col = f'"{col}"'
                     placeholders = ', '.join(['%s'] * len(stats['missing_items']))
+                    # exclude 조건 적용
+                    exclude_conds = get_missing_exclude_conditions(ret, table_name, col)
+                    exclude_sql = ""
+                    if exclude_conds:
+                        exclude_parts = " OR ".join([f"({c.replace('%', '%%')})" for c in exclude_conds])
+                        exclude_sql = f" AND NOT ({exclude_parts})"
+
                     null_count_query = f"""
                         SELECT COUNT(*) FROM {table_name}
                         WHERE account_name = %s
                         AND DATE({date_column}) = %s
                         AND item IN ({placeholders})
-                        AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = '')
+                        AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = ''){exclude_sql}
                     """
                     cursor.execute(null_count_query, (ret, target_date, *stats['missing_items']))
                     stats['today_null_rows'] = cursor.fetchone()[0] or 0
@@ -2650,20 +2655,9 @@ def field_missing_detail_all(request):
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
-    # CSV에서 리테일러별 수집 필드 로드
-    csv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config', 'csv', 'dx_retail_columns.csv')
-    retail_columns = []
-
-    try:
-        with open(csv_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row['product_line'].lower() == product_line.lower():
-                    col_name = row['column_name']
-                    if row.get(retailer, 'N') == 'Y':
-                        retail_columns.append(col_name)
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'message': f'CSV 로드 실패: {str(e)}'})
+    # DB에서 리테일러별 수집 필드 로드
+    from apps.common.retail_columns import get_retailer_columns
+    retail_columns = get_retailer_columns(product_line, retailer)
 
     # 표시할 필드 선택 (긴 텍스트 필드 제외)
     exclude_cols = ['calendar_week', 'detailed_review_content', 'summarized_review_content']
@@ -2785,20 +2779,9 @@ def field_missing_detail_problem(request):
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
-    # CSV에서 리테일러별 수집 필드 로드
-    csv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config', 'csv', 'dx_retail_columns.csv')
-    retail_columns = []
-
-    try:
-        with open(csv_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row['product_line'].lower() == product_line.lower():
-                    col_name = row['column_name']
-                    if row.get(retailer, 'N') == 'Y':
-                        retail_columns.append(col_name)
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'message': f'CSV 로드 실패: {str(e)}'})
+    # DB에서 리테일러별 수집 필드 로드
+    from apps.common.retail_columns import get_retailer_columns
+    retail_columns = get_retailer_columns(product_line, retailer)
 
     # 기본 필드 제외
     exclude_cols = ['id', 'item', 'account_name', 'page_type', 'crawl_datetime', 'crawl_strdatetime', 'calendar_week', 'product_url']
@@ -2945,24 +2928,15 @@ def field_missing_detail_by_field(request):
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
-    # CSV에서 리테일러별 수집 필드 및 related_columns 로드
-    csv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config', 'csv', 'dx_retail_columns.csv')
-    display_fields = []
+    # DB에서 리테일러별 수집 필드 및 related_columns 로드
+    from apps.common.retail_columns import get_retail_columns_with_related, get_missing_exclude_conditions as get_exclude_conds
+    columns_info = get_retail_columns_with_related(product_line, retailer)
+    display_fields = [c['column_name'] for c in columns_info]
     related_columns = []
-
-    try:
-        with open(csv_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row['product_line'].lower() == product_line.lower():
-                    col_name = row['column_name']
-                    if row.get(retailer, 'N') == 'Y':
-                        display_fields.append(col_name)
-                    # 현재 필드의 related_columns 가져오기
-                    if col_name == field and row.get('related_columns'):
-                        related_columns = [c.strip() for c in row['related_columns'].split('|') if c.strip()]
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'message': f'CSV 로드 실패: {str(e)}'})
+    for c in columns_info:
+        if c['column_name'] == field and c['related_columns']:
+            related_columns = [col.strip() for col in c['related_columns'].split('|') if col.strip()]
+            break
 
     try:
         conn = get_dx_connection()
@@ -2979,17 +2953,27 @@ def field_missing_detail_by_field(request):
 
         safe_field = f'"{field}"'
 
-        # SELECT 컬럼 구성: 필수(id, 수집시간, item) + 현재필드 + 관련필드(CSV) + URL(마지막)
-        select_cols = ['id', date_column, 'item', safe_field]
-        # related_columns 추가 (해당 리테일러에서 수집하는 필드만)
-        for rel_col in related_columns:
-            if rel_col in display_fields and rel_col != field:
-                select_cols.append(f'"{rel_col}"')
+        # SELECT 컬럼 구성: 필수(id, 수집시간, item) + 조회용 컬럼 or 누락필드 + URL(마지막)
+        # 조회용 컬럼이 있으면 조회용 컬럼만, 없으면 누락필드만 표시
+        select_cols = ['id', date_column, 'item']
+        if related_columns:
+            for rel_col in related_columns:
+                if rel_col in display_fields:
+                    select_cols.append(f'"{rel_col}"')
+        else:
+            select_cols.append(safe_field)
         select_cols.append('product_url')  # URL은 마지막에
         select_clause = ', '.join(select_cols)
 
         # 먼저 요약 API와 동일한 방식으로 누락 item 목록 추출
         # (직전 2일에 값이 있었고, 오늘 NULL인 item)
+        # exclude 조건 적용 (요약과 동일)
+        exclude_conds = get_exclude_conds(retailer, table_name, field)
+        exclude_sql = ""
+        if exclude_conds:
+            exclude_parts = " OR ".join([f"({c.replace('%', '%%')})" for c in exclude_conds])
+            exclude_sql = f" AND NOT ({exclude_parts})"
+
         missing_items_query = f"""
             SELECT item
             FROM {table_name}
@@ -2998,7 +2982,7 @@ def field_missing_detail_by_field(request):
             GROUP BY item
             HAVING
                 MAX(CASE WHEN DATE({date_cast}) IN (%s, %s) AND {safe_field} IS NOT NULL AND CAST({safe_field} AS TEXT) != '' THEN 1 ELSE 0 END) = 1
-                AND MAX(CASE WHEN DATE({date_cast}) = %s AND ({safe_field} IS NULL OR CAST({safe_field} AS TEXT) = '') THEN 1 ELSE 0 END) = 1
+                AND MAX(CASE WHEN DATE({date_cast}) = %s AND ({safe_field} IS NULL OR CAST({safe_field} AS TEXT) = ''){exclude_sql} THEN 1 ELSE 0 END) = 1
         """
 
         cursor.execute(missing_items_query, (
@@ -3010,11 +2994,14 @@ def field_missing_detail_by_field(request):
 
         if not missing_items:
             # 누락 item이 없으면 빈 결과 반환
-            # 컬럼명 목록 생성 (select_cols와 동일한 순서: id, date_column, item, field, related_columns, product_url)
-            column_names = ['id', date_column, 'item', field]
-            for rel_col in related_columns:
-                if rel_col in display_fields and rel_col != field:
-                    column_names.append(rel_col)
+            # 컬럼명 목록 생성 (select_cols와 동일한 순서)
+            column_names = ['id', date_column, 'item']
+            if related_columns:
+                for rel_col in related_columns:
+                    if rel_col in display_fields:
+                        column_names.append(rel_col)
+            else:
+                column_names.append(field)
             column_names.append('product_url')
 
             cursor.close()
@@ -3049,11 +3036,14 @@ def field_missing_detail_by_field(request):
 
         rows = cursor.fetchall()
 
-        # 컬럼명 목록: select_cols와 동일한 순서 (id, date_column, item, field, related_columns, product_url)
-        column_names = ['id', date_column, 'item', field]
-        for rel_col in related_columns:
-            if rel_col in display_fields and rel_col != field:
-                column_names.append(rel_col)
+        # 컬럼명 목록: select_cols와 동일한 순서
+        column_names = ['id', date_column, 'item']
+        if related_columns:
+            for rel_col in related_columns:
+                if rel_col in display_fields:
+                    column_names.append(rel_col)
+        else:
+            column_names.append(field)
         column_names.append('product_url')
 
         # 데이터 변환

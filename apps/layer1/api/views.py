@@ -2723,9 +2723,9 @@ def retailer_raw_data(request):
 def retailer_columns_info(request):
     """
     TV/HHP 리테일러별 수집 컬럼 정보 API
-    - CSV 파일(dx_retail_columns.csv)에서 컬럼 정보 로드
+    - DB(monitoring_retail_columns)에서 컬럼 정보 로드
     """
-    # CSV에서 컬럼 정보 로드
+    # DB에서 컬럼 정보 로드
     tv_columns = get_all_retailer_columns('tv')
     hhp_columns = get_all_retailer_columns('hhp')
 
@@ -3272,59 +3272,42 @@ def market_promotion_raw_data(request):
         conn = get_dx_connection()
         cursor = conn.cursor()
 
-        # openai_retailer_promotions 테이블 조회
+        # openai_retailer_promotions + openai_event_mst 조인 조회
         columns = [
-            'id', 'retailer', 'product', 'sku', 'brand', 'keyword',
-            'country', 'promo_type', 'start_date', 'end_date',
-            'price_original', 'price_promo', 'discount_rate', 'crawled_at'
+            'id', 'event_name', 'event_date', 'event_week',
+            'retailer', 'promo_start_date', 'promo_end_date',
+            'source_url', 'crawled_at'
         ]
 
         query = """
             SELECT
-                id,
-                retailer,
-                product,
-                sku,
-                brand,
-                keyword,
-                country,
-                promo_type,
-                start_date,
-                end_date,
-                price_original,
-                price_promo,
-                discount_rate,
-                crawled_at
-            FROM openai_retailer_promotions
-            WHERE crawled_at = %s
+                p.id,
+                e.event_name,
+                e.event_date,
+                e.event_week,
+                p.retailer,
+                p.promo_start_date,
+                p.promo_end_date,
+                p.source_url,
+                p.crawled_at
+            FROM openai_retailer_promotions p
+            LEFT JOIN openai_event_mst e ON p.event_id = e.id
+            WHERE p.crawled_at = %s
         """
 
         params = [analysis_monday.strftime('%Y-%m-%d')]
 
         if retailer:
-            query += " AND retailer = %s"
+            query += " AND p.retailer = %s"
             params.append(retailer)
 
-        query += " ORDER BY crawled_at DESC, id DESC LIMIT 500"
+        query += " ORDER BY e.event_date, p.id"
 
         cursor.execute(query, params)
 
         rows = cursor.fetchall()
 
-        # 총 개수 조회 (LIMIT 없이)
-        count_query = """
-            SELECT COUNT(*)
-            FROM openai_retailer_promotions
-            WHERE crawled_at = %s
-        """
-        count_params = [analysis_monday.strftime('%Y-%m-%d')]
-
-        if retailer:
-            count_query += " AND retailer = %s"
-            count_params.append(retailer)
-
-        cursor.execute(count_query, count_params)
-        total_count = cursor.fetchone()[0]
+        total_count = len(rows)
 
         results['columns'] = columns
         results['total_count'] = total_count
@@ -3337,3 +3320,49 @@ def market_promotion_raw_data(request):
         results['error'] = str(e)
 
     return JsonResponse(results)
+
+
+def backup_retail_data(request):
+    """TV/HHP retail 데이터 백업 API
+    GET: 백업 대상 건수 조회
+    POST: 백업 실행
+    """
+    from apps.common.backup import backup_all_retail, get_backup_count
+
+    if request.method == 'GET':
+        # 건수만 조회
+        result = get_backup_count()
+        if result['success']:
+            return JsonResponse({
+                'success': True,
+                'tv_count': result['tv_count'],
+                'hhp_count': result['hhp_count'],
+                'total_count': result['total_count']
+            })
+        else:
+            return JsonResponse({'success': False, 'error': result.get('error', 'Unknown error')})
+
+    elif request.method == 'POST':
+        # 백업 실행
+        result = backup_all_retail()
+
+        if result['success']:
+            tv_count = result['tv']['count']
+            hhp_count = result['hhp']['count']
+            message = f"백업 완료 - TV: {tv_count}건, HHP: {hhp_count}건"
+            return JsonResponse({
+                'success': True,
+                'message': message,
+                'tv_count': tv_count,
+                'hhp_count': hhp_count
+            })
+        else:
+            errors = []
+            if not result['tv']['success']:
+                errors.append(f"TV: {result['tv'].get('error', 'Unknown error')}")
+            if not result['hhp']['success']:
+                errors.append(f"HHP: {result['hhp'].get('error', 'Unknown error')}")
+            return JsonResponse({
+                'success': False,
+                'error': ', '.join(errors)
+            })

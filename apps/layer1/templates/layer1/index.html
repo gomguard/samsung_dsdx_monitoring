@@ -437,6 +437,28 @@
         border-color: var(--color-layer1);
     }
 
+    .btn-backup {
+        padding: 8px 16px;
+        background: #7c3aed;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+        margin-left: 12px;
+    }
+
+    .btn-backup:hover {
+        background: #6d28d9;
+    }
+
+    .btn-backup:disabled {
+        background: #a78bfa;
+        cursor: not-allowed;
+    }
+
     .date-info {
         font-size: 14px;
         color: var(--text-secondary);
@@ -1684,6 +1706,87 @@
         color: white;
         border-color: #3b82f6;
     }
+
+    /* 토스트 알림 */
+    .layer-toast {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0.9);
+        opacity: 0;
+        z-index: 10001;
+        min-width: 280px;
+        max-width: 420px;
+        padding: 18px 32px;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 600;
+        color: #fff;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+        transition: transform 0.25s ease, opacity 0.25s ease;
+        pointer-events: none;
+    }
+    .layer-toast.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    .layer-toast.info { background: #6366f1; }
+    .layer-toast.success { background: #22c55e; }
+    .layer-toast.warn { background: #f59e0b; color: #1a1a1a; }
+    .layer-toast.error { background: #ef4444; }
+
+    /* 공통 확인 모달 */
+    .confirm-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        z-index: 10002;
+        justify-content: center;
+        align-items: center;
+    }
+    .confirm-overlay.show { display: flex; }
+    .confirm-box {
+        background: var(--bg-primary, #fff);
+        border-radius: 12px;
+        padding: 28px 32px 20px;
+        min-width: 320px;
+        max-width: 440px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+        text-align: center;
+    }
+    .confirm-box .confirm-icon {
+        margin-bottom: 12px;
+    }
+    .confirm-box .confirm-msg {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--text-primary, #1a1a1a);
+        line-height: 1.5;
+        margin-bottom: 24px;
+        white-space: pre-line;
+    }
+    .confirm-box .confirm-btns {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+    }
+    .confirm-box .confirm-btn {
+        padding: 9px 28px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: opacity 0.15s;
+    }
+    .confirm-box .confirm-btn:hover { opacity: 0.85; }
+    .confirm-box .btn-ok {
+        background: #7c3aed;
+        color: #fff;
+    }
+    .confirm-box .btn-cancel {
+        background: var(--bg-secondary, #f3f4f6);
+        color: var(--text-primary, #1a1a1a);
+    }
 </style>
 {% endblock %}
 
@@ -1707,6 +1810,7 @@
         <span id="weekday-display" style="margin-left: 8px; font-weight: 500; color: var(--text-secondary);"></span>
         <button onclick="loadAllData()" class="btn-refresh">조회</button>
         <button onclick="setToday()" class="btn-today">오늘</button>
+        <button onclick="runBackup()" class="btn-backup" id="btn-backup">백업 실행</button>
     </div>
     <div class="date-info" id="date-info">
         <span class="current-date"></span>
@@ -2008,10 +2112,61 @@
     </div>
 </div>
 
+<!-- 토스트 알림 -->
+<div id="layerToast" class="layer-toast info"></div>
+
+<!-- 확인 모달 -->
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+        <div class="confirm-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" width="40" height="40">
+                <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
+            </svg>
+        </div>
+        <div class="confirm-msg" id="confirmMsg"></div>
+        <div class="confirm-btns">
+            <button class="confirm-btn btn-ok" id="confirmOk">확인</button>
+            <button class="confirm-btn btn-cancel" id="confirmCancel">취소</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// 공통 팝업 함수
+function showToast(msg, type) {
+    type = type || 'info';
+    var t = document.getElementById('layerToast');
+    t.textContent = msg;
+    t.className = 'layer-toast ' + type + ' show';
+    clearTimeout(t._tid);
+    t._tid = setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+
+function showConfirm(msg) {
+    return new Promise(function(resolve) {
+        var overlay = document.getElementById('confirmOverlay');
+        document.getElementById('confirmMsg').textContent = msg;
+        overlay.classList.add('show');
+        var ok = document.getElementById('confirmOk');
+        var cancel = document.getElementById('confirmCancel');
+        function cleanup() {
+            overlay.classList.remove('show');
+            ok.removeEventListener('click', onOk);
+            cancel.removeEventListener('click', onCancel);
+            overlay.removeEventListener('click', onBg);
+        }
+        function onOk() { cleanup(); resolve(true); }
+        function onCancel() { cleanup(); resolve(false); }
+        function onBg(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
+        ok.addEventListener('click', onOk);
+        cancel.addEventListener('click', onCancel);
+        overlay.addEventListener('click', onBg);
+    });
+}
+
 function getStatusBadge(status) {
     const statusMap = {
         'OK': { class: 'ok', text: '정상' },
@@ -5485,6 +5640,65 @@ function resetMarketPromotionSort() {
     });
 
     renderMarketPromotionTable();
+}
+
+// 백업 실행
+function runBackup() {
+    var btn = document.getElementById('btn-backup');
+    btn.disabled = true;
+    btn.textContent = '확인 중...';
+
+    // 1. 먼저 백업 대상 건수 조회 (GET)
+    fetch('/layer1/api/backup/')
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.textContent = '백업 실행';
+
+            if (!res.success) {
+                showToast('건수 조회 실패: ' + res.error, 'error');
+                return;
+            }
+
+            // 2. 건수 표시 및 확인 팝업
+            var msg = 'TV: ' + res.tv_count + '건, HHP: ' + res.hhp_count + '건\n백업을 진행하시겠습니까?';
+            showConfirm(msg).then(function(confirmed) {
+                if (!confirmed) return;
+
+                // 3. 백업 실행 (POST)
+                btn.disabled = true;
+                btn.textContent = '백업 중...';
+
+                fetch('/layer1/api/backup/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(result) {
+                    btn.disabled = false;
+                    btn.textContent = '백업 실행';
+
+                    if (result.success) {
+                        showToast(result.message, 'success');
+                    } else {
+                        showToast('백업 실패: ' + result.error, 'error');
+                    }
+                })
+                .catch(function(err) {
+                    btn.disabled = false;
+                    btn.textContent = '백업 실행';
+                    showToast('백업 오류: ' + err, 'error');
+                });
+            });
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = '백업 실행';
+            showToast('건수 조회 오류: ' + err, 'error');
+        });
 }
 
 window.onload = function() {

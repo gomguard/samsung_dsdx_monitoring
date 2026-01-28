@@ -782,6 +782,69 @@
         font-size: 13px;
         color: var(--text-secondary);
     }
+
+    /* 체크박스 스타일 */
+    .detail-table input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        accent-color: #4338ca;
+    }
+
+    .detail-table th:first-child,
+    .detail-table td:first-child {
+        width: 40px;
+        text-align: center;
+    }
+
+    .copy-all-btn {
+        padding: 8px 16px;
+        background: #4338ca;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .copy-all-btn:hover {
+        background: #3730a3;
+    }
+
+    .copy-all-btn.copied {
+        background: #059669;
+    }
+
+    .modal-footer-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    /* Toast 알림 */
+    .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1e293b;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        z-index: 2000;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .toast.show {
+        opacity: 1;
+    }
 </style>
 {% endblock %}
 
@@ -893,6 +956,11 @@
                 <div class="error-desc">중복 제외</div>
             </div>
             <div class="error-item warning-bg">
+                <div class="error-name">0원</div>
+                <div class="error-value warning" id="priceZero">-</div>
+                <div class="error-desc">retailprice가 0원</div>
+            </div>
+            <div class="error-item warning-bg">
                 <div class="error-name">부분 NULL</div>
                 <div class="error-value warning" id="partialNull">-</div>
                 <div class="error-desc">가격/판매자 일부만 NULL</div>
@@ -975,7 +1043,16 @@
             <div id="modalContent"></div>
         </div>
         <div class="modal-footer">
-            <span id="modalInfo"></span>
+            <div class="modal-footer-left">
+                <span id="modalInfo"></span>
+                <button class="copy-all-btn" onclick="copyCheckedToReport()" id="copyAllBtn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span id="copyBtnText">선택 복사 (0건)</span>
+                </button>
+            </div>
             <div class="pagination">
                 <button onclick="prevPage()" id="prevBtn" disabled>이전</button>
                 <span id="pageInfo">1 / 1</span>
@@ -984,6 +1061,8 @@
         </div>
     </div>
 </div>
+
+<div class="toast" id="toast"></div>
 {% endblock %}
 
 {% block extra_js %}
@@ -1000,6 +1079,9 @@ let currentEndTime = null;
 let currentSortBy = 'crawl_strdatetime';
 let currentSortOrder = 'asc';
 let currentBatchView = 'final'; // 'final' or 'all'
+let currentDetailData = []; // 현재 보이는 상세 데이터
+let currentRetailerName = ''; // 현재 리테일러 이름
+let currentCountry = ''; // 현재 국가
 
 document.addEventListener('DOMContentLoaded', function() {
     const yesterday = new Date();
@@ -1076,6 +1158,7 @@ function updateSummary(data) {
         document.getElementById('titleNull').textContent = (data.summary.title_null || 0).toLocaleString();
         document.getElementById('imageurlNull').textContent = (data.summary.imageurl_null || 0).toLocaleString();
         document.getElementById('nullUnion').textContent = (data.summary.null_union || 0).toLocaleString();
+        document.getElementById('priceZero').textContent = (data.summary.price_zero || 0).toLocaleString();
         document.getElementById('partialNull').textContent = (data.summary.partial_null || 0).toLocaleString();
         const validNullTotal = (data.summary.valid || 0) + (data.summary.all_null || 0);
         document.getElementById('validCountNull').textContent = validNullTotal.toLocaleString();
@@ -1106,6 +1189,7 @@ function renderNullTable(data) {
                     <th>전체</th>
                     <th>Title NULL</th>
                     <th>Image NULL</th>
+                    <th>0원</th>
                     <th>부분 NULL</th>
                     <th>정상</th>
                     <th>상태</th>
@@ -1116,7 +1200,7 @@ function renderNullTable(data) {
 
     for (const item of data.results) {
         // null_union: title NULL 또는 imageurl NULL (중복 제외한 합집합)
-        const nullError = (item.null_union || 0) + item.partial_null;
+        const nullError = (item.null_union || 0) + (item.price_zero || 0) + item.partial_null;
         const nullStatus = item.total === 0 ? 'pending' : nullError === 0 ? 'success' : 'danger';
         const validTotal = item.valid + item.all_null;
         const rowClass = nullStatus === 'danger' ? 'row-danger' : '';
@@ -1131,7 +1215,7 @@ function renderNullTable(data) {
         const finalEndTime = item.final_end_time ? `'${item.final_end_time}'` : 'null';
 
         html += `
-            <tr class="${rowClass}" onclick="openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.title_null}, ${item.imageurl_null || 0}, ${item.partial_null}, ${finalStartTime}, ${finalEndTime})" title="클릭하여 상세 보기" data-retailer="${item.retailer}">
+            <tr class="${rowClass}" onclick="openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.title_null}, ${item.imageurl_null || 0}, ${item.price_zero || 0}, ${item.partial_null}, ${finalStartTime}, ${finalEndTime})" title="클릭하여 상세 보기" data-retailer="${item.retailer}">
                 <td>${item.no}</td>
                 <td><span class="retailer-name">${item.retailer}</span>${expandBtn}</td>
                 <td>${item.region}</td>
@@ -1139,6 +1223,7 @@ function renderNullTable(data) {
                 <td>${item.total.toLocaleString()}</td>
                 <td class="error-count ${item.title_null > 0 ? 'has-error' : 'no-error'}">${item.title_null}</td>
                 <td class="error-count ${(item.imageurl_null || 0) > 0 ? 'has-error' : 'no-error'}">${item.imageurl_null || 0}</td>
+                <td class="error-count ${(item.price_zero || 0) > 0 ? 'has-error' : 'no-error'}">${item.price_zero || 0}</td>
                 <td class="error-count ${item.partial_null > 0 ? 'has-error' : 'no-error'}">${item.partial_null}</td>
                 <td class="error-count no-error">${validTotal.toLocaleString()}</td>
                 <td>
@@ -1161,7 +1246,7 @@ function renderNullTable(data) {
 
                 html += `
                     <tr class="batch-sub-row hidden" data-batch-retailer="${item.retailer}"
-                        onclick="event.stopPropagation(); openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${batch.null_union}, 0, ${batch.partial_null}, '${batch.start_time}', ${endTimeParam})"
+                        onclick="event.stopPropagation(); openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${batch.null_union}, 0, ${batch.price_zero || 0}, ${batch.partial_null}, '${batch.start_time}', ${endTimeParam})"
                         title="클릭하여 배치 상세 보기" style="cursor: pointer;">
                         <td></td>
                         <td colspan="3">
@@ -1287,19 +1372,24 @@ function getStatusLabel(status) {
     return labels[status] || '확인필요';
 }
 
-function openNullDetail(tableName, retailerName, country, titleNull, imageurlNull, partialNull, startTime = null, endTime = null) {
+function openNullDetail(tableName, retailerName, country, titleNull, imageurlNull, priceZero, partialNull, startTime = null, endTime = null) {
     currentTableName = tableName;
+    currentRetailerName = retailerName;
+    currentCountry = country;
     currentPage = 1;
     currentStartTime = startTime;
     currentEndTime = endTime;
     currentSortBy = 'crawl_strdatetime';
     currentSortOrder = 'asc';
-    currentRetailerData = { title_null: titleNull, imageurl_null: imageurlNull, partial_null: partialNull };
+    currentRetailerData = { title_null: titleNull, imageurl_null: imageurlNull, price_zero: priceZero, partial_null: partialNull };
+    currentDetailData = [];
 
     if (titleNull > 0) {
         currentErrorType = 'title_null';
     } else if (imageurlNull > 0) {
         currentErrorType = 'imageurl_null';
+    } else if (priceZero > 0) {
+        currentErrorType = 'price_zero';
     } else if (partialNull > 0) {
         currentErrorType = 'partial_null';
     } else {
@@ -1318,6 +1408,8 @@ function openNullDetail(tableName, retailerName, country, titleNull, imageurlNul
 
 function openFormatDetail(tableName, retailerName, country, imageurlInvalid, startTime = null, endTime = null) {
     currentTableName = tableName;
+    currentRetailerName = retailerName;
+    currentCountry = country;
     currentPage = 1;
     currentStartTime = startTime;
     currentEndTime = endTime;
@@ -1325,6 +1417,7 @@ function openFormatDetail(tableName, retailerName, country, imageurlInvalid, sta
     currentSortOrder = 'asc';
     currentRetailerData = { imageurl_invalid: imageurlInvalid };
     currentErrorType = 'imageurl_invalid';
+    currentDetailData = [];
 
     const timeRange = startTime ? ` (${startTime} ~ ${endTime || '다음날'})` : '';
     document.getElementById('modalTitle').textContent = `${retailerName} (${country}) - 형식 검증${timeRange}`;
@@ -1341,6 +1434,7 @@ function renderNullErrorTypeSelector() {
     const errorTypes = [
         { key: 'title_null', label: 'Title NULL', count: currentRetailerData.title_null },
         { key: 'imageurl_null', label: 'Image NULL', count: currentRetailerData.imageurl_null },
+        { key: 'price_zero', label: '0원', count: currentRetailerData.price_zero || 0 },
         { key: 'partial_null', label: '부분 NULL', count: currentRetailerData.partial_null }
     ];
 
@@ -1403,55 +1497,60 @@ async function loadDetailData() {
 }
 
 function renderDetailTable(data) {
+    // 현재 페이지 데이터 저장
+    currentDetailData = data.data;
+
     if (data.data.length === 0) {
         document.getElementById('modalContent').innerHTML = '<div class="loading">비정상 데이터가 없습니다.</div>';
         return;
     }
 
-    const getSortClass = (column) => {
-        if (currentSortBy === column) {
-            return `sortable ${currentSortOrder}`;
-        }
-        return 'sortable';
-    };
+    const date = document.getElementById('targetDate').value;
 
     let html = `
         <table class="detail-table">
             <thead>
                 <tr>
-                    <th>No</th>
-                    <th class="${getSortClass('crawl_strdatetime')}" onclick="sortBy('crawl_strdatetime')">수집일시</th>
-                    <th>이미지</th>
-                    <th class="${getSortClass('title')}" onclick="sortBy('title')">제품명</th>
-                    <th class="${getSortClass('retailprice')}" onclick="sortBy('retailprice')">가격</th>
-                    <th class="${getSortClass('ships_from')}" onclick="sortBy('ships_from')">Ships From</th>
-                    <th class="${getSortClass('sold_by')}" onclick="sortBy('sold_by')">Sold By</th>
-                    <th>링크</th>
+                    <th style="width: 40px;"><input type="checkbox" id="checkAll" onchange="toggleAllCheckboxes(this.checked)" title="전체 선택"></th>
+                    <th>crawl_date</th>
+                    <th>country_code</th>
+                    <th>title</th>
+                    <th>retailprice</th>
+                    <th>ships_from</th>
+                    <th>sold_by</th>
+                    <th>imageurl</th>
+                    <th>producturl</th>
                 </tr>
             </thead>
             <tbody>
     `;
 
-    const startNo = (currentPage - 1) * 50 + 1;
     data.data.forEach((item, index) => {
-        const rowNo = startNo + index;
-        const imgSrc = item.imageurl && item.imageurl.startsWith('https://') ? item.imageurl : '';
+        const title = item.title || '';
+        const retailprice = item.retailprice || '';
+        const shipsFrom = item.ships_from || '';
+        const soldBy = item.sold_by || '';
+        const imageurl = item.imageurl || '';
+        const producturl = item.producturl || '';
+
         html += `
             <tr>
-                <td style="text-align: center; color: #64748b;">${rowNo}</td>
-                <td style="font-family: monospace; font-size: 12px;">${item.crawl_datetime || '-'}</td>
-                <td>${imgSrc ? `<img src="${imgSrc}" class="thumb" onerror="this.style.display='none'">` : '<span class="null-value">무효</span>'}</td>
-                <td class="title-cell" title="${item.title}">${item.title || '<span class="null-value">NULL</span>'}</td>
-                <td>${item.retailprice || '<span class="null-value">NULL</span>'}</td>
-                <td>${item.ships_from || '<span class="null-value">NULL</span>'}</td>
-                <td>${item.sold_by || '<span class="null-value">NULL</span>'}</td>
-                <td>${item.producturl ? `<a href="${item.producturl}" target="_blank">보기</a>` : '-'}</td>
+                <td style="text-align: center;"><input type="checkbox" class="row-checkbox" data-index="${index}" onchange="updateCheckCount()"></td>
+                <td>${date}</td>
+                <td>${currentCountry}</td>
+                <td class="title-cell" title="${title}">${title || '<span class="null-value">NULL</span>'}</td>
+                <td>${retailprice || '<span class="null-value">NULL</span>'}</td>
+                <td>${shipsFrom || '<span class="null-value">NULL</span>'}</td>
+                <td>${soldBy || '<span class="null-value">NULL</span>'}</td>
+                <td style="max-width: 200px;">${imageurl ? `<a href="${imageurl}" target="_blank" title="${imageurl}">${imageurl.substring(0, 30)}...</a>` : '<span class="null-value">NULL</span>'}</td>
+                <td>${producturl ? `<a href="${producturl}" target="_blank">링크</a>` : '-'}</td>
             </tr>
         `;
     });
 
     html += '</tbody></table>';
     document.getElementById('modalContent').innerHTML = html;
+    updateCheckCount();
 }
 
 function sortBy(column) {
@@ -1466,7 +1565,7 @@ function sortBy(column) {
 }
 
 function updatePagination(data) {
-    const typeLabels = { title_null: 'Title NULL', imageurl_null: 'Image NULL', imageurl_invalid: 'Image 형식오류', partial_null: '부분 NULL' };
+    const typeLabels = { title_null: 'Title NULL', imageurl_null: 'Image NULL', imageurl_invalid: 'Image 형식오류', price_zero: '0원', partial_null: '부분 NULL' };
     document.getElementById('modalInfo').textContent = `${typeLabels[currentErrorType]}: ${data.total_count.toLocaleString()}건`;
     document.getElementById('pageInfo').textContent = `${currentPage} / ${data.total_pages}`;
     document.getElementById('prevBtn').disabled = currentPage <= 1;
@@ -1557,6 +1656,137 @@ function toggleFormatBatchRows(retailer) {
             expandBtn.textContent = '▼ 접기';
             expandBtn.classList.add('expanded');
         }
+    }
+}
+
+// HTTP 환경에서도 동작하는 복사 함수
+function fallbackCopy(text, onSuccess, onError) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-9999px';
+    textArea.style.top = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+        document.execCommand('copy');
+        if (onSuccess) onSuccess();
+    } catch (err) {
+        if (onError) onError(err);
+    }
+    document.body.removeChild(textArea);
+}
+
+// Toast 메시지 표시
+function showToast(message, duration = 2000) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, duration);
+}
+
+// 행 데이터를 보고서 형식으로 변환
+function formatRowForReport(item) {
+    const date = document.getElementById('targetDate').value;
+    // 형식: crawl_date, country_code, title, retailprice, ships_from, sold_by, imageurl, producturl, 증빙사진, 비고
+    const crawlDate = date;
+    const countryCode = currentCountry || '';
+    const title = item.title || '';
+    const retailprice = item.retailprice || '';
+    const shipsFrom = item.ships_from || '';
+    const soldBy = item.sold_by || '';
+    const imageurl = item.imageurl || '';
+    const producturl = item.producturl || '';
+    const evidence = ''; // 증빙사진 - 빈칸
+    const note = ''; // 비고 - 빈칸
+
+    // 탭으로 구분된 형식 (엑셀 붙여넣기용)
+    return [crawlDate, countryCode, title, retailprice, shipsFrom, soldBy, imageurl, producturl, evidence, note].join('\t');
+}
+
+// 전체 선택/해제
+function toggleAllCheckboxes(checked) {
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    checkboxes.forEach(cb => cb.checked = checked);
+    updateCheckCount();
+}
+
+// 선택 개수 업데이트
+function updateCheckCount() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+    const count = checkboxes.length;
+    const btnText = document.getElementById('copyBtnText');
+    if (btnText) {
+        btnText.textContent = `선택 복사 (${count}건)`;
+    }
+
+    // 전체 선택 체크박스 상태 업데이트
+    const allCheckboxes = document.querySelectorAll('.row-checkbox');
+    const checkAll = document.getElementById('checkAll');
+    if (checkAll && allCheckboxes.length > 0) {
+        checkAll.checked = count === allCheckboxes.length;
+        checkAll.indeterminate = count > 0 && count < allCheckboxes.length;
+    }
+}
+
+// 선택된 항목 복사
+function copyCheckedToReport() {
+    const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+
+    if (checkboxes.length === 0) {
+        showToast('복사할 항목을 선택해주세요');
+        return;
+    }
+
+    const rows = [];
+    checkboxes.forEach(cb => {
+        const index = parseInt(cb.dataset.index);
+        const item = currentDetailData[index];
+        if (item) {
+            rows.push(formatRowForReport(item));
+        }
+    });
+
+    const text = rows.join('\n');
+    const btn = document.getElementById('copyAllBtn');
+
+    const onSuccess = () => {
+        if (btn) {
+            btn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span id="copyBtnText">복사 완료!</span>
+            `;
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.innerHTML = `
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span id="copyBtnText">선택 복사 (${checkboxes.length}건)</span>
+                `;
+                btn.classList.remove('copied');
+            }, 2000);
+        }
+        showToast(`${rows.length}건 복사 완료`);
+    };
+
+    const onError = (err) => {
+        console.error('Copy failed:', err);
+        showToast('복사 실패');
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+            fallbackCopy(text, onSuccess, onError);
+        });
+    } else {
+        fallbackCopy(text, onSuccess, onError);
     }
 }
 </script>
