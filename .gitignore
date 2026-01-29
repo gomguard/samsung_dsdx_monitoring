@@ -84,3 +84,6 @@ coverage.xml
 *.bak
 *.tmp
 *.temp
+
+# 문서 파일
+*.md
