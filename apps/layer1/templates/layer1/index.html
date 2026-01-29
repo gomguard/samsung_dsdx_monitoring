@@ -1809,7 +1809,8 @@
         <input type="date" id="target-date" class="date-input">
         <span id="weekday-display" style="margin-left: 8px; font-weight: 500; color: var(--text-secondary);"></span>
         <button onclick="loadAllData()" class="btn-refresh">조회</button>
-        <button onclick="setToday()" class="btn-today">오늘</button>
+        <button onclick="setPrevDay()" class="btn-today">전날</button>
+        <button onclick="setNextDay()" class="btn-today">다음날</button>
         <button onclick="runBackup()" class="btn-backup" id="btn-backup">백업 실행</button>
     </div>
     <div class="date-info" id="date-info">
@@ -2237,27 +2238,46 @@ function updateWeekday() {
     }
 }
 
+// 로컬 날짜를 YYYY-MM-DD 형식으로 변환
+function formatLocalDate(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
 // 날짜 초기화 (기본값: 전일자)
 function initDate() {
     const dateInput = document.getElementById('target-date');
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    dateInput.value = yesterday.toISOString().split('T')[0];
+    dateInput.value = formatLocalDate(yesterday);
 
     // 최대 날짜를 오늘로 제한
     const today = new Date();
-    dateInput.max = today.toISOString().split('T')[0];
+    dateInput.max = formatLocalDate(today);
 
     // 날짜 변경 시 요일 업데이트
     dateInput.addEventListener('change', updateWeekday);
     updateWeekday();
 }
 
-// 오늘 날짜로 설정 후 조회
-function setToday() {
+// 다음날(조회 날짜 기준 +1일) 설정 후 조회
+function setNextDay() {
     const dateInput = document.getElementById('target-date');
-    const today = new Date();
-    dateInput.value = today.toISOString().split('T')[0];
+    const current = new Date(dateInput.value);
+    current.setDate(current.getDate() + 1);
+    dateInput.value = formatLocalDate(current);
+    updateWeekday();
+    loadAllData();
+}
+
+// 전날(조회 날짜 기준 -1일) 설정 후 조회
+function setPrevDay() {
+    const dateInput = document.getElementById('target-date');
+    const current = new Date(dateInput.value);
+    current.setDate(current.getDate() - 1);
+    dateInput.value = formatLocalDate(current);
     updateWeekday();
     loadAllData();
 }

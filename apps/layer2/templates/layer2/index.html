@@ -1177,7 +1177,8 @@
             <span id="weekday-display" style="margin-left: 8px; font-weight: 500; color: var(--text-secondary);"></span>
         </div>
         <button class="search-btn" onclick="handleSearch()">조회</button>
-        <button class="today-btn" onclick="setToday()">오늘</button>
+        <button class="today-btn" onclick="setPrevDay()">전날</button>
+        <button class="today-btn" onclick="setNextDay()">다음날</button>
     </div>
     <div class="filter-right">
         <span class="current-info" id="current-info"></span>
@@ -1266,6 +1267,14 @@
         }
     }
 
+    // 로컬 날짜를 YYYY-MM-DD 형식으로 변환
+    function formatLocalDate(date) {
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
     function initDatePicker() {
         const dateInput = document.getElementById('target-date');
         const urlParams = new URLSearchParams(window.location.search);
@@ -1276,21 +1285,31 @@
         } else {
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
-            dateInput.value = yesterday.toISOString().split('T')[0];
+            dateInput.value = formatLocalDate(yesterday);
         }
 
         const today = new Date();
-        dateInput.max = today.toISOString().split('T')[0];
+        dateInput.max = formatLocalDate(today);
 
         // 날짜 변경 시 요일 업데이트
         dateInput.addEventListener('change', updateWeekday);
         updateWeekday();
     }
 
-    function setToday() {
+    function setNextDay() {
         const dateInput = document.getElementById('target-date');
-        const today = new Date();
-        dateInput.value = today.toISOString().split('T')[0];
+        const current = new Date(dateInput.value);
+        current.setDate(current.getDate() + 1);
+        dateInput.value = formatLocalDate(current);
+        updateWeekday();
+        handleSearch();
+    }
+
+    function setPrevDay() {
+        const dateInput = document.getElementById('target-date');
+        const current = new Date(dateInput.value);
+        current.setDate(current.getDate() - 1);
+        dateInput.value = formatLocalDate(current);
         updateWeekday();
         handleSearch();
     }
@@ -2629,7 +2648,7 @@ function confirmBackup() {
 }
 
 function goToLayer1() {
-    window.location.href = '/layer1/';
+    window.location.href = '/dx/layer1/';
 }
 </script>
 {% endblock %}

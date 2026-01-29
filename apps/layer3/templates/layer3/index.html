@@ -1196,7 +1196,8 @@
         <span id="weekday-display" style="margin-left: 8px; font-weight: 500; color: var(--text-secondary);"></span>
     </div>
     <button class="btn-search" onclick="loadData()">조회</button>
-    <button class="btn-today" onclick="setToday()">오늘</button>
+    <button class="btn-today" onclick="setPrevDay()">전날</button>
+    <button class="btn-today" onclick="setNextDay()">다음날</button>
     <div class="filter-group" style="margin-left: auto;">
         <span id="current-info" style="font-weight: 600; color: var(--text-secondary);"></span>
     </div>
@@ -1354,12 +1355,20 @@
         }
     }
 
+    // 로컬 날짜를 YYYY-MM-DD 형식으로 변환
+    function formatLocalDate(date) {
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
     // 초기화
     document.addEventListener('DOMContentLoaded', function() {
         const dateInput = document.getElementById('target-date');
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        dateInput.value = yesterday.toISOString().split('T')[0];
+        dateInput.value = formatLocalDate(yesterday);
 
         // 날짜 변경 시 요일 업데이트
         dateInput.addEventListener('change', updateWeekday);
@@ -1367,10 +1376,22 @@
         loadData();
     });
 
-    // 오늘 날짜 설정 후 조회
-    function setToday() {
-        const today = new Date();
-        document.getElementById('target-date').value = today.toISOString().split('T')[0];
+    // 다음날(조회 날짜 기준 +1일) 설정 후 조회
+    function setNextDay() {
+        const dateInput = document.getElementById('target-date');
+        const current = new Date(dateInput.value);
+        current.setDate(current.getDate() + 1);
+        dateInput.value = formatLocalDate(current);
+        updateWeekday();
+        loadData();
+    }
+
+    // 전날(조회 날짜 기준 -1일) 설정 후 조회
+    function setPrevDay() {
+        const dateInput = document.getElementById('target-date');
+        const current = new Date(dateInput.value);
+        current.setDate(current.getDate() - 1);
+        dateInput.value = formatLocalDate(current);
         updateWeekday();
         loadData();
     }
@@ -4079,7 +4100,7 @@ ORDER BY item, ${dateColumn} ASC;`;
     }
 
     function goToLayer1() {
-        window.location.href = '/layer1/';
+        window.location.href = '/dx/layer1/';
     }
 </script>
 {% endblock %}
