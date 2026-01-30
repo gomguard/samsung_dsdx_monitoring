@@ -776,6 +776,8 @@
             <option value="7">7일</option>
         </select>
         <button class="btn btn-primary" onclick="loadData()">조회</button>
+        <button class="btn btn-secondary" onclick="setPrevDay()">전날</button>
+        <button class="btn btn-secondary" onclick="setNextDay()">다음날</button>
     </div>
 </div>
 
@@ -956,6 +958,29 @@ let currentFilter = 'all';
 let currentPage = 1;
 let totalPages = 1;
 let currentRetailerData = {};
+
+function formatLocalDate(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function setPrevDay() {
+    const dateInput = document.getElementById('targetDate');
+    const current = new Date(dateInput.value);
+    current.setDate(current.getDate() - 1);
+    dateInput.value = formatLocalDate(current);
+    loadData();
+}
+
+function setNextDay() {
+    const dateInput = document.getElementById('targetDate');
+    const current = new Date(dateInput.value);
+    current.setDate(current.getDate() + 1);
+    dateInput.value = formatLocalDate(current);
+    loadData();
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     const yesterday = new Date();

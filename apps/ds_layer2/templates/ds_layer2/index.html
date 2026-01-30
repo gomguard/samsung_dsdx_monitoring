@@ -869,7 +869,8 @@
         <label>조회 날짜</label>
         <input type="date" id="targetDate">
         <button class="btn btn-primary" onclick="loadData()">조회</button>
-        <button class="btn btn-secondary" onclick="setToday()">오늘</button>
+        <button class="btn btn-secondary" onclick="setPrevDay()">전날</button>
+        <button class="btn btn-secondary" onclick="setNextDay()">다음날</button>
     </div>
     <div class="view-toggle">
         <button class="active" onclick="setBatchView('final')">최종</button>
@@ -1100,9 +1101,26 @@ function switchTab(tab) {
     });
 }
 
-function setToday() {
-    const today = new Date();
-    document.getElementById('targetDate').value = today.toISOString().split('T')[0];
+function formatLocalDate(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function setPrevDay() {
+    const dateInput = document.getElementById('targetDate');
+    const current = new Date(dateInput.value);
+    current.setDate(current.getDate() - 1);
+    dateInput.value = formatLocalDate(current);
+    loadData();
+}
+
+function setNextDay() {
+    const dateInput = document.getElementById('targetDate');
+    const current = new Date(dateInput.value);
+    current.setDate(current.getDate() + 1);
+    dateInput.value = formatLocalDate(current);
     loadData();
 }
 

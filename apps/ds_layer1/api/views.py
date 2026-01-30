@@ -137,10 +137,8 @@ def get_collection_status(korea_time_str, target_date, completion_rate):
 
     # 조회 날짜가 오늘이 아니면 완료율 기반 판단
     if target_date != today:
-        if completion_rate >= 95:
+        if completion_rate >= 100:
             return 'success'
-        elif completion_rate >= 80:
-            return 'warning'
         elif completion_rate >= 0:
             return 'danger'
         else:
@@ -161,20 +159,16 @@ def get_collection_status(korea_time_str, target_date, completion_rate):
             return 'collecting'  # 수집중
         else:
             # 수집 완료 시간 지남 - 완료율 기반 판단
-            if completion_rate >= 95:
+            if completion_rate >= 100:
                 return 'success'
-            elif completion_rate >= 80:
-                return 'warning'
             elif completion_rate >= 0:
                 return 'danger'
             else:
                 return 'error'
     except:
         # 시간 파싱 실패 시 완료율 기반 판단
-        if completion_rate >= 95:
+        if completion_rate >= 100:
             return 'success'
-        elif completion_rate >= 80:
-            return 'warning'
         elif completion_rate >= 0:
             return 'danger'
         else:
@@ -304,7 +298,7 @@ def layer_stats(request):
             'total_expected': total_expected,
             'total_actual': total_actual,
             'total_completion_rate': total_completion_rate,
-            'status': 'success' if total_completion_rate >= 95 else ('warning' if total_completion_rate >= 80 else 'danger')
+            'status': 'success' if total_completion_rate >= 100 else 'danger'
         }
 
     except Exception as e:
@@ -390,10 +384,8 @@ def instances_stats(request):
                 region_data['completion_rate'] = 0
 
             # 지역 상태
-            if region_data['completion_rate'] >= 95:
+            if region_data['completion_rate'] >= 100:
                 region_data['status'] = 'success'
-            elif region_data['completion_rate'] >= 80:
-                region_data['status'] = 'warning'
             else:
                 region_data['status'] = 'danger'
 
@@ -603,10 +595,8 @@ def date_range_stats(request):
                 else:
                     completion_rate = -1
 
-                if completion_rate >= 95:
+                if completion_rate >= 100:
                     status = 'success'
-                elif completion_rate >= 80:
-                    status = 'warning'
                 elif completion_rate >= 0:
                     status = 'danger'
                 else:

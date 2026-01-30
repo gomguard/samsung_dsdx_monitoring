@@ -442,12 +442,9 @@ def ds_dashboard_stats(request):
         pending_count = sum(1 for r in results if r.get('status') in ['pending', 'collecting'])
 
         # Layer 1 상태 결정
-        if total_completion_rate >= 95:
+        if total_completion_rate >= 100:
             data['layer_status']['layer1'] = 'success'
             data['passed_layers'] += 1
-        elif total_completion_rate >= 80:
-            data['layer_status']['layer1'] = 'warning'
-            data['warning_layers'] += 1
         elif pending_count == len(results):
             # 모든 리테일러가 대기/수집 중이면 pending
             data['layer_status']['layer1'] = 'pending'

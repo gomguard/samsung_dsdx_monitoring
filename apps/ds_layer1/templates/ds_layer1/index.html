@@ -1169,7 +1169,8 @@
         <label>조회 날짜</label>
         <input type="date" id="targetDate">
         <button class="btn btn-primary" onclick="loadData()">조회</button>
-        <button class="btn btn-today" onclick="goToday()">오늘</button>
+        <button class="btn btn-today" onclick="setPrevDay()">전날</button>
+        <button class="btn btn-today" onclick="setNextDay()">다음날</button>
         {% if user.is_staff %}
         <button class="btn btn-batch" onclick="openBatchModal()">배치관리</button>
         {% endif %}
@@ -1252,7 +1253,8 @@
             <label>조회 날짜</label>
             <input type="date" id="fileserverDate">
             <button class="btn btn-primary" onclick="loadFileserverData()">조회</button>
-            <button class="btn btn-today" onclick="goTodayFileserver()">오늘</button>
+            <button class="btn btn-today" onclick="setPrevDayFileserver()">전날</button>
+            <button class="btn btn-today" onclick="setNextDayFileserver()">다음날</button>
         </div>
     </div>
 
@@ -1613,15 +1615,42 @@ function toggleFileList(btn) {
     btn.textContent = isHidden ? '접기 ▲' : '상세 보기 ▼';
 }
 
-function goTodayFileserver() {
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('fileserverDate').value = today;
+function setPrevDayFileserver() {
+    const dateInput = document.getElementById('fileserverDate');
+    const current = new Date(dateInput.value);
+    current.setDate(current.getDate() - 1);
+    dateInput.value = formatLocalDate(current);
     loadFileserverData();
 }
 
-function goToday() {
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('targetDate').value = today;
+function setNextDayFileserver() {
+    const dateInput = document.getElementById('fileserverDate');
+    const current = new Date(dateInput.value);
+    current.setDate(current.getDate() + 1);
+    dateInput.value = formatLocalDate(current);
+    loadFileserverData();
+}
+
+function formatLocalDate(date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function setPrevDay() {
+    const dateInput = document.getElementById('targetDate');
+    const current = new Date(dateInput.value);
+    current.setDate(current.getDate() - 1);
+    dateInput.value = formatLocalDate(current);
+    loadData();
+}
+
+function setNextDay() {
+    const dateInput = document.getElementById('targetDate');
+    const current = new Date(dateInput.value);
+    current.setDate(current.getDate() + 1);
+    dateInput.value = formatLocalDate(current);
     loadData();
 }
 
@@ -1752,8 +1781,7 @@ function renderAllView(data) {
         // 배치별 하위 행 (숨김 상태로 시작) - 전체 뷰일 때만 렌더링
         if (item.has_multi_batch && item.batches && currentBatchView === 'all') {
             for (const batch of item.batches) {
-                const batchStatusClass = batch.completion_rate >= 95 ? 'success' :
-                                         batch.completion_rate >= 80 ? 'warning' : 'danger';
+                const batchStatusClass = batch.completion_rate >= 100 ? 'success' : 'danger';
                 // L2 이상 건수 배지
                 const l2ErrorCount = batch.l2_error_count || 0;
                 const l2Badge = l2ErrorCount > 0
@@ -1839,8 +1867,7 @@ function getStatusClass(rateOrStatus) {
     }
     // 숫자(완료율)면 기존 로직
     if (rateOrStatus > 100) return 'over100';  // 100% 초과 (재실행)
-    if (rateOrStatus >= 95) return 'success';
-    if (rateOrStatus >= 80) return 'warning';
+    if (rateOrStatus >= 100) return 'success';
     return 'danger';
 }
 
