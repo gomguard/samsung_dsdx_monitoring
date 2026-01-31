@@ -978,14 +978,21 @@ function setNextDay() {
     const dateInput = document.getElementById('targetDate');
     const current = new Date(dateInput.value);
     current.setDate(current.getDate() + 1);
-    dateInput.value = formatLocalDate(current);
+    const nextStr = formatLocalDate(current);
+    const todayStr = formatLocalDate(new Date());
+
+    if (nextStr > todayStr) {
+        showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning');
+        return;
+    }
+
+    dateInput.value = nextStr;
     loadData();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    document.getElementById('targetDate').value = yesterday.toISOString().split('T')[0];
+    // 저장된 날짜 또는 어제 날짜로 초기화
+    document.getElementById('targetDate').value = getPersistedDate();
     loadData();
 });
 
@@ -1006,7 +1013,11 @@ function switchView(view) {
 }
 
 async function loadData() {
-    const date = document.getElementById('targetDate').value;
+    let date = document.getElementById('targetDate').value;
+    if (!validateQueryDate(date, 'targetDate')) {
+        date = document.getElementById('targetDate').value; // 보정된 날짜
+    }
+    setPersistedDate(date); // 날짜 저장
     const days = document.getElementById('daysPeriod').value;
     document.getElementById('tableLoading').classList.remove('hidden');
     document.getElementById('tableContent').innerHTML = '';

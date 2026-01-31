@@ -1,18 +1,46 @@
 /**
- * 테이블 페이지네이션 공통 모듈
+ * 5단계 방어 체계 모니터링 시스템 - 테이블 공통 JavaScript
  *
- * 사용법:
- *   const pager = enablePagination('#tableBody', { perPage: 25 });
+ * ============================================================
+ * 함수 목록
+ * ============================================================
  *
- *   // 필터 적용 후 페이지네이션 갱신
- *   pager.reset();
+ * [페이지네이션]
+ * - enablePagination(tbodySelector, options)
+ *     : 테이블에 페이지네이션 기능 추가
+ *     옵션:
+ *       - perPage: 한 페이지당 행 수 (기본 25)
+ *       - onRender: 렌더링 후 콜백
+ *       - deferRender: true면 초기 렌더링 스킵
+ *     반환:
+ *       - render(): 페이지 렌더링
+ *       - reset(): 1페이지로 리셋
+ *       - goTo(page): 특정 페이지로 이동
+ *       - getCurrentPage(): 현재 페이지 반환
+ *     주의: 필터 시 data-filtered="hidden" 속성 사용
  *
- * 옵션:
- *   perPage: 한 페이지당 행 수 (기본 25)
+ * [컬럼 리사이즈]
+ * - enableColumnResize(tableOrSelector)
+ *     : 테이블 헤더 드래그로 열 너비 조정 기능 추가
  *
- * 주의: 필터에서 행을 숨길 때 data-filtered="hidden" 속성을 사용해야 합니다.
- *       display:none 대신 이 속성으로 필터 상태를 관리합니다.
+ * [자동 적용]
+ * - .auto-resize 클래스가 있는 테이블 → 컬럼 리사이즈 자동 적용
+ * - .auto-paginate 클래스가 있는 테이블 → 페이지네이션 자동 적용
+ *     data-per-page="25" 속성으로 페이지당 행 수 설정 가능
+ *
+ * - getTablePager(tableSelector)
+ *     : 자동 적용된 pager 인스턴스 반환
+ *
+ * ============================================================
  */
+
+// 자동 적용된 pager 인스턴스 저장소
+const _tablePagers = new Map();
+
+// ============================================================
+// 페이지네이션
+// ============================================================
+
 function enablePagination(tbodySelector, options = {}) {
     const perPage = options.perPage || 25;
     const onRender = options.onRender || null;
@@ -126,12 +154,68 @@ function enablePagination(tbodySelector, options = {}) {
     return { render, reset, goTo: (p) => { currentPage = p; render(); }, getCurrentPage: () => currentPage };
 }
 
+// ============================================================
+// 컬럼 리사이즈
+// ============================================================
+
+function enableColumnResize(tableOrSelector) {
+    const table = typeof tableOrSelector === 'string'
+        ? document.querySelector(tableOrSelector)
+        : tableOrSelector;
+
+    if (!table || !table.querySelector('thead')) return;
+
+    const thead = table.querySelector('thead');
+    const ths = thead.querySelectorAll('th');
+
+    ths.forEach(th => {
+        // 리사이즈 핸들 생성
+        const handle = document.createElement('div');
+        handle.className = 'col-resize-handle';
+        th.style.position = 'relative';
+        th.appendChild(handle);
+
+        let startX, startWidth, thEl;
+
+        handle.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            thEl = th;
+            startX = e.pageX;
+            startWidth = th.offsetWidth;
+
+            // 드래그 중 시각 표시
+            handle.classList.add('active');
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+
+        function onMouseMove(e) {
+            const diff = e.pageX - startX;
+            const newWidth = Math.max(40, startWidth + diff);
+            thEl.style.width = newWidth + 'px';
+            thEl.style.minWidth = newWidth + 'px';
+        }
+
+        function onMouseUp() {
+            handle.classList.remove('active');
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        }
+    });
+}
+
+// ============================================================
 // CSS 주입 (한 번만)
+// ============================================================
+
 (function () {
-    if (document.getElementById('pagination-style')) return;
+    if (document.getElementById('table-utils-style')) return;
     const style = document.createElement('style');
-    style.id = 'pagination-style';
+    style.id = 'table-utils-style';
     style.textContent = `
+        /* 페이지네이션 */
         .pagination {
             display: flex;
             justify-content: space-between;
@@ -177,6 +261,56 @@ function enablePagination(tbodySelector, options = {}) {
             padding: 0 4px;
             color: var(--text-secondary);
         }
+
+        /* 컬럼 리사이즈 */
+        .col-resize-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            cursor: col-resize;
+            user-select: none;
+            z-index: 1;
+        }
+        .col-resize-handle:hover,
+        .col-resize-handle.active {
+            background: rgba(139, 92, 246, 0.3);
+        }
     `;
     document.head.appendChild(style);
 })();
+
+// ============================================================
+// 자동 적용된 pager 가져오기
+// ============================================================
+
+function getTablePager(tableSelector) {
+    return _tablePagers.get(tableSelector) || null;
+}
+
+// ============================================================
+// 자동 초기화 (DOMContentLoaded)
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    // .auto-resize 클래스가 있는 테이블에 컬럼 리사이즈 적용
+    document.querySelectorAll('table.auto-resize').forEach(table => {
+        enableColumnResize(table);
+    });
+
+    // .auto-paginate 클래스가 있는 테이블에 페이지네이션 적용
+    document.querySelectorAll('table.auto-paginate').forEach(table => {
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        const perPage = parseInt(table.dataset.perPage) || 25;
+        const pager = enablePagination(tbody, { perPage });
+
+        // 테이블 ID나 클래스로 pager 저장
+        const key = table.id || table.className;
+        if (key) {
+            _tablePagers.set(key, pager);
+        }
+    });
+});

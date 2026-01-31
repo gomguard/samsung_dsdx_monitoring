@@ -826,24 +826,185 @@
         gap: 12px;
     }
 
-    /* Toast 알림 */
-    .toast {
-        position: fixed;
-        bottom: 24px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #1e293b;
-        color: white;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-size: 14px;
-        z-index: 2000;
-        opacity: 0;
-        transition: opacity 0.3s;
+    /* 저장/삭제/마감 버튼 */
+    .action-btn {
+        padding: 4px 10px;
+        border: none;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-right: 4px;
     }
 
-    .toast.show {
-        opacity: 1;
+    .action-btn:last-child {
+        margin-right: 0;
+    }
+
+    .action-btn.save-btn {
+        background: #3b82f6;
+        color: white;
+    }
+
+    .action-btn.save-btn:hover {
+        background: #2563eb;
+    }
+
+    .action-btn.save-btn.saved {
+        background: #10b981;
+    }
+
+    .action-btn.delete-btn {
+        background: #f1f5f9;
+        color: #64748b;
+    }
+
+    .action-btn.delete-btn:hover {
+        background: #fef2f2;
+        color: #dc2626;
+    }
+
+    .action-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .close-btn {
+        padding: 10px 24px;
+        background: #dc2626;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .close-btn:hover {
+        background: #b91c1c;
+    }
+
+    .close-btn:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+    }
+
+    .close-btn.closed {
+        background: #10b981;
+    }
+
+    .report-manage-btn {
+        padding: 10px 24px;
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .report-manage-btn:hover {
+        background: #1d4ed8;
+    }
+
+    .saved-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        background: #d1fae5;
+        color: #059669;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .closed-banner {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 600;
+    }
+
+    .closed-banner.hidden {
+        display: none;
+    }
+
+    /* 액션 열 너비 */
+    .retailer-table th:last-child,
+    .retailer-table td:last-child {
+        width: 140px;
+        text-align: center;
+    }
+
+    /* 확인 모달 */
+    .confirm-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        z-index: 10002;
+        justify-content: center;
+        align-items: center;
+    }
+    .confirm-overlay.show { display: flex; }
+    .confirm-box {
+        background: var(--bg-primary, #fff);
+        border-radius: 12px;
+        padding: 28px 32px 20px;
+        min-width: 320px;
+        max-width: 440px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+        text-align: center;
+    }
+    .confirm-box .confirm-icon {
+        margin-bottom: 12px;
+    }
+    .confirm-box .confirm-msg {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--text-primary, #1a1a1a);
+        line-height: 1.5;
+        margin-bottom: 24px;
+        white-space: pre-line;
+    }
+    .confirm-box .confirm-btns {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+    }
+    .confirm-box .confirm-btn {
+        padding: 9px 28px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: opacity 0.15s;
+    }
+    .confirm-box .confirm-btn:hover { opacity: 0.85; }
+    .confirm-box .btn-ok {
+        background: #ef4444;
+        color: #fff;
+    }
+    .confirm-box .btn-cancel {
+        background: var(--bg-secondary, #f3f4f6);
+        color: var(--text-primary, #1a1a1a);
     }
 </style>
 {% endblock %}
@@ -872,10 +1033,30 @@
         <button class="btn btn-secondary" onclick="setPrevDay()">전날</button>
         <button class="btn btn-secondary" onclick="setNextDay()">다음날</button>
     </div>
-    <div class="view-toggle">
-        <button class="active" onclick="setBatchView('final')">최종</button>
-        <button onclick="setBatchView('all')">전체</button>
+    <div style="display: flex; gap: 16px; align-items: center;">
+        <div class="view-toggle">
+            <button class="active" onclick="setBatchView('final')">최종</button>
+            <button onclick="setBatchView('all')">전체</button>
+        </div>
+        <button class="report-manage-btn" onclick="goToReportManage()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <span>보고서 관리</span>
+        </button>
     </div>
+</div>
+
+<div class="closed-banner hidden" id="closedBanner">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+    <span id="closedBannerText">이 날짜는 마감되었습니다.</span>
 </div>
 
 <div class="summary-grid">
@@ -932,87 +1113,15 @@
     </div>
 </div>
 
-<div class="validation-tabs">
-    <button class="tab-btn active" data-tab="null" onclick="switchTab('null')">NULL 검증</button>
-    <button class="tab-btn" data-tab="format" onclick="switchTab('format')">형식 검증</button>
-</div>
-
-<div id="nullTab" class="tab-content active">
-    <div class="error-summary">
-        <div class="error-summary-title">NULL 검증 현황</div>
-        <div class="error-grid null-grid" style="grid-template-columns: repeat(5, 1fr);">
-            <div class="error-item danger-bg">
-                <div class="error-name">Title NULL</div>
-                <div class="error-value danger" id="titleNull">-</div>
-                <div class="error-desc">제품명 누락</div>
-            </div>
-            <div class="error-item danger-bg">
-                <div class="error-name">ImageURL NULL</div>
-                <div class="error-value danger" id="imageurlNull">-</div>
-                <div class="error-desc">이미지 URL 누락</div>
-            </div>
-            <div class="error-item danger-bg">
-                <div class="error-name">NULL 검증 건수</div>
-                <div class="error-value danger" id="nullUnion">-</div>
-                <div class="error-desc">중복 제외</div>
-            </div>
-            <div class="error-item warning-bg">
-                <div class="error-name">0원</div>
-                <div class="error-value warning" id="priceZero">-</div>
-                <div class="error-desc">retailprice가 0원</div>
-            </div>
-            <div class="error-item warning-bg">
-                <div class="error-name">부분 NULL</div>
-                <div class="error-value warning" id="partialNull">-</div>
-                <div class="error-desc">가격/판매자 일부만 NULL</div>
-            </div>
-            <div class="error-item success-bg">
-                <div class="error-name">정상</div>
-                <div class="error-value success" id="validCountNull">-</div>
-                <div class="error-desc">완전 정상 + 전체 NULL</div>
-            </div>
-        </div>
+<div class="table-section">
+    <div class="table-header">
+        <div class="table-title">리테일러별 NULL 검증 현황</div>
     </div>
-
-    <div class="table-section">
-        <div class="table-header">
-            <div class="table-title">리테일러별 NULL 검증 현황</div>
-        </div>
-        <div class="loading hidden" id="nullTableLoading">
-            <div class="loading-spinner"></div>
-            데이터를 불러오는 중...
-        </div>
-        <div id="nullTableContent"></div>
+    <div class="loading hidden" id="nullTableLoading">
+        <div class="loading-spinner"></div>
+        데이터를 불러오는 중...
     </div>
-</div>
-
-<div id="formatTab" class="tab-content">
-    <div class="error-summary">
-        <div class="error-summary-title">형식 검증 현황</div>
-        <div class="error-grid format-grid">
-            <div class="error-item warning-bg">
-                <div class="error-name">ImageURL 형식오류</div>
-                <div class="error-value warning" id="imageurlInvalid">-</div>
-                <div class="error-desc">https://로 시작하지 않음</div>
-            </div>
-            <div class="error-item success-bg">
-                <div class="error-name">정상</div>
-                <div class="error-value success" id="validCountFormat">-</div>
-                <div class="error-desc">형식 검증 통과</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="table-section">
-        <div class="table-header">
-            <div class="table-title">리테일러별 형식 검증 현황</div>
-        </div>
-        <div class="loading hidden" id="formatTableLoading">
-            <div class="loading-spinner"></div>
-            데이터를 불러오는 중...
-        </div>
-        <div id="formatTableContent"></div>
-    </div>
+    <div id="nullTableContent"></div>
 </div>
 
 <div class="table-section hidden">
@@ -1063,7 +1172,22 @@
     </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- 확인 모달 -->
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+        <div class="confirm-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40">
+                <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
+            </svg>
+        </div>
+        <div class="confirm-msg" id="confirmMsg"></div>
+        <div class="confirm-btns">
+            <button class="confirm-btn btn-ok" id="confirmOk">확인</button>
+            <button class="confirm-btn btn-cancel" id="confirmCancel">취소</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -1074,7 +1198,6 @@ let currentErrorType = 'title_null';
 let currentPage = 1;
 let totalPages = 1;
 let currentRetailerData = {};
-let currentTab = 'null';
 let currentStartTime = null;
 let currentEndTime = null;
 let currentSortBy = 'crawl_strdatetime';
@@ -1083,30 +1206,275 @@ let currentBatchView = 'final'; // 'final' or 'all'
 let currentDetailData = []; // 현재 보이는 상세 데이터
 let currentRetailerName = ''; // 현재 리테일러 이름
 let currentCountry = ''; // 현재 국가
+let reportStatus = { is_closed: false, saved_retailers: {} }; // 보고서 상태
+const currentUserId = '{{ request.user.username|default:"anonymous" }}'; // 로그인 사용자 ID
 
 document.addEventListener('DOMContentLoaded', function() {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    document.getElementById('targetDate').value = yesterday.toISOString().split('T')[0];
+    // 저장된 날짜 또는 어제 날짜로 초기화
+    document.getElementById('targetDate').value = getPersistedDate();
     loadData();
 });
 
-function switchTab(tab) {
-    currentTab = tab;
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === tab);
-    });
-    document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.toggle('active', content.id === tab + 'Tab');
-    });
+// 보고서 상태 조회
+async function loadReportStatus() {
+    const date = document.getElementById('targetDate').value;
+    try {
+        const response = await fetch(`/ds/layer2/api/status/?date=${date}`);
+        const data = await response.json();
+        if (data.success) {
+            reportStatus = data;
+            updateCloseButton();
+            updateClosedBanner();
+        }
+    } catch (error) {
+        console.error('Error loading report status:', error);
+    }
 }
 
-function formatLocalDate(date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
+// 마감 버튼 상태 업데이트 (보고서 관리 페이지로 이동됨 - 배너만 업데이트)
+function updateCloseButton() {
+    // 마감 버튼이 보고서 관리 페이지로 이동되어 더 이상 이 페이지에 없음
+    // 배너 업데이트만 수행
 }
+
+// 마감 배너 업데이트
+function updateClosedBanner() {
+    const banner = document.getElementById('closedBanner');
+    if (reportStatus.is_closed) {
+        banner.classList.remove('hidden');
+    } else {
+        banner.classList.add('hidden');
+    }
+}
+
+// 리테일러 저장 여부 확인
+function isRetailerSaved(retailer) {
+    return reportStatus.saved_retailers && reportStatus.saved_retailers[retailer];
+}
+
+// 리테일러의 최종 배치 정보 조회 (이상치 조회용 시간 범위)
+async function fetchFinalBatchInfo(retailer, date) {
+    try {
+        const response = await fetch(`/ds/layer2/api/stats/?date=${date}&batch_view=final`);
+        const data = await response.json();
+        if (data.results) {
+            const retailerInfo = data.results.find(r => r.retailer === retailer);
+            if (retailerInfo) {
+                return {
+                    table_name: retailerInfo.table_name,
+                    country: retailerInfo.country,
+                    final_start_time: retailerInfo.final_start_time,
+                    final_end_time: retailerInfo.final_end_time
+                };
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching final batch info:', error);
+    }
+    return null;
+}
+
+// 리테일러의 이상치 데이터 조회 (최종 배치만, 중복 제거)
+async function fetchAnomalies(tableName, date, country, startTime, endTime) {
+    const errorTypes = ['title_null', 'imageurl_null', 'price_zero', 'partial_null'];
+    const anomalyMap = new Map(); // producturl을 키로 사용하여 중복 제거
+
+    for (const errorType of errorTypes) {
+        let url = `/ds/layer2/api/detail/?table=${tableName}&error_type=${errorType}&date=${date}&page=1&page_size=1000`;
+        // 최종 배치 시간 범위 적용
+        if (startTime) url += `&start_time=${startTime}`;
+        if (endTime) url += `&end_time=${endTime}`;
+
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.data && data.data.length > 0) {
+                data.data.forEach(item => {
+                    // producturl을 키로 사용 (없으면 title+retailprice 조합 사용)
+                    const key = item.producturl || `${item.title}_${item.retailprice}`;
+                    if (!anomalyMap.has(key)) {
+                        anomalyMap.set(key, {
+                            country_code: country,
+                            title: item.title || '',
+                            retailprice: item.retailprice || null,
+                            ships_from: item.ships_from || '',
+                            sold_by: item.sold_by || '',
+                            imageurl: item.imageurl || '',
+                            producturl: item.producturl || ''
+                        });
+                    }
+                });
+            }
+        } catch (error) {
+            console.error(`Error fetching ${errorType}:`, error);
+        }
+    }
+
+    return Array.from(anomalyMap.values());
+}
+
+// 리테일러 저장
+async function saveRetailer(retailer, event) {
+    if (event) event.stopPropagation();
+    if (reportStatus.is_closed) {
+        showToast('마감된 날짜는 수정할 수 없습니다');
+        return;
+    }
+
+    const date = document.getElementById('targetDate').value;
+
+    // statsData에서 해당 리테일러 정보 찾기
+    const retailerData = statsData.results.find(r => r.retailer === retailer);
+    if (!retailerData) {
+        showToast('리테일러 정보를 찾을 수 없습니다');
+        return;
+    }
+
+    // 저장 확인 팝업 (이상치 건수 포함)
+    const errorCount = (retailerData.null_union || 0) + (retailerData.price_zero || 0) + (retailerData.partial_null || 0);
+    const confirmed = await showConfirm(`${retailer} 이상치 데이터 ${errorCount}건을 저장하시겠습니까?`);
+    if (!confirmed) {
+        return;
+    }
+
+    showToast(`${retailer} 저장 중...`);
+
+    try {
+        // 최종 배치 정보를 가져옴 (이상치 조회용)
+        let finalInfo = null;
+        if (currentBatchView === 'final' && retailerData.final_start_time) {
+            finalInfo = {
+                table_name: retailerData.table_name,
+                country: retailerData.country,
+                final_start_time: retailerData.final_start_time,
+                final_end_time: retailerData.final_end_time
+            };
+        } else {
+            finalInfo = await fetchFinalBatchInfo(retailer, date);
+            if (!finalInfo) {
+                finalInfo = {
+                    table_name: retailerData.table_name,
+                    country: retailerData.country,
+                    final_start_time: retailerData.final_start_time,
+                    final_end_time: retailerData.final_end_time
+                };
+            }
+        }
+
+        // 이상치 상세 데이터 조회 (최종 배치만)
+        const anomalies = await fetchAnomalies(
+            finalInfo.table_name,
+            date,
+            finalInfo.country,
+            finalInfo.final_start_time,
+            finalInfo.final_end_time
+        );
+
+        // 백엔드에서 stats 직접 계산하므로 anomalies만 전송
+        const response = await fetch('/ds/layer2/api/save/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                crawl_date: date,
+                retailer: retailer,
+                anomalies: anomalies,
+                user_id: currentUserId
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast(`${retailer} 저장 완료 (이상치 ${result.anomaly_count}건)`);
+            // 후속 작업
+            await loadReportStatus();
+            renderNullTable(statsData);
+        } else {
+            showToast(result.error || '저장 실패');
+        }
+    } catch (error) {
+        showToast('저장 중 오류 발생');
+    }
+}
+
+// 리테일러 삭제
+async function deleteRetailer(retailer, event) {
+    if (event) event.stopPropagation();
+    if (reportStatus.is_closed) {
+        showToast('마감된 날짜는 수정할 수 없습니다');
+        return;
+    }
+
+    const confirmed = await showConfirm(`${retailer} 저장 데이터를 삭제하시겠습니까?`);
+    if (!confirmed) {
+        return;
+    }
+
+    const date = document.getElementById('targetDate').value;
+
+    try {
+        const response = await fetch('/ds/layer2/api/delete/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                crawl_date: date,
+                retailer: retailer,
+                user_id: currentUserId
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast(`${retailer} 삭제 완료`);
+            await loadReportStatus();
+            renderNullTable(statsData);
+        } else {
+            showToast(result.error || '삭제 실패');
+        }
+    } catch (error) {
+        showToast('삭제 중 오류 발생');
+    }
+}
+
+// 보고서 관리 페이지로 이동
+function goToReportManage() {
+    const date = document.getElementById('targetDate').value;
+    window.location.href = `/ds/layer2/report/?date=${date}`;
+}
+
+// 일괄 마감
+async function closeReport() {
+    const date = document.getElementById('targetDate').value;
+    const savedCount = Object.keys(reportStatus.saved_retailers || {}).length;
+
+    const confirmed = await showConfirm(`${date} 날짜를 마감하시겠습니까?\n\n저장된 리테일러: ${savedCount}개\n\n※ 마감 후에는 수정할 수 없습니다.`);
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/ds/layer2/api/close/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                crawl_date: date,
+                user_id: currentUserId
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast('마감 완료');
+            await loadReportStatus();
+            renderNullTable(statsData);
+        } else {
+            showToast(result.error || '마감 실패');
+        }
+    } catch (error) {
+        showToast('마감 중 오류 발생');
+    }
+}
+
+// formatLocalDate, showToast는 common.js에서 로드
 
 function setPrevDay() {
     const dateInput = document.getElementById('targetDate');
@@ -1118,9 +1486,18 @@ function setPrevDay() {
 
 function setNextDay() {
     const dateInput = document.getElementById('targetDate');
-    const current = new Date(dateInput.value);
-    current.setDate(current.getDate() + 1);
-    dateInput.value = formatLocalDate(current);
+    const [year, month, day] = dateInput.value.split('-').map(Number);
+    const nextDate = new Date(year, month - 1, day + 1);
+    const nextStr = formatLocalDate(nextDate);
+    const todayStr = formatLocalDate(new Date());
+
+    // 오늘 날짜 이후로는 조회 불가
+    if (nextStr > todayStr) {
+        showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning');
+        return;
+    }
+
+    dateInput.value = nextStr;
     loadData();
 }
 
@@ -1139,26 +1516,38 @@ function setBatchView(view) {
 }
 
 async function loadData() {
-    const date = document.getElementById('targetDate').value;
+    let date = document.getElementById('targetDate').value;
+    if (!validateQueryDate(date, 'targetDate')) {
+        date = document.getElementById('targetDate').value; // 보정된 날짜
+    }
+    setPersistedDate(date); // 날짜 저장
     document.getElementById('nullTableLoading').classList.remove('hidden');
-    document.getElementById('formatTableLoading').classList.remove('hidden');
     document.getElementById('nullTableContent').innerHTML = '';
-    document.getElementById('formatTableContent').innerHTML = '';
 
     try {
-        const response = await fetch(`/ds/layer2/api/stats/?date=${date}&batch_view=${currentBatchView}`);
-        statsData = await response.json();
+        // 보고서 상태와 데이터를 병렬로 로드
+        const [statsResponse, statusResponse] = await Promise.all([
+            fetch(`/ds/layer2/api/stats/?date=${date}&batch_view=${currentBatchView}`),
+            fetch(`/ds/layer2/api/status/?date=${date}`)
+        ]);
+
+        statsData = await statsResponse.json();
+        const statusData = await statusResponse.json();
+
+        if (statusData.success) {
+            reportStatus = statusData;
+            updateCloseButton();
+            updateClosedBanner();
+        }
+
         updateSummary(statsData);
         renderNullTable(statsData);
-        renderFormatTable(statsData);
     } catch (error) {
         console.error('Error loading data:', error);
         document.getElementById('nullTableContent').innerHTML = '<div class="loading">데이터 로드 실패</div>';
-        document.getElementById('formatTableContent').innerHTML = '<div class="loading">데이터 로드 실패</div>';
     }
 
     document.getElementById('nullTableLoading').classList.add('hidden');
-    document.getElementById('formatTableLoading').classList.add('hidden');
 }
 
 function updateSummary(data) {
@@ -1171,20 +1560,6 @@ function updateSummary(data) {
         const statusEl = document.getElementById('overallStatus');
         statusEl.textContent = getStatusLabel(status);
         statusEl.className = 'summary-value ' + status;
-
-        // NULL 검증 탭
-        document.getElementById('titleNull').textContent = (data.summary.title_null || 0).toLocaleString();
-        document.getElementById('imageurlNull').textContent = (data.summary.imageurl_null || 0).toLocaleString();
-        document.getElementById('nullUnion').textContent = (data.summary.null_union || 0).toLocaleString();
-        document.getElementById('priceZero').textContent = (data.summary.price_zero || 0).toLocaleString();
-        document.getElementById('partialNull').textContent = (data.summary.partial_null || 0).toLocaleString();
-        const validNullTotal = (data.summary.valid || 0) + (data.summary.all_null || 0);
-        document.getElementById('validCountNull').textContent = validNullTotal.toLocaleString();
-
-        // 형식 검증 탭
-        document.getElementById('imageurlInvalid').textContent = (data.summary.imageurl_invalid || 0).toLocaleString();
-        const validFormatTotal = data.summary.total_records - (data.summary.imageurl_invalid || 0);
-        document.getElementById('validCountFormat').textContent = validFormatTotal.toLocaleString();
     }
 }
 
@@ -1211,6 +1586,7 @@ function renderNullTable(data) {
                     <th>부분 NULL</th>
                     <th>정상</th>
                     <th>상태</th>
+                    <th>관리</th>
                 </tr>
             </thead>
             <tbody>
@@ -1232,6 +1608,38 @@ function renderNullTable(data) {
         const finalStartTime = item.final_start_time ? `'${item.final_start_time}'` : 'null';
         const finalEndTime = item.final_end_time ? `'${item.final_end_time}'` : 'null';
 
+        // 저장 여부에 따른 버튼 렌더링
+        const isSaved = isRetailerSaved(item.retailer);
+        const isClosed = reportStatus.is_closed;
+        const hasError = nullError > 0;  // 이상치 여부
+        let actionButtons = '';
+
+        // 전체 탭일 때는 버튼 숨김
+        if (currentBatchView === 'all') {
+            actionButtons = isSaved
+                ? '<span class="saved-badge">저장됨</span>'
+                : '';
+        } else if (isClosed) {
+            actionButtons = isSaved
+                ? '<span class="saved-badge">저장됨</span>'
+                : '<span style="color: #9ca3af; font-size: 11px;">미저장</span>';
+        } else if (!hasError) {
+            // 이상치가 없으면 버튼 숨김
+            actionButtons = isSaved
+                ? '<span class="saved-badge">저장됨</span>'
+                : '';
+        } else {
+            if (isSaved) {
+                actionButtons = `
+                    <button class="action-btn delete-btn" onclick="deleteRetailer('${item.retailer}', event)" title="삭제">삭제</button>
+                `;
+            } else {
+                actionButtons = `
+                    <button class="action-btn save-btn" onclick="saveRetailer('${item.retailer}', event)" title="저장">저장</button>
+                `;
+            }
+        }
+
         html += `
             <tr class="${rowClass}" onclick="openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.title_null}, ${item.imageurl_null || 0}, ${item.price_zero || 0}, ${item.partial_null}, ${finalStartTime}, ${finalEndTime})" title="클릭하여 상세 보기" data-retailer="${item.retailer}">
                 <td>${item.no}</td>
@@ -1250,6 +1658,7 @@ function renderNullTable(data) {
                         ${getStatusLabel(nullStatus)}
                     </span>
                 </td>
+                <td onclick="event.stopPropagation()">${actionButtons}</td>
             </tr>
         `;
 
@@ -1278,97 +1687,7 @@ function renderNullTable(data) {
                         <td>-</td>
                         <td class="error-count ${batch.partial_null > 0 ? 'has-error' : 'no-error'}">${batch.partial_null}</td>
                         <td colspan="2">${errorBadge}</td>
-                    </tr>
-                `;
-            }
-        }
-    }
-
-    html += '</tbody></table>';
-    container.innerHTML = html;
-}
-
-function renderFormatTable(data) {
-    const container = document.getElementById('formatTableContent');
-
-    if (!data.results || data.results.length === 0) {
-        container.innerHTML = '<div class="loading">데이터가 없습니다.</div>';
-        return;
-    }
-
-    let html = `
-        <table class="retailer-table" id="formatTable">
-            <thead>
-                <tr>
-                    <th>No</th>
-                    <th>리테일러</th>
-                    <th>지역</th>
-                    <th>국가</th>
-                    <th>전체</th>
-                    <th>Image 형식오류</th>
-                    <th>정상</th>
-                    <th>상태</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-
-    for (const item of data.results) {
-        const formatError = item.imageurl_invalid;
-        const formatStatus = item.total === 0 ? 'pending' : formatError === 0 ? 'success' : 'danger';
-        const validTotal = item.total - formatError;
-        const rowClass = formatStatus === 'danger' ? 'row-danger' : '';
-
-        // 배치 확장 버튼 (전체 뷰일 때만)
-        const expandBtn = (item.has_multi_batch && currentBatchView === 'all')
-            ? `<button class="expand-btn" onclick="event.stopPropagation(); toggleFormatBatchRows('${item.retailer}')" id="formatExpandBtn_${item.retailer}">▶ 배치별</button>`
-            : '';
-
-        // 최종 모드에서 마지막 배치 시간 범위
-        const fmtStartTime = item.final_start_time ? `'${item.final_start_time}'` : 'null';
-        const fmtEndTime = item.final_end_time ? `'${item.final_end_time}'` : 'null';
-
-        html += `
-            <tr class="${rowClass}" onclick="openFormatDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.imageurl_invalid}, ${fmtStartTime}, ${fmtEndTime})" title="클릭하여 상세 보기" data-retailer="${item.retailer}">
-                <td>${item.no}</td>
-                <td><span class="retailer-name">${item.retailer}</span>${expandBtn}</td>
-                <td>${item.region}</td>
-                <td><span class="country-badge">${item.country}</span></td>
-                <td>${item.total.toLocaleString()}</td>
-                <td class="error-count ${formatError > 0 ? 'has-error' : 'no-error'}">${formatError}</td>
-                <td class="error-count no-error">${validTotal.toLocaleString()}</td>
-                <td>
-                    <span class="status-badge ${formatStatus}">
-                        <span class="status-dot"></span>
-                        ${getStatusLabel(formatStatus)}
-                    </span>
-                </td>
-            </tr>
-        `;
-
-        // 배치 서브 행 (전체 뷰일 때만 렌더링)
-        if (item.has_multi_batch && item.batches && currentBatchView === 'all') {
-            for (const batch of item.batches) {
-                const errorBadge = batch.imageurl_invalid > 0
-                    ? `<span class="batch-error-badge has-error">형식오류 ${batch.imageurl_invalid}건</span>`
-                    : `<span class="batch-error-badge no-error">정상</span>`;
-
-                const endTimeParam = batch.end_time === '다음날' ? 'null' : `'${batch.end_time}'`;
-
-                html += `
-                    <tr class="batch-sub-row hidden" data-format-batch-retailer="${item.retailer}"
-                        onclick="event.stopPropagation(); openFormatDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${batch.imageurl_invalid}, '${batch.start_time}', ${endTimeParam})"
-                        title="클릭하여 배치 상세 보기" style="cursor: pointer;">
                         <td></td>
-                        <td colspan="3">
-                            <span class="batch-indicator">
-                                <span class="batch-time">${batch.start_time} ~ ${batch.end_time}</span>
-                                <span class="batch-memo">${batch.memo || ''}</span>
-                            </span>
-                        </td>
-                        <td>${batch.total.toLocaleString()}</td>
-                        <td class="error-count ${batch.imageurl_invalid > 0 ? 'has-error' : 'no-error'}">${batch.imageurl_invalid}</td>
-                        <td colspan="2">${errorBadge}</td>
                     </tr>
                 `;
             }
@@ -1424,29 +1743,6 @@ function openNullDetail(tableName, retailerName, country, titleNull, imageurlNul
     loadDetailData();
 }
 
-function openFormatDetail(tableName, retailerName, country, imageurlInvalid, startTime = null, endTime = null) {
-    currentTableName = tableName;
-    currentRetailerName = retailerName;
-    currentCountry = country;
-    currentPage = 1;
-    currentStartTime = startTime;
-    currentEndTime = endTime;
-    currentSortBy = 'crawl_strdatetime';
-    currentSortOrder = 'asc';
-    currentRetailerData = { imageurl_invalid: imageurlInvalid };
-    currentErrorType = 'imageurl_invalid';
-    currentDetailData = [];
-
-    const timeRange = startTime ? ` (${startTime} ~ ${endTime || '다음날'})` : '';
-    document.getElementById('modalTitle').textContent = `${retailerName} (${country}) - 형식 검증${timeRange}`;
-    document.getElementById('modalSubtitle').textContent = `테이블: ${tableName}`;
-    document.getElementById('detailModal').classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-
-    renderFormatErrorTypeSelector();
-    loadDetailData();
-}
-
 function renderNullErrorTypeSelector() {
     const container = document.getElementById('errorTypeSelector');
     const errorTypes = [
@@ -1462,12 +1758,6 @@ function renderNullErrorTypeSelector() {
         html += `<button class="${isActive ? 'active' : ''}" onclick="selectErrorType('${et.key}')">${et.label} (${et.count})</button>`;
     }
 
-    container.innerHTML = html;
-}
-
-function renderFormatErrorTypeSelector() {
-    const container = document.getElementById('errorTypeSelector');
-    const html = `<button class="active">Image 형식오류 (${currentRetailerData.imageurl_invalid})</button>`;
     container.innerHTML = html;
 }
 
@@ -1649,34 +1939,6 @@ function toggleNullBatchRows(retailer) {
     }
 }
 
-// Format 테이블 배치 행 토글
-function toggleFormatBatchRows(retailer) {
-    const batchRows = document.querySelectorAll(`tr[data-format-batch-retailer="${retailer}"]`);
-    const expandBtn = document.getElementById(`formatExpandBtn_${retailer}`);
-
-    if (batchRows.length === 0) return;
-
-    const isExpanded = !batchRows[0].classList.contains('hidden');
-
-    batchRows.forEach(row => {
-        if (isExpanded) {
-            row.classList.add('hidden');
-        } else {
-            row.classList.remove('hidden');
-        }
-    });
-
-    if (expandBtn) {
-        if (isExpanded) {
-            expandBtn.textContent = '▶ 배치별';
-            expandBtn.classList.remove('expanded');
-        } else {
-            expandBtn.textContent = '▼ 접기';
-            expandBtn.classList.add('expanded');
-        }
-    }
-}
-
 // HTTP 환경에서도 동작하는 복사 함수
 function fallbackCopy(text, onSuccess, onError) {
     const textArea = document.createElement('textarea');
@@ -1696,15 +1958,7 @@ function fallbackCopy(text, onSuccess, onError) {
     document.body.removeChild(textArea);
 }
 
-// Toast 메시지 표시
-function showToast(message, duration = 2000) {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.classList.add('show');
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, duration);
-}
+// showToast는 common.js에서 로드
 
 // 행 데이터를 보고서 형식으로 변환
 function formatRowForReport(item) {
@@ -1806,6 +2060,29 @@ function copyCheckedToReport() {
     } else {
         fallbackCopy(text, onSuccess, onError);
     }
+}
+
+// 커스텀 확인 모달
+function showConfirm(msg) {
+    return new Promise(function(resolve) {
+        var overlay = document.getElementById('confirmOverlay');
+        document.getElementById('confirmMsg').textContent = msg;
+        overlay.classList.add('show');
+        var ok = document.getElementById('confirmOk');
+        var cancel = document.getElementById('confirmCancel');
+        function cleanup() {
+            overlay.classList.remove('show');
+            ok.removeEventListener('click', onOk);
+            cancel.removeEventListener('click', onCancel);
+            overlay.removeEventListener('click', onBg);
+        }
+        function onOk() { cleanup(); resolve(true); }
+        function onCancel() { cleanup(); resolve(false); }
+        function onBg(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
+        ok.addEventListener('click', onOk);
+        cancel.addEventListener('click', onCancel);
+        overlay.addEventListener('click', onBg);
+    });
 }
 </script>
 {% endblock %}

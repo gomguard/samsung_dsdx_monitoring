@@ -1,0 +1,2351 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}DS Layer 2 - 보고서 관리{% endblock %}
+
+{% block extra_css %}
+<style>
+    .layer-header {
+        background: linear-gradient(135deg, {{ layer.color }} 0%, #0f2647 100%);
+        border-radius: 20px;
+        padding: 32px 40px;
+        color: white;
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .layer-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -20%;
+        width: 60%;
+        height: 200%;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 50%;
+    }
+
+    .header-content {
+        position: relative;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .header-info {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .layer-number {
+        width: 56px;
+        height: 56px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 700;
+    }
+
+    .header-text h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .header-text p {
+        font-size: 14px;
+        opacity: 0.9;
+    }
+
+    .header-badge {
+        padding: 8px 16px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        font-size: 13px;
+    }
+
+    .controls-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .date-selector {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: white;
+        padding: 12px 20px;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+    }
+
+    .date-selector label {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .date-selector input[type="date"] {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 14px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: {{ layer.color }};
+        color: white;
+    }
+
+    .btn-primary:hover {
+        opacity: 0.9;
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+        background: var(--bg-primary);
+        border-color: {{ layer.color }};
+    }
+
+    .close-btn {
+        padding: 10px 24px;
+        background: #dc2626;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .close-btn:hover {
+        background: #b91c1c;
+    }
+
+    .close-btn:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+    }
+
+    .close-btn.closed {
+        background: #10b981;
+    }
+
+    .back-btn {
+        padding: 10px 24px;
+        background: #6b7280;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        text-decoration: none;
+    }
+
+    .back-btn:hover {
+        background: #4b5563;
+    }
+
+    .closed-banner {
+        background: #dcfce7;
+        border: 1px solid #86efac;
+        color: #166534;
+        padding: 12px 20px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 24px;
+        font-weight: 500;
+    }
+
+    .closed-banner.hidden {
+        display: none;
+    }
+
+    /* Summary Card */
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .summary-card {
+        background: white;
+        border-radius: 16px;
+        padding: 20px 24px;
+        border: 1px solid var(--border-color);
+    }
+
+    .summary-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .summary-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .summary-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .summary-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .summary-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    /* Report Table */
+    .report-section {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 24px;
+        overflow: hidden;
+    }
+
+    .section-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .section-badge {
+        padding: 4px 12px;
+        background: #dbeafe;
+        color: #1d4ed8;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .report-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .report-table th {
+        background: #f8fafc;
+        padding: 14px 16px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .report-table td {
+        padding: 14px 16px;
+        font-size: 13px;
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
+        vertical-align: middle;
+    }
+
+    .report-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .report-table tr:hover {
+        background: #f8fafc;
+    }
+
+    .retailer-row {
+        cursor: pointer;
+    }
+
+    .retailer-row.expanded {
+        background: #f0f9ff;
+    }
+
+    .expand-icon {
+        transition: transform 0.2s;
+        width: 16px;
+        height: 16px;
+    }
+
+    .retailer-row.expanded .expand-icon {
+        transform: rotate(90deg);
+    }
+
+    .anomaly-details {
+        display: none;
+        background: #fafafa;
+    }
+
+    .anomaly-details.show {
+        display: table-row;
+    }
+
+    .anomaly-details td {
+        padding: 0;
+    }
+
+    .anomaly-list {
+        padding: 16px;
+        overflow-x: auto;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .anomaly-item {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+        overflow: visible;
+    }
+
+    .anomaly-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .anomaly-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+
+    .anomaly-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-primary);
+        max-width: 60%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .anomaly-id {
+        font-size: 11px;
+        color: var(--text-secondary);
+        background: #f1f5f9;
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+
+    .anomaly-fields {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .field-label {
+        font-size: 11px;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .field-value {
+        font-size: 13px;
+        color: var(--text-primary);
+    }
+
+    .field-value.null {
+        color: #dc2626;
+        font-style: italic;
+    }
+
+    .anomaly-edit {
+        display: flex;
+        gap: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-color);
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .anomaly-edit .edit-group:nth-child(1) {
+        flex: 1;
+        min-width: 150px;
+    }
+
+    .anomaly-edit .edit-group:nth-child(2) {
+        flex: 2;
+        min-width: 0;
+    }
+
+    .anomaly-edit .edit-group:nth-child(3) {
+        flex-shrink: 0;
+        min-width: 100px;
+    }
+
+    .edit-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .edit-group label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .edit-group select,
+    .edit-group textarea {
+        padding: 10px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 13px;
+        resize: vertical;
+    }
+
+    .edit-group select:focus,
+    .edit-group textarea:focus {
+        outline: none;
+        border-color: {{ layer.color }};
+    }
+
+    .edit-group textarea {
+        min-height: 60px;
+    }
+
+    .edit-group select:disabled,
+    .edit-group textarea:disabled {
+        background: #f1f5f9;
+        cursor: not-allowed;
+    }
+
+    .anomaly-save-btn {
+        padding: 10px 24px;
+        background: {{ layer.color }};
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+        min-width: 60px;
+        height: fit-content;
+    }
+
+    .anomaly-save-btn:hover {
+        opacity: 0.9;
+    }
+
+    .save-indicator {
+        font-size: 11px;
+        color: #10b981;
+        margin-top: 4px;
+        display: none;
+    }
+
+    .save-indicator.show {
+        display: block;
+    }
+
+    /* Anomaly Table (상세 테이블) */
+    .anomaly-table {
+        width: 100%;
+        min-width: 900px;
+        border-collapse: collapse;
+        font-size: 12px;
+        background: white;
+        border-radius: 8px;
+        table-layout: fixed;
+    }
+
+    .anomaly-table th {
+        background: #e2e8f0;
+        padding: 10px 8px;
+        text-align: left;
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 11px;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .anomaly-table td {
+        padding: 10px 8px;
+        border-bottom: 1px solid #e2e8f0;
+        vertical-align: middle;
+    }
+
+    .anomaly-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .anomaly-table tr:hover {
+        background: #f8fafc;
+    }
+
+    .anomaly-table .text-center {
+        text-align: center;
+    }
+
+    .anomaly-table .title-cell {
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .anomaly-table .null-value {
+        color: #dc2626;
+        font-style: italic;
+    }
+
+    /* 오버플로우 셀 - 마우스 오버 시 툴팁 */
+    .overflow-cell {
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: default;
+    }
+
+    .inline-select {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 12px;
+        background: white;
+    }
+
+    .inline-select:focus {
+        outline: none;
+        border-color: #0d9488;
+    }
+
+    .inline-select:disabled {
+        background: #f1f5f9;
+        cursor: not-allowed;
+    }
+
+    .inline-input {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 12px;
+        box-sizing: border-box;
+    }
+
+    .inline-input:focus {
+        outline: none;
+        border-color: #0d9488;
+    }
+
+    .inline-input:disabled {
+        background: #f1f5f9;
+        cursor: not-allowed;
+    }
+
+    .memo-checkbox {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        accent-color: #0d9488;
+    }
+
+    .inline-save-btn {
+        padding: 6px 12px;
+        background: #0d9488;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .inline-save-btn:hover {
+        background: #0f766e;
+    }
+
+    /* 뷰 토글 버튼 */
+    .view-toggle {
+        display: flex;
+        gap: 8px;
+    }
+
+    .view-toggle button {
+        padding: 10px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid var(--border-color);
+        background: white;
+        color: var(--text-secondary);
+    }
+
+    .view-toggle button:hover {
+        background: #f1f5f9;
+    }
+
+    .view-toggle button.active {
+        background: {{ layer.color }};
+        color: white;
+        border-color: {{ layer.color }};
+    }
+
+    /* 테이블 가로 스크롤 */
+    .table-scroll-wrapper {
+        overflow-x: auto;
+        width: 100%;
+        padding-bottom: 8px;
+    }
+
+    #reportContent {
+        min-width: fit-content;
+    }
+
+    /* 전체 뷰 테이블 */
+    .all-anomaly-table {
+        width: 100%;
+        min-width: 1000px;
+        border-collapse: collapse;
+        font-size: 13px;
+        table-layout: fixed;
+    }
+
+    .all-anomaly-table th {
+        background: #f8fafc;
+        padding: 12px 10px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+    }
+
+    .all-anomaly-table td {
+        padding: 12px 10px;
+        border-bottom: 1px solid var(--border-color);
+        vertical-align: middle;
+    }
+
+    .all-anomaly-table tr:hover {
+        background: #f8fafc;
+    }
+
+    .all-anomaly-table .title-cell {
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .all-anomaly-table .null-value {
+        color: #dc2626;
+        font-style: italic;
+    }
+
+    .all-anomaly-table .overflow-cell {
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: default;
+    }
+
+    .retailer-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        background: #e0e7ff;
+        color: #4338ca;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    /* 보고서 출력 모달 */
+    .report-output-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .report-output-overlay.show {
+        display: flex;
+    }
+
+    .report-output-modal {
+        background: white;
+        border-radius: 16px;
+        width: 90%;
+        max-width: 800px;
+        max-height: 85vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .report-output-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .report-output-header h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0;
+    }
+
+    .report-output-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .report-output-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px;
+    }
+
+    .report-output-content {
+        background: #f8fafc;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 20px;
+        font-family: 'Malgun Gothic', sans-serif;
+        font-size: 13px;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        color: var(--text-primary);
+        min-height: 300px;
+    }
+
+    .copy-btn {
+        padding: 8px 16px;
+        background: #10b981;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+        background: #059669;
+    }
+
+    .copy-btn.copied {
+        background: #6366f1;
+    }
+
+    .close-modal-btn {
+        padding: 8px 16px;
+        background: #f1f5f9;
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .close-modal-btn:hover {
+        background: #e2e8f0;
+    }
+
+    /* 확인 모달 */
+    .confirm-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45);
+        z-index: 10002;
+        justify-content: center;
+        align-items: center;
+    }
+    .confirm-overlay.show { display: flex; }
+    .confirm-box {
+        background: var(--bg-primary, #fff);
+        border-radius: 12px;
+        padding: 28px 32px 20px;
+        min-width: 320px;
+        max-width: 440px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+        text-align: center;
+    }
+    .confirm-box .confirm-icon {
+        margin-bottom: 12px;
+    }
+    .confirm-box .confirm-msg {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--text-primary, #1a1a1a);
+        line-height: 1.5;
+        margin-bottom: 24px;
+        white-space: pre-line;
+    }
+    .confirm-box .confirm-btns {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+    }
+    .confirm-box .confirm-btn {
+        padding: 9px 28px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: opacity 0.15s;
+    }
+    .confirm-box .confirm-btn:hover { opacity: 0.85; }
+    .confirm-box .btn-ok {
+        background: #ef4444;
+        color: #fff;
+    }
+    .confirm-box .btn-cancel {
+        background: var(--bg-secondary, #f3f4f6);
+        color: var(--text-primary, #1a1a1a);
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-secondary);
+    }
+
+    .empty-state svg {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+
+    .empty-state h3 {
+        font-size: 18px;
+        margin-bottom: 8px;
+        color: var(--text-primary);
+    }
+
+    .empty-state p {
+        font-size: 14px;
+    }
+
+    /* Loading Spinner */
+    .loading-spinner {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 60px;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #e5e7eb;
+        border-top-color: {{ layer.color }};
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="layer-header">
+    <div class="header-content">
+        <div class="header-info">
+            <div class="layer-number">{{ layer.number }}</div>
+            <div class="header-text">
+                <h1>{{ layer.name }}</h1>
+                <p>{{ layer.description }}</p>
+            </div>
+        </div>
+        <div class="header-badge">{{ data_source.name }}</div>
+    </div>
+</div>
+
+<div class="controls-bar">
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <a href="/ds/layer2/" class="back-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5"/>
+                <polyline points="12 19 5 12 12 5"/>
+            </svg>
+            <span>검수 페이지로</span>
+        </a>
+        <div class="date-selector">
+            <label>수집일자</label>
+            <input type="date" id="targetDate" onchange="loadReportList()">
+            <button class="btn btn-secondary" onclick="setPrevDay()">이전날</button>
+            <button class="btn btn-secondary" onclick="setNextDay()">다음날</button>
+        </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+        <button class="btn btn-primary" id="saveAllBtn" onclick="saveAllStatus()" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span id="saveAllBtnText">일괄현황 저장</span>
+        </button>
+        <button class="btn btn-secondary" id="saveFileInfoBtn" onclick="saveFileInfo()" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            <span id="saveFileInfoBtnText">파일용량 저장</span>
+        </button>
+        <button class="close-btn" id="closeBtn" onclick="closeReport()" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+            <span id="closeBtnText">마감</span>
+        </button>
+    </div>
+</div>
+
+<div class="closed-banner hidden" id="closedBanner">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+    <span id="closedBannerText">이 날짜는 마감되었습니다.</span>
+</div>
+
+<div class="summary-grid">
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">저장된 리테일러</span>
+            <div class="summary-icon" style="background: #dbeafe; color: #2563eb;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalRetailers">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">총 이상치</span>
+            <div class="summary-icon" style="background: #fee2e2; color: #dc2626;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalAnomalies">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">원인 입력</span>
+            <div class="summary-icon" style="background: #dcfce7; color: #16a34a;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="filledCause">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">메모 입력</span>
+            <div class="summary-icon" style="background: #fef3c7; color: #d97706;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="filledMemo">-</div>
+    </div>
+</div>
+
+<div class="report-section">
+    <div class="section-header">
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <span class="section-title">저장된 보고서</span>
+            <span class="section-badge" id="reportCount">0개</span>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <div class="view-toggle">
+                <button class="active" onclick="setReportView('status')">현황</button>
+                <button onclick="setReportView('detail')">상세</button>
+            </div>
+            <button class="btn btn-secondary" onclick="openReportOutput()" id="reportOutputBtn" style="display: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                보고서 출력
+            </button>
+        </div>
+    </div>
+    <div class="table-scroll-wrapper">
+        <div id="reportContent">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    <div id="reportActions" style="text-align: right; padding: 16px 24px 20px;"></div>
+</div>
+
+<!-- 확인 모달 -->
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+        <div class="confirm-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40">
+                <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
+            </svg>
+        </div>
+        <div class="confirm-msg" id="confirmMsg"></div>
+        <div class="confirm-btns">
+            <button class="confirm-btn btn-ok" id="confirmOk">확인</button>
+            <button class="confirm-btn btn-cancel" id="confirmCancel">취소</button>
+        </div>
+    </div>
+</div>
+
+<!-- 보고서 출력 모달 -->
+<div class="report-output-overlay" id="reportOutputOverlay">
+    <div class="report-output-modal">
+        <div class="report-output-header">
+            <h3>보고서 출력</h3>
+            <div class="report-output-actions">
+                <button class="copy-btn" onclick="copyReportToClipboard()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                    </svg>
+                    <span id="copyBtnText">복사</span>
+                </button>
+                <button class="close-modal-btn" onclick="closeReportOutput()">닫기</button>
+            </div>
+        </div>
+        <div class="report-output-body">
+            <div class="report-output-content" id="reportOutputContent"></div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/table.js' %}"></script>
+<script>
+const currentUserId = '{{ request.user.username|default:"anonymous" }}';
+let reportData = null;
+let isClosed = false;
+let currentReportView = 'status'; // 'status' or 'detail'
+let expandedRetailers = new Set(); // 펼쳐진 아코디언 리테일러 추적
+
+// 페이지 로드 시 초기화
+document.addEventListener('DOMContentLoaded', () => {
+    // 저장된 날짜 또는 어제 날짜로 초기화 (URL파라미터 우선)
+    document.getElementById('targetDate').value = getPersistedDate();
+    loadReportList();
+});
+
+function setPrevDay() {
+    const input = document.getElementById('targetDate');
+    const date = new Date(input.value);
+    date.setDate(date.getDate() - 1);
+    input.value = date.toISOString().split('T')[0];
+    loadReportList();
+}
+
+function setNextDay() {
+    const input = document.getElementById('targetDate');
+    const [year, month, day] = input.value.split('-').map(Number);
+    const nextDate = new Date(year, month - 1, day + 1);
+    const nextStr = formatLocalDate(nextDate);
+    const todayStr = formatLocalDate(new Date());
+
+    // 오늘 날짜 이후로는 조회 불가
+    if (nextStr > todayStr) {
+        showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning');
+        return;
+    }
+
+    input.value = nextStr;
+    loadReportList();
+}
+
+// formatLocalDate는 common.js에서 로드
+
+async function loadReportList() {
+    let date = document.getElementById('targetDate').value;
+    if (!validateQueryDate(date, 'targetDate')) {
+        date = document.getElementById('targetDate').value; // 보정된 날짜
+    }
+    setPersistedDate(date); // 날짜 저장
+    const content = document.getElementById('reportContent');
+
+    content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+
+    try {
+        const response = await fetch(`/ds/layer2/api/report-list/?date=${date}`);
+        const data = await response.json();
+
+        if (!data.success) {
+            throw new Error(data.error || '데이터 로드 실패');
+        }
+
+        reportData = data;
+        isClosed = data.is_closed;
+
+        updateSummary(data);
+        updateCloseButton(data);
+        renderReportTable(data);
+
+    } catch (error) {
+        console.error('Error loading report list:', error);
+        content.innerHTML = `
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <h3>오류 발생</h3>
+                <p>${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+function updateSummary(data) {
+    document.getElementById('totalRetailers').textContent = data.daily_reports.length;
+    document.getElementById('totalAnomalies').textContent = data.total_anomalies;
+
+    // 원인/메모 입력 수 계산
+    const filledCause = data.anomalies.filter(a => a.cause && a.cause.trim()).length;
+    const filledMemo = data.anomalies.filter(a => a.memo && a.memo.trim()).length;
+
+    document.getElementById('filledCause').textContent = filledCause;
+    document.getElementById('filledMemo').textContent = filledMemo;
+    document.getElementById('reportCount').textContent = `${data.daily_reports.length}개`;
+}
+
+function updateCloseButton(data) {
+    const closeBtn = document.getElementById('closeBtn');
+    const closeBtnText = document.getElementById('closeBtnText');
+    const saveAllBtn = document.getElementById('saveAllBtn');
+    const saveAllBtnText = document.getElementById('saveAllBtnText');
+    const saveFileInfoBtn = document.getElementById('saveFileInfoBtn');
+    const saveFileInfoBtnText = document.getElementById('saveFileInfoBtnText');
+    const banner = document.getElementById('closedBanner');
+    const bannerText = document.getElementById('closedBannerText');
+    const reportOutputBtn = document.getElementById('reportOutputBtn');
+
+    // 전체 리테일러 수 (API 응답에 추가되어야 함, 없으면 기본값 사용)
+    const totalRetailers = data.total_retailers || 0;
+    const savedCount = data.daily_reports.length;
+    const allSaved = totalRetailers > 0 && savedCount >= totalRetailers;
+
+    // 보고서 출력 버튼 표시/숨김
+    if (savedCount > 0) {
+        reportOutputBtn.style.display = 'inline-flex';
+    } else {
+        reportOutputBtn.style.display = 'none';
+    }
+
+    if (data.is_closed) {
+        // 마감된 상태: 저장 버튼들 숨기고, 마감 버튼만 표시
+        saveAllBtn.style.display = 'none';
+        saveFileInfoBtn.style.display = 'none';
+        closeBtn.disabled = true;
+        closeBtn.classList.add('closed');
+        closeBtnText.textContent = '마감 완료';
+        banner.classList.remove('hidden');
+        bannerText.textContent = `이 날짜는 ${data.closed_at}에 ${data.closed_id}님이 마감했습니다.`;
+    } else {
+        // 마감되지 않은 상태: 모든 버튼 표시
+        saveAllBtn.style.display = 'inline-flex';
+        saveFileInfoBtn.style.display = 'inline-flex';
+        banner.classList.add('hidden');
+        closeBtn.classList.remove('closed');
+
+        // 일괄현황 저장 버튼: 미저장 리테일러가 있을 때만 활성화
+        if (allSaved) {
+            saveAllBtn.disabled = true;
+            saveAllBtnText.textContent = `저장 완료 (${savedCount}/${totalRetailers})`;
+        } else {
+            saveAllBtn.disabled = false;
+            saveAllBtnText.textContent = `일괄현황 저장 (${savedCount}/${totalRetailers})`;
+        }
+
+        // 파일용량 저장 버튼: 모든 리테일러가 저장되어 있을 때만 활성화
+        if (allSaved) {
+            saveFileInfoBtn.disabled = false;
+            saveFileInfoBtnText.textContent = '파일용량 저장';
+        } else {
+            saveFileInfoBtn.disabled = true;
+            saveFileInfoBtnText.textContent = '파일용량 저장';
+        }
+
+        // 마감 버튼: 모든 리테일러가 저장되어 있을 때만 활성화
+        if (allSaved) {
+            closeBtn.disabled = false;
+            closeBtnText.textContent = '마감';
+        } else {
+            closeBtn.disabled = true;
+            closeBtnText.textContent = '마감';
+        }
+    }
+}
+
+// 뷰 전환
+function setReportView(view) {
+    currentReportView = view;
+
+    // 버튼 활성화 상태 변경
+    const buttons = document.querySelectorAll('.view-toggle button');
+    buttons.forEach(btn => {
+        btn.classList.toggle('active', btn.textContent === (view === 'status' ? '현황' : '상세'));
+    });
+
+    // 데이터가 있으면 다시 렌더링
+    if (reportData) {
+        renderReportTable(reportData);
+    }
+}
+
+function renderReportTable(data) {
+    const content = document.getElementById('reportContent');
+    const actions = document.getElementById('reportActions');
+
+    if (data.daily_reports.length === 0) {
+        content.innerHTML = `
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                <h3>저장된 보고서가 없습니다</h3>
+                <p>검수 페이지에서 리테일러별로 저장을 먼저 진행해주세요.</p>
+            </div>
+        `;
+        actions.innerHTML = '';
+        return;
+    }
+
+    // 뷰 모드에 따라 다른 렌더링
+    if (currentReportView === 'status') {
+        renderStatusTable(data);
+        return;
+    }
+
+    // 상세(detail) 모드: 리테일러별 이상치 그룹화
+    const anomaliesByRetailer = {};
+    data.anomalies.forEach(a => {
+        if (!anomaliesByRetailer[a.retailer]) {
+            anomaliesByRetailer[a.retailer] = [];
+        }
+        anomaliesByRetailer[a.retailer].push(a);
+    });
+
+    let html = `
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"></th>
+                    <th>리테일러</th>
+                    <th>이상치</th>
+                    <th>title NULL</th>
+                    <th>image NULL</th>
+                    <th>부분 NULL</th>
+                    <th>0원</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    data.daily_reports.forEach((report, idx) => {
+        const retailerAnomalies = anomaliesByRetailer[report.retailer] || [];
+        const escRetailer = report.retailer.replace(/'/g, "\\'");
+
+        html += `
+            <tr class="retailer-row">
+                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')">
+                    <svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"/>
+                    </svg>
+                </td>
+                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')"><strong>${report.retailer}</strong></td>
+                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')" style="color: ${report.anomaly_total > 0 ? '#dc2626' : '#16a34a'}; font-weight: 600;">
+                    ${report.anomaly_total || 0}
+                </td>
+                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')">${report.anomaly_title_null || 0}</td>
+                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')">${report.anomaly_image_null || 0}</td>
+                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')">${report.anomaly_partial_null || 0}</td>
+                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')">${report.anomaly_price_zero || 0}</td>
+            </tr>
+            <tr class="anomaly-details" id="anomalyDetails${idx}">
+                <td colspan="7">
+                    <div class="anomaly-list">
+                        ${renderAnomalyItems(retailerAnomalies, report.retailer)}
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table>';
+
+    content.innerHTML = html;
+    actions.innerHTML = ''; // 상세 탭에서는 하단 저장 버튼 없음
+
+    // 컬럼 리사이즈 적용
+    const table = content.querySelector('.report-table');
+    if (table) enableColumnResize(table);
+
+    // 펼쳐진 아코디언 복원
+    restoreExpandedAccordions();
+}
+
+// 현황 탭 렌더링 (체크박스로 선택 후 저장)
+function renderStatusTable(data) {
+    const content = document.getElementById('reportContent');
+
+    let html = `
+        <table class="report-table" id="statusTable">
+            <thead>
+                <tr>
+                    ${isClosed ? '' : '<th style="width: 40px;"><input type="checkbox" id="statusSelectAll" class="memo-checkbox" onchange="toggleStatusSelectAll()"></th>'}
+                    <th>리테일러</th>
+                    <th>총 건수</th>
+                    <th>이상치</th>
+                    <th>title NULL</th>
+                    <th>image NULL</th>
+                    <th>부분 NULL</th>
+                    <th>0원</th>
+                    <th style="min-width: 200px;">메모</th>
+                    <th>저장자</th>
+                    <th>저장일시</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    data.daily_reports.forEach(report => {
+        const escMemo = (report.memo || '').replace(/"/g, '&quot;');
+        html += `
+            <tr>
+                ${isClosed ? '' : `
+                <td class="text-center">
+                    <input type="checkbox" id="statusCheck_${report.id}" class="memo-checkbox status-checkbox" onchange="toggleStatusInput(${report.id})">
+                </td>
+                `}
+                <td><strong>${report.retailer}</strong></td>
+                <td>${report.total_count?.toLocaleString() || 0}</td>
+                <td style="color: ${report.anomaly_total > 0 ? '#dc2626' : '#16a34a'}; font-weight: 600;">
+                    ${report.anomaly_total || 0}
+                </td>
+                <td>${report.anomaly_title_null || 0}</td>
+                <td>${report.anomaly_image_null || 0}</td>
+                <td>${report.anomaly_partial_null || 0}</td>
+                <td>${report.anomaly_price_zero || 0}</td>
+                <td>
+                    <input type="text" id="statusMemo_${report.id}" class="inline-input" value="${escMemo}" placeholder="메모 입력" disabled data-original="${escMemo}">
+                </td>
+                <td>${report.created_id || '-'}</td>
+                <td>${report.created_at || '-'}</td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table>';
+
+    content.innerHTML = html;
+
+    // 저장 버튼 (마감 전에만, 별도 영역에 렌더링)
+    const actions = document.getElementById('reportActions');
+    if (!isClosed && data.daily_reports.length > 0) {
+        actions.innerHTML = `<button class="btn btn-primary" onclick="saveStatusMemos()">저장</button>`;
+    } else {
+        actions.innerHTML = '';
+    }
+
+    // 컬럼 리사이즈 적용
+    const table = content.querySelector('.report-table');
+    if (table) enableColumnResize(table);
+}
+
+// 현황 전체 선택/해제
+function toggleStatusSelectAll() {
+    const selectAll = document.getElementById('statusSelectAll');
+    const checkboxes = document.querySelectorAll('.status-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = selectAll.checked;
+        const id = cb.id.replace('statusCheck_', '');
+        const memoInput = document.getElementById(`statusMemo_${id}`);
+        if (memoInput) memoInput.disabled = !selectAll.checked;
+    });
+}
+
+// 현황 개별 체크박스 토글
+function toggleStatusInput(dailyId) {
+    const checkbox = document.getElementById(`statusCheck_${dailyId}`);
+    const memoInput = document.getElementById(`statusMemo_${dailyId}`);
+    if (checkbox && memoInput) {
+        memoInput.disabled = !checkbox.checked;
+        if (checkbox.checked) memoInput.focus();
+    }
+    // 전체 선택 체크박스 상태 업데이트
+    updateStatusSelectAllState();
+}
+
+// 전체 선택 체크박스 상태 동기화
+function updateStatusSelectAllState() {
+    const selectAll = document.getElementById('statusSelectAll');
+    const checkboxes = document.querySelectorAll('.status-checkbox');
+    if (!selectAll || checkboxes.length === 0) return;
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    const someChecked = Array.from(checkboxes).some(cb => cb.checked);
+    selectAll.checked = allChecked;
+    selectAll.indeterminate = someChecked && !allChecked;
+}
+
+function renderAnomalyItems(anomalies, retailer) {
+    if (anomalies.length === 0) {
+        return '<div style="text-align: center; color: var(--text-secondary); padding: 20px;">저장된 이상치가 없습니다.</div>';
+    }
+
+    const escRetailer = retailer.replace(/'/g, "\\'");
+    const safeRetailerId = retailer.replace(/[^a-zA-Z0-9]/g, '_');
+    const anomalyIds = anomalies.map(a => a.id);
+
+    let html = `
+        <table class="anomaly-table" data-retailer="${retailer}" data-anomaly-ids="${anomalyIds.join(',')}">
+            <thead>
+                <tr>
+                    ${isClosed ? '' : `<th style="width: 35px;"><input type="checkbox" id="anomalySelectAll_${safeRetailerId}" class="memo-checkbox" onchange="toggleAnomalySelectAll('${escRetailer}', '${safeRetailerId}')"></th>`}
+                    <th style="width: 45px;">ID</th>
+                    <th style="width: 150px;">제목</th>
+                    <th style="width: 80px;">가격</th>
+                    <th style="width: 100px;">Ships From</th>
+                    <th style="width: 100px;">Sold By</th>
+                    <th style="width: 50px;">이미지</th>
+                    <th style="width: 90px;">원인</th>
+                    <th>메모</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    anomalies.forEach(a => {
+        const escTitle = (a.title || '(제목 없음)').replace(/"/g, '&quot;');
+        const escShipsFrom = (a.ships_from || 'NULL').replace(/"/g, '&quot;');
+        const escSoldBy = (a.sold_by || 'NULL').replace(/"/g, '&quot;');
+        html += `
+            <tr>
+                ${isClosed ? '' : `
+                <td class="text-center">
+                    <input type="checkbox" id="anomalyCheck_${a.id}" class="memo-checkbox anomaly-checkbox anomaly-checkbox-${safeRetailerId}" onchange="toggleAnomalyInput(${a.id}, '${safeRetailerId}')">
+                </td>
+                `}
+                <td class="text-center">${a.id}</td>
+                <td class="title-cell" title="${escTitle}">${a.title || '(제목 없음)'}</td>
+                <td class="${!a.retailprice ? 'null-value' : ''}">${a.retailprice || 'NULL'}</td>
+                <td class="overflow-cell ${!a.ships_from ? 'null-value' : ''}" title="${escShipsFrom}">${a.ships_from || 'NULL'}</td>
+                <td class="overflow-cell ${!a.sold_by ? 'null-value' : ''}" title="${escSoldBy}">${a.sold_by || 'NULL'}</td>
+                <td class="text-center ${!a.imageurl ? 'null-value' : ''}">
+                    ${a.imageurl ? `<a href="${a.imageurl}" target="_blank" style="color: #2563eb;">보기</a>` : 'NULL'}
+                </td>
+                <td>
+                    <select id="cause_${a.id}" class="inline-select" ${isClosed ? 'disabled' : 'disabled'}>
+                        <option value="">선택</option>
+                        <option value="수집오류" ${a.cause === '수집오류' ? 'selected' : ''}>수집오류</option>
+                        <option value="원본누락" ${a.cause === '원본누락' ? 'selected' : ''}>원본누락</option>
+                        <option value="파싱오류" ${a.cause === '파싱오류' ? 'selected' : ''}>파싱오류</option>
+                        <option value="정상" ${a.cause === '정상' ? 'selected' : ''}>정상</option>
+                        <option value="기타" ${a.cause === '기타' ? 'selected' : ''}>기타</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="text" id="memo_${a.id}" class="inline-input" value="${a.memo || ''}" placeholder="메모 입력" ${isClosed ? 'disabled' : 'disabled'}>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table>';
+
+    // 저장 버튼 추가 (마감 전에만)
+    if (!isClosed) {
+        html += `
+            <div style="text-align: right; margin-top: 12px;">
+                <button class="inline-save-btn" onclick="saveCheckedAnomalies('${escRetailer}')" style="padding: 8px 20px;">
+                    저장
+                </button>
+            </div>
+        `;
+    }
+    return html;
+}
+
+// 전체 이상치 테이블 렌더링
+function renderAllAnomaliesTable(data) {
+    const content = document.getElementById('reportContent');
+
+    if (data.anomalies.length === 0) {
+        content.innerHTML = `
+            <div class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                <h3>이상치가 없습니다</h3>
+                <p>저장된 이상치 데이터가 없습니다.</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = `
+        <table class="all-anomaly-table">
+            <thead>
+                <tr>
+                    <th style="width: 45px;">ID</th>
+                    <th style="width: 100px;">리테일러</th>
+                    <th style="width: 150px;">제목</th>
+                    <th style="width: 80px;">가격</th>
+                    <th style="width: 100px;">Ships From</th>
+                    <th style="width: 100px;">Sold By</th>
+                    <th style="width: 50px;">이미지</th>
+                    <th style="width: 90px;">원인</th>
+                    <th>메모</th>
+                    ${isClosed ? '' : '<th style="width: 60px;">관리</th>'}
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    data.anomalies.forEach(a => {
+        const escTitle = (a.title || '(제목 없음)').replace(/"/g, '&quot;');
+        const escShipsFrom = (a.ships_from || 'NULL').replace(/"/g, '&quot;');
+        const escSoldBy = (a.sold_by || 'NULL').replace(/"/g, '&quot;');
+        html += `
+            <tr>
+                <td class="text-center">${a.id}</td>
+                <td><span class="retailer-badge">${a.retailer}</span></td>
+                <td class="title-cell" title="${escTitle}">${a.title || '<span class="null-value">(제목 없음)</span>'}</td>
+                <td class="${!a.retailprice ? 'null-value' : ''}">${a.retailprice || 'NULL'}</td>
+                <td class="overflow-cell ${!a.ships_from ? 'null-value' : ''}" title="${escShipsFrom}">${a.ships_from || 'NULL'}</td>
+                <td class="overflow-cell ${!a.sold_by ? 'null-value' : ''}" title="${escSoldBy}">${a.sold_by || 'NULL'}</td>
+                <td class="text-center ${!a.imageurl ? 'null-value' : ''}">
+                    ${a.imageurl ? `<a href="${a.imageurl}" target="_blank" style="color: #2563eb;">보기</a>` : 'NULL'}
+                </td>
+                <td>
+                    <select id="cause_all_${a.id}" class="inline-select" ${isClosed ? 'disabled' : ''}>
+                        <option value="">선택</option>
+                        <option value="수집오류" ${a.cause === '수집오류' ? 'selected' : ''}>수집오류</option>
+                        <option value="원본누락" ${a.cause === '원본누락' ? 'selected' : ''}>원본누락</option>
+                        <option value="파싱오류" ${a.cause === '파싱오류' ? 'selected' : ''}>파싱오류</option>
+                        <option value="정상" ${a.cause === '정상' ? 'selected' : ''}>정상</option>
+                        <option value="기타" ${a.cause === '기타' ? 'selected' : ''}>기타</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="text" id="memo_all_${a.id}" class="inline-input" value="${a.memo || ''}" placeholder="메모 입력" ${isClosed ? 'disabled' : ''}>
+                </td>
+                ${isClosed ? '' : `
+                <td class="text-center">
+                    <button class="inline-save-btn" onclick="saveAnomalyAll(${a.id})">저장</button>
+                </td>
+                `}
+            </tr>
+        `;
+    });
+
+    html += '</tbody></table>';
+    content.innerHTML = html;
+
+    // 컬럼 리사이즈 적용
+    const table = content.querySelector('.all-anomaly-table');
+    if (table) enableColumnResize(table);
+}
+
+// 전체 뷰에서 저장
+async function saveAnomalyAll(anomalyId) {
+    if (isClosed) return;
+
+    const cause = document.getElementById(`cause_all_${anomalyId}`).value;
+    const memo = document.getElementById(`memo_all_${anomalyId}`).value;
+
+    try {
+        const response = await fetch('/ds/layer2/api/update/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                anomaly_id: anomalyId,
+                cause: cause,
+                memo: memo,
+                user_id: currentUserId
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast('저장되었습니다.');
+            // 요약 업데이트
+            loadReportList();
+        } else {
+            showToast(result.error || '저장 실패');
+        }
+    } catch (error) {
+        console.error('Save error:', error);
+        showToast('저장 중 오류 발생');
+    }
+}
+
+function toggleAnomalies(idx, retailer) {
+    const row = document.querySelectorAll('.retailer-row')[idx];
+    const details = document.getElementById(`anomalyDetails${idx}`);
+
+    row.classList.toggle('expanded');
+    details.classList.toggle('show');
+
+    // 펼쳐진 상태 추적
+    if (details.classList.contains('show')) {
+        expandedRetailers.add(retailer);
+        // 컬럼 리사이즈 적용 (최초 1회)
+        const table = details.querySelector('.anomaly-table');
+        if (table && !table.dataset.resizeApplied) {
+            enableColumnResize(table);
+            table.dataset.resizeApplied = 'true';
+        }
+    } else {
+        expandedRetailers.delete(retailer);
+    }
+}
+
+// 펼쳐진 아코디언 복원
+function restoreExpandedAccordions() {
+    if (expandedRetailers.size === 0) return;
+
+    const rows = document.querySelectorAll('.retailer-row');
+    rows.forEach((row, idx) => {
+        const retailer = row.querySelector('td:nth-child(2) strong')?.textContent;
+        if (retailer && expandedRetailers.has(retailer)) {
+            const details = document.getElementById(`anomalyDetails${idx}`);
+            if (details) {
+                row.classList.add('expanded');
+                details.classList.add('show');
+                // 컬럼 리사이즈 적용
+                const table = details.querySelector('.anomaly-table');
+                if (table && !table.dataset.resizeApplied) {
+                    enableColumnResize(table);
+                    table.dataset.resizeApplied = 'true';
+                }
+            }
+        }
+    });
+}
+
+// 현황 탭: 체크된 메모만 저장
+async function saveStatusMemos() {
+    if (isClosed) return;
+
+    // 체크된 항목의 메모만 수집
+    const memos = [];
+    document.querySelectorAll('.status-checkbox:checked').forEach(checkbox => {
+        const dailyId = checkbox.id.replace('statusCheck_', '');
+        const memoInput = document.getElementById(`statusMemo_${dailyId}`);
+        if (memoInput) {
+            memos.push({
+                daily_id: parseInt(dailyId),
+                memo: memoInput.value
+            });
+        }
+    });
+
+    if (memos.length === 0) {
+        showToast('저장할 항목을 선택해주세요.', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/ds/layer2/api/daily-update/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                memos: memos,
+                user_id: currentUserId
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.message || '저장되었습니다.');
+            // 체크박스 해제 및 입력 비활성화, 원본값 업데이트
+            memos.forEach(m => {
+                const checkbox = document.getElementById(`statusCheck_${m.daily_id}`);
+                const input = document.getElementById(`statusMemo_${m.daily_id}`);
+                if (checkbox) checkbox.checked = false;
+                if (input) {
+                    input.disabled = true;
+                    input.dataset.original = input.value;
+                }
+            });
+            // 전체 선택 체크박스 상태 업데이트
+            updateStatusSelectAllState();
+        } else {
+            showToast(result.error || '저장 실패', 'error');
+        }
+    } catch (error) {
+        console.error('Save status memos error:', error);
+        showToast('저장 중 오류 발생', 'error');
+    }
+}
+
+// 체크박스 토글 시 메모 입력 활성화/비활성화 (더 이상 사용 안함)
+function toggleMemoInput(dailyId) {
+    const checkbox = document.getElementById(`memoCheck_${dailyId}`);
+    const memoInput = document.getElementById(`dailyMemo_${dailyId}`);
+    if (checkbox && memoInput) {
+        memoInput.disabled = !checkbox.checked;
+        if (checkbox.checked) {
+            memoInput.focus();
+        }
+    }
+}
+
+// 체크된 현황 메모만 저장
+async function saveCheckedMemos() {
+    if (isClosed) return;
+
+    // 체크된 행의 메모만 수집 (memoCheck_로 시작하는 것만)
+    const memos = [];
+    document.querySelectorAll('.memo-checkbox:checked').forEach(checkbox => {
+        if (!checkbox.id.startsWith('memoCheck_')) return;
+        const dailyId = checkbox.id.replace('memoCheck_', '');
+        const memoInput = document.getElementById(`dailyMemo_${dailyId}`);
+        if (memoInput) {
+            memos.push({
+                daily_id: parseInt(dailyId),
+                memo: memoInput.value
+            });
+        }
+    });
+
+    if (memos.length === 0) {
+        showToast('저장할 항목을 선택해주세요.', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/ds/layer2/api/daily-update/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                memos: memos,
+                user_id: currentUserId
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.message || '메모가 저장되었습니다.');
+            // 체크박스 해제 및 입력 비활성화
+            document.querySelectorAll('.memo-checkbox:checked').forEach(checkbox => {
+                if (!checkbox.id.startsWith('memoCheck_')) return;
+                checkbox.checked = false;
+                const dailyId = checkbox.id.replace('memoCheck_', '');
+                const memoInput = document.getElementById(`dailyMemo_${dailyId}`);
+                if (memoInput) memoInput.disabled = true;
+            });
+        } else {
+            showToast(result.error || '저장 실패', 'error');
+        }
+    } catch (error) {
+        console.error('Save checked memos error:', error);
+        showToast('저장 중 오류 발생', 'error');
+    }
+}
+
+// 이상치 전체 선택/해제 (리테일러별)
+function toggleAnomalySelectAll(retailer, safeRetailerId) {
+    const selectAll = document.getElementById(`anomalySelectAll_${safeRetailerId}`);
+    const checkboxes = document.querySelectorAll(`.anomaly-checkbox-${safeRetailerId}`);
+    checkboxes.forEach(cb => {
+        cb.checked = selectAll.checked;
+        const anomalyId = cb.id.replace('anomalyCheck_', '');
+        const causeSelect = document.getElementById(`cause_${anomalyId}`);
+        const memoInput = document.getElementById(`memo_${anomalyId}`);
+        if (causeSelect) causeSelect.disabled = !selectAll.checked;
+        if (memoInput) memoInput.disabled = !selectAll.checked;
+    });
+}
+
+// 이상치 체크박스 토글 시 원인/메모 입력 활성화/비활성화
+function toggleAnomalyInput(anomalyId, safeRetailerId) {
+    const checkbox = document.getElementById(`anomalyCheck_${anomalyId}`);
+    const causeSelect = document.getElementById(`cause_${anomalyId}`);
+    const memoInput = document.getElementById(`memo_${anomalyId}`);
+    if (checkbox) {
+        if (causeSelect) causeSelect.disabled = !checkbox.checked;
+        if (memoInput) {
+            memoInput.disabled = !checkbox.checked;
+            if (checkbox.checked) memoInput.focus();
+        }
+    }
+    // 전체 선택 체크박스 상태 업데이트
+    if (safeRetailerId) {
+        updateAnomalySelectAllState(safeRetailerId);
+    }
+}
+
+// 이상치 전체 선택 체크박스 상태 동기화
+function updateAnomalySelectAllState(safeRetailerId) {
+    const selectAll = document.getElementById(`anomalySelectAll_${safeRetailerId}`);
+    const checkboxes = document.querySelectorAll(`.anomaly-checkbox-${safeRetailerId}`);
+    if (!selectAll || checkboxes.length === 0) return;
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    const someChecked = Array.from(checkboxes).some(cb => cb.checked);
+    selectAll.checked = allChecked;
+    selectAll.indeterminate = someChecked && !allChecked;
+}
+
+// 체크된 이상치만 저장
+async function saveCheckedAnomalies(retailer) {
+    if (isClosed) return;
+
+    // 해당 리테일러의 anomaly 테이블 찾기
+    const table = document.querySelector(`.anomaly-table[data-retailer="${retailer}"]`);
+    if (!table) {
+        showToast('저장할 데이터를 찾을 수 없습니다.', 'error');
+        return;
+    }
+
+    // 체크된 행의 데이터만 수집
+    const updates = [];
+    table.querySelectorAll('.anomaly-checkbox:checked').forEach(checkbox => {
+        const anomalyId = parseInt(checkbox.id.replace('anomalyCheck_', ''));
+        const causeEl = document.getElementById(`cause_${anomalyId}`);
+        const memoEl = document.getElementById(`memo_${anomalyId}`);
+        if (causeEl && memoEl) {
+            updates.push({
+                anomaly_id: anomalyId,
+                cause: causeEl.value,
+                memo: memoEl.value
+            });
+        }
+    });
+
+    if (updates.length === 0) {
+        showToast('저장할 항목을 선택해주세요.', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/ds/layer2/api/update/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                updates: updates,
+                user_id: currentUserId
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(result.message || '저장되었습니다.');
+            // 체크박스 해제 및 입력 비활성화
+            const safeRetailerId = retailer.replace(/[^a-zA-Z0-9]/g, '_');
+            table.querySelectorAll('.anomaly-checkbox:checked').forEach(checkbox => {
+                checkbox.checked = false;
+                const anomalyId = checkbox.id.replace('anomalyCheck_', '');
+                const causeEl = document.getElementById(`cause_${anomalyId}`);
+                const memoEl = document.getElementById(`memo_${anomalyId}`);
+                if (causeEl) causeEl.disabled = true;
+                if (memoEl) memoEl.disabled = true;
+            });
+            // 전체 선택 체크박스 상태 업데이트
+            updateAnomalySelectAllState(safeRetailerId);
+            // 요약 업데이트
+            loadReportList();
+        } else {
+            showToast(result.error || '저장 실패', 'error');
+        }
+    } catch (error) {
+        console.error('Save checked anomalies error:', error);
+        showToast('저장 중 오류 발생', 'error');
+    }
+}
+
+// 일괄현황 저장
+async function saveAllStatus() {
+    const date = document.getElementById('targetDate').value;
+    const savedCount = reportData?.daily_reports?.length || 0;
+    const totalRetailers = reportData?.total_retailers || 0;
+
+    const confirmed = await showConfirm(`${date} 미저장 리테일러를 일괄 저장하시겠습니까?\n\n현재 저장: ${savedCount}/${totalRetailers}개`);
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const saveAllBtn = document.getElementById('saveAllBtn');
+        const saveAllBtnText = document.getElementById('saveAllBtnText');
+        saveAllBtn.disabled = true;
+        saveAllBtnText.textContent = '저장 중...';
+
+        const response = await fetch('/ds/layer2/api/save-all/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                crawl_date: date,
+                user_id: currentUserId
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast(result.message || '일괄 현황 저장 완료');
+            loadReportList();
+        } else {
+            showToast(result.error || '저장 실패', 'error');
+            saveAllBtn.disabled = false;
+            saveAllBtnText.textContent = `일괄현황 저장 (${savedCount}/${totalRetailers})`;
+        }
+    } catch (error) {
+        console.error('Save all error:', error);
+        showToast('저장 중 오류 발생', 'error');
+    }
+}
+
+// 파일용량 저장
+async function saveFileInfo() {
+    const date = document.getElementById('targetDate').value;
+
+    const confirmed = await showConfirm(`${date} 파일서버에서 파일 정보를 조회하여 저장하시겠습니까?`);
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const saveFileInfoBtn = document.getElementById('saveFileInfoBtn');
+        const saveFileInfoBtnText = document.getElementById('saveFileInfoBtnText');
+        saveFileInfoBtn.disabled = true;
+        saveFileInfoBtnText.textContent = '저장 중...';
+
+        const response = await fetch('/ds/layer2/api/save-file-info/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                crawl_date: date,
+                user_id: currentUserId
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast(result.message || '파일 정보 저장 완료');
+            loadReportList();
+        } else {
+            showToast(result.error || '저장 실패', 'error');
+            saveFileInfoBtn.disabled = false;
+            saveFileInfoBtnText.textContent = '파일용량 저장';
+        }
+    } catch (error) {
+        console.error('Save file info error:', error);
+        showToast('저장 중 오류 발생', 'error');
+    }
+}
+
+async function closeReport() {
+    const date = document.getElementById('targetDate').value;
+    const savedCount = reportData?.daily_reports?.length || 0;
+    const totalRetailers = reportData?.total_retailers || 0;
+
+    const confirmed = await showConfirm(`${date} 날짜를 마감하시겠습니까?\n\n저장된 리테일러: ${savedCount}/${totalRetailers}개\n\n마감 후에는 수정할 수 없습니다.`);
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/ds/layer2/api/close/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                crawl_date: date,
+                user_id: currentUserId
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast('마감 완료');
+            loadReportList();
+        } else {
+            showToast(result.error || '마감 실패');
+        }
+    } catch (error) {
+        console.error('Close error:', error);
+        showToast('마감 중 오류 발생');
+    }
+}
+
+// showToast는 common.js에서 로드
+
+// 보고서 출력 모달 열기
+function openReportOutput() {
+    if (!reportData || reportData.daily_reports.length === 0) {
+        showToast('출력할 보고서가 없습니다.', 'warning');
+        return;
+    }
+
+    const content = generateReportText();
+    document.getElementById('reportOutputContent').textContent = content;
+    document.getElementById('reportOutputOverlay').classList.add('show');
+
+    // 복사 버튼 텍스트 초기화
+    document.getElementById('copyBtnText').textContent = '복사';
+    document.querySelector('.copy-btn').classList.remove('copied');
+}
+
+// 보고서 출력 모달 닫기
+function closeReportOutput() {
+    document.getElementById('reportOutputOverlay').classList.remove('show');
+}
+
+// 보고서 텍스트 생성
+function generateReportText() {
+    const date = document.getElementById('targetDate').value;
+
+    let text = `ds 모니터링 보고\n\n`;
+    text += `수집일시 : ${date}\n\n`;
+
+    // [요약] 섹션
+    const totalRetailers = reportData.daily_reports.length;
+    const rerunCount = reportData.daily_reports.filter(r => r.rerun_count > 0).length;
+    const issueRetailers = reportData.daily_reports.filter(r => r.anomaly_total > 0);
+    const issueCount = issueRetailers.length;
+    const issueDataCount = reportData.total_anomalies;
+
+    text += `[요약]\n`;
+    text += `수집현황: 정상 (${totalRetailers}개 리테일러 100% 완료)\n`;
+    text += `재실행: ${rerunCount}건\n`;
+    text += `데이터품질: ${issueCount > 0 ? `이슈 ${issueCount}건 (${issueDataCount}건 데이터)` : '정상'}\n`;
+    text += `파일질라: 정상\n\n`;
+
+    // [재실행] 섹션
+    const rerunRetailers = reportData.daily_reports.filter(r => r.rerun_count > 0);
+    if (rerunRetailers.length > 0) {
+        text += `[재실행]\n`;
+        rerunRetailers.forEach(r => {
+            text += `${r.retailer}  재실행\n`;
+        });
+        text += `\n`;
+    }
+
+    // [이슈 내용] 섹션 - 리테일러별 이상치 그룹화 + 메모
+    const issueLines = buildIssueLines();
+    if (issueLines.length > 0) {
+        text += `[이슈 내용]\n`;
+        issueLines.forEach(line => {
+            text += line + `\n`;
+        });
+        text += `\n`;
+    }
+
+    // [상세] 섹션
+    text += `[상세]\n`;
+
+    // 1. 리테일러별 수집건수
+    text += `1. 리테일러 ${totalRetailers}건 : 수집건수 / 수집예상건수\n`;
+    reportData.daily_reports.forEach(r => {
+        const total = r.total_count || 0;
+        const expected = r.expected_count || total;
+        text += `\t- ${r.retailer}  ${total}/${expected}\n`;
+    });
+
+    // 2. 특이사항
+    text += `\n2. 특이사항\n`;
+    if (issueLines.length > 0) {
+        issueLines.forEach(line => {
+            text += `\t- ${line}\n`;
+        });
+    } else {
+        text += `\t- 없음\n`;
+    }
+
+    // 3. 파일질라 용량 보고
+    text += `\n3. 파일질라 용량 보고\n`;
+    text += `\t- 하단 이미지 파일 참고\n`;
+
+    return text;
+}
+
+// 이슈 내용 라인 생성 (리테일러별 이상치 유형 + 메모 그룹화)
+// null/빈값 체크 헬퍼
+function isNullValue(val) {
+    if (val === null || val === undefined) return true;
+    if (typeof val === 'string') {
+        const v = val.trim().toLowerCase();
+        return v === '' || v === 'null' || v === 'none' || v === 'n/a';
+    }
+    return false;
+}
+
+// 가격 0원 체크 헬퍼
+function isZeroPriceValue(val) {
+    if (val === null || val === undefined) return false;
+    const v = String(val).trim().toLowerCase();
+    return v === '0' || v === '$0' || v === '0원' || v === '₩0' || v === '0.00' || v === '$0.00';
+}
+
+function buildIssueLines() {
+    const lines = [];
+
+    // 리테일러별로 이상치 그룹화
+    const byRetailer = {};
+    reportData.anomalies.forEach(a => {
+        if (!byRetailer[a.retailer]) byRetailer[a.retailer] = [];
+        byRetailer[a.retailer].push(a);
+    });
+
+    // 현황테이블의 리테일러별 메모
+    const dailyMemo = {};
+    reportData.daily_reports.forEach(d => {
+        if (d.memo) dailyMemo[d.retailer] = d.memo;
+    });
+
+    // 각 리테일러별로 한 줄 생성
+    Object.keys(byRetailer).sort().forEach(retailer => {
+        const anomalies = byRetailer[retailer];
+        const typeCount = {};  // 유형별 건수
+        const memoCount = {};  // 이상치 메모별 건수
+
+        anomalies.forEach(a => {
+            // 이상치 유형 결정
+            const nullFields = [];
+            let isZeroPrice = false;
+
+            if (isZeroPriceValue(a.retailprice)) {
+                isZeroPrice = true;
+            } else if (isNullValue(a.retailprice)) {
+                nullFields.push('retailprice');
+            }
+            if (isNullValue(a.title)) nullFields.push('title');
+            if (isNullValue(a.imageurl)) nullFields.push('imageurl');
+            if (isNullValue(a.ships_from)) nullFields.push('ships_from');
+            if (isNullValue(a.sold_by)) nullFields.push('sold_by');
+
+            let typeStr = '';
+            if (isZeroPrice) {
+                typeStr = 'retailprice 0원';
+            } else if (nullFields.length > 0) {
+                typeStr = nullFields.join(', ') + ' null';
+            } else {
+                typeStr = a.error_type || 'unknown';
+            }
+
+            // 유형별 카운트
+            typeCount[typeStr] = (typeCount[typeStr] || 0) + 1;
+
+            // 이상치 메모별 카운트
+            const memo = a.memo || '';
+            if (memo) {
+                memoCount[memo] = (memoCount[memo] || 0) + 1;
+            }
+        });
+
+        // 유형 부분: "retailprice 0원 4건, retailprice null 7건"
+        const typeParts = Object.entries(typeCount).map(([t, c]) => `${t} ${c}건`);
+
+        // 메모 부분 구성
+        const memoParts = [];
+        // 1. 현황테이블 메모 (리테일러 레벨)
+        if (dailyMemo[retailer]) {
+            memoParts.push(dailyMemo[retailer]);
+        }
+        // 2. 이상치 메모 (건수 포함)
+        Object.entries(memoCount).forEach(([m, c]) => {
+            memoParts.push(`${m}(${c}건)`);
+        });
+
+        let line = `${retailer}    ${typeParts.join(', ')}`;
+        if (memoParts.length > 0) {
+            line += ` : ${memoParts.join(', ')}`;
+        }
+        lines.push(line);
+    });
+
+    return lines;
+}
+
+// 클립보드에 복사
+async function copyReportToClipboard() {
+    const content = document.getElementById('reportOutputContent').textContent;
+
+    try {
+        await navigator.clipboard.writeText(content);
+        document.getElementById('copyBtnText').textContent = '복사됨!';
+        document.querySelector('.copy-btn').classList.add('copied');
+        showToast('클립보드에 복사되었습니다.');
+
+        // 2초 후 원래대로
+        setTimeout(() => {
+            document.getElementById('copyBtnText').textContent = '복사';
+            document.querySelector('.copy-btn').classList.remove('copied');
+        }, 2000);
+    } catch (err) {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = content;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            document.getElementById('copyBtnText').textContent = '복사됨!';
+            document.querySelector('.copy-btn').classList.add('copied');
+            showToast('클립보드에 복사되었습니다.');
+            setTimeout(() => {
+                document.getElementById('copyBtnText').textContent = '복사';
+                document.querySelector('.copy-btn').classList.remove('copied');
+            }, 2000);
+        } catch (e) {
+            showToast('복사 실패. 직접 선택하여 복사해주세요.', 'error');
+        }
+        document.body.removeChild(textArea);
+    }
+}
+
+// 모달 외부 클릭 시 닫기
+document.getElementById('reportOutputOverlay').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeReportOutput();
+    }
+});
+
+// 커스텀 확인 모달
+function showConfirm(msg) {
+    return new Promise(function(resolve) {
+        var overlay = document.getElementById('confirmOverlay');
+        document.getElementById('confirmMsg').textContent = msg;
+        overlay.classList.add('show');
+        var ok = document.getElementById('confirmOk');
+        var cancel = document.getElementById('confirmCancel');
+        function cleanup() {
+            overlay.classList.remove('show');
+            ok.removeEventListener('click', onOk);
+            cancel.removeEventListener('click', onCancel);
+            overlay.removeEventListener('click', onBg);
+        }
+        function onOk() { cleanup(); resolve(true); }
+        function onCancel() { cleanup(); resolve(false); }
+        function onBg(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
+        ok.addEventListener('click', onOk);
+        cancel.addEventListener('click', onCancel);
+        overlay.addEventListener('click', onBg);
+    });
+}
+</script>
+{% endblock %}

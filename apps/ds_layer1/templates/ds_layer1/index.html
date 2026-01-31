@@ -1016,129 +1016,10 @@
         background: #d97706;
     }
 
-    /* Toast 알림 */
-    .toast-container {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 10000;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .toast {
-        min-width: 300px;
-        max-width: 450px;
-        padding: 16px 20px;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        animation: toastSlideIn 0.3s ease;
-        background: white;
-        border: 1px solid #e2e8f0;
-    }
-
-    .toast.hiding {
-        animation: toastSlideOut 0.3s ease forwards;
-    }
-
-    @keyframes toastSlideIn {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    @keyframes toastSlideOut {
-        from {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        to {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-    }
-
-    .toast-icon {
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-
-    .toast-icon svg {
-        width: 14px;
-        height: 14px;
-    }
-
-    .toast.success .toast-icon {
-        background: #dcfce7;
-        color: #16a34a;
-    }
-
-    .toast.error .toast-icon {
-        background: #fee2e2;
-        color: #dc2626;
-    }
-
-    .toast.warning .toast-icon {
-        background: #fef3c7;
-        color: #d97706;
-    }
-
-    .toast.info .toast-icon {
-        background: #dbeafe;
-        color: #2563eb;
-    }
-
-    .toast-content {
-        flex: 1;
-    }
-
-    .toast-title {
-        font-weight: 600;
-        font-size: 14px;
-        color: #1e293b;
-        margin-bottom: 2px;
-    }
-
-    .toast-message {
-        font-size: 13px;
-        color: #64748b;
-    }
-
-    .toast-close {
-        background: none;
-        border: none;
-        color: #94a3b8;
-        cursor: pointer;
-        padding: 4px;
-        border-radius: 4px;
-        transition: all 0.2s;
-    }
-
-    .toast-close:hover {
-        background: #f1f5f9;
-        color: #64748b;
-    }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Toast 알림 컨테이너 -->
-<div id="toastContainer" class="toast-container"></div>
-
 <!-- Layer Header -->
 <div class="layer-header">
     <div class="header-content">
@@ -1372,55 +1253,13 @@ let currentTableName = '';
 let currentPage = 1;
 let totalPages = 1;
 
-// Toast 알림 함수
-function showToast(message, type = 'info', duration = 3000) {
-    const container = document.getElementById('toastContainer');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-
-    const icons = {
-        success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>',
-        error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
-        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
-        info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
-    };
-
-    const titles = {
-        success: '완료',
-        error: '오류',
-        warning: '알림',
-        info: '안내'
-    };
-
-    toast.innerHTML = `
-        <div class="toast-icon">${icons[type]}</div>
-        <div class="toast-content">
-            <div class="toast-title">${titles[type]}</div>
-            <div class="toast-message">${message}</div>
-        </div>
-        <button class="toast-close" onclick="this.parentElement.remove()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-        </button>
-    `;
-
-    container.appendChild(toast);
-
-    // 자동 제거
-    setTimeout(() => {
-        toast.classList.add('hiding');
-        setTimeout(() => toast.remove(), 300);
-    }, duration);
-}
+// showToast, formatLocalDate는 common.js에서 로드
 
 document.addEventListener('DOMContentLoaded', function() {
-    // 어제 날짜를 기본값으로
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    document.getElementById('targetDate').value = yesterday.toISOString().split('T')[0];
-    document.getElementById('fileserverDate').value = yesterday.toISOString().split('T')[0];
+    // 저장된 날짜 또는 어제 날짜로 초기화
+    const initialDate = getPersistedDate();
+    document.getElementById('targetDate').value = initialDate;
+    document.getElementById('fileserverDate').value = initialDate;
 
     loadData();
 });
@@ -1454,7 +1293,10 @@ function setBatchView(view) {
 
 // Fileserver 데이터 로드
 async function loadFileserverData() {
-    const date = document.getElementById('fileserverDate').value;
+    let date = document.getElementById('fileserverDate').value;
+    if (!validateQueryDate(date, 'fileserverDate')) {
+        date = document.getElementById('fileserverDate').value; // 보정된 날짜
+    }
 
     document.getElementById('fileserverLoading').classList.remove('hidden');
     document.getElementById('fileserverContent').innerHTML = '';
@@ -1625,17 +1467,18 @@ function setPrevDayFileserver() {
 
 function setNextDayFileserver() {
     const dateInput = document.getElementById('fileserverDate');
-    const current = new Date(dateInput.value);
-    current.setDate(current.getDate() + 1);
-    dateInput.value = formatLocalDate(current);
-    loadFileserverData();
-}
+    const [year, month, day] = dateInput.value.split('-').map(Number);
+    const nextDate = new Date(year, month - 1, day + 1);
+    const nextStr = formatLocalDate(nextDate);
+    const todayStr = formatLocalDate(new Date());
 
-function formatLocalDate(date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
+    if (nextStr > todayStr) {
+        showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning');
+        return;
+    }
+
+    dateInput.value = nextStr;
+    loadFileserverData();
 }
 
 function setPrevDay() {
@@ -1648,16 +1491,28 @@ function setPrevDay() {
 
 function setNextDay() {
     const dateInput = document.getElementById('targetDate');
-    const current = new Date(dateInput.value);
-    current.setDate(current.getDate() + 1);
-    dateInput.value = formatLocalDate(current);
+    const [year, month, day] = dateInput.value.split('-').map(Number);
+    const nextDate = new Date(year, month - 1, day + 1);
+    const nextStr = formatLocalDate(nextDate);
+    const todayStr = formatLocalDate(new Date());
+
+    if (nextStr > todayStr) {
+        showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning');
+        return;
+    }
+
+    dateInput.value = nextStr;
     loadData();
 }
 
 var layer2Data = null;  // Layer2 비정상 데이터 저장
 
 async function loadData() {
-    const date = document.getElementById('targetDate').value;
+    let date = document.getElementById('targetDate').value;
+    if (!validateQueryDate(date, 'targetDate')) {
+        date = document.getElementById('targetDate').value; // 보정된 날짜
+    }
+    setPersistedDate(date); // 날짜 저장
 
     // Show loading
     document.getElementById('allLoading').classList.remove('hidden');
