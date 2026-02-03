@@ -646,11 +646,11 @@ def schedule_settings(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, table_name, retailer, region, korea_time, local_time,
+            SELECT retailer_id, table_name, retailer, region, korea_time, local_time,
                    country, mall_name, is_active, updated_id, updated_at
             FROM ssd_crawl_db.ds_monitoring_targets
             WHERE is_del = false
-            ORDER BY id
+            ORDER BY retailer_id
         """)
         columns_desc = [desc[0] for desc in cursor.description]
         rows = []
@@ -784,7 +784,7 @@ def schedule_settings_toggle(request, target_id):
         conn = get_ds_connection()
         cursor = conn.cursor()
         # MySQL: 현재 값 조회 후 반전
-        cursor.execute("SELECT is_active FROM ssd_crawl_db.ds_monitoring_targets WHERE id = %s", (target_id,))
+        cursor.execute("SELECT is_active FROM ssd_crawl_db.ds_monitoring_targets WHERE retailer_id = %s", (target_id,))
         current = cursor.fetchone()
         if not current:
             return JsonResponse({'success': False, 'error': '해당 스케줄을 찾을 수 없습니다.'})
@@ -792,7 +792,7 @@ def schedule_settings_toggle(request, target_id):
         cursor.execute("""
             UPDATE ssd_crawl_db.ds_monitoring_targets
             SET is_active = %s, updated_id = %s, updated_at = %s
-            WHERE id = %s
+            WHERE retailer_id = %s
         """, (new_status, request.user.username, datetime.now(), target_id))
         conn.commit()
         cursor.close()
@@ -969,5 +969,209 @@ def dx_schedule_settings_toggle(request, schedule_id):
         reload_schedules()
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': new_status, 'message': f'스케줄이 {status}되었습니다.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+# =====================================================
+# DS 이상치 원인 옵션 관리
+# =====================================================
+
+@login_required
+@user_passes_test(is_admin)
+def anomaly_causes(request):
+    """이상치 원인 옵션 관리 페이지"""
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        # 필터링
+        retailer_filter = request.GET.get('retailer', '')
+
+        # 원인 옵션 목록 조회 (JOIN으로 retailer 이름 가져오기)
+        if retailer_filter:
+            cursor.execute("""
+                SELECT o.option_id, t.retailer, o.option_name, o.sort_order, o.is_active, o.created_at, o.retailer_id
+                FROM ssd_crawl_db.ds_monitoring_anomaly_causes_options o
+                JOIN ssd_crawl_db.ds_monitoring_targets t ON o.retailer_id = t.retailer_id
+                WHERE t.retailer = %s
+                ORDER BY o.sort_order, o.option_id
+            """, (retailer_filter,))
+        else:
+            cursor.execute("""
+                SELECT o.option_id, t.retailer, o.option_name, o.sort_order, o.is_active, o.created_at, o.retailer_id
+                FROM ssd_crawl_db.ds_monitoring_anomaly_causes_options o
+                JOIN ssd_crawl_db.ds_monitoring_targets t ON o.retailer_id = t.retailer_id
+                ORDER BY t.sort_order, t.retailer, o.sort_order, o.option_id
+            """)
+
+        causes = []
+        for row in cursor.fetchall():
+            causes.append({
+                'option_id': row[0],
+                'retailer': row[1],
+                'option_name': row[2],
+                'sort_order': row[3],
+                'is_active': row[4],
+                'created_at': row[5],
+                'retailer_id': row[6]
+            })
+
+        # 모니터링 대상 리테일러 목록 (필터 및 추가용)
+        cursor.execute("""
+            SELECT retailer_id, retailer FROM ssd_crawl_db.ds_monitoring_targets
+            WHERE is_active = 1
+            ORDER BY sort_order, retailer
+        """)
+        all_retailers = [{'id': row[0], 'name': row[1]} for row in cursor.fetchall()]
+        retailers = [r['name'] for r in all_retailers]
+
+        cursor.close()
+        conn.close()
+
+        return render(request, 'accounts/anomaly_causes.html', {
+            'causes': causes,
+            'retailers': retailers,
+            'all_retailers': all_retailers,
+            'retailer_filter': retailer_filter,
+            'total_count': len(causes),
+            'admin_menu': 'anomaly_causes'
+        })
+    except Exception as e:
+        messages.error(request, f'오류가 발생했습니다: {str(e)}')
+        return render(request, 'accounts/anomaly_causes.html', {
+            'causes': [],
+            'retailers': [],
+            'all_retailers': [],
+            'retailer_filter': '',
+            'total_count': 0,
+            'admin_menu': 'anomaly_causes'
+        })
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def anomaly_causes_create(request):
+    """이상치 원인 옵션 추가"""
+    try:
+        data = json.loads(request.body)
+        retailer_id = data.get('retailer_id')
+        option_name = data.get('option_name')
+        sort_order = data.get('sort_order', 0)
+
+        if not retailer_id or not option_name:
+            return JsonResponse({'success': False, 'error': '리테일러와 원인 옵션은 필수입니다.'})
+
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # 중복 체크
+        cursor.execute("""
+            SELECT option_id FROM ssd_crawl_db.ds_monitoring_anomaly_causes_options
+            WHERE retailer_id = %s AND option_name = %s
+        """, (retailer_id, option_name))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return JsonResponse({'success': False, 'error': '이미 등록된 원인 옵션입니다.'})
+
+        cursor.execute("""
+            INSERT INTO ssd_crawl_db.ds_monitoring_anomaly_causes_options
+            (retailer_id, option_name, sort_order, is_active, created_at)
+            VALUES (%s, %s, %s, 1, %s)
+        """, (retailer_id, option_name, sort_order, now))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'message': '원인 옵션이 추가되었습니다.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def anomaly_causes_update(request, cause_id):
+    """이상치 원인 옵션 수정"""
+    try:
+        data = json.loads(request.body)
+        option_name = data.get('option_name')
+        sort_order = data.get('sort_order', 0)
+
+        if not option_name:
+            return JsonResponse({'success': False, 'error': '원인 옵션은 필수입니다.'})
+
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE ssd_crawl_db.ds_monitoring_anomaly_causes_options
+            SET option_name = %s, sort_order = %s
+            WHERE option_id = %s
+        """, (option_name, sort_order, cause_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'message': '원인 옵션이 수정되었습니다.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def anomaly_causes_delete(request, cause_id):
+    """이상치 원인 옵션 삭제"""
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM ssd_crawl_db.ds_monitoring_anomaly_causes_options
+            WHERE option_id = %s
+        """, (cause_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'message': '원인 옵션이 삭제되었습니다.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def anomaly_causes_toggle(request, cause_id):
+    """이상치 원인 옵션 활성/비활성 토글"""
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        # 현재 상태 조회
+        cursor.execute("""
+            SELECT is_active FROM ssd_crawl_db.ds_monitoring_anomaly_causes_options
+            WHERE option_id = %s
+        """, (cause_id,))
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'success': False, 'error': '해당 원인 옵션을 찾을 수 없습니다.'})
+
+        new_status = 0 if row[0] else 1
+        cursor.execute("""
+            UPDATE ssd_crawl_db.ds_monitoring_anomaly_causes_options
+            SET is_active = %s
+            WHERE option_id = %s
+        """, (new_status, cause_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        status = '활성화' if new_status else '비활성화'
+        return JsonResponse({'success': True, 'is_active': new_status, 'message': f'원인 옵션이 {status}되었습니다.'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})

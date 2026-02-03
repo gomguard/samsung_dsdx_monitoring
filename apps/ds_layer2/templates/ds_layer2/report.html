@@ -283,22 +283,27 @@
 
     .report-table th {
         background: #f8fafc;
-        padding: 14px 16px;
+        padding: 8px 10px;
         text-align: left;
         font-size: 12px;
         font-weight: 600;
         color: var(--text-secondary);
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
         border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
     }
 
     .report-table td {
-        padding: 14px 16px;
+        padding: 8px 10px;
         font-size: 13px;
         color: var(--text-primary);
         border-bottom: 1px solid var(--border-color);
         vertical-align: middle;
+    }
+
+    .report-table .text-center {
+        text-align: center;
     }
 
     .report-table tr:last-child td {
@@ -568,10 +573,10 @@
 
     .inline-select {
         width: 100%;
-        padding: 6px 8px;
+        padding: 6px 24px 6px 8px;
         border: 1px solid var(--border-color);
-        border-radius: 6px;
-        font-size: 12px;
+        border-radius: 4px;
+        font-size: 13px;
         background: white;
     }
 
@@ -589,8 +594,8 @@
         width: 100%;
         padding: 6px 8px;
         border: 1px solid var(--border-color);
-        border-radius: 6px;
-        font-size: 12px;
+        border-radius: 4px;
+        font-size: 13px;
         box-sizing: border-box;
     }
 
@@ -931,6 +936,230 @@
     @keyframes spin {
         to { transform: rotate(360deg); }
     }
+
+    /* 스크린샷 버튼 */
+    .screenshot-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+    .screenshot-btn:hover {
+        background: #e5e7eb;
+    }
+
+    /* 스크린샷 모달 */
+    .screenshot-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 10003;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+    }
+    .screenshot-modal.show { display: flex; }
+    .screenshot-modal-content {
+        position: relative;
+        max-width: 90vw;
+        max-height: 90vh;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .screenshot-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid #e5e7eb;
+        background: #f8fafc;
+    }
+    .screenshot-modal-title {
+        font-weight: 600;
+        color: #1a1a1a;
+    }
+    .screenshot-modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #64748b;
+        padding: 0 8px;
+    }
+    .screenshot-modal-close:hover { color: #dc2626; }
+    .screenshot-modal-body {
+        padding: 16px;
+        text-align: center;
+        overflow: auto;
+        max-height: calc(90vh - 60px);
+    }
+    .screenshot-modal-body img {
+        max-width: 100%;
+        max-height: calc(90vh - 100px);
+        object-fit: contain;
+    }
+    .screenshot-loading {
+        padding: 40px;
+        color: #64748b;
+    }
+
+    /* 스크린샷 캡쳐 버튼 (아이콘만) */
+    .btn-screenshot-capture {
+        padding: 4px;
+        background: #8b5cf6;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 22px;
+    }
+
+    .btn-screenshot-capture:hover:not(:disabled) {
+        background: #7c3aed;
+        transform: scale(1.1);
+    }
+
+    .btn-screenshot-capture:disabled {
+        background: #d1d5db;
+        color: #9ca3af;
+        cursor: not-allowed;
+    }
+
+    .btn-screenshot-capture.completed {
+        background: transparent;
+        color: #10b981;
+        cursor: default;
+    }
+
+    .btn-screenshot-capture.completed:hover {
+        transform: none;
+        background: transparent;
+    }
+
+    .btn-screenshot-capture svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .btn-screenshot-capture.loading {
+        pointer-events: none;
+        opacity: 0.7;
+    }
+
+    /* 상세보기 버튼 */
+    .btn-detail {
+        padding: 4px;
+        background: #6b7280;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        transition: all 0.2s;
+    }
+
+    .btn-detail:hover {
+        background: #4b5563;
+        transform: scale(1.1);
+    }
+
+    .btn-detail svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    /* 상세보기 모달 */
+    .detail-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .detail-modal-overlay.show {
+        display: flex;
+    }
+
+    .detail-modal {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        min-width: 300px;
+        max-width: 400px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .detail-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .detail-modal-header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .detail-modal-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        color: var(--text-secondary);
+    }
+
+    .detail-modal-close:hover {
+        color: var(--text-primary);
+    }
+
+    .detail-modal-content {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .detail-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+    }
+
+    .detail-item-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .detail-item-value {
+        font-size: 13px;
+        color: var(--text-primary);
+        font-weight: 600;
+    }
 </style>
 {% endblock %}
 
@@ -1101,6 +1330,44 @@
     </div>
 </div>
 
+<!-- 스크린샷 모달 -->
+<div class="screenshot-modal" id="screenshotModal" onclick="closeScreenshotModal(event)">
+    <div class="screenshot-modal-content" onclick="event.stopPropagation()">
+        <div class="screenshot-modal-header">
+            <span class="screenshot-modal-title" id="screenshotTitle">스크린샷</span>
+            <button class="screenshot-modal-close" onclick="closeScreenshotModal()">&times;</button>
+        </div>
+        <div class="screenshot-modal-body" id="screenshotBody">
+            <div class="screenshot-loading">로딩 중...</div>
+        </div>
+    </div>
+</div>
+
+<!-- 상세보기 모달 -->
+<div class="detail-modal-overlay" id="detailModalOverlay" onclick="closeDetailModal(event)">
+    <div class="detail-modal" onclick="event.stopPropagation()">
+        <div class="detail-modal-header">
+            <h3 id="detailModalTitle">상세 정보</h3>
+            <button class="detail-modal-close" onclick="closeDetailModal()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="detail-modal-content">
+            <div class="detail-item">
+                <span class="detail-item-label">저장자</span>
+                <span class="detail-item-value" id="detailCreatedId">-</span>
+            </div>
+            <div class="detail-item">
+                <span class="detail-item-label">저장일시</span>
+                <span class="detail-item-value" id="detailCreatedAt">-</span>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 보고서 출력 모달 -->
 <div class="report-output-overlay" id="reportOutputOverlay">
     <div class="report-output-modal">
@@ -1133,6 +1400,17 @@ let reportData = null;
 let isClosed = false;
 let currentReportView = 'status'; // 'status' or 'detail'
 let expandedRetailers = new Set(); // 펼쳐진 아코디언 리테일러 추적
+let causeOptions = {}; // 리테일러별 원인 옵션
+
+// 리테일러별 원인 옵션 드롭다운 HTML 생성
+function getCauseOptionsHtml(retailer, selectedValue) {
+    const options = causeOptions[retailer] || [];
+    let html = '<option value="">선택</option>';
+    options.forEach(opt => {
+        html += `<option value="${opt}" ${selectedValue === opt ? 'selected' : ''}>${opt}</option>`;
+    });
+    return html;
+}
 
 // 페이지 로드 시 초기화
 document.addEventListener('DOMContentLoaded', () => {
@@ -1140,6 +1418,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('targetDate').value = getPersistedDate();
     loadReportList();
 });
+
+// 파일 크기 포맷 (bytes -> KB/MB)
+function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '-';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
 
 function setPrevDay() {
     const input = document.getElementById('targetDate');
@@ -1188,6 +1474,7 @@ async function loadReportList() {
 
         reportData = data;
         isClosed = data.is_closed;
+        causeOptions = data.cause_options || {};
 
         updateSummary(data);
         updateCloseButton(data);
@@ -1238,8 +1525,8 @@ function updateCloseButton(data) {
     const savedCount = data.daily_reports.length;
     const allSaved = totalRetailers > 0 && savedCount >= totalRetailers;
 
-    // 보고서 출력 버튼 표시/숨김
-    if (savedCount > 0) {
+    // 보고서 출력 버튼 표시/숨김 (마감된 경우에만 활성화)
+    if (data.is_closed) {
         reportOutputBtn.style.display = 'inline-flex';
     } else {
         reportOutputBtn.style.display = 'none';
@@ -1349,10 +1636,6 @@ function renderReportTable(data) {
                     <th style="width: 40px;"></th>
                     <th>리테일러</th>
                     <th>이상치</th>
-                    <th>title NULL</th>
-                    <th>image NULL</th>
-                    <th>부분 NULL</th>
-                    <th>0원</th>
                 </tr>
             </thead>
             <tbody>
@@ -1373,13 +1656,9 @@ function renderReportTable(data) {
                 <td onclick="toggleAnomalies(${idx}, '${escRetailer}')" style="color: ${report.anomaly_total > 0 ? '#dc2626' : '#16a34a'}; font-weight: 600;">
                     ${report.anomaly_total || 0}
                 </td>
-                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')">${report.anomaly_title_null || 0}</td>
-                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')">${report.anomaly_image_null || 0}</td>
-                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')">${report.anomaly_partial_null || 0}</td>
-                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')">${report.anomaly_price_zero || 0}</td>
             </tr>
             <tr class="anomaly-details" id="anomalyDetails${idx}">
-                <td colspan="7">
+                <td colspan="3">
                     <div class="anomaly-list">
                         ${renderAnomalyItems(retailerAnomalies, report.retailer)}
                     </div>
@@ -1405,21 +1684,32 @@ function renderReportTable(data) {
 function renderStatusTable(data) {
     const content = document.getElementById('reportContent');
 
+    // 리테일러별 원인 건수 계산
+    const causeSummaryByRetailer = {};
+    data.anomalies.forEach(a => {
+        if (!causeSummaryByRetailer[a.retailer]) {
+            causeSummaryByRetailer[a.retailer] = {};
+        }
+        const cause = a.cause || '미입력';
+        if (!causeSummaryByRetailer[a.retailer][cause]) {
+            causeSummaryByRetailer[a.retailer][cause] = 0;
+        }
+        causeSummaryByRetailer[a.retailer][cause]++;
+    });
+
     let html = `
         <table class="report-table" id="statusTable">
             <thead>
                 <tr>
-                    ${isClosed ? '' : '<th style="width: 40px;"><input type="checkbox" id="statusSelectAll" class="memo-checkbox" onchange="toggleStatusSelectAll()"></th>'}
+                    ${isClosed ? '' : '<th class="text-center" style="width: 40px;"><input type="checkbox" id="statusSelectAll" class="memo-checkbox" onchange="toggleStatusSelectAll()"></th>'}
                     <th>리테일러</th>
-                    <th>총 건수</th>
-                    <th>이상치</th>
-                    <th>title NULL</th>
-                    <th>image NULL</th>
-                    <th>부분 NULL</th>
-                    <th>0원</th>
-                    <th style="min-width: 200px;">메모</th>
-                    <th>저장자</th>
-                    <th>저장일시</th>
+                    <th class="text-center">총 건수</th>
+                    <th class="text-center">이상치</th>
+                    <th class="text-center">캡쳐</th>
+                    <th style="min-width: 300px;">메모</th>
+                    <th>파일명</th>
+                    <th class="text-center">파일용량</th>
+                    <th class="text-center">상세</th>
                 </tr>
             </thead>
             <tbody>
@@ -1427,27 +1717,42 @@ function renderStatusTable(data) {
 
     data.daily_reports.forEach(report => {
         const escMemo = (report.memo || '').replace(/"/g, '&quot;');
+        // 원인별 현황 텍스트 생성
+        const causeCounts = causeSummaryByRetailer[report.retailer] || {};
+        const causeSummary = Object.entries(causeCounts)
+            .map(([cause, count]) => `${cause}(${count}건)`)
+            .join(', ') || '';
+        const escCauseSummary = causeSummary.replace(/"/g, '&quot;');
+
         html += `
             <tr>
                 ${isClosed ? '' : `
                 <td class="text-center">
-                    <input type="checkbox" id="statusCheck_${report.id}" class="memo-checkbox status-checkbox" onchange="toggleStatusInput(${report.id})">
+                    <input type="checkbox" id="statusCheck_${report.id}" class="memo-checkbox status-checkbox" onchange="toggleStatusInput(${report.id})" data-cause-summary="${escCauseSummary}">
                 </td>
                 `}
                 <td><strong>${report.retailer}</strong></td>
-                <td>${report.total_count?.toLocaleString() || 0}</td>
-                <td style="color: ${report.anomaly_total > 0 ? '#dc2626' : '#16a34a'}; font-weight: 600;">
+                <td class="text-center">${report.total_count?.toLocaleString() || 0}</td>
+                <td class="text-center" style="color: ${report.anomaly_total > 0 ? '#dc2626' : '#16a34a'}; font-weight: 600;">
                     ${report.anomaly_total || 0}
                 </td>
-                <td>${report.anomaly_title_null || 0}</td>
-                <td>${report.anomaly_image_null || 0}</td>
-                <td>${report.anomaly_partial_null || 0}</td>
-                <td>${report.anomaly_price_zero || 0}</td>
+                <td class="text-center">
+                    ${renderCaptureButton(report)}
+                </td>
                 <td>
                     <input type="text" id="statusMemo_${report.id}" class="inline-input" value="${escMemo}" placeholder="메모 입력" disabled data-original="${escMemo}">
                 </td>
-                <td>${report.created_id || '-'}</td>
-                <td>${report.created_at || '-'}</td>
+                <td style="font-size: 13px; max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${report.file_name || ''}">${report.file_name || '-'}</td>
+                <td class="text-center">${report.file_size ? report.file_size.toLocaleString() : '-'}</td>
+                <td class="text-center">
+                    <button class="btn-detail" onclick="showStatusDetail('${report.retailer}', '${report.created_id || '-'}', '${report.created_at || '-'}')" title="상세보기">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="16" x2="12" y2="12"/>
+                            <line x1="12" y1="8" x2="12.01" y2="8"/>
+                        </svg>
+                    </button>
+                </td>
             </tr>
         `;
     });
@@ -1477,7 +1782,19 @@ function toggleStatusSelectAll() {
         cb.checked = selectAll.checked;
         const id = cb.id.replace('statusCheck_', '');
         const memoInput = document.getElementById(`statusMemo_${id}`);
-        if (memoInput) memoInput.disabled = !selectAll.checked;
+        if (memoInput) {
+            memoInput.disabled = !selectAll.checked;
+            if (selectAll.checked) {
+                // 체크 시 원인별 현황 자동 입력 (DB 저장값이 비어있을 때만)
+                if (!memoInput.dataset.original) {
+                    const causeSummary = cb.dataset.causeSummary || '';
+                    if (causeSummary) memoInput.value = causeSummary;
+                }
+            } else {
+                // 체크 해제 시 원래 값으로 복원
+                memoInput.value = memoInput.dataset.original || '';
+            }
+        }
     });
 }
 
@@ -1487,7 +1804,17 @@ function toggleStatusInput(dailyId) {
     const memoInput = document.getElementById(`statusMemo_${dailyId}`);
     if (checkbox && memoInput) {
         memoInput.disabled = !checkbox.checked;
-        if (checkbox.checked) memoInput.focus();
+        if (checkbox.checked) {
+            // 체크 시 원인별 현황 자동 입력 (DB 저장값이 비어있을 때만)
+            if (!memoInput.dataset.original) {
+                const causeSummary = checkbox.dataset.causeSummary || '';
+                if (causeSummary) memoInput.value = causeSummary;
+            }
+            memoInput.focus();
+        } else {
+            // 체크 해제 시 원래 값으로 복원
+            memoInput.value = memoInput.dataset.original || '';
+        }
     }
     // 전체 선택 체크박스 상태 업데이트
     updateStatusSelectAllState();
@@ -1518,13 +1845,13 @@ function renderAnomalyItems(anomalies, retailer) {
             <thead>
                 <tr>
                     ${isClosed ? '' : `<th style="width: 35px;"><input type="checkbox" id="anomalySelectAll_${safeRetailerId}" class="memo-checkbox" onchange="toggleAnomalySelectAll('${escRetailer}', '${safeRetailerId}')"></th>`}
-                    <th style="width: 45px;">ID</th>
+                    <th style="width: 100px;">SKU</th>
                     <th style="width: 150px;">제목</th>
                     <th style="width: 80px;">가격</th>
                     <th style="width: 100px;">Ships From</th>
                     <th style="width: 100px;">Sold By</th>
-                    <th style="width: 50px;">이미지</th>
-                    <th style="width: 90px;">원인</th>
+                    <th style="width: 60px;">스크린샷</th>
+                    <th style="width: 200px;">원인</th>
                     <th>메모</th>
                 </tr>
             </thead>
@@ -1542,22 +1869,17 @@ function renderAnomalyItems(anomalies, retailer) {
                     <input type="checkbox" id="anomalyCheck_${a.id}" class="memo-checkbox anomaly-checkbox anomaly-checkbox-${safeRetailerId}" onchange="toggleAnomalyInput(${a.id}, '${safeRetailerId}')">
                 </td>
                 `}
-                <td class="text-center">${a.id}</td>
+                <td class="text-center">${a.retailersku || '-'}</td>
                 <td class="title-cell" title="${escTitle}">${a.title || '(제목 없음)'}</td>
                 <td class="${!a.retailprice ? 'null-value' : ''}">${a.retailprice || 'NULL'}</td>
                 <td class="overflow-cell ${!a.ships_from ? 'null-value' : ''}" title="${escShipsFrom}">${a.ships_from || 'NULL'}</td>
                 <td class="overflow-cell ${!a.sold_by ? 'null-value' : ''}" title="${escSoldBy}">${a.sold_by || 'NULL'}</td>
-                <td class="text-center ${!a.imageurl ? 'null-value' : ''}">
-                    ${a.imageurl ? `<a href="${a.imageurl}" target="_blank" style="color: #2563eb;">보기</a>` : 'NULL'}
+                <td class="text-center">
+                    ${a.screenshot_id ? `<button class="screenshot-btn" onclick="showScreenshot(${a.screenshot_id})" title="스크린샷 보기">📷</button>` : '-'}
                 </td>
                 <td>
                     <select id="cause_${a.id}" class="inline-select" ${isClosed ? 'disabled' : 'disabled'}>
-                        <option value="">선택</option>
-                        <option value="수집오류" ${a.cause === '수집오류' ? 'selected' : ''}>수집오류</option>
-                        <option value="원본누락" ${a.cause === '원본누락' ? 'selected' : ''}>원본누락</option>
-                        <option value="파싱오류" ${a.cause === '파싱오류' ? 'selected' : ''}>파싱오류</option>
-                        <option value="정상" ${a.cause === '정상' ? 'selected' : ''}>정상</option>
-                        <option value="기타" ${a.cause === '기타' ? 'selected' : ''}>기타</option>
+                        ${getCauseOptionsHtml(a.retailer, a.cause)}
                     </select>
                 </td>
                 <td>
@@ -1612,7 +1934,7 @@ function renderAllAnomaliesTable(data) {
                     <th style="width: 100px;">Ships From</th>
                     <th style="width: 100px;">Sold By</th>
                     <th style="width: 50px;">이미지</th>
-                    <th style="width: 90px;">원인</th>
+                    <th style="width: 200px;">원인</th>
                     <th>메모</th>
                     ${isClosed ? '' : '<th style="width: 60px;">관리</th>'}
                 </tr>
@@ -1637,12 +1959,7 @@ function renderAllAnomaliesTable(data) {
                 </td>
                 <td>
                     <select id="cause_all_${a.id}" class="inline-select" ${isClosed ? 'disabled' : ''}>
-                        <option value="">선택</option>
-                        <option value="수집오류" ${a.cause === '수집오류' ? 'selected' : ''}>수집오류</option>
-                        <option value="원본누락" ${a.cause === '원본누락' ? 'selected' : ''}>원본누락</option>
-                        <option value="파싱오류" ${a.cause === '파싱오류' ? 'selected' : ''}>파싱오류</option>
-                        <option value="정상" ${a.cause === '정상' ? 'selected' : ''}>정상</option>
-                        <option value="기타" ${a.cause === '기타' ? 'selected' : ''}>기타</option>
+                        ${getCauseOptionsHtml(a.retailer, a.cause)}
                     </select>
                 </td>
                 <td>
@@ -1671,6 +1988,13 @@ async function saveAnomalyAll(anomalyId) {
 
     const cause = document.getElementById(`cause_all_${anomalyId}`).value;
     const memo = document.getElementById(`memo_all_${anomalyId}`).value;
+
+    // 원인 필수 입력 검증
+    if (!cause) {
+        showToast('원인을 입력하여 주세요.', 'warning');
+        document.getElementById(`cause_all_${anomalyId}`).focus();
+        return;
+    }
 
     try {
         const response = await fetch('/ds/layer2/api/update/', {
@@ -1922,11 +2246,16 @@ async function saveCheckedAnomalies(retailer) {
 
     // 체크된 행의 데이터만 수집
     const updates = [];
+    let missingCauseId = null;
     table.querySelectorAll('.anomaly-checkbox:checked').forEach(checkbox => {
         const anomalyId = parseInt(checkbox.id.replace('anomalyCheck_', ''));
         const causeEl = document.getElementById(`cause_${anomalyId}`);
         const memoEl = document.getElementById(`memo_${anomalyId}`);
         if (causeEl && memoEl) {
+            // 원인 필수 입력 검증
+            if (!causeEl.value && !missingCauseId) {
+                missingCauseId = anomalyId;
+            }
             updates.push({
                 anomaly_id: anomalyId,
                 cause: causeEl.value,
@@ -1937,6 +2266,13 @@ async function saveCheckedAnomalies(retailer) {
 
     if (updates.length === 0) {
         showToast('저장할 항목을 선택해주세요.', 'warning');
+        return;
+    }
+
+    // 원인 미입력 항목이 있으면 저장 중단
+    if (missingCauseId) {
+        showToast('원인을 입력하여 주세요.', 'warning');
+        document.getElementById(`cause_${missingCauseId}`).focus();
         return;
     }
 
@@ -2138,7 +2474,7 @@ function generateReportText() {
     if (rerunRetailers.length > 0) {
         text += `[재실행]\n`;
         rerunRetailers.forEach(r => {
-            text += `${r.retailer}  재실행\n`;
+            text += `${r.retailer}  재실행 ${r.rerun_count}회\n`;
         });
         text += `\n`;
     }
@@ -2156,12 +2492,12 @@ function generateReportText() {
     // [상세] 섹션
     text += `[상세]\n`;
 
-    // 1. 리테일러별 수집건수
+    // 1. 리테일러별 수집건수 (최종배치 건수)
     text += `1. 리테일러 ${totalRetailers}건 : 수집건수 / 수집예상건수\n`;
     reportData.daily_reports.forEach(r => {
-        const total = r.total_count || 0;
-        const expected = r.expected_count || total;
-        text += `\t- ${r.retailer}  ${total}/${expected}\n`;
+        const finalCount = r.final_batch_count || 0;
+        const expected = r.expected_count || finalCount;
+        text += `\t- ${r.retailer}  ${finalCount}/${expected}\n`;
     });
 
     // 2. 특이사항
@@ -2215,8 +2551,9 @@ function buildIssueLines() {
         if (d.memo) dailyMemo[d.retailer] = d.memo;
     });
 
-    // 각 리테일러별로 한 줄 생성
-    Object.keys(byRetailer).sort().forEach(retailer => {
+    // 각 리테일러별로 한 줄 생성 (daily_reports 순서 = sort_order 순서)
+    const retailerOrder = reportData.daily_reports.map(d => d.retailer);
+    retailerOrder.filter(retailer => byRetailer[retailer]).forEach(retailer => {
         const anomalies = byRetailer[retailer];
         const typeCount = {};  // 유형별 건수
         const memoCount = {};  // 이상치 메모별 건수
@@ -2258,20 +2595,10 @@ function buildIssueLines() {
         // 유형 부분: "retailprice 0원 4건, retailprice null 7건"
         const typeParts = Object.entries(typeCount).map(([t, c]) => `${t} ${c}건`);
 
-        // 메모 부분 구성
-        const memoParts = [];
-        // 1. 현황테이블 메모 (리테일러 레벨)
-        if (dailyMemo[retailer]) {
-            memoParts.push(dailyMemo[retailer]);
-        }
-        // 2. 이상치 메모 (건수 포함)
-        Object.entries(memoCount).forEach(([m, c]) => {
-            memoParts.push(`${m}(${c}건)`);
-        });
-
+        // 메모 부분 구성 - 현황테이블 메모만 사용
         let line = `${retailer}    ${typeParts.join(', ')}`;
-        if (memoParts.length > 0) {
-            line += ` : ${memoParts.join(', ')}`;
+        if (dailyMemo[retailer]) {
+            line += ` : ${dailyMemo[retailer]}`;
         }
         lines.push(line);
     });
@@ -2325,6 +2652,65 @@ document.getElementById('reportOutputOverlay').addEventListener('click', functio
     }
 });
 
+// 스크린샷 모달
+async function showScreenshot(fileId) {
+    const modal = document.getElementById('screenshotModal');
+    const body = document.getElementById('screenshotBody');
+    const title = document.getElementById('screenshotTitle');
+
+    // 모달 표시 및 로딩 상태
+    modal.classList.add('show');
+    body.innerHTML = '<div class="screenshot-loading">로딩 중...</div>';
+
+    try {
+        const response = await fetch(`/ds/layer2/api/screenshot/?file_id=${fileId}`);
+        const data = await response.json();
+
+        if (data.success) {
+            title.textContent = data.file_name || '스크린샷';
+            body.innerHTML = `<img src="${data.url}" alt="스크린샷" style="max-width:100%; max-height:80vh;">`;
+        } else {
+            body.innerHTML = `<div class="screenshot-loading" style="color: #dc2626;">이미지를 불러올 수 없습니다: ${data.error}</div>`;
+        }
+    } catch (error) {
+        body.innerHTML = '<div class="screenshot-loading" style="color: #dc2626;">이미지 로드 실패</div>';
+        console.error('Screenshot error:', error);
+    }
+}
+
+function closeScreenshotModal(event) {
+    if (event && event.target !== event.currentTarget) return;
+    document.getElementById('screenshotModal').classList.remove('show');
+}
+
+// 상세보기 모달 표시
+function showStatusDetail(retailer, createdId, createdAt) {
+    document.getElementById('detailModalTitle').textContent = `${retailer} 상세 정보`;
+    document.getElementById('detailCreatedId').textContent = createdId;
+    document.getElementById('detailCreatedAt').textContent = createdAt;
+    document.getElementById('detailModalOverlay').classList.add('show');
+}
+
+// 상세보기 모달 닫기
+function closeDetailModal(event) {
+    if (event && event.target !== event.currentTarget) return;
+    document.getElementById('detailModalOverlay').classList.remove('show');
+}
+
+// ESC 키로 모달 닫기
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const screenshotModal = document.getElementById('screenshotModal');
+        const detailModal = document.getElementById('detailModalOverlay');
+        if (screenshotModal.classList.contains('show')) {
+            screenshotModal.classList.remove('show');
+        }
+        if (detailModal.classList.contains('show')) {
+            detailModal.classList.remove('show');
+        }
+    }
+});
+
 // 커스텀 확인 모달
 function showConfirm(msg) {
     return new Promise(function(resolve) {
@@ -2346,6 +2732,111 @@ function showConfirm(msg) {
         cancel.addEventListener('click', onCancel);
         overlay.addEventListener('click', onBg);
     });
+}
+
+// CSRF 토큰 가져오기
+function getCsrfToken() {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrftoken') {
+            return value;
+        }
+    }
+    return '';
+}
+
+// 스크린샷 캡쳐 버튼 렌더링 (아이콘만)
+function renderCaptureButton(report) {
+    const hasError = (report.anomaly_total || 0) > 0;
+    const hasScreenshot = report.has_screenshot || false;
+    const allCaptured = report.all_screenshots_captured || false;
+
+    // 이상치가 있고, instance_id가 있고, 아직 모든 스크린샷이 캡쳐되지 않은 경우만 활성화
+    // + 마감되지 않은 날짜만 캡쳐 가능
+    const screenshotEnabled = hasError && hasScreenshot && !allCaptured && !isClosed;
+
+    if (allCaptured) {
+        // 이미 모든 스크린샷이 캡쳐됨 (체크 아이콘)
+        return `<button class="btn-screenshot-capture completed" disabled title="캡쳐 완료">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+        </button>`;
+    } else if (screenshotEnabled) {
+        // 캡쳐 가능 (카메라 아이콘)
+        return `<button class="btn-screenshot-capture" onclick="captureScreenshot('${report.retailer}')" title="${report.retailer} 스크린샷 캡쳐" data-retailer="${report.retailer}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+            </svg>
+        </button>`;
+    } else {
+        // 비활성화 - 아이콘
+        return `<button class="btn-screenshot-capture completed" disabled style="color: #9ca3af; background: transparent;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+        </button>`;
+    }
+}
+
+// 스크린샷 캡쳐 함수
+async function captureScreenshot(retailer) {
+    // 확인 팝업
+    const confirmed = await showConfirm(`${retailer} 캡쳐 프로그램을 실행하시겠습니까?`);
+    if (!confirmed) {
+        return;
+    }
+
+    const date = document.getElementById('targetDate').value;
+
+    // 버튼 찾기
+    const btn = document.querySelector(`button.btn-screenshot-capture[data-retailer="${retailer}"]`);
+
+    if (btn) {
+        btn.classList.add('loading');
+        btn.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                <circle cx="12" cy="12" r="10" stroke-dasharray="30" stroke-dashoffset="10"/>
+            </svg>
+        `;
+    }
+
+    try {
+        const response = await fetch('/ds/layer2/api/screenshot-capture/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                retailer: retailer,
+                crawl_date: date
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            showToast(`${retailer} 캡쳐 명령 전송 완료`, 'success');
+        } else {
+            showToast('캡쳐 실패: ' + result.error, 'error');
+        }
+    } catch (error) {
+        showToast('캡쳐 요청 실패: ' + error, 'error');
+    }
+
+    // 버튼 복구 (카메라 아이콘)
+    if (btn) {
+        btn.classList.remove('loading');
+        btn.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+            </svg>
+        `;
+    }
 }
 </script>
 {% endblock %}

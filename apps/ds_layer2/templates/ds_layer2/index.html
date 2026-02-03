@@ -1006,6 +1006,7 @@
         background: var(--bg-secondary, #f3f4f6);
         color: var(--text-primary, #1a1a1a);
     }
+
 </style>
 {% endblock %}
 
@@ -1300,7 +1301,8 @@ async function fetchAnomalies(tableName, date, country, startTime, endTime) {
                             ships_from: item.ships_from || '',
                             sold_by: item.sold_by || '',
                             imageurl: item.imageurl || '',
-                            producturl: item.producturl || ''
+                            producturl: item.producturl || '',
+                            retailersku: item.retailersku || ''
                         });
                     }
                 });
@@ -1612,6 +1614,7 @@ function renderNullTable(data) {
         const isSaved = isRetailerSaved(item.retailer);
         const isClosed = reportStatus.is_closed;
         const hasError = nullError > 0;  // 이상치 여부
+
         let actionButtons = '';
 
         // 전체 탭일 때는 버튼 숨김
@@ -2060,6 +2063,18 @@ function copyCheckedToReport() {
     } else {
         fallbackCopy(text, onSuccess, onError);
     }
+}
+
+// CSRF 토큰 가져오기
+function getCsrfToken() {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrftoken') {
+            return value;
+        }
+    }
+    return '';
 }
 
 // 커스텀 확인 모달

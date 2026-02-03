@@ -17,8 +17,10 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime, timedelta
 from apps.common.db import get_ds_connection
-from apps.common.targets import load_monitoring_targets, format_time
-from config.config import FILE_SERVER_CONFIG
+from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_instance, format_time
+from config.config import FILE_SERVER_CONFIG, S3_CONFIG, SSM_CONFIG
+import boto3
+from botocore.exceptions import ClientError
 
 
 def log_error(func_name, error):
@@ -377,7 +379,7 @@ def layer_stats(request):
         total_all_null = 0
         total_valid = 0
 
-        for idx, (table_name, retailer, region, korea_time, country, mall_name) in enumerate(get_monitoring_targets(), 1):
+        for idx, (table_name, retailer, region, korea_time, country, mall_name, instance_id) in enumerate(load_monitoring_targets_with_instance(), 1):
             retailer_batches = batches_by_retailer.get(retailer, [])
 
             # 배치가 2개 이상이고 'final' 뷰인 경우, 마지막 배치만 조회
@@ -481,7 +483,8 @@ def layer_stats(request):
                 'has_multi_batch': has_multi_batch,
                 'batches': batch_details,
                 'final_start_time': final_start_time,
-                'final_end_time': final_end_time
+                'final_end_time': final_end_time,
+                'has_screenshot': bool(instance_id)  # instance_id가 있으면 스크린샷 지원
             })
 
         cursor.close()
@@ -647,7 +650,7 @@ def table_null_detail(request):
         # 페이징된 데이터 조회
         offset = (page - 1) * page_size
         query = f"""
-            SELECT title, retailprice, ships_from, sold_by, imageurl, producturl, crawl_strdatetime
+            SELECT title, retailprice, ships_from, sold_by, imageurl, producturl, retailersku, crawl_strdatetime
             FROM ({base_query}) A
             {where_condition}
             ORDER BY {sort_by} {sort_direction}
@@ -660,7 +663,7 @@ def table_null_detail(request):
         items = []
         for row in rows:
             # crawl_strdatetime 포맷팅 (YYYYMMDDHHMMSS... -> YYYY-MM-DD HH:MM:SS)
-            crawl_dt = row[6] or ''
+            crawl_dt = row[7] or ''
             if crawl_dt and len(crawl_dt) >= 14:
                 crawl_dt = f"{crawl_dt[0:4]}-{crawl_dt[4:6]}-{crawl_dt[6:8]} {crawl_dt[8:10]}:{crawl_dt[10:12]}:{crawl_dt[12:14]}"
             elif crawl_dt and len(crawl_dt) >= 12:
@@ -673,6 +676,7 @@ def table_null_detail(request):
                 'sold_by': row[3] or '',
                 'imageurl': row[4] or '',
                 'producturl': row[5] or '',
+                'retailersku': row[6] or '',
                 'crawl_datetime': crawl_dt
             })
 
@@ -782,6 +786,7 @@ def get_file_info_for_date(target_date):
 def get_retailer_stats(cursor, retailer, target_date, file_info_cache=None, include_file_info=True):
     """
     리테일러의 통계 데이터 계산 (공통 함수)
+    - retailer_id: 리테일러 ID
     - expected_count: 예상 수집 건수
     - total_count: 하루 전체 수집 건수
     - final_batch_count: 최종 배치 건수
@@ -790,20 +795,21 @@ def get_retailer_stats(cursor, retailer, target_date, file_info_cache=None, incl
     - 이상치 통계 (최종 배치 기준)
     - file_name, file_size: include_file_info=True일 때만 file_info_cache에서 조회
     """
-    # 리테일러 타겟 정보 찾기
-    all_targets = get_monitoring_targets()
-    target_info = None
-    for t in all_targets:
-        if t[1] == retailer:
-            target_info = t
-            break
+    # 리테일러 타겟 정보 찾기 (retailer_id 포함)
+    cursor.execute("""
+        SELECT retailer_id, table_name, country, mall_name
+        FROM ssd_crawl_db.ds_monitoring_targets
+        WHERE retailer = %s AND is_active = 1
+    """, (retailer,))
+    target_row = cursor.fetchone()
 
-    if not target_info:
+    if not target_row:
         return None
 
-    table_name = target_info[0]
-    country = target_info[4]
-    mall_name = target_info[5]
+    retailer_id = target_row[0]
+    table_name = target_row[1]
+    country = target_row[2]
+    mall_name = target_row[3]
 
     # 배치 정보 조회
     batches_by_retailer = get_batches_for_date(target_date)
@@ -846,6 +852,7 @@ def get_retailer_stats(cursor, retailer, target_date, file_info_cache=None, incl
         file_size = retailer_file.get('file_size', 0)
 
     return {
+        'retailer_id': retailer_id,
         'expected_count': expected_count,
         'total_count': total_count,
         'final_batch_count': final_batch_count,
@@ -896,23 +903,25 @@ def report_save(request):
             conn.close()
             return JsonResponse({'success': False, 'error': f'{retailer} 타겟 정보를 찾을 수 없습니다.'})
 
+        retailer_id = stats['retailer_id']
+
         # 1. 기존 데이터 soft delete (is_del = 1)
         cursor.execute("""
             UPDATE ssd_crawl_db.ds_monitoring_report_daily
             SET is_del = 1, updated_at = %s, updated_id = %s
-            WHERE crawl_date = %s AND retailer = %s AND is_del = 0
-        """, (now, user_id, crawl_date, retailer))
+            WHERE crawl_date = %s AND retailer_id = %s AND is_del = 0
+        """, (now, user_id, crawl_date, retailer_id))
 
         cursor.execute("""
             UPDATE ssd_crawl_db.ds_monitoring_report_anomaly
             SET is_del = 1, updated_at = %s, updated_id = %s
-            WHERE crawl_date = %s AND retailer = %s AND is_del = 0
-        """, (now, user_id, crawl_date, retailer))
+            WHERE crawl_date = %s AND retailer_id = %s AND is_del = 0
+        """, (now, user_id, crawl_date, retailer_id))
 
         # 2. report_daily INSERT (파일 정보는 별도 API에서 저장)
         cursor.execute("""
             INSERT INTO ssd_crawl_db.ds_monitoring_report_daily (
-                crawl_date, retailer, expected_count, final_batch_count, total_count,
+                crawl_date, retailer_id, expected_count, final_batch_count, total_count,
                 completion_rate, rerun_count, file_name, file_size,
                 anomaly_total, anomaly_title_null, anomaly_image_null,
                 anomaly_partial_null, anomaly_price_zero,
@@ -921,7 +930,7 @@ def report_save(request):
                 %s, %s, %s, %s, %s, %s, %s, '', 0, %s, %s, %s, %s, %s, %s, 0, 0, %s, %s
             )
         """, (
-            crawl_date, retailer,
+            crawl_date, retailer_id,
             stats['expected_count'],
             stats['final_batch_count'],
             stats['total_count'],
@@ -943,14 +952,14 @@ def report_save(request):
         for anomaly in anomalies:
             cursor.execute("""
                 INSERT INTO ssd_crawl_db.ds_monitoring_report_anomaly (
-                    crawl_date, retailer, country_code, title, retailprice,
-                    ships_from, sold_by, imageurl, producturl,
+                    crawl_date, retailer_id, country_code, title, retailprice,
+                    ships_from, sold_by, imageurl, producturl, retailersku,
                     screenshot_id, cause, memo, is_del, created_at, created_id
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, %s
                 )
             """, (
-                crawl_date, retailer,
+                crawl_date, retailer_id,
                 anomaly.get('country_code', ''),
                 anomaly.get('title', ''),
                 anomaly.get('retailprice'),
@@ -958,6 +967,7 @@ def report_save(request):
                 anomaly.get('sold_by', ''),
                 anomaly.get('imageurl', ''),
                 anomaly.get('producturl', ''),
+                anomaly.get('retailersku', ''),
                 anomaly.get('screenshot_id'),
                 anomaly.get('cause', ''),
                 anomaly.get('memo', ''),
@@ -1005,20 +1015,32 @@ def report_delete(request):
         cursor = conn.cursor()
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+        # retailer_id 조회
+        cursor.execute("""
+            SELECT retailer_id FROM ssd_crawl_db.ds_monitoring_targets
+            WHERE retailer = %s AND is_active = 1
+        """, (retailer,))
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'success': False, 'error': f'{retailer} 타겟 정보를 찾을 수 없습니다.'})
+        retailer_id = row[0]
+
         # report_daily soft delete
         cursor.execute("""
             UPDATE ssd_crawl_db.ds_monitoring_report_daily
             SET is_del = 1, updated_at = %s, updated_id = %s
-            WHERE crawl_date = %s AND retailer = %s AND is_del = 0
-        """, (now, user_id, crawl_date, retailer))
+            WHERE crawl_date = %s AND retailer_id = %s AND is_del = 0
+        """, (now, user_id, crawl_date, retailer_id))
         daily_deleted = cursor.rowcount
 
         # report_anomaly soft delete
         cursor.execute("""
             UPDATE ssd_crawl_db.ds_monitoring_report_anomaly
             SET is_del = 1, updated_at = %s, updated_id = %s
-            WHERE crawl_date = %s AND retailer = %s AND is_del = 0
-        """, (now, user_id, crawl_date, retailer))
+            WHERE crawl_date = %s AND retailer_id = %s AND is_del = 0
+        """, (now, user_id, crawl_date, retailer_id))
         anomaly_deleted = cursor.rowcount
 
         conn.commit()
@@ -1283,30 +1305,35 @@ def report_save_all(request):
 
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # 1. 이미 저장된 리테일러 목록 조회
+        # 1. 이미 저장된 retailer_id 목록 조회
         cursor.execute("""
-            SELECT retailer FROM ssd_crawl_db.ds_monitoring_report_daily
+            SELECT retailer_id FROM ssd_crawl_db.ds_monitoring_report_daily
             WHERE crawl_date = %s AND is_del = 0
         """, (crawl_date,))
-        saved_retailers = set(row[0] for row in cursor.fetchall())
+        saved_retailer_ids = set(row[0] for row in cursor.fetchall())
 
-        # 2. 전체 모니터링 대상 리테일러 목록
-        all_targets = get_monitoring_targets()
-        all_retailers = set(target[1] for target in all_targets)
+        # 2. 전체 모니터링 대상 리테일러 목록 (retailer_id, retailer 포함)
+        cursor.execute("""
+            SELECT retailer_id, retailer FROM ssd_crawl_db.ds_monitoring_targets
+            WHERE is_active = 1
+        """)
+        all_targets_map = {row[0]: row[1] for row in cursor.fetchall()}
+        all_retailer_ids = set(all_targets_map.keys())
 
         # 3. 미저장 리테일러 자동 저장 (파일 정보 제외)
-        unsaved_retailers = all_retailers - saved_retailers
+        unsaved_retailer_ids = all_retailer_ids - saved_retailer_ids
         auto_saved_count = 0
         target_date = datetime.strptime(crawl_date, '%Y-%m-%d').date()
 
-        for retailer in unsaved_retailers:
+        for retailer_id in unsaved_retailer_ids:
+            retailer = all_targets_map[retailer_id]
             stats = get_retailer_stats(cursor, retailer, target_date, include_file_info=False)
             if not stats:
                 continue
 
             cursor.execute("""
                 INSERT INTO ssd_crawl_db.ds_monitoring_report_daily (
-                    crawl_date, retailer, expected_count, final_batch_count, total_count,
+                    crawl_date, retailer_id, expected_count, final_batch_count, total_count,
                     completion_rate, rerun_count, file_name, file_size,
                     anomaly_total, anomaly_title_null, anomaly_image_null,
                     anomaly_partial_null, anomaly_price_zero,
@@ -1315,7 +1342,7 @@ def report_save_all(request):
                     %s, %s, %s, %s, %s, %s, %s, '', 0, %s, %s, %s, %s, %s, '', 0, 0, %s, %s
                 )
             """, (
-                crawl_date, retailer,
+                crawl_date, retailer_id,
                 stats['expected_count'],
                 stats['final_batch_count'],
                 stats['total_count'],
@@ -1338,8 +1365,8 @@ def report_save_all(request):
             'success': True,
             'message': f'{crawl_date} 일괄 현황 저장 완료',
             'saved_count': auto_saved_count,
-            'total_retailers': len(all_retailers),
-            'already_saved': len(saved_retailers)
+            'total_retailers': len(all_retailer_ids),
+            'already_saved': len(saved_retailer_ids)
         })
 
     except Exception as e:
@@ -1405,10 +1432,18 @@ def report_save_file_info(request):
         # 파일서버에서 파일 정보 조회
         file_info_cache = get_file_info_for_date(target_date)
 
+        # 전체 리테일러 목록 (retailer_id, retailer 포함)
+        cursor.execute("""
+            SELECT retailer_id, retailer FROM ssd_crawl_db.ds_monitoring_targets
+            WHERE is_active = 1
+        """)
+        targets_list = cursor.fetchall()
+
         # 각 리테일러별로 파일 정보 업데이트
         updated_count = 0
-        for target in all_targets:
-            retailer = target[1]
+        for target_row in targets_list:
+            retailer_id = target_row[0]
+            retailer = target_row[1]
             retailer_file = file_info_cache.get(retailer, {})
             file_name = retailer_file.get('file_name', '')
             file_size = retailer_file.get('file_size', 0)
@@ -1416,8 +1451,8 @@ def report_save_file_info(request):
             cursor.execute("""
                 UPDATE ssd_crawl_db.ds_monitoring_report_daily
                 SET file_name = %s, file_size = %s, updated_at = %s, updated_id = %s
-                WHERE crawl_date = %s AND retailer = %s AND is_del = 0
-            """, (file_name, file_size, now, user_id, crawl_date, retailer))
+                WHERE crawl_date = %s AND retailer_id = %s AND is_del = 0
+            """, (file_name, file_size, now, user_id, crawl_date, retailer_id))
             updated_count += cursor.rowcount
 
         conn.commit()
@@ -1544,10 +1579,11 @@ def report_status(request):
 
         # 리테일러별 저장 현황
         cursor.execute("""
-            SELECT retailer, anomaly_total, anomaly_title_null, anomaly_image_null,
-                   anomaly_partial_null, anomaly_price_zero, created_at, created_id
-            FROM ssd_crawl_db.ds_monitoring_report_daily
-            WHERE crawl_date = %s AND is_del = 0
+            SELECT t.retailer, d.anomaly_total, d.anomaly_title_null, d.anomaly_image_null,
+                   d.anomaly_partial_null, d.anomaly_price_zero, d.created_at, d.created_id
+            FROM ssd_crawl_db.ds_monitoring_report_daily d
+            LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON d.retailer_id = t.retailer_id
+            WHERE d.crawl_date = %s AND d.is_del = 0
         """, (target_date,))
         rows = cursor.fetchall()
 
@@ -1610,26 +1646,29 @@ def report_list(request):
         closed_at = row[1].strftime('%Y-%m-%d %H:%M:%S') if row and row[1] else None
         closed_id = row[2] if row else None
 
-        # 리테일러별 일일 보고서 목록 조회
+        # 리테일러별 일일 보고서 목록 조회 (ds_monitoring_targets.sort_order 순서)
         daily_query = """
-            SELECT id, retailer, expected_count, final_batch_count, total_count,
-                   completion_rate, rerun_count, anomaly_total, anomaly_title_null,
-                   anomaly_image_null, anomaly_partial_null, anomaly_price_zero,
-                   memo, is_closed, created_at, created_id
-            FROM ssd_crawl_db.ds_monitoring_report_daily
-            WHERE crawl_date = %s AND is_del = 0
+            SELECT d.id, t.retailer, d.expected_count, d.final_batch_count, d.total_count,
+                   d.completion_rate, d.rerun_count, d.anomaly_total, d.anomaly_title_null,
+                   d.anomaly_image_null, d.anomaly_partial_null, d.anomaly_price_zero,
+                   d.memo, d.is_closed, d.created_at, d.created_id, d.file_name, d.file_size,
+                   t.instance_id
+            FROM ssd_crawl_db.ds_monitoring_report_daily d
+            LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON d.retailer_id = t.retailer_id
+            WHERE d.crawl_date = %s AND d.is_del = 0
         """
         params = [target_date]
         if retailer_filter:
-            daily_query += " AND retailer = %s"
+            daily_query += " AND t.retailer = %s"
             params.append(retailer_filter)
-        daily_query += " ORDER BY retailer"
+        daily_query += " ORDER BY t.sort_order, t.retailer"
 
         cursor.execute(daily_query, params)
         daily_rows = cursor.fetchall()
 
         daily_reports = []
         for row in daily_rows:
+            instance_id = row[18] if len(row) > 18 else None
             daily_reports.append({
                 'id': row[0],
                 'retailer': row[1],
@@ -1646,22 +1685,26 @@ def report_list(request):
                 'memo': row[12] or '',
                 'is_closed': row[13] == 1,
                 'created_at': row[14].strftime('%Y-%m-%d %H:%M:%S') if row[14] else None,
-                'created_id': row[15]
+                'created_id': row[15],
+                'file_name': row[16] or '',
+                'file_size': row[17] or 0,
+                'has_screenshot': bool(instance_id)
             })
 
-        # 이상치 목록 조회
+        # 이상치 목록 조회 (ds_monitoring_targets.sort_order 순서)
         anomaly_query = """
-            SELECT id, retailer, country_code, title, retailprice, ships_from, sold_by,
-                   imageurl, producturl, screenshot_id, cause, memo, created_at, created_id,
-                   updated_at, updated_id
-            FROM ssd_crawl_db.ds_monitoring_report_anomaly
-            WHERE crawl_date = %s AND is_del = 0
+            SELECT a.id, t.retailer, a.country_code, a.title, a.retailprice, a.ships_from, a.sold_by,
+                   a.imageurl, a.producturl, a.retailersku, a.screenshot_id, a.cause, a.memo, a.created_at, a.created_id,
+                   a.updated_at, a.updated_id
+            FROM ssd_crawl_db.ds_monitoring_report_anomaly a
+            LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
+            WHERE a.crawl_date = %s AND a.is_del = 0
         """
         params = [target_date]
         if retailer_filter:
-            anomaly_query += " AND retailer = %s"
+            anomaly_query += " AND t.retailer = %s"
             params.append(retailer_filter)
-        anomaly_query += " ORDER BY retailer, id"
+        anomaly_query += " ORDER BY t.sort_order, t.retailer, a.id"
 
         cursor.execute(anomaly_query, params)
         anomaly_rows = cursor.fetchall()
@@ -1678,17 +1721,52 @@ def report_list(request):
                 'sold_by': row[6],
                 'imageurl': row[7],
                 'producturl': row[8],
-                'screenshot_id': row[9],
-                'cause': row[10],
-                'memo': row[11],
-                'created_at': row[12].strftime('%Y-%m-%d %H:%M:%S') if row[12] else None,
-                'created_id': row[13],
-                'updated_at': row[14].strftime('%Y-%m-%d %H:%M:%S') if row[14] else None,
-                'updated_id': row[15]
+                'retailersku': row[9] or '',
+                'screenshot_id': row[10],
+                'cause': row[11],
+                'memo': row[12],
+                'created_at': row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
+                'created_id': row[14],
+                'updated_at': row[15].strftime('%Y-%m-%d %H:%M:%S') if row[15] else None,
+                'updated_id': row[16]
             })
+
+        # 리테일러별 원인 옵션 조회
+        cursor.execute("""
+            SELECT t.retailer, o.option_name
+            FROM ssd_crawl_db.ds_monitoring_anomaly_causes_options o
+            JOIN ssd_crawl_db.ds_monitoring_targets t ON o.retailer_id = t.retailer_id
+            WHERE o.is_active = 1
+            ORDER BY t.retailer, o.sort_order, o.option_id
+        """)
+        cause_rows = cursor.fetchall()
+        cause_options = {}
+        for row in cause_rows:
+            retailer = row[0]
+            option_name = row[1]
+            if retailer not in cause_options:
+                cause_options[retailer] = []
+            cause_options[retailer].append(option_name)
 
         cursor.close()
         conn.close()
+
+        # 리테일러별 스크린샷 캡쳐 현황 계산
+        screenshot_status_by_retailer = {}
+        for a in anomalies:
+            retailer = a['retailer']
+            if retailer not in screenshot_status_by_retailer:
+                screenshot_status_by_retailer[retailer] = {'total': 0, 'captured': 0}
+            screenshot_status_by_retailer[retailer]['total'] += 1
+            if a['screenshot_id']:
+                screenshot_status_by_retailer[retailer]['captured'] += 1
+
+        # daily_reports에 all_screenshots_captured 필드 추가
+        for report in daily_reports:
+            retailer = report['retailer']
+            status = screenshot_status_by_retailer.get(retailer, {'total': 0, 'captured': 0})
+            # 이상치가 있고 모두 캡쳐된 경우 True
+            report['all_screenshots_captured'] = status['total'] > 0 and status['total'] == status['captured']
 
         # 전체 모니터링 대상 리테일러 수
         all_targets = get_monitoring_targets()
@@ -1703,9 +1781,173 @@ def report_list(request):
             'daily_reports': daily_reports,
             'anomalies': anomalies,
             'total_anomalies': len(anomalies),
-            'total_retailers': total_retailers
+            'total_retailers': total_retailers,
+            'cause_options': cause_options
         })
 
     except Exception as e:
         log_error('report_list', e)
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+def get_screenshot_url(request):
+    """
+    스크린샷 이미지 URL 조회 API
+
+    GET 파라미터:
+    - file_id: ds_monitoring_file.file_id
+
+    반환: S3 pre-signed URL (1시간 유효)
+    """
+    file_id = request.GET.get('file_id')
+
+    if not file_id:
+        return JsonResponse({'success': False, 'error': 'file_id is required'})
+
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        # ds_monitoring_file에서 file_path 조회
+        cursor.execute("""
+            SELECT file_path, file_name, file_type
+            FROM ssd_crawl_db.ds_monitoring_file
+            WHERE file_id = %s AND is_del = 0
+        """, (file_id,))
+        row = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if not row:
+            return JsonResponse({'success': False, 'error': 'File not found'})
+
+        file_path = row[0]  # 디렉토리 경로
+        file_name = row[1]  # 파일명
+        file_type = row[2]
+
+        # S3 key: 경로 + 파일명
+        s3_key = file_path.rstrip('/') + '/' + file_name
+
+        # S3 pre-signed URL 생성
+        s3_client = boto3.client(
+            's3',
+            region_name=S3_CONFIG['region'],
+            aws_access_key_id=S3_CONFIG['access_key'],
+            aws_secret_access_key=S3_CONFIG['secret_key']
+        )
+
+        url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': S3_CONFIG['bucket'],
+                'Key': s3_key
+            },
+            ExpiresIn=3600  # 1시간 유효
+        )
+
+        return JsonResponse({
+            'success': True,
+            'url': url,
+            'file_name': file_name,
+            'file_type': file_type
+        })
+
+    except ClientError as e:
+        log_error('get_screenshot_url', e)
+        return JsonResponse({'success': False, 'error': 'S3 error: ' + str(e)})
+    except Exception as e:
+        log_error('get_screenshot_url', e)
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+def screenshot_capture(request):
+    """SSM을 통해 EC2 인스턴스에서 스크린샷 캡쳐 명령 실행 API"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST 요청만 허용됩니다.'}, status=405)
+
+    try:
+        body = json.loads(request.body)
+    except:
+        return JsonResponse({'error': '잘못된 요청 형식입니다.'}, status=400)
+
+    retailer = body.get('retailer')
+    crawl_date = body.get('crawl_date')
+
+    if not retailer or not crawl_date:
+        return JsonResponse({'error': '리테일러와 날짜가 필요합니다.'}, status=400)
+
+    # DB에서 해당 리테일러의 instance_id, instance_region 조회
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT instance_id, instance_region, mall_name FROM ssd_crawl_db.ds_monitoring_targets
+            WHERE retailer = %s AND is_active = 1
+        """, (retailer,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if not row:
+            return JsonResponse({'error': '해당 리테일러를 찾을 수 없습니다.'}, status=404)
+
+        instance_id = row[0]
+        instance_region = row[1] or SSM_CONFIG['region']  # NULL이면 기본값 사용
+        mall_name = row[2]
+
+        if not instance_id:
+            return JsonResponse({'error': '이 리테일러는 스크린샷 캡쳐를 지원하지 않습니다.'}, status=400)
+
+    except Exception as e:
+        return JsonResponse({'error': f'DB 조회 실패: {str(e)}'}, status=500)
+
+    # 리테일러명 변환 (소문자)
+    retailer_key = retailer.lower()
+
+    # SSM 명령 실행 (Task Scheduler 방식)
+    try:
+        ssm_client = boto3.client(
+            'ssm',
+            region_name=instance_region,
+            aws_access_key_id=SSM_CONFIG['access_key'],
+            aws_secret_access_key=SSM_CONFIG['secret_key']
+        )
+
+        # Task Scheduler 방식: 파라미터 파일 생성 후 task 실행
+        task_name = 'capture_error'
+        param_file = 'C:\\samsung_ds_retail_com\\monitoring\\capture_params.json'
+
+        # 파라미터를 JSON 파일로 저장 후 task 실행 (task 설정은 변경하지 않음)
+        param_json = f'{{"retailer": "{retailer_key}", "crawl_date": "{crawl_date}"}}'
+
+        commands = [
+            f'Set-Content -Path "{param_file}" -Value \'{param_json}\' -Encoding UTF8',
+            f'schtasks /run /tn "{task_name}"',
+            f'Write-Output "Task {task_name} triggered with params: {param_json}"'
+        ]
+
+        response = ssm_client.send_command(
+            InstanceIds=[instance_id],
+            DocumentName='AWS-RunPowerShellScript',
+            Parameters={
+                'commands': commands
+            },
+            TimeoutSeconds=60
+        )
+
+        command_id = response['Command']['CommandId']
+
+        return JsonResponse({
+            'success': True,
+            'message': f'스크린샷 캡쳐 작업이 트리거되었습니다.',
+            'command_id': command_id,
+            'instance_id': instance_id,
+            'retailer': retailer,
+            'crawl_date': crawl_date,
+            'task_name': task_name
+        })
+
+    except Exception as e:
+        print(f"[SSM ERROR] screenshot_capture: {str(e)}")
+        return JsonResponse({'error': f'SSM 명령 실행 실패: {str(e)}'}, status=500)

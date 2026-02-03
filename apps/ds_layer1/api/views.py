@@ -8,7 +8,7 @@ from django.http import JsonResponse
 from datetime import datetime, timedelta, date
 from apps.common.db import get_ds_connection
 from config.config import FILE_SERVER_CONFIG
-from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_local_time, get_retailer_map, format_time
+from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_local_time, load_monitoring_targets_with_instance, get_retailer_map, format_time
 from apps.ds_layer2.api.views import get_quality_counts_by_time_range
 import pytz
 import paramiko
@@ -205,7 +205,7 @@ def layer_stats(request):
         total_actual = 0
         results = []
 
-        for idx, (table_name, retailer, region, korea_time, country, mall_name) in enumerate(get_monitoring_targets(), 1):
+        for idx, (table_name, retailer, region, korea_time, country, mall_name, instance_id) in enumerate(load_monitoring_targets_with_instance(), 1):
             expected = get_expected_count(cursor, country, mall_name)
             retailer_batches = batches_by_retailer.get(retailer, [])
 
@@ -251,7 +251,8 @@ def layer_stats(request):
                 'has_multi_batch': False,
                 'batches': [],
                 'final_start_time': final_start_time,
-                'final_end_time': final_end_time
+                'final_end_time': final_end_time,
+                'has_screenshot': bool(instance_id)  # instance_id가 있으면 스크린샷 지원
             }
 
             # 배치 정보 추가 (2개 이상이고 'all' 뷰인 경우)

@@ -14,9 +14,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'your-secret-key-here-change-in-production')
 
-DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+import socket
+_hostname = socket.gethostname()
+DEBUG = _hostname not in ['ip-172-30-3-152']  # 운영서버 hostname이면 False, 아니면 True (개발)
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['3.38.110.234', 'localhost', '127.0.0.1']
 
 # Application definition
 INSTALLED_APPS = [

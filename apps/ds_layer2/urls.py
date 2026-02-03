@@ -19,4 +19,7 @@ urlpatterns = [
     path('api/close/', api_views.report_close, name='api_close'),
     path('api/status/', api_views.report_status, name='api_status'),
     path('api/report-list/', api_views.report_list, name='api_report_list'),
+    path('api/screenshot/', api_views.get_screenshot_url, name='api_screenshot'),
+    # 스크린샷 캡쳐 API
+    path('api/screenshot-capture/', api_views.screenshot_capture, name='api_screenshot_capture'),
 ]

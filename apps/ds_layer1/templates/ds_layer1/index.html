@@ -1891,6 +1891,18 @@ function closeModalOnOverlay(event) {
     }
 }
 
+// CSRF 토큰 가져오기
+function getCsrfToken() {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'csrftoken') {
+            return value;
+        }
+    }
+    return '';
+}
+
 // ESC 키로 모달 닫기
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
@@ -2291,17 +2303,6 @@ async function addBatch(retailer, time, memo) {
     } catch (error) {
         showToast('추가 중 오류 발생: ' + error, 'error');
     }
-}
-
-function getCsrfToken() {
-    const cookies = document.cookie.split(';');
-    for (let cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'csrftoken') {
-            return value;
-        }
-    }
-    return '';
 }
 {% endif %}
 </script>

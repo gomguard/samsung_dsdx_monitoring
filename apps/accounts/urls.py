@@ -42,4 +42,11 @@ urlpatterns = [
     path('admin/dx-schedule-settings/<int:schedule_id>/update/', views.dx_schedule_settings_update, name='dx_schedule_settings_update'),
     path('admin/dx-schedule-settings/<int:schedule_id>/delete/', views.dx_schedule_settings_delete, name='dx_schedule_settings_delete'),
     path('admin/dx-schedule-settings/<int:schedule_id>/toggle/', views.dx_schedule_settings_toggle, name='dx_schedule_settings_toggle'),
+
+    # 관리자 페이지 - DS 이상치 원인 옵션 관리
+    path('admin/anomaly-causes/', views.anomaly_causes, name='anomaly_causes'),
+    path('admin/anomaly-causes/create/', views.anomaly_causes_create, name='anomaly_causes_create'),
+    path('admin/anomaly-causes/<int:cause_id>/update/', views.anomaly_causes_update, name='anomaly_causes_update'),
+    path('admin/anomaly-causes/<int:cause_id>/delete/', views.anomaly_causes_delete, name='anomaly_causes_delete'),
+    path('admin/anomaly-causes/<int:cause_id>/toggle/', views.anomaly_causes_toggle, name='anomaly_causes_toggle'),
 ]
