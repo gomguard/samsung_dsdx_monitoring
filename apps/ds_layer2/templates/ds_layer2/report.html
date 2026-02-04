@@ -1162,6 +1162,14 @@
             </svg>
             <span id="closeBtnText">마감</span>
         </button>
+        <button class="close-btn cancel-close-btn" id="cancelCloseBtn" onclick="cancelClose()" style="display:none; background:#ef4444;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/>
+                <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            <span>마감 취소</span>
+        </button>
     </div>
 </div>
 
@@ -1393,7 +1401,7 @@ async function loadReportList() {
     content.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
 
     try {
-        const response = await fetch(`/ds/layer2/api/report-list/?date=${date}`);
+        const response = await fetch(`/ds/layer2/api/report-list/?date=${date}&view=${currentReportView}`);
         const data = await response.json();
 
         if (!data.success) {
@@ -1428,18 +1436,16 @@ function updateSummary(data) {
     document.getElementById('totalRetailers').textContent = data.daily_reports.length;
     document.getElementById('totalAnomalies').textContent = data.total_anomalies;
 
-    // 원인/메모 입력 수 계산
-    const filledCause = data.anomalies.filter(a => a.cause && a.cause.trim()).length;
-    const filledMemo = data.anomalies.filter(a => a.memo && a.memo.trim()).length;
-
-    document.getElementById('filledCause').textContent = filledCause;
-    document.getElementById('filledMemo').textContent = filledMemo;
+    // 서버에서 계산된 원인/메모 입력 수 사용
+    document.getElementById('filledCause').textContent = data.filled_cause || 0;
+    document.getElementById('filledMemo').textContent = data.filled_memo || 0;
     document.getElementById('reportCount').textContent = `${data.daily_reports.length}개`;
 }
 
 function updateCloseButton(data) {
     const closeBtn = document.getElementById('closeBtn');
     const closeBtnText = document.getElementById('closeBtnText');
+    const cancelCloseBtn = document.getElementById('cancelCloseBtn');
     const saveAllBtn = document.getElementById('saveAllBtn');
     const saveAllBtnText = document.getElementById('saveAllBtnText');
     const saveFileInfoBtn = document.getElementById('saveFileInfoBtn');
@@ -1453,20 +1459,22 @@ function updateCloseButton(data) {
     const allSaved = totalRetailers > 0 && savedCount >= totalRetailers;
 
     if (data.is_closed) {
-        // 마감된 상태: 저장 버튼들 숨기고, 마감 버튼만 표시
+        // 마감된 상태: 저장 버튼들 숨기고, 마감 완료 + 마감 취소 버튼 표시
         saveAllBtn.style.display = 'none';
         saveFileInfoBtn.style.display = 'none';
         closeBtn.disabled = true;
         closeBtn.classList.add('closed');
         closeBtnText.textContent = '마감 완료';
+        cancelCloseBtn.style.display = 'inline-flex';
         banner.classList.remove('hidden');
         bannerText.textContent = `이 날짜는 ${data.closed_at}에 ${data.closed_id}님이 마감했습니다.`;
     } else {
-        // 마감되지 않은 상태: 모든 버튼 표시
+        // 마감되지 않은 상태: 모든 버튼 표시, 마감 취소 숨김
         saveAllBtn.style.display = 'inline-flex';
         saveFileInfoBtn.style.display = 'inline-flex';
         banner.classList.add('hidden');
         closeBtn.classList.remove('closed');
+        cancelCloseBtn.style.display = 'none';
 
         // 일괄현황 저장 버튼: 미저장 리테일러가 있을 때만 활성화
         if (allSaved) {
@@ -1496,10 +1504,8 @@ function setReportView(view) {
         btn.classList.toggle('active', btn.textContent === (view === 'status' ? '현황' : '상세'));
     });
 
-    // 데이터가 있으면 다시 렌더링
-    if (reportData) {
-        renderReportTable(reportData);
-    }
+    // 탭 전환 시 데이터 새로 조회
+    loadReportList();
 }
 
 function renderReportTable(data) {
@@ -1600,18 +1606,8 @@ function renderReportTable(data) {
 function renderStatusTable(data) {
     const content = document.getElementById('reportContent');
 
-    // 리테일러별 원인 건수 계산
-    const causeSummaryByRetailer = {};
-    data.anomalies.forEach(a => {
-        if (!causeSummaryByRetailer[a.retailer]) {
-            causeSummaryByRetailer[a.retailer] = {};
-        }
-        const cause = a.cause || '미입력';
-        if (!causeSummaryByRetailer[a.retailer][cause]) {
-            causeSummaryByRetailer[a.retailer][cause] = 0;
-        }
-        causeSummaryByRetailer[a.retailer][cause]++;
-    });
+    // 리테일러별 원인 건수 (서버에서 계산된 데이터 사용)
+    const causeSummaryByRetailer = data.cause_summary || {};
 
     let html = `
         <table class="report-table" id="statusTable">
@@ -2335,7 +2331,7 @@ async function closeReport() {
         return;
     }
 
-    const confirmed = await showConfirm(`${date} 날짜를 마감하시겠습니까?\n\n현황 저장: ${savedCount}/${totalRetailers}개\n파일용량 저장: ${fileSavedCount}/${totalRetailers}개\n\n마감 후에는 수정할 수 없습니다.`, 'warning');
+    const confirmed = await showConfirm(`${date} 날짜를 마감하시겠습니까?\n\n현황 저장: ${savedCount}/${totalRetailers}개\n파일용량 저장: ${fileSavedCount}/${totalRetailers}개\n\n마감 후 수정이 필요한 경우 마감 취소가 필요합니다.`, 'warning');
     if (!confirmed) {
         return;
     }
@@ -2361,6 +2357,69 @@ async function closeReport() {
         console.error('Close error:', error);
         showToast('마감 중 오류 발생');
     }
+}
+
+function cancelClose() {
+    const date = document.getElementById('targetDate').value;
+
+    // 사유 입력 다이얼로그
+    var existing = document.getElementById('confirmOverlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'confirmOverlay';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10002; display:flex; justify-content:center; align-items:center;';
+    overlay.innerHTML =
+        '<div style="background:#fff; border-radius:12px; padding:28px 32px 20px; min-width:360px; max-width:480px; box-shadow:0 12px 40px rgba(0,0,0,0.25); text-align:center;">' +
+            '<div style="margin-bottom:12px;"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/></svg></div>' +
+            '<div style="font-size:15px; font-weight:500; color:#1a1a1a; line-height:1.5; margin-bottom:16px;">' + date + ' 마감을 취소하시겠습니까?</div>' +
+            '<textarea id="cancelMemoInput" placeholder="취소 사유를 입력하세요" style="width:100%; height:80px; border:1px solid #d1d5db; border-radius:8px; padding:10px; font-size:14px; resize:vertical; box-sizing:border-box; margin-bottom:4px;"></textarea>' +
+            '<div id="cancelMemoError" style="font-size:13px; color:#ef4444; text-align:left; margin-bottom:12px; display:none;">취소 사유를 입력하세요.</div>' +
+            '<div style="display:flex; gap:10px; justify-content:center;">' +
+                '<button id="confirmOk" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:#ef4444; color:#fff;">확인</button>' +
+                '<button id="confirmCancel" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:#f3f4f6; color:#1a1a1a;">취소</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('cancelMemoInput').focus();
+
+    document.getElementById('confirmOk').onclick = async function() {
+        var memo = document.getElementById('cancelMemoInput').value.trim();
+        if (!memo) {
+            document.getElementById('cancelMemoInput').style.borderColor = '#ef4444';
+            document.getElementById('cancelMemoError').style.display = 'block';
+            document.getElementById('cancelMemoInput').focus();
+            return;
+        }
+        overlay.remove();
+
+        try {
+            const response = await fetch('/ds/layer2/api/cancel-close/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    crawl_date: date,
+                    user_id: currentUserId,
+                    memo: memo
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showToast('마감 취소 완료');
+                loadReportList();
+            } else {
+                showToast(result.error || '마감 취소 실패');
+            }
+        } catch (error) {
+            console.error('Cancel close error:', error);
+            showToast('마감 취소 중 오류 발생');
+        }
+    };
+
+    document.getElementById('confirmCancel').onclick = function() { overlay.remove(); };
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
 }
 
 // showToast는 common.js에서 로드

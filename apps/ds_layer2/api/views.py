@@ -926,9 +926,9 @@ def report_save(request):
                 completion_rate, rerun_count, file_name, file_size,
                 anomaly_total, anomaly_title_null, anomaly_image_null,
                 anomaly_partial_null, anomaly_price_zero,
-                memo, is_closed, is_del, created_at, created_id
+                memo, is_del, created_at, created_id
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, '', 0, %s, %s, %s, %s, %s, %s, 0, 0, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, '', 0, %s, %s, %s, %s, %s, %s, 0, %s, %s
             )
         """, (
             crawl_date, retailer_id,
@@ -1225,7 +1225,7 @@ def report_daily_update(request):
                     cursor.execute("""
                         UPDATE ssd_crawl_db.ds_monitoring_report_daily
                         SET memo = %s, updated_at = %s, updated_id = %s
-                        WHERE id = %s AND is_del = 0 AND is_closed = 0
+                        WHERE id = %s AND is_del = 0
                     """, (memo, now, user_id, daily_id))
                     updated_count += cursor.rowcount
 
@@ -1292,14 +1292,14 @@ def report_save_all(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
-        # 이미 마감되었는지 확인
+        # 이미 마감되었는지 확인 (report_close 테이블)
         cursor.execute("""
-            SELECT COUNT(*) FROM ssd_crawl_db.ds_monitoring_report_daily
-            WHERE crawl_date = %s AND is_closed = 1 AND is_del = 0
+            SELECT is_closed FROM ssd_crawl_db.ds_monitoring_report_close
+            WHERE crawl_date = %s
         """, (crawl_date,))
-        already_closed = cursor.fetchone()[0]
+        close_row = cursor.fetchone()
 
-        if already_closed > 0:
+        if close_row and close_row[0] == 1:
             cursor.close()
             conn.close()
             return JsonResponse({'success': False, 'error': '이미 마감된 날짜입니다.'})
@@ -1338,9 +1338,9 @@ def report_save_all(request):
                     completion_rate, rerun_count, file_name, file_size,
                     anomaly_total, anomaly_title_null, anomaly_image_null,
                     anomaly_partial_null, anomaly_price_zero,
-                    memo, is_closed, is_del, created_at, created_id
+                    memo, is_del, created_at, created_id
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, '', 0, %s, %s, %s, %s, %s, '', 0, 0, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, '', 0, %s, %s, %s, %s, %s, '', 0, %s, %s
                 )
             """, (
                 crawl_date, retailer_id,
@@ -1395,14 +1395,14 @@ def report_save_file_info(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
-        # 이미 마감되었는지 확인
+        # 이미 마감되었는지 확인 (report_close 테이블)
         cursor.execute("""
-            SELECT COUNT(*) FROM ssd_crawl_db.ds_monitoring_report_daily
-            WHERE crawl_date = %s AND is_closed = 1 AND is_del = 0
+            SELECT is_closed FROM ssd_crawl_db.ds_monitoring_report_close
+            WHERE crawl_date = %s
         """, (crawl_date,))
-        already_closed = cursor.fetchone()[0]
+        close_row = cursor.fetchone()
 
-        if already_closed > 0:
+        if close_row and close_row[0] == 1:
             cursor.close()
             conn.close()
             return JsonResponse({'success': False, 'error': '이미 마감된 날짜입니다.'})
@@ -1476,9 +1476,10 @@ def report_save_file_info(request):
 @require_http_methods(["POST"])
 def report_close(request):
     """
-    일별 최종 마감 API (한 번만 가능)
+    일별 최종 마감 API
     - 모든 리테일러가 현황 테이블에 저장되어 있어야 마감 가능
-    - 마감 처리만 수행 (is_closed = 1)
+    - report_close 테이블에 마감 상태 저장
+    - report_close_history 테이블에 이력 저장
 
     POST 파라미터:
     - crawl_date: 수집일자 (YYYY-MM-DD)
@@ -1494,14 +1495,14 @@ def report_close(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
-        # 이미 마감되었는지 확인
+        # 이미 마감되었는지 확인 (report_close 테이블)
         cursor.execute("""
-            SELECT COUNT(*) FROM ssd_crawl_db.ds_monitoring_report_daily
-            WHERE crawl_date = %s AND is_closed = 1 AND is_del = 0
+            SELECT is_closed FROM ssd_crawl_db.ds_monitoring_report_close
+            WHERE crawl_date = %s
         """, (crawl_date,))
-        already_closed = cursor.fetchone()[0]
+        close_row = cursor.fetchone()
 
-        if already_closed > 0:
+        if close_row and close_row[0] == 1:
             cursor.close()
             conn.close()
             return JsonResponse({'success': False, 'error': '이미 마감된 날짜입니다.'})
@@ -1528,13 +1529,21 @@ def report_close(request):
 
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # 모든 리테일러 마감 처리
+        # 마감 상태 저장 (report_close 테이블)
         cursor.execute("""
-            UPDATE ssd_crawl_db.ds_monitoring_report_daily
-            SET is_closed = 1, closed_at = %s, closed_id = %s, updated_at = %s, updated_id = %s
-            WHERE crawl_date = %s AND is_del = 0
-        """, (now, user_id, now, user_id, crawl_date))
-        closed_count = cursor.rowcount
+            INSERT INTO ssd_crawl_db.ds_monitoring_report_close
+                (crawl_date, is_closed, closed_at, closed_id, created_at, updated_at)
+            VALUES (%s, 1, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                is_closed = 1, closed_at = %s, closed_id = %s, updated_at = %s
+        """, (crawl_date, now, user_id, now, now, now, user_id, now))
+
+        # 마감 이력 저장 (report_close_history 테이블)
+        cursor.execute("""
+            INSERT INTO ssd_crawl_db.ds_monitoring_report_close_history
+                (crawl_date, action, action_at, action_id)
+            VALUES (%s, 'close', %s, %s)
+        """, (crawl_date, now, user_id))
 
         conn.commit()
         cursor.close()
@@ -1542,12 +1551,77 @@ def report_close(request):
 
         return JsonResponse({
             'success': True,
-            'message': f'{crawl_date} 마감 완료',
-            'closed_count': closed_count
+            'message': f'{crawl_date} 마감 완료'
         })
 
     except Exception as e:
         log_error('report_close', e)
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def report_cancel_close(request):
+    """
+    마감 취소 API
+    - report_close 테이블의 is_closed = 0 으로 변경
+    - report_close_history 테이블에 cancel 이력 저장
+
+    POST 파라미터:
+    - crawl_date: 수집일자 (YYYY-MM-DD)
+    - memo: 취소 사유 (선택)
+    """
+    try:
+        body = json.loads(request.body)
+        crawl_date = body.get('crawl_date')
+        user_id = body.get('user_id', 'system')
+        memo = body.get('memo', '')
+
+        if not crawl_date:
+            return JsonResponse({'success': False, 'error': 'crawl_date가 필요합니다.'})
+
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        # 마감 상태 확인
+        cursor.execute("""
+            SELECT is_closed FROM ssd_crawl_db.ds_monitoring_report_close
+            WHERE crawl_date = %s
+        """, (crawl_date,))
+        close_row = cursor.fetchone()
+
+        if not close_row or close_row[0] != 1:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'success': False, 'error': '마감되지 않은 날짜입니다.'})
+
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        # 마감 취소 (is_closed = 0)
+        cursor.execute("""
+            UPDATE ssd_crawl_db.ds_monitoring_report_close
+            SET is_closed = 0, updated_at = %s
+            WHERE crawl_date = %s
+        """, (now, crawl_date))
+
+        # 취소 이력 저장
+        cursor.execute("""
+            INSERT INTO ssd_crawl_db.ds_monitoring_report_close_history
+                (crawl_date, action, action_at, action_id, memo)
+            VALUES (%s, 'cancel', %s, %s, %s)
+        """, (crawl_date, now, user_id, memo))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{crawl_date} 마감 취소 완료'
+        })
+
+    except Exception as e:
+        log_error('report_cancel_close', e)
         return JsonResponse({'success': False, 'error': str(e)})
 
 
@@ -1569,14 +1643,13 @@ def report_status(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
-        # 날짜별 마감 여부 확인
+        # 날짜별 마감 여부 확인 (report_close 테이블)
         cursor.execute("""
-            SELECT is_closed FROM ssd_crawl_db.ds_monitoring_report_daily
-            WHERE crawl_date = %s AND is_del = 0
-            LIMIT 1
+            SELECT is_closed FROM ssd_crawl_db.ds_monitoring_report_close
+            WHERE crawl_date = %s
         """, (target_date,))
-        row = cursor.fetchone()
-        is_closed = row[0] == 1 if row else False
+        close_row = cursor.fetchone()
+        is_closed = close_row[0] == 1 if close_row else False
 
         # 리테일러별 저장 현황
         cursor.execute("""
@@ -1623,9 +1696,11 @@ def report_list(request):
     GET 파라미터:
     - date: 수집일자 (YYYY-MM-DD)
     - retailer: 리테일러명 (선택, 없으면 전체)
+    - view: 'status'(현황) | 'detail'(상세) - 기본 'status'
     """
     date_str = request.GET.get('date')
     retailer_filter = request.GET.get('retailer')
+    view_mode = request.GET.get('view', 'status')
 
     if date_str:
         target_date = date_str
@@ -1636,23 +1711,22 @@ def report_list(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
-        # 날짜별 마감 여부 및 마감 정보 확인
+        # 날짜별 마감 여부 및 마감 정보 확인 (report_close 테이블)
         cursor.execute("""
-            SELECT is_closed, closed_at, closed_id FROM ssd_crawl_db.ds_monitoring_report_daily
-            WHERE crawl_date = %s AND is_del = 0
-            LIMIT 1
+            SELECT is_closed, closed_at, closed_id FROM ssd_crawl_db.ds_monitoring_report_close
+            WHERE crawl_date = %s
         """, (target_date,))
-        row = cursor.fetchone()
-        is_closed = row[0] == 1 if row else False
-        closed_at = row[1].strftime('%Y-%m-%d %H:%M:%S') if row and row[1] else None
-        closed_id = row[2] if row else None
+        close_row = cursor.fetchone()
+        is_closed = close_row[0] == 1 if close_row else False
+        closed_at = close_row[1].strftime('%Y-%m-%d %H:%M:%S') if close_row and close_row[1] else None
+        closed_id = close_row[2] if close_row else None
 
         # 리테일러별 일일 보고서 목록 조회 (ds_monitoring_targets.sort_order 순서)
         daily_query = """
             SELECT d.id, t.retailer, d.expected_count, d.final_batch_count, d.total_count,
                    d.completion_rate, d.rerun_count, d.anomaly_total, d.anomaly_title_null,
                    d.anomaly_image_null, d.anomaly_partial_null, d.anomaly_price_zero,
-                   d.memo, d.is_closed, d.created_at, d.created_id, d.file_name, d.file_size,
+                   d.memo, d.created_at, d.created_id, d.file_name, d.file_size,
                    t.instance_id
             FROM ssd_crawl_db.ds_monitoring_report_daily d
             LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON d.retailer_id = t.retailer_id
@@ -1669,7 +1743,7 @@ def report_list(request):
 
         daily_reports = []
         for row in daily_rows:
-            instance_id = row[18] if len(row) > 18 else None
+            instance_id = row[17] if len(row) > 17 else None
             daily_reports.append({
                 'id': row[0],
                 'retailer': row[1],
@@ -1684,90 +1758,138 @@ def report_list(request):
                 'anomaly_partial_null': row[10],
                 'anomaly_price_zero': row[11],
                 'memo': row[12] or '',
-                'is_closed': row[13] == 1,
-                'created_at': row[14].strftime('%Y-%m-%d %H:%M:%S') if row[14] else None,
-                'created_id': row[15],
-                'file_name': row[16] or '',
-                'file_size': row[17] or 0,
+                'created_at': row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
+                'created_id': row[14],
+                'file_name': row[15] or '',
+                'file_size': row[16] or 0,
                 'has_screenshot': bool(instance_id)
             })
 
-        # 이상치 목록 조회 (ds_monitoring_targets.sort_order 순서)
-        anomaly_query = """
-            SELECT a.id, t.retailer, a.country_code, a.title, a.retailprice, a.ships_from, a.sold_by,
-                   a.imageurl, a.producturl, a.retailersku, a.screenshot_id, a.cause, a.memo, a.created_at, a.created_id,
-                   a.updated_at, a.updated_id
+        anomalies = []
+        cause_options = {}
+
+        if view_mode == 'detail':
+            # 상세 모드: 이상치 전체 목록 조회
+            anomaly_query = """
+                SELECT a.id, t.retailer, a.country_code, a.title, a.retailprice, a.ships_from, a.sold_by,
+                       a.imageurl, a.producturl, a.retailersku, a.screenshot_id, a.cause, a.memo, a.created_at, a.created_id,
+                       a.updated_at, a.updated_id
+                FROM ssd_crawl_db.ds_monitoring_report_anomaly a
+                LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
+                WHERE a.crawl_date = %s AND a.is_del = 0
+            """
+            params = [target_date]
+            if retailer_filter:
+                anomaly_query += " AND t.retailer = %s"
+                params.append(retailer_filter)
+            anomaly_query += " ORDER BY t.sort_order, t.retailer, a.id"
+
+            cursor.execute(anomaly_query, params)
+            anomaly_rows = cursor.fetchall()
+
+            for row in anomaly_rows:
+                anomalies.append({
+                    'id': row[0],
+                    'retailer': row[1],
+                    'country_code': row[2],
+                    'title': row[3],
+                    'retailprice': row[4],
+                    'ships_from': row[5],
+                    'sold_by': row[6],
+                    'imageurl': row[7],
+                    'producturl': row[8],
+                    'retailersku': row[9] or '',
+                    'screenshot_id': row[10],
+                    'cause': row[11],
+                    'memo': row[12],
+                    'created_at': row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
+                    'created_id': row[14],
+                    'updated_at': row[15].strftime('%Y-%m-%d %H:%M:%S') if row[15] else None,
+                    'updated_id': row[16]
+                })
+
+            # 리테일러별 원인 옵션 조회
+            cursor.execute("""
+                SELECT t.retailer, o.option_name
+                FROM ssd_crawl_db.ds_monitoring_anomaly_causes_options o
+                JOIN ssd_crawl_db.ds_monitoring_targets t ON o.retailer_id = t.retailer_id
+                WHERE o.is_active = 1
+                ORDER BY t.retailer, o.sort_order, o.option_id
+            """)
+            cause_rows = cursor.fetchall()
+            for row in cause_rows:
+                retailer = row[0]
+                option_name = row[1]
+                if retailer not in cause_options:
+                    cause_options[retailer] = []
+                cause_options[retailer].append(option_name)
+
+        # 리테일러별 원인 카운트 요약 조회 (현황 메모 자동입력용)
+        cause_summary_query = """
+            SELECT t.retailer,
+                   COALESCE(a.cause, '') as cause,
+                   COUNT(*) as cnt
             FROM ssd_crawl_db.ds_monitoring_report_anomaly a
             LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
             WHERE a.crawl_date = %s AND a.is_del = 0
+            GROUP BY t.retailer, a.cause
+            ORDER BY t.retailer, cnt DESC
         """
-        params = [target_date]
-        if retailer_filter:
-            anomaly_query += " AND t.retailer = %s"
-            params.append(retailer_filter)
-        anomaly_query += " ORDER BY t.sort_order, t.retailer, a.id"
-
-        cursor.execute(anomaly_query, params)
-        anomaly_rows = cursor.fetchall()
-
-        anomalies = []
-        for row in anomaly_rows:
-            anomalies.append({
-                'id': row[0],
-                'retailer': row[1],
-                'country_code': row[2],
-                'title': row[3],
-                'retailprice': row[4],
-                'ships_from': row[5],
-                'sold_by': row[6],
-                'imageurl': row[7],
-                'producturl': row[8],
-                'retailersku': row[9] or '',
-                'screenshot_id': row[10],
-                'cause': row[11],
-                'memo': row[12],
-                'created_at': row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
-                'created_id': row[14],
-                'updated_at': row[15].strftime('%Y-%m-%d %H:%M:%S') if row[15] else None,
-                'updated_id': row[16]
-            })
-
-        # 리테일러별 원인 옵션 조회
-        cursor.execute("""
-            SELECT t.retailer, o.option_name
-            FROM ssd_crawl_db.ds_monitoring_anomaly_causes_options o
-            JOIN ssd_crawl_db.ds_monitoring_targets t ON o.retailer_id = t.retailer_id
-            WHERE o.is_active = 1
-            ORDER BY t.retailer, o.sort_order, o.option_id
-        """)
-        cause_rows = cursor.fetchall()
-        cause_options = {}
-        for row in cause_rows:
+        cursor.execute(cause_summary_query, [target_date])
+        cause_summary_rows = cursor.fetchall()
+        cause_summary = {}
+        for row in cause_summary_rows:
             retailer = row[0]
-            option_name = row[1]
-            if retailer not in cause_options:
-                cause_options[retailer] = []
-            cause_options[retailer].append(option_name)
+            cause = row[1] or '미입력'
+            cnt = row[2]
+            if retailer not in cause_summary:
+                cause_summary[retailer] = {}
+            cause_summary[retailer][cause] = cnt
 
-        cursor.close()
-        conn.close()
+        # 이상치 요약 카운트 조회 (현황/상세 공통)
+        summary_query = """
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN a.cause IS NOT NULL AND a.cause != '' THEN 1 ELSE 0 END) as filled_cause,
+                   SUM(CASE WHEN a.memo IS NOT NULL AND a.memo != '' THEN 1 ELSE 0 END) as filled_memo
+            FROM ssd_crawl_db.ds_monitoring_report_anomaly a
+            WHERE a.crawl_date = %s AND a.is_del = 0
+        """
+        summary_params = [target_date]
+        if retailer_filter:
+            summary_query += """ AND a.retailer_id IN (
+                SELECT t.retailer_id FROM ssd_crawl_db.ds_monitoring_targets t WHERE t.retailer = %s
+            )"""
+            summary_params.append(retailer_filter)
+        cursor.execute(summary_query, summary_params)
+        summary_row = cursor.fetchone()
+        total_anomalies = summary_row[0] if summary_row else 0
+        filled_cause = summary_row[1] if summary_row else 0
+        filled_memo = summary_row[2] if summary_row else 0
 
-        # 리테일러별 스크린샷 캡쳐 현황 계산
+        # 리테일러별 스크린샷 캡쳐 현황 조회
+        screenshot_query = """
+            SELECT t.retailer,
+                   COUNT(*) as total,
+                   SUM(CASE WHEN a.screenshot_id IS NOT NULL THEN 1 ELSE 0 END) as captured
+            FROM ssd_crawl_db.ds_monitoring_report_anomaly a
+            LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
+            WHERE a.crawl_date = %s AND a.is_del = 0
+            GROUP BY t.retailer
+        """
+        cursor.execute(screenshot_query, [target_date])
+        screenshot_rows = cursor.fetchall()
         screenshot_status_by_retailer = {}
-        for a in anomalies:
-            retailer = a['retailer']
-            if retailer not in screenshot_status_by_retailer:
-                screenshot_status_by_retailer[retailer] = {'total': 0, 'captured': 0}
-            screenshot_status_by_retailer[retailer]['total'] += 1
-            if a['screenshot_id']:
-                screenshot_status_by_retailer[retailer]['captured'] += 1
+        for row in screenshot_rows:
+            screenshot_status_by_retailer[row[0]] = {'total': row[1], 'captured': row[2]}
 
         # daily_reports에 all_screenshots_captured 필드 추가
         for report in daily_reports:
             retailer = report['retailer']
             status = screenshot_status_by_retailer.get(retailer, {'total': 0, 'captured': 0})
-            # 이상치가 있고 모두 캡쳐된 경우 True
             report['all_screenshots_captured'] = status['total'] > 0 and status['total'] == status['captured']
+
+        cursor.close()
+        conn.close()
 
         # 전체 모니터링 대상 리테일러 수
         all_targets = get_monitoring_targets()
@@ -1776,14 +1898,18 @@ def report_list(request):
         return JsonResponse({
             'success': True,
             'date': target_date,
+            'view': view_mode,
             'is_closed': is_closed,
             'closed_at': closed_at,
             'closed_id': closed_id,
             'daily_reports': daily_reports,
             'anomalies': anomalies,
-            'total_anomalies': len(anomalies),
+            'total_anomalies': total_anomalies,
+            'filled_cause': filled_cause,
+            'filled_memo': filled_memo,
             'total_retailers': total_retailers,
-            'cause_options': cause_options
+            'cause_options': cause_options,
+            'cause_summary': cause_summary
         })
 
     except Exception as e:

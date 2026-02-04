@@ -17,6 +17,7 @@ urlpatterns = [
     path('api/save-all/', api_views.report_save_all, name='api_save_all'),
     path('api/save-file-info/', api_views.report_save_file_info, name='api_save_file_info'),
     path('api/close/', api_views.report_close, name='api_close'),
+    path('api/cancel-close/', api_views.report_cancel_close, name='api_cancel_close'),
     path('api/status/', api_views.report_status, name='api_status'),
     path('api/report-list/', api_views.report_list, name='api_report_list'),
     path('api/screenshot/', api_views.get_screenshot_url, name='api_screenshot'),
