@@ -836,62 +836,6 @@
     .close-modal-btn:hover {
         background: #e2e8f0;
     }
-
-    /* 확인 모달 */
-    .confirm-overlay {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.45);
-        z-index: 10002;
-        justify-content: center;
-        align-items: center;
-    }
-    .confirm-overlay.show { display: flex; }
-    .confirm-box {
-        background: var(--bg-primary, #fff);
-        border-radius: 12px;
-        padding: 28px 32px 20px;
-        min-width: 320px;
-        max-width: 440px;
-        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-        text-align: center;
-    }
-    .confirm-box .confirm-icon {
-        margin-bottom: 12px;
-    }
-    .confirm-box .confirm-msg {
-        font-size: 15px;
-        font-weight: 500;
-        color: var(--text-primary, #1a1a1a);
-        line-height: 1.5;
-        margin-bottom: 24px;
-        white-space: pre-line;
-    }
-    .confirm-box .confirm-btns {
-        display: flex;
-        gap: 10px;
-        justify-content: center;
-    }
-    .confirm-box .confirm-btn {
-        padding: 9px 28px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        border: none;
-        cursor: pointer;
-        transition: opacity 0.15s;
-    }
-    .confirm-box .confirm-btn:hover { opacity: 0.85; }
-    .confirm-box .btn-ok {
-        background: #ef4444;
-        color: #fff;
-    }
-    .confirm-box .btn-cancel {
-        background: var(--bg-secondary, #f3f4f6);
-        color: var(--text-primary, #1a1a1a);
-    }
-
     /* Empty State */
     .empty-state {
         text-align: center;
@@ -1202,7 +1146,7 @@
             </svg>
             <span id="saveAllBtnText">일괄현황 저장</span>
         </button>
-        <button class="btn btn-secondary" id="saveFileInfoBtn" onclick="saveFileInfo()" disabled>
+        <button class="btn btn-secondary" id="saveFileInfoBtn" onclick="saveFileInfo()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                 <polyline points="14 2 14 8 20 8"/>
@@ -1211,7 +1155,7 @@
             </svg>
             <span id="saveFileInfoBtnText">파일용량 저장</span>
         </button>
-        <button class="close-btn" id="closeBtn" onclick="closeReport()" disabled>
+        <button class="close-btn" id="closeBtn" onclick="closeReport()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                 <polyline points="22 4 12 14.01 9 11.01"/>
@@ -1293,7 +1237,7 @@
                 <button class="active" onclick="setReportView('status')">현황</button>
                 <button onclick="setReportView('detail')">상세</button>
             </div>
-            <button class="btn btn-secondary" onclick="openReportOutput()" id="reportOutputBtn" style="display: none;">
+            <button class="btn btn-secondary" onclick="openReportOutput()" id="reportOutputBtn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                     <polyline points="14 2 14 8 20 8"/>
@@ -1312,22 +1256,6 @@
         </div>
     </div>
     <div id="reportActions" style="text-align: right; padding: 16px 24px 20px;"></div>
-</div>
-
-<!-- 확인 모달 -->
-<div class="confirm-overlay" id="confirmOverlay">
-    <div class="confirm-box">
-        <div class="confirm-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40">
-                <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
-            </svg>
-        </div>
-        <div class="confirm-msg" id="confirmMsg"></div>
-        <div class="confirm-btns">
-            <button class="confirm-btn btn-ok" id="confirmOk">확인</button>
-            <button class="confirm-btn btn-cancel" id="confirmCancel">취소</button>
-        </div>
-    </div>
 </div>
 
 <!-- 스크린샷 모달 -->
@@ -1518,19 +1446,11 @@ function updateCloseButton(data) {
     const saveFileInfoBtnText = document.getElementById('saveFileInfoBtnText');
     const banner = document.getElementById('closedBanner');
     const bannerText = document.getElementById('closedBannerText');
-    const reportOutputBtn = document.getElementById('reportOutputBtn');
 
     // 전체 리테일러 수 (API 응답에 추가되어야 함, 없으면 기본값 사용)
     const totalRetailers = data.total_retailers || 0;
     const savedCount = data.daily_reports.length;
     const allSaved = totalRetailers > 0 && savedCount >= totalRetailers;
-
-    // 보고서 출력 버튼 표시/숨김 (마감된 경우에만 활성화)
-    if (data.is_closed) {
-        reportOutputBtn.style.display = 'inline-flex';
-    } else {
-        reportOutputBtn.style.display = 'none';
-    }
 
     if (data.is_closed) {
         // 마감된 상태: 저장 버튼들 숨기고, 마감 버튼만 표시
@@ -1557,23 +1477,12 @@ function updateCloseButton(data) {
             saveAllBtnText.textContent = `일괄현황 저장 (${savedCount}/${totalRetailers})`;
         }
 
-        // 파일용량 저장 버튼: 모든 리테일러가 저장되어 있을 때만 활성화
-        if (allSaved) {
-            saveFileInfoBtn.disabled = false;
-            saveFileInfoBtnText.textContent = '파일용량 저장';
-        } else {
-            saveFileInfoBtn.disabled = true;
-            saveFileInfoBtnText.textContent = '파일용량 저장';
-        }
+        // 파일용량 저장 버튼: 항상 활성화 (클릭 시 조건 체크)
+        saveFileInfoBtn.disabled = false;
 
-        // 마감 버튼: 모든 리테일러가 저장되어 있을 때만 활성화
-        if (allSaved) {
-            closeBtn.disabled = false;
-            closeBtnText.textContent = '마감';
-        } else {
-            closeBtn.disabled = true;
-            closeBtnText.textContent = '마감';
-        }
+        // 마감 버튼: 항상 활성화 (클릭 시 조건 체크)
+        closeBtn.disabled = false;
+        closeBtnText.textContent = '마감';
     }
 }
 
@@ -1641,7 +1550,14 @@ function renderReportTable(data) {
             <tbody>
     `;
 
-    data.daily_reports.forEach((report, idx) => {
+    // 이상치가 있는 리테일러만 필터링
+    const retailersWithAnomalies = data.daily_reports.filter(r => r.anomaly_total > 0);
+
+    if (retailersWithAnomalies.length === 0) {
+        html += `<tr><td colspan="3" style="text-align: center; padding: 40px; color: #666;">이상치가 있는 리테일러가 없습니다.</td></tr>`;
+    }
+
+    retailersWithAnomalies.forEach((report, idx) => {
         const retailerAnomalies = anomaliesByRetailer[report.retailer] || [];
         const escRetailer = report.retailer.replace(/'/g, "\\'");
 
@@ -1653,8 +1569,8 @@ function renderReportTable(data) {
                     </svg>
                 </td>
                 <td onclick="toggleAnomalies(${idx}, '${escRetailer}')"><strong>${report.retailer}</strong></td>
-                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')" style="color: ${report.anomaly_total > 0 ? '#dc2626' : '#16a34a'}; font-weight: 600;">
-                    ${report.anomaly_total || 0}
+                <td onclick="toggleAnomalies(${idx}, '${escRetailer}')" style="color: #dc2626; font-weight: 600;">
+                    ${report.anomaly_total}
                 </td>
             </tr>
             <tr class="anomaly-details" id="anomalyDetails${idx}">
@@ -2319,7 +2235,7 @@ async function saveAllStatus() {
     const savedCount = reportData?.daily_reports?.length || 0;
     const totalRetailers = reportData?.total_retailers || 0;
 
-    const confirmed = await showConfirm(`${date} 미저장 리테일러를 일괄 저장하시겠습니까?\n\n현재 저장: ${savedCount}/${totalRetailers}개`);
+    const confirmed = await showConfirm(`이상치 저장을 모두 완료하셨습니까?\n\n(일괄현황 저장은 수정이 불가합니다)`, 'warning');
     if (!confirmed) {
         return;
     }
@@ -2357,8 +2273,16 @@ async function saveAllStatus() {
 // 파일용량 저장
 async function saveFileInfo() {
     const date = document.getElementById('targetDate').value;
+    const savedCount = reportData?.daily_reports?.length || 0;
+    const totalRetailers = reportData?.total_retailers || 17;
 
-    const confirmed = await showConfirm(`${date} 파일서버에서 파일 정보를 조회하여 저장하시겠습니까?`);
+    // 일괄현황 저장 완료 여부 체크
+    if (savedCount < totalRetailers) {
+        showToast('일괄현황 저장을 먼저 진행하여 주세요.', 'warning');
+        return;
+    }
+
+    const confirmed = await showConfirm('파일용량을 저장하시겠습니까?', 'info');
     if (!confirmed) {
         return;
     }
@@ -2395,10 +2319,23 @@ async function saveFileInfo() {
 
 async function closeReport() {
     const date = document.getElementById('targetDate').value;
-    const savedCount = reportData?.daily_reports?.length || 0;
     const totalRetailers = reportData?.total_retailers || 0;
+    const savedCount = reportData?.daily_reports?.length || 0;
+    const fileSavedCount = reportData?.daily_reports?.filter(r => r.file_size > 0).length || 0;
 
-    const confirmed = await showConfirm(`${date} 날짜를 마감하시겠습니까?\n\n저장된 리테일러: ${savedCount}/${totalRetailers}개\n\n마감 후에는 수정할 수 없습니다.`);
+    // 현황 저장 완료 체크
+    if (savedCount < totalRetailers) {
+        showToast(`현황 저장이 완료되지 않았습니다. (${savedCount}/${totalRetailers})`, 'warning');
+        return;
+    }
+
+    // 파일용량 저장 완료 체크
+    if (fileSavedCount < totalRetailers) {
+        showToast(`파일용량 저장이 완료되지 않았습니다. (${fileSavedCount}/${totalRetailers})`, 'warning');
+        return;
+    }
+
+    const confirmed = await showConfirm(`${date} 날짜를 마감하시겠습니까?\n\n현황 저장: ${savedCount}/${totalRetailers}개\n파일용량 저장: ${fileSavedCount}/${totalRetailers}개\n\n마감 후에는 수정할 수 없습니다.`, 'warning');
     if (!confirmed) {
         return;
     }
@@ -2429,14 +2366,37 @@ async function closeReport() {
 // showToast는 common.js에서 로드
 
 // 보고서 출력 모달 열기
-function openReportOutput() {
+// 복사용 텍스트 저장 변수
+let reportTextForCopy = '';
+
+async function openReportOutput() {
     if (!reportData || reportData.daily_reports.length === 0) {
         showToast('출력할 보고서가 없습니다.', 'warning');
         return;
     }
 
-    const content = generateReportText();
-    document.getElementById('reportOutputContent').textContent = content;
+    // 마감 여부 체크
+    if (!isClosed) {
+        showToast('마감 후 출력이 가능합니다.', 'warning');
+        return;
+    }
+
+    // 파일 용량 7일 히스토리 조회
+    const date = document.getElementById('targetDate').value;
+    let fileSizeHistory = null;
+    try {
+        const response = await fetch(`/ds/layer2/api/file-size-history/?end_date=${date}&days=7`);
+        if (response.ok) {
+            fileSizeHistory = await response.json();
+        }
+    } catch (e) {
+        console.error('파일 용량 히스토리 조회 실패:', e);
+    }
+
+    // 복사용 텍스트와 표시용 HTML 생성
+    const { text, html } = generateReportContent(fileSizeHistory);
+    reportTextForCopy = text;
+    document.getElementById('reportOutputContent').innerHTML = html;
     document.getElementById('reportOutputOverlay').classList.add('show');
 
     // 복사 버튼 텍스트 초기화
@@ -2449,19 +2409,22 @@ function closeReportOutput() {
     document.getElementById('reportOutputOverlay').classList.remove('show');
 }
 
-// 보고서 텍스트 생성
-function generateReportText() {
+// 보고서 콘텐츠 생성 (텍스트 + HTML)
+function generateReportContent(fileSizeHistory) {
     const date = document.getElementById('targetDate').value;
 
-    let text = `ds 모니터링 보고\n\n`;
-    text += `수집일시 : ${date}\n\n`;
-
-    // [요약] 섹션
+    // 공통 데이터
     const totalRetailers = reportData.daily_reports.length;
     const rerunCount = reportData.daily_reports.filter(r => r.rerun_count > 0).length;
     const issueRetailers = reportData.daily_reports.filter(r => r.anomaly_total > 0);
     const issueCount = issueRetailers.length;
     const issueDataCount = reportData.total_anomalies;
+    const rerunRetailers = reportData.daily_reports.filter(r => r.rerun_count > 0);
+    const issueLines = buildIssueLines();
+
+    // ===== 복사용 텍스트 생성 =====
+    let text = `ds 모니터링 보고\n\n`;
+    text += `수집일시 : ${date}\n\n`;
 
     text += `[요약]\n`;
     text += `수집현황: 정상 (${totalRetailers}개 리테일러 100% 완료)\n`;
@@ -2469,8 +2432,6 @@ function generateReportText() {
     text += `데이터품질: ${issueCount > 0 ? `이슈 ${issueCount}건 (${issueDataCount}건 데이터)` : '정상'}\n`;
     text += `파일질라: 정상\n\n`;
 
-    // [재실행] 섹션
-    const rerunRetailers = reportData.daily_reports.filter(r => r.rerun_count > 0);
     if (rerunRetailers.length > 0) {
         text += `[재실행]\n`;
         rerunRetailers.forEach(r => {
@@ -2479,8 +2440,6 @@ function generateReportText() {
         text += `\n`;
     }
 
-    // [이슈 내용] 섹션 - 리테일러별 이상치 그룹화 + 메모
-    const issueLines = buildIssueLines();
     if (issueLines.length > 0) {
         text += `[이슈 내용]\n`;
         issueLines.forEach(line => {
@@ -2489,10 +2448,7 @@ function generateReportText() {
         text += `\n`;
     }
 
-    // [상세] 섹션
     text += `[상세]\n`;
-
-    // 1. 리테일러별 수집건수 (최종배치 건수)
     text += `1. 리테일러 ${totalRetailers}건 : 수집건수 / 수집예상건수\n`;
     reportData.daily_reports.forEach(r => {
         const finalCount = r.final_batch_count || 0;
@@ -2500,7 +2456,6 @@ function generateReportText() {
         text += `\t- ${r.retailer}  ${finalCount}/${expected}\n`;
     });
 
-    // 2. 특이사항
     text += `\n2. 특이사항\n`;
     if (issueLines.length > 0) {
         issueLines.forEach(line => {
@@ -2510,11 +2465,95 @@ function generateReportText() {
         text += `\t- 없음\n`;
     }
 
-    // 3. 파일질라 용량 보고
     text += `\n3. 파일질라 용량 보고\n`;
-    text += `\t- 하단 이미지 파일 참고\n`;
+    if (fileSizeHistory && fileSizeHistory.retailers && fileSizeHistory.retailers.length > 0) {
+        const dateHeaders = fileSizeHistory.dates.map(d => {
+            const parts = d.split('-');
+            return `${parts[1]}/${parts[2]}`;
+        });
+        text += `리테일러\t평균\t${dateHeaders.join('\t')}\n`;
+        fileSizeHistory.retailers.forEach(r => {
+            const sizes = r.sizes.map(s => s > 0 ? s.toLocaleString() : '-');
+            const avg = r.avg > 0 ? r.avg.toLocaleString() : '-';
+            text += `${r.retailer}\t${avg}\t${sizes.join('\t')}\n`;
+        });
+    }
 
-    return text;
+    // ===== 화면 표시용 HTML 생성 =====
+    let html = `<pre style="margin:0; white-space:pre-wrap;">ds 모니터링 보고\n\n`;
+    html += `수집일시 : ${date}\n\n`;
+
+    html += `[요약]\n`;
+    html += `수집현황: 정상 (${totalRetailers}개 리테일러 100% 완료)\n`;
+    html += `재실행: ${rerunCount}건\n`;
+    html += `데이터품질: ${issueCount > 0 ? `이슈 ${issueCount}건 (${issueDataCount}건 데이터)` : '정상'}\n`;
+    html += `파일질라: 정상\n\n`;
+
+    if (rerunRetailers.length > 0) {
+        html += `[재실행]\n`;
+        rerunRetailers.forEach(r => {
+            html += `${r.retailer}  재실행 ${r.rerun_count}회\n`;
+        });
+        html += `\n`;
+    }
+
+    if (issueLines.length > 0) {
+        html += `[이슈 내용]\n`;
+        issueLines.forEach(line => {
+            html += line + `\n`;
+        });
+        html += `\n`;
+    }
+
+    html += `[상세]\n`;
+    html += `1. 리테일러 ${totalRetailers}건 : 수집건수 / 수집예상건수\n`;
+    reportData.daily_reports.forEach(r => {
+        const finalCount = r.final_batch_count || 0;
+        const expected = r.expected_count || finalCount;
+        html += `    - ${r.retailer}  ${finalCount}/${expected}\n`;
+    });
+
+    html += `\n2. 특이사항\n`;
+    if (issueLines.length > 0) {
+        issueLines.forEach(line => {
+            html += `    - ${line}\n`;
+        });
+    } else {
+        html += `    - 없음\n`;
+    }
+
+    html += `\n3. 파일질라 용량 보고</pre>`;
+
+    // HTML 테이블
+    if (fileSizeHistory && fileSizeHistory.retailers && fileSizeHistory.retailers.length > 0) {
+        const dateHeaders = fileSizeHistory.dates.map(d => {
+            const parts = d.split('-');
+            return `${parts[1]}/${parts[2]}`;
+        });
+
+        html += `<table class="file-size-table" style="border-collapse:collapse; margin-top:8px; font-size:13px; width:100%;">`;
+        html += `<thead><tr style="background:#f5f5f5;">`;
+        html += `<th style="border:1px solid #ddd; padding:6px 10px; text-align:left;">리테일러</th>`;
+        html += `<th style="border:1px solid #ddd; padding:6px 10px; text-align:right;">평균</th>`;
+        dateHeaders.forEach(d => {
+            html += `<th style="border:1px solid #ddd; padding:6px 10px; text-align:right;">${d}</th>`;
+        });
+        html += `</tr></thead><tbody>`;
+
+        fileSizeHistory.retailers.forEach(r => {
+            html += `<tr>`;
+            html += `<td style="border:1px solid #ddd; padding:6px 10px;">${r.retailer}</td>`;
+            html += `<td style="border:1px solid #ddd; padding:6px 10px; text-align:right; font-weight:bold;">${r.avg > 0 ? r.avg.toLocaleString() : '-'}</td>`;
+            r.sizes.forEach(s => {
+                html += `<td style="border:1px solid #ddd; padding:6px 10px; text-align:right;">${s > 0 ? s.toLocaleString() : '-'}</td>`;
+            });
+            html += `</tr>`;
+        });
+
+        html += `</tbody></table>`;
+    }
+
+    return { text, html };
 }
 
 // 이슈 내용 라인 생성 (리테일러별 이상치 유형 + 메모 그룹화)
@@ -2608,7 +2647,7 @@ function buildIssueLines() {
 
 // 클립보드에 복사
 async function copyReportToClipboard() {
-    const content = document.getElementById('reportOutputContent').textContent;
+    const content = reportTextForCopy;
 
     try {
         await navigator.clipboard.writeText(content);
@@ -2711,28 +2750,7 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// 커스텀 확인 모달
-function showConfirm(msg) {
-    return new Promise(function(resolve) {
-        var overlay = document.getElementById('confirmOverlay');
-        document.getElementById('confirmMsg').textContent = msg;
-        overlay.classList.add('show');
-        var ok = document.getElementById('confirmOk');
-        var cancel = document.getElementById('confirmCancel');
-        function cleanup() {
-            overlay.classList.remove('show');
-            ok.removeEventListener('click', onOk);
-            cancel.removeEventListener('click', onCancel);
-            overlay.removeEventListener('click', onBg);
-        }
-        function onOk() { cleanup(); resolve(true); }
-        function onCancel() { cleanup(); resolve(false); }
-        function onBg(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
-        ok.addEventListener('click', onOk);
-        cancel.addEventListener('click', onCancel);
-        overlay.addEventListener('click', onBg);
-    });
-}
+// showConfirm은 common.js에서 로드
 
 // CSRF 토큰 가져오기
 function getCsrfToken() {
@@ -2781,10 +2799,142 @@ function renderCaptureButton(report) {
     }
 }
 
+// 스크린샷 캡쳐 폴링 관리
+const capturePollers = {}; // { retailer: { pollId, timeoutId } }
+
+function stopCapturePolling(retailer) {
+    if (capturePollers[retailer]) {
+        clearInterval(capturePollers[retailer].pollId);
+        clearTimeout(capturePollers[retailer].timeoutId);
+        delete capturePollers[retailer];
+    }
+}
+
+// 캡쳐 진행 팝업
+function showCaptureProgress(retailer) {
+    var existing = document.getElementById('captureProgressOverlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'captureProgressOverlay';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10002; display:flex; justify-content:center; align-items:center;';
+    overlay.innerHTML =
+        '<div style="background:#fff; border-radius:12px; padding:28px 32px 20px; min-width:340px; max-width:440px; box-shadow:0 12px 40px rgba(0,0,0,0.25); text-align:center;">' +
+            '<div style="margin-bottom:16px;">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" width="40" height="40" style="animation: spin 2s linear infinite;">' +
+                    '<circle cx="12" cy="12" r="10" stroke-dasharray="30" stroke-dashoffset="10"/>' +
+                '</svg>' +
+            '</div>' +
+            '<div style="font-size:16px; font-weight:600; color:#1a1a1a; margin-bottom:8px;">' + retailer + ' 캡쳐 진행 중</div>' +
+            '<div id="captureProgressStatus" style="font-size:20px; font-weight:700; color:#2563eb; margin-bottom:12px;">확인 중...</div>' +
+            '<div style="font-size:13px; color:#6b7280; margin-bottom:20px;">캡쳐 프로그램은 약 1~10분 정도 소요됩니다.</div>' +
+            '<button id="captureProgressClose" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:#f3f4f6; color:#1a1a1a; transition:opacity 0.15s;">닫기</button>' +
+        '</div>';
+    document.body.appendChild(overlay);
+
+    document.getElementById('captureProgressClose').addEventListener('click', function() {
+        overlay.remove();
+    });
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) overlay.remove();
+    });
+}
+
+function updateCaptureProgress(captured, total) {
+    var el = document.getElementById('captureProgressStatus');
+    if (el) el.textContent = captured + ' / ' + total + ' 완료';
+}
+
+function closeCaptureProgress(success, retailer, captured, total) {
+    var overlay = document.getElementById('captureProgressOverlay');
+    if (!overlay) return;
+
+    // 아이콘과 텍스트를 완료/타임아웃으로 변경
+    var box = overlay.querySelector('div > div');
+    if (success) {
+        overlay.querySelector('svg').outerHTML =
+            '<svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" width="40" height="40"><polyline points="20 6 9 17 4 12"/></svg>';
+        overlay.querySelector('div > div:nth-child(2)').textContent = retailer + ' 캡쳐 완료';
+        overlay.querySelector('div > div:nth-child(2)').style.color = '#22c55e';
+        document.getElementById('captureProgressStatus').textContent = captured + ' / ' + total + ' 완료';
+        document.getElementById('captureProgressStatus').style.color = '#22c55e';
+    } else {
+        overlay.querySelector('svg').outerHTML =
+            '<svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+        overlay.querySelector('div > div:nth-child(2)').textContent = retailer + ' 캡쳐 시간 초과';
+        overlay.querySelector('div > div:nth-child(2)').style.color = '#ef4444';
+        document.getElementById('captureProgressStatus').textContent = captured + ' / ' + total + ' 완료';
+        document.getElementById('captureProgressStatus').style.color = '#ef4444';
+    }
+    // 안내 메시지 숨김
+    var hint = overlay.querySelector('div > div:nth-child(4)');
+    if (hint) hint.style.display = 'none';
+}
+
+function startCapturePolling(retailer, date) {
+    // 이미 폴링 중이면 중복 방지
+    stopCapturePolling(retailer);
+
+    const btn = document.querySelector(`button.btn-screenshot-capture[data-retailer="${retailer}"]`);
+
+    // 진행 팝업 표시
+    showCaptureProgress(retailer);
+
+    const pollId = setInterval(async () => {
+        try {
+            const res = await fetch(`/ds/layer2/api/screenshot-status/?retailer=${retailer}&crawl_date=${date}`);
+            const data = await res.json();
+
+            // 팝업 진행상황 업데이트
+            updateCaptureProgress(data.captured, data.total);
+
+            if (data.completed) {
+                stopCapturePolling(retailer);
+                closeCaptureProgress(true, retailer, data.captured, data.total);
+                // 버튼을 완료 상태로 변경
+                if (btn) {
+                    btn.classList.remove('loading');
+                    btn.classList.add('completed');
+                    btn.disabled = true;
+                    btn.title = '캡쳐 완료';
+                    btn.onclick = null;
+                    btn.innerHTML = `
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                    `;
+                }
+            }
+        } catch (e) {
+            // 폴링 실패는 무시 (다음 주기에 재시도)
+        }
+    }, 30000);
+
+    // 10분 후 자동 중지
+    const timeoutId = setTimeout(() => {
+        clearInterval(pollId);
+        const poller = capturePollers[retailer];
+        delete capturePollers[retailer];
+        closeCaptureProgress(false, retailer, '?', '?');
+        // 버튼 복구
+        if (btn) {
+            btn.classList.remove('loading');
+            btn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+            `;
+        }
+    }, 10 * 60 * 1000);
+
+    capturePollers[retailer] = { pollId, timeoutId };
+}
+
 // 스크린샷 캡쳐 함수
 async function captureScreenshot(retailer) {
     // 확인 팝업
-    const confirmed = await showConfirm(`${retailer} 캡쳐 프로그램을 실행하시겠습니까?`);
+    const confirmed = await showConfirm(`${retailer} 캡쳐 프로그램을 실행하시겠습니까?`, 'info');
     if (!confirmed) {
         return;
     }
@@ -2819,23 +2969,33 @@ async function captureScreenshot(retailer) {
         const result = await response.json();
 
         if (result.success) {
-            showToast(`${retailer} 캡쳐 명령 전송 완료`, 'success');
+            // 폴링 시작 (30초 간격, 10분 타임아웃) + 진행 팝업 표시
+            startCapturePolling(retailer, date);
         } else {
             showToast('캡쳐 실패: ' + result.error, 'error');
+            // 실패 시 버튼 복구
+            if (btn) {
+                btn.classList.remove('loading');
+                btn.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                        <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                `;
+            }
         }
     } catch (error) {
         showToast('캡쳐 요청 실패: ' + error, 'error');
-    }
-
-    // 버튼 복구 (카메라 아이콘)
-    if (btn) {
-        btn.classList.remove('loading');
-        btn.innerHTML = `
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-            </svg>
-        `;
+        // 실패 시 버튼 복구
+        if (btn) {
+            btn.classList.remove('loading');
+            btn.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+            `;
+        }
     }
 }
 </script>

@@ -283,6 +283,59 @@ function showToast(message, type = 'info', duration = 3000) {
     }, duration);
 }
 
+// 커스텀 확인 다이얼로그
+// type: 'warning'(경고, 빨간색) | 'info'(안내, 파란색)
+function showConfirm(msg, type) {
+    if (!type) type = 'info';
+
+    var icons = {
+        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/></svg>',
+        info: '<svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" width="40" height="40"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
+    };
+    var colors = {
+        warning: '#ef4444',
+        info: '#2563eb'
+    };
+
+    return new Promise(function(resolve) {
+        // 기존 오버레이가 있으면 제거 후 재생성 (타입별 스타일 변경)
+        var existing = document.getElementById('confirmOverlay');
+        if (existing) existing.remove();
+
+        var overlay = document.createElement('div');
+        overlay.id = 'confirmOverlay';
+        overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10002; display:flex; justify-content:center; align-items:center;';
+        overlay.innerHTML =
+            '<div style="background:#fff; border-radius:12px; padding:28px 32px 20px; min-width:320px; max-width:440px; box-shadow:0 12px 40px rgba(0,0,0,0.25); text-align:center;">' +
+                '<div style="margin-bottom:12px;">' + icons[type] + '</div>' +
+                '<div id="confirmMsg" style="font-size:15px; font-weight:500; color:#1a1a1a; line-height:1.5; margin-bottom:24px; white-space:pre-line;"></div>' +
+                '<div style="display:flex; gap:10px; justify-content:center;">' +
+                    '<button id="confirmOk" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:' + colors[type] + '; color:#fff; transition:opacity 0.15s;">확인</button>' +
+                    '<button id="confirmCancel" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:#f3f4f6; color:#1a1a1a; transition:opacity 0.15s;">취소</button>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(overlay);
+
+        document.getElementById('confirmMsg').textContent = msg;
+
+        var ok = document.getElementById('confirmOk');
+        var cancel = document.getElementById('confirmCancel');
+
+        function cleanup() {
+            overlay.remove();
+            ok.removeEventListener('click', onOk);
+            cancel.removeEventListener('click', onCancel);
+            overlay.removeEventListener('click', onBg);
+        }
+        function onOk() { cleanup(); resolve(true); }
+        function onCancel() { cleanup(); resolve(false); }
+        function onBg(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
+        ok.addEventListener('click', onOk);
+        cancel.addEventListener('click', onCancel);
+        overlay.addEventListener('click', onBg);
+    });
+}
+
 // 세션 타이머
 (function() {
     const SESSION_DURATION = 60 * 60; // 1시간 (초)

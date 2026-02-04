@@ -15,9 +15,10 @@ import paramiko
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from apps.common.db import get_ds_connection
 from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_instance, format_time
+from apps.common.response import error_response
 from config.config import FILE_SERVER_CONFIG, S3_CONFIG, SSM_CONFIG
 import boto3
 from botocore.exceptions import ClientError
@@ -1951,3 +1952,136 @@ def screenshot_capture(request):
     except Exception as e:
         print(f"[SSM ERROR] screenshot_capture: {str(e)}")
         return JsonResponse({'error': f'SSM 명령 실행 실패: {str(e)}'}, status=500)
+
+
+@require_http_methods(["GET"])
+def report_file_size_history(request):
+    """
+    최근 7일간 리테일러별 파일 용량 조회
+
+    GET 파라미터:
+    - end_date: 기준일 (YYYY-MM-DD), 기본값: 어제
+    - days: 조회 일수 (기본값: 7)
+
+    반환: {
+        'dates': ['2026-01-28', '2026-01-29', ...],
+        'retailers': [
+            {'retailer': 'amazon_usa', 'sizes': [13480, 13608, ...], 'avg': 13550},
+            ...
+        ]
+    }
+    """
+    end_date_str = request.GET.get('end_date')
+    days = int(request.GET.get('days', 7))
+
+    if end_date_str:
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    else:
+        end_date = date.today() - timedelta(days=1)
+
+    start_date = end_date - timedelta(days=days - 1)
+
+    conn = None
+    cursor = None
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        # 날짜 목록 생성
+        dates = []
+        current = start_date
+        while current <= end_date:
+            dates.append(current.strftime('%Y-%m-%d'))
+            current += timedelta(days=1)
+
+        # 리테일러별 파일 용량 조회 (sort_order 순서)
+        cursor.execute("""
+            SELECT t.retailer, d.crawl_date, d.file_size
+            FROM ssd_crawl_db.ds_monitoring_report_daily d
+            JOIN ssd_crawl_db.ds_monitoring_targets t ON d.retailer_id = t.retailer_id
+            WHERE d.crawl_date BETWEEN %s AND %s AND d.is_del = 0
+            ORDER BY t.sort_order, t.retailer, d.crawl_date
+        """, (start_date, end_date))
+        rows = cursor.fetchall()
+
+        # 리테일러별로 그룹화
+        retailer_data = {}
+        retailer_order = []
+
+        for retailer, crawl_date, file_size in rows:
+            if retailer not in retailer_data:
+                retailer_data[retailer] = {}
+                retailer_order.append(retailer)
+            # crawl_date가 문자열이면 그대로, date 객체면 변환
+            date_key = crawl_date if isinstance(crawl_date, str) else crawl_date.strftime('%Y-%m-%d')
+            retailer_data[retailer][date_key] = file_size or 0
+
+        # 결과 포맷
+        retailers = []
+        for retailer in retailer_order:
+            sizes = [retailer_data[retailer].get(d, 0) for d in dates]
+            valid_sizes = [s for s in sizes if s > 0]
+            avg = round(sum(valid_sizes) / len(valid_sizes)) if valid_sizes else 0
+            retailers.append({
+                'retailer': retailer,
+                'sizes': sizes,
+                'avg': avg
+            })
+
+        return JsonResponse({
+            'dates': dates,
+            'retailers': retailers
+        })
+
+    except Exception as e:
+        return error_response(e, '파일 용량 히스토리 조회 실패')
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@require_http_methods(["GET"])
+def screenshot_status(request):
+    """리테일러별 스크린샷 캡쳐 상태 조회 API"""
+    retailer = request.GET.get('retailer')
+    crawl_date = request.GET.get('crawl_date')
+
+    if not retailer or not crawl_date:
+        return JsonResponse({'error': '리테일러와 날짜가 필요합니다.'}, status=400)
+
+    conn = None
+    cursor = None
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN a.screenshot_id IS NOT NULL THEN 1 ELSE 0 END) as captured
+            FROM ssd_crawl_db.ds_monitoring_report_anomaly a
+            JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
+            WHERE LOWER(t.retailer) = LOWER(%s) AND a.crawl_date = %s
+        """, (retailer, crawl_date))
+
+        row = cursor.fetchone()
+        total = row[0] or 0
+        captured = row[1] or 0
+
+        return JsonResponse({
+            'retailer': retailer,
+            'total': total,
+            'captured': captured,
+            'remaining': total - captured,
+            'completed': total == captured
+        })
+
+    except Exception as e:
+        return error_response(e, '스크린샷 상태 조회 실패')
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
