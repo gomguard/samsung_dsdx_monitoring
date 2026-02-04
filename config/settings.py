@@ -6,7 +6,7 @@ Django settings for monitoring_dsdx project.
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from .config import DB_CONFIG, DB_CONFIG_V2
+from .config import DB_CONFIG, DB_CONFIG_V2, SERVER_CONFIG
 
 load_dotenv()
 
@@ -16,9 +16,9 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'your-secret-key-here-change-in-prod
 
 import socket
 _hostname = socket.gethostname()
-DEBUG = _hostname not in ['ip-172-30-3-152']  # 운영서버 hostname이면 False, 아니면 True (개발)
+DEBUG = _hostname not in [SERVER_CONFIG['hostname']]  # 운영서버 hostname이면 False, 아니면 True (개발)
 
-ALLOWED_HOSTS = ['3.38.110.234', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = SERVER_CONFIG['allowed_hosts']
 
 # Application definition
 INSTALLED_APPS = [
