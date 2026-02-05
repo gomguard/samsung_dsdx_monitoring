@@ -380,7 +380,7 @@ def layer_stats(request):
         total_all_null = 0
         total_valid = 0
 
-        for idx, (table_name, retailer, region, korea_time, country, mall_name, instance_id) in enumerate(load_monitoring_targets_with_instance(), 1):
+        for idx, (table_name, retailer, region, korea_time, country, mall_name, instance_id, schedule_name) in enumerate(load_monitoring_targets_with_instance(), 1):
             retailer_batches = batches_by_retailer.get(retailer, [])
 
             # 배치가 2개 이상이고 'final' 뷰인 경우, 마지막 배치만 조회

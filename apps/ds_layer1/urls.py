@@ -15,6 +15,9 @@ urlpatterns = [
     path('api/range/', api_views.date_range_stats, name='api_date_range'),
     path('api/fileserver/', api_views.fileserver_stats, name='api_fileserver'),
 
+    # 크롤러 재실행 API
+    path('api/rerun-crawler/', api_views.rerun_crawler, name='api_rerun_crawler'),
+
     # Batch management API
     path('api/batch/', api_views.batch_list, name='api_batch_list'),
     path('api/batch/init/', api_views.batch_init, name='api_batch_init'),

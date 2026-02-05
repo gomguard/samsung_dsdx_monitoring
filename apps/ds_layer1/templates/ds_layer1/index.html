@@ -1016,6 +1016,56 @@
         background: #d97706;
     }
 
+    /* 재실행 버튼 */
+    .btn-rerun {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        min-height: 32px;
+        max-width: 32px;
+        max-height: 32px;
+        padding: 0;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #eef2ff;
+        color: #4338ca;
+        transition: all 0.2s;
+        overflow: hidden;
+    }
+
+    .btn-rerun:hover {
+        background: #c7d2fe;
+        color: #3730a3;
+    }
+
+    .btn-rerun svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .btn-rerun.loading {
+        pointer-events: none;
+        opacity: 0.7;
+    }
+
+    .retailer-table th.col-rerun,
+    .retailer-table td.col-rerun {
+        width: 80px;
+        text-align: center;
+    }
+
+    .retailer-table td.col-rerun {
+        white-space: nowrap;
+    }
+
+    .retailer-table td.col-rerun button {
+        vertical-align: middle;
+    }
+
 </style>
 {% endblock %}
 
@@ -1572,6 +1622,16 @@ function renderAllView(data) {
         return;
     }
 
+    // 서버 시간 기준 오늘/어제만 재실행 컬럼 표시
+    const serverDate = data.timestamp ? data.timestamp.split('T')[0] : '';
+    const serverToday = new Date(serverDate);
+    const serverYesterday = new Date(serverToday);
+    serverYesterday.setDate(serverYesterday.getDate() - 1);
+    const queryDate = data.date;
+    const todayStr = serverToday.toISOString().split('T')[0];
+    const yesterdayStr = serverYesterday.toISOString().split('T')[0];
+    const showRerun = (queryDate === todayStr || queryDate === yesterdayStr);
+
     let html = `
         <table class="retailer-table">
             <thead>
@@ -1585,6 +1645,7 @@ function renderAllView(data) {
                     <th>실제</th>
                     <th>완료율</th>
                     <th>상태</th>
+                    ${showRerun ? '<th class="col-rerun">재실행</th>' : ''}
                 </tr>
             </thead>
             <tbody>
@@ -1630,6 +1691,22 @@ function renderAllView(data) {
                         ${getStatusLabel(statusClass)}
                     </span>
                 </td>
+                ${showRerun ? `<td class="col-rerun" onclick="event.stopPropagation()">
+                    ${item.has_instance && statusClass !== 'pending'
+                        ? `<button class="btn-rerun" data-retailer="${item.retailer}" onclick="rerunCrawler('${item.retailer}')" title="${item.retailer} 크롤러 재실행">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                            </svg>
+                        </button>`
+                        : `<button class="btn-rerun" disabled title="${statusClass === 'pending' ? '수집 대기중' : 'instance_id 없음'}" style="opacity:0.3; cursor:not-allowed;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 4 23 10 17 10"/>
+                                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                            </svg>
+                        </button>`
+                    }
+                </td>` : ''}
             </tr>
         `;
 
@@ -1673,6 +1750,7 @@ function renderAllView(data) {
                                 ${getStatusLabel(batchStatusClass)}
                             </span>
                         </td>
+                        ${showRerun ? '<td></td>' : ''}
                     </tr>
                 `;
             }
@@ -1901,6 +1979,61 @@ function getCsrfToken() {
         }
     }
     return '';
+}
+
+// 크롤러 재실행
+async function rerunCrawler(retailer) {
+    const confirmed = await showConfirm(`${retailer}\n크롤러를 재실행하시겠습니까?`);
+    if (!confirmed) return;
+
+    const date = document.getElementById('targetDate').value;
+    const btn = document.querySelector(`button.btn-rerun[data-retailer="${retailer}"]`);
+
+    if (btn) {
+        btn.classList.add('loading');
+        btn.innerHTML = `
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                <circle cx="12" cy="12" r="10" stroke-dasharray="30" stroke-dashoffset="10"/>
+            </svg>
+        `;
+    }
+
+    try {
+        const response = await fetch('/ds/layer1/api/rerun-crawler/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                retailer: retailer,
+                crawl_date: date
+            })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast(`${retailer} 크롤러 재실행 요청 완료`);
+            if (btn) {
+                btn.classList.remove('loading');
+                btn.disabled = true;
+                btn.onclick = null;
+                btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`;
+            }
+        } else {
+            showToast(result.error || '재실행 요청 실패');
+            if (btn) {
+                btn.classList.remove('loading');
+                btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`;
+            }
+        }
+    } catch (error) {
+        showToast('재실행 요청 실패');
+        if (btn) {
+            btn.classList.remove('loading');
+            btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`;
+        }
+    }
 }
 
 // ESC 키로 모달 닫기

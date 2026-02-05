@@ -124,7 +124,7 @@ def load_monitoring_targets_with_instance():
     DB에서 모니터링 대상 목록을 로드 (instance_id 포함)
 
     Returns:
-        list of tuples: (table_name, retailer, region, korea_time, country, mall_name, instance_id)
+        list of tuples: (table_name, retailer, region, korea_time, country, mall_name, instance_id, schedule_name)
     """
     targets = []
 
@@ -133,7 +133,7 @@ def load_monitoring_targets_with_instance():
         cursor = conn.cursor()
 
         query = """
-            SELECT table_name, retailer, region, korea_time, country, mall_name, instance_id
+            SELECT table_name, retailer, region, korea_time, country, mall_name, instance_id, schedule_name
             FROM ssd_crawl_db.ds_monitoring_targets
             WHERE is_active = TRUE
             ORDER BY sort_order
@@ -149,7 +149,8 @@ def load_monitoring_targets_with_instance():
                 format_time(row[3]),    # korea_time (HH:MM)
                 row[4],                 # country
                 row[5],                 # mall_name
-                row[6]                  # instance_id
+                row[6],                 # instance_id
+                row[7]                  # schedule_name
             ))
 
         cursor.close()

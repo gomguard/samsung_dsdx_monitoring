@@ -1485,8 +1485,15 @@ function updateCloseButton(data) {
             saveAllBtnText.textContent = `일괄현황 저장 (${savedCount}/${totalRetailers})`;
         }
 
-        // 파일용량 저장 버튼: 항상 활성화 (클릭 시 조건 체크)
-        saveFileInfoBtn.disabled = false;
+        // 파일용량 저장 버튼: 파일용량이 모두 저장되었으면 완료 표시
+        const fileSavedCount = data.daily_reports.filter(r => r.file_size > 0).length;
+        if (allSaved && fileSavedCount >= totalRetailers) {
+            saveFileInfoBtn.disabled = true;
+            saveFileInfoBtnText.textContent = `저장 완료 (${fileSavedCount}/${totalRetailers})`;
+        } else {
+            saveFileInfoBtn.disabled = false;
+            saveFileInfoBtnText.textContent = '파일용량 저장';
+        }
 
         // 마감 버튼: 항상 활성화 (클릭 시 조건 체크)
         closeBtn.disabled = false;
@@ -2440,8 +2447,24 @@ async function openReportOutput() {
         return;
     }
 
-    // 파일 용량 7일 히스토리 조회
     const date = document.getElementById('targetDate').value;
+
+    // 현황 모드에서는 anomalies가 없으므로, 상세 데이터 조회
+    if (!reportData.anomalies || reportData.anomalies.length === 0) {
+        try {
+            const response = await fetch(`/ds/layer2/api/report-list/?date=${date}&view=detail`);
+            if (response.ok) {
+                const detailData = await response.json();
+                if (detailData.success) {
+                    reportData.anomalies = detailData.anomalies || [];
+                }
+            }
+        } catch (e) {
+            console.error('이상치 데이터 조회 실패:', e);
+        }
+    }
+
+    // 파일 용량 7일 히스토리 조회
     let fileSizeHistory = null;
     try {
         const response = await fetch(`/ds/layer2/api/file-size-history/?end_date=${date}&days=7`);
@@ -2481,6 +2504,22 @@ function generateReportContent(fileSizeHistory) {
     const rerunRetailers = reportData.daily_reports.filter(r => r.rerun_count > 0);
     const issueLines = buildIssueLines();
 
+    // 파일질라 상태 판단 (7일 평균 vs 조회 날짜 용량, 200바이트 차이 기준)
+    let fileStatusText = '정상';
+    if (fileSizeHistory && fileSizeHistory.retailers && fileSizeHistory.retailers.length > 0) {
+        const abnormalRetailers = [];
+        fileSizeHistory.retailers.forEach(r => {
+            const todaySize = r.sizes[r.sizes.length - 1] || 0;
+            const avg = r.avg || 0;
+            if (avg > 0 && todaySize > 0 && Math.abs(todaySize - avg) > 200) {
+                abnormalRetailers.push(r.retailer);
+            }
+        });
+        if (abnormalRetailers.length > 0) {
+            fileStatusText = `비정상(${abnormalRetailers.join(', ')})`;
+        }
+    }
+
     // ===== 복사용 텍스트 생성 =====
     let text = `ds 모니터링 보고\n\n`;
     text += `수집일시 : ${date}\n\n`;
@@ -2489,7 +2528,7 @@ function generateReportContent(fileSizeHistory) {
     text += `수집현황: 정상 (${totalRetailers}개 리테일러 100% 완료)\n`;
     text += `재실행: ${rerunCount}건\n`;
     text += `데이터품질: ${issueCount > 0 ? `이슈 ${issueCount}건 (${issueDataCount}건 데이터)` : '정상'}\n`;
-    text += `파일질라: 정상\n\n`;
+    text += `파일질라: ${fileStatusText}\n\n`;
 
     if (rerunRetailers.length > 0) {
         text += `[재실행]\n`;
@@ -2526,13 +2565,13 @@ function generateReportContent(fileSizeHistory) {
 
     text += `\n3. 파일질라 용량 보고\n`;
     if (fileSizeHistory && fileSizeHistory.retailers && fileSizeHistory.retailers.length > 0) {
-        const dateHeaders = fileSizeHistory.dates.map(d => {
+        const dateHeaders = [...fileSizeHistory.dates].reverse().map(d => {
             const parts = d.split('-');
             return `${parts[1]}/${parts[2]}`;
         });
-        text += `리테일러\t평균\t${dateHeaders.join('\t')}\n`;
+        text += `리테일러\t7일 평균\t${dateHeaders.join('\t')}\n`;
         fileSizeHistory.retailers.forEach(r => {
-            const sizes = r.sizes.map(s => s > 0 ? s.toLocaleString() : '-');
+            const sizes = [...r.sizes].reverse().map(s => s > 0 ? s.toLocaleString() : '-');
             const avg = r.avg > 0 ? r.avg.toLocaleString() : '-';
             text += `${r.retailer}\t${avg}\t${sizes.join('\t')}\n`;
         });
@@ -2546,7 +2585,7 @@ function generateReportContent(fileSizeHistory) {
     html += `수집현황: 정상 (${totalRetailers}개 리테일러 100% 완료)\n`;
     html += `재실행: ${rerunCount}건\n`;
     html += `데이터품질: ${issueCount > 0 ? `이슈 ${issueCount}건 (${issueDataCount}건 데이터)` : '정상'}\n`;
-    html += `파일질라: 정상\n\n`;
+    html += `파일질라: ${fileStatusText}\n\n`;
 
     if (rerunRetailers.length > 0) {
         html += `[재실행]\n`;
@@ -2585,7 +2624,7 @@ function generateReportContent(fileSizeHistory) {
 
     // HTML 테이블
     if (fileSizeHistory && fileSizeHistory.retailers && fileSizeHistory.retailers.length > 0) {
-        const dateHeaders = fileSizeHistory.dates.map(d => {
+        const dateHeaders = [...fileSizeHistory.dates].reverse().map(d => {
             const parts = d.split('-');
             return `${parts[1]}/${parts[2]}`;
         });
@@ -2593,18 +2632,21 @@ function generateReportContent(fileSizeHistory) {
         html += `<table class="file-size-table" style="border-collapse:collapse; margin-top:8px; font-size:13px; width:100%;">`;
         html += `<thead><tr style="background:#f5f5f5;">`;
         html += `<th style="border:1px solid #ddd; padding:6px 10px; text-align:left;">리테일러</th>`;
-        html += `<th style="border:1px solid #ddd; padding:6px 10px; text-align:right;">평균</th>`;
-        dateHeaders.forEach(d => {
-            html += `<th style="border:1px solid #ddd; padding:6px 10px; text-align:right;">${d}</th>`;
+        html += `<th style="border:1px solid #ddd; padding:6px 10px; text-align:right;">7일 평균</th>`;
+        dateHeaders.forEach((d, i) => {
+            const bg = i === 0 ? ' background:#fffde7;' : '';
+            html += `<th style="border:1px solid #ddd; padding:6px 10px; text-align:right;${bg}">${d}</th>`;
         });
         html += `</tr></thead><tbody>`;
 
         fileSizeHistory.retailers.forEach(r => {
+            const sizes = [...r.sizes].reverse();
             html += `<tr>`;
             html += `<td style="border:1px solid #ddd; padding:6px 10px;">${r.retailer}</td>`;
             html += `<td style="border:1px solid #ddd; padding:6px 10px; text-align:right; font-weight:bold;">${r.avg > 0 ? r.avg.toLocaleString() : '-'}</td>`;
-            r.sizes.forEach(s => {
-                html += `<td style="border:1px solid #ddd; padding:6px 10px; text-align:right;">${s > 0 ? s.toLocaleString() : '-'}</td>`;
+            sizes.forEach((s, i) => {
+                const bg = i === 0 ? ' background:#fffde7;' : '';
+                html += `<td style="border:1px solid #ddd; padding:6px 10px; text-align:right;${bg}">${s > 0 ? s.toLocaleString() : '-'}</td>`;
             });
             html += `</tr>`;
         });
