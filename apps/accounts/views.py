@@ -646,7 +646,7 @@ def schedule_settings(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT retailer_id, table_name, retailer, region, korea_time, local_time,
+            SELECT retailer_id AS id, table_name, retailer, region, korea_time, local_time,
                    country, mall_name, is_active, updated_id, updated_at
             FROM ssd_crawl_db.ds_monitoring_targets
             WHERE is_del = false
@@ -739,7 +739,7 @@ def schedule_settings_update(request, target_id):
                 korea_time = %s, local_time = %s,
                 country = %s, mall_name = %s, is_active = %s,
                 updated_id = %s, updated_at = %s
-            WHERE id = %s
+            WHERE retailer_id = %s
         """, (table_name, retailer, region or None, korea_time or None, local_time or None,
               country, mall_name, is_active, request.user.username, datetime.now(), target_id))
         conn.commit()
@@ -763,7 +763,7 @@ def schedule_settings_delete(request, target_id):
         cursor.execute("""
             UPDATE ssd_crawl_db.ds_monitoring_targets
             SET is_del = true, is_active = false, updated_id = %s, updated_at = NOW()
-            WHERE id = %s
+            WHERE retailer_id = %s
         """, (request.user.username, target_id))
         conn.commit()
         cursor.close()
