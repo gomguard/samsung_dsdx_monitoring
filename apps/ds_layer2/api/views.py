@@ -2190,7 +2190,7 @@ def screenshot_status(request):
                 SUM(CASE WHEN a.screenshot_id IS NOT NULL THEN 1 ELSE 0 END) as captured
             FROM ssd_crawl_db.ds_monitoring_report_anomaly a
             JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
-            WHERE LOWER(t.retailer) = LOWER(%s) AND a.crawl_date = %s
+            WHERE LOWER(t.retailer) = LOWER(%s) AND a.crawl_date = %s AND a.is_del = 0
         """, (retailer, crawl_date))
 
         row = cursor.fetchone()
