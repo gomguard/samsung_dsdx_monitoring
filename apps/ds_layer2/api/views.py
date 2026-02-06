@@ -2046,7 +2046,8 @@ def screenshot_capture(request):
         param_file = 'C:\\samsung_ds_retail_com\\monitoring\\capture_params.json'
 
         # 파라미터를 JSON 파일로 저장 후 task 실행 (task 설정은 변경하지 않음)
-        param_json = f'{{"retailer": "{retailer_key}", "crawl_date": "{crawl_date}"}}'
+        created_id = request.user.username if request.user.is_authenticated else ''
+        param_json = f'{{"retailer": "{retailer_key}", "crawl_date": "{crawl_date}", "created_id": "{created_id}"}}'
 
         commands = [
             f'Set-Content -Path "{param_file}" -Value \'{param_json}\' -Encoding UTF8',
