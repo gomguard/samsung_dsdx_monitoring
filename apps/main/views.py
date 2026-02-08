@@ -4,6 +4,7 @@
 """
 
 from django.shortcuts import render
+from apps.common.db import get_dx_connection
 
 
 def index(request):
@@ -96,6 +97,87 @@ def dx_dashboard(request):
         ]
     }
     return render(request, 'main/dx_dashboard.html', context)
+
+
+def dx_documents(request):
+    """DX 문서 페이지"""
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT category_id, category_name, description, sort_order, category_type
+            FROM monitoring_document_categories
+            WHERE is_del = false AND is_active = true
+            ORDER BY sort_order, created_at
+        """)
+        columns = [desc[0] for desc in cursor.description]
+        categories = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        categories = []
+        print(f"[ERROR] Failed to load document categories: {e}")
+
+    context = {
+        'data_source': {
+            'id': 'dx',
+            'name': 'DX Retail',
+            'name_en': 'TV/HHP Retail Monitoring',
+            'color': '#0d9488',
+        },
+        'categories': categories,
+    }
+    return render(request, 'main/dx_documents.html', context)
+
+
+def dx_document_edit(request, document_id=None):
+    """DX 문서 편집 페이지"""
+    selected_category = request.GET.get('category', '')
+    template_content = ''
+
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT category_id, category_name, template_content, category_type
+            FROM monitoring_document_categories
+            WHERE is_del = false AND is_active = true
+            ORDER BY sort_order, created_at
+        """)
+        columns = [desc[0] for desc in cursor.description]
+        categories = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        categories = []
+        print(f"[ERROR] Failed to load categories for edit: {e}")
+
+    selected_category_name = ''
+    selected_category_type = int(request.GET.get('type', 1))
+    if selected_category:
+        for cat in categories:
+            if cat['category_id'] == selected_category:
+                selected_category_name = cat['category_name']
+                template_content = cat.get('template_content') or ''
+                selected_category_type = cat.get('category_type') or 1
+                break
+
+    context = {
+        'data_source': {
+            'id': 'dx',
+            'name': 'DX Retail',
+            'name_en': 'TV/HHP Retail Monitoring',
+            'color': '#0d9488',
+        },
+        'document_id': document_id,
+        'is_new': document_id is None,
+        'categories': categories,
+        'selected_category': selected_category,
+        'selected_category_name': selected_category_name,
+        'selected_category_type': selected_category_type,
+        'template_content': template_content,
+    }
+    return render(request, 'main/dx_document_edit.html', context)
 
 
 def ds_dashboard(request):

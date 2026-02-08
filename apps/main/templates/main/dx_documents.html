@@ -1,0 +1,664 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}DX Documents - 문서 관리{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 문서 페이지 레이아웃 */
+    .documents-layout {
+        display: flex;
+        min-height: calc(100vh - 64px - 60px);
+        margin: -32px -24px;
+    }
+
+    /* 좌측 사이드바 - 카테고리 */
+    .documents-sidebar {
+        width: 240px;
+        min-width: 240px;
+        background: var(--bg-secondary);
+        border-right: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .sidebar-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    /* 카테고리 목록 */
+    .category-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+    }
+
+    .category-item {
+        padding: 12px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .category-item:hover {
+        background: rgba(13, 148, 136, 0.08);
+        color: var(--text-primary);
+    }
+
+    .category-item.active {
+        background: rgba(13, 148, 136, 0.15);
+        color: #0d9488;
+        font-weight: 600;
+    }
+
+    .category-item svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+    }
+
+    .category-item-text {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .category-item-count {
+        font-size: 12px;
+        background: var(--bg-primary);
+        padding: 2px 8px;
+        border-radius: 10px;
+        color: var(--text-secondary);
+    }
+
+    .category-item.active .category-item-count {
+        background: rgba(13, 148, 136, 0.2);
+        color: #0d9488;
+    }
+
+    /* 우측 컨텐츠 영역 */
+    .documents-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-primary);
+    }
+
+    /* 컨텐츠 헤더 */
+    .content-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .content-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .content-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn-new-doc {
+        padding: 10px 20px;
+        background: #0d9488;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+
+    .btn-new-doc:hover {
+        background: #0f766e;
+    }
+
+    .btn-new-doc svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* 문서 리스트 테이블 */
+    .documents-table-wrapper {
+        flex: 1;
+        padding: 24px;
+        overflow: auto;
+    }
+
+    .documents-table-box {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .documents-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    .documents-table th {
+        text-align: left;
+        padding: 12px 16px;
+        background: var(--bg-secondary);
+        font-weight: 600;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .documents-table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .documents-table tbody tr {
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+
+    .documents-table tbody tr:hover {
+        background: rgba(13, 148, 136, 0.05);
+    }
+
+    .documents-table tbody tr.selected {
+        background: rgba(13, 148, 136, 0.1);
+    }
+
+    .doc-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .doc-meta {
+        color: var(--text-secondary);
+        font-size: 13px;
+    }
+
+    .btn-edit {
+        padding: 6px 14px;
+        background: #eef2ff;
+        color: #4338ca;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        white-space: nowrap;
+    }
+
+    .btn-edit:hover {
+        background: #e0e7ff;
+    }
+
+    /* 문서 없을 때 */
+    .no-documents {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-secondary);
+    }
+
+    .no-documents svg {
+        width: 64px;
+        height: 64px;
+        margin-bottom: 16px;
+        opacity: 0.4;
+    }
+
+    .no-documents p {
+        font-size: 15px;
+        margin-bottom: 20px;
+    }
+
+    /* 테이블 상단 툴바 */
+    .table-toolbar {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 10px;
+    }
+
+    /* 체크박스 */
+    .doc-checkbox {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        accent-color: #0d9488;
+    }
+
+    /* 보고서 팝업 */
+    .report-popup-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .report-popup-overlay.active {
+        display: flex;
+    }
+
+    .report-popup {
+        background: #fff;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 900px;
+        max-height: 92vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .report-popup.fullscreen {
+        width: 100%;
+        max-width: 100%;
+        max-height: 100%;
+        height: 100%;
+        border-radius: 0;
+    }
+
+    .report-popup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border-color);
+        flex-shrink: 0;
+    }
+
+    .report-popup-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .report-popup-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .report-popup-actions button {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--text-secondary);
+        transition: all 0.2s;
+    }
+
+    .report-popup-actions button:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+
+    .report-popup-actions button svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .report-popup-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 32px;
+    }
+
+    .report-popup-body .ck-content {
+        font-size: 14px;
+        line-height: 1.8;
+    }
+
+    .report-popup-body .ck-content figure.table {
+        float: none !important;
+        clear: both;
+        margin: 1em 0;
+    }
+
+    /* 기존 float 기반 데이터 호환 */
+    .report-popup-body .ck-content figure.table[style*="float:left"],
+    .report-popup-body .ck-content figure.table[style*="float: left"] {
+        margin-left: 0 !important;
+        margin-right: auto !important;
+    }
+
+    .report-popup-body .ck-content figure.table[style*="float:right"],
+    .report-popup-body .ck-content figure.table[style*="float: right"] {
+        margin-left: auto !important;
+        margin-right: 0 !important;
+    }
+
+    .report-popup-body .ck-content table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .report-popup-body .ck-content table td,
+    .report-popup-body .ck-content table th {
+        border: 1px solid #d1d5db;
+        padding: 8px 12px;
+    }
+
+    .report-popup-body .ck-content table th {
+        background: #f3f4f6;
+        font-weight: 600;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="documents-layout">
+    <!-- 좌측 사이드바 - 카테고리 -->
+    <aside class="documents-sidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-title">카테고리</span>
+        </div>
+        <div class="category-list" id="categoryList">
+            {% for cat in categories %}
+            <div class="category-item {% if forloop.first %}active{% endif %}" data-id="{{ cat.category_id }}" data-type="{{ cat.category_type|default:1 }}" onclick="selectCategory('{{ cat.category_id }}', this)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span class="category-item-text">{{ cat.category_name }}</span>
+                <span class="category-item-count" id="count-{{ cat.category_id }}">0</span>
+            </div>
+            {% empty %}
+            <div style="padding: 20px; text-align: center; color: var(--text-secondary); font-size: 13px;">
+                등록된 카테고리가 없습니다.
+            </div>
+            {% endfor %}
+        </div>
+    </aside>
+
+    <!-- 우측 컨텐츠 - 문서 리스트 -->
+    <main class="documents-content">
+        <div class="content-header">
+            <span class="content-title" id="contentTitle">{% if categories %}{{ categories.0.category_name }}{% else %}문서{% endif %}</span>
+            <div class="content-actions" id="contentActions">
+                <a id="btnNewDoc" href="{% url 'main:dx_document_new' %}" class="btn-new-doc">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    새 문서
+                </a>
+            </div>
+        </div>
+        <div class="documents-table-wrapper">
+            <div class="table-toolbar" id="tableToolbar"></div>
+            <div class="documents-table-box">
+                <table class="documents-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;"></th>
+                            <th style="width: 50px;">No</th>
+                            <th style="width: 160px;">문서번호</th>
+                            <th>제목</th>
+                            <th style="width: 120px;">작성자</th>
+                            <th style="width: 150px;">수정일</th>
+                            <th style="width: 80px;">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody id="documentsBody">
+                        <!-- 동적으로 렌더링 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- 보고서 출력 팝업 -->
+<div class="report-popup-overlay" id="reportPopupOverlay" onclick="closeReportPopup(event)">
+    <div class="report-popup" id="reportPopup" onclick="event.stopPropagation()">
+        <div class="report-popup-header">
+            <span class="report-popup-title" id="reportPopupTitle">문서 보기</span>
+            <div class="report-popup-actions">
+                <button onclick="copyReportContent()" title="내용 복사">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    복사
+                </button>
+                <button onclick="toggleFullscreen()" title="전체화면">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                    전체화면
+                </button>
+                <button onclick="closeReportPopup()" title="닫기">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    닫기
+                </button>
+            </div>
+        </div>
+        <div class="report-popup-body" id="reportPopupBody">
+            <div class="ck-content"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentCategoryId = '{% if categories %}{{ categories.0.category_id }}{% endif %}';
+let currentCategoryType = {% if categories %}{{ categories.0.category_type|default:1 }}{% else %}1{% endif %};
+const newDocBaseUrl = '{% url "main:dx_document_new" %}';
+
+// URL 파라미터에서 카테고리 복원
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    const catParam = params.get('category');
+    if (catParam) {
+        const catEl = document.querySelector('.category-item[data-id="' + catParam + '"]');
+        if (catEl) {
+            currentCategoryId = catParam;
+            currentCategoryType = parseInt(catEl.getAttribute('data-type')) || 1;
+            // 사이드바 활성 상태 변경
+            document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+            catEl.classList.add('active');
+            // 제목 변경
+            const titleEl = document.getElementById('contentTitle');
+            if (titleEl) titleEl.textContent = catEl.querySelector('.category-item-text').textContent;
+        }
+    }
+})();
+
+// 페이지 로드
+document.addEventListener('DOMContentLoaded', function() {
+    // 출력 버튼 생성 (테이블 바로 위)
+    AppButton('#tableToolbar', '출력', 'openReportPopup', { icon: 'print', style: 'outline' });
+
+    if (currentCategoryId) {
+        updateNewDocLink();
+        renderDocuments(currentCategoryId);
+    }
+});
+
+// 새 문서 버튼 링크 업데이트
+function updateNewDocLink() {
+    const btn = document.getElementById('btnNewDoc');
+    if (btn && currentCategoryId) {
+        btn.href = newDocBaseUrl + '?category=' + encodeURIComponent(currentCategoryId) + '&type=' + currentCategoryType;
+    }
+}
+
+// 카테고리 선택
+function selectCategory(categoryId, element) {
+    currentCategoryId = categoryId;
+    currentCategoryType = parseInt(element.getAttribute('data-type')) || 1;
+
+    // 활성 상태 변경
+    document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+    element.classList.add('active');
+
+    // 제목 변경
+    document.getElementById('contentTitle').textContent = element.querySelector('.category-item-text').textContent;
+
+    // 새 문서 버튼 링크 업데이트
+    updateNewDocLink();
+
+    // 문서 목록 렌더링
+    renderDocuments(categoryId);
+}
+
+// 문서 목록 렌더링
+function renderDocuments(categoryId) {
+    const tbody = document.getElementById('documentsBody');
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary);">불러오는 중...</td></tr>';
+
+    fetch('{% url "main:api_dx_documents_list" %}?category_id=' + encodeURIComponent(categoryId))
+        .then(r => r.json())
+        .then(res => {
+            // 카운트 업데이트
+            const countEl = document.getElementById('count-' + categoryId);
+            if (countEl) countEl.textContent = res.total || 0;
+
+            if (!res.success || !res.documents || res.documents.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 60px; color: var(--text-secondary);">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;margin-bottom:12px;opacity:0.4;">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                            <p>문서가 없습니다.</p>
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = res.documents.map((doc, idx) => `
+                <tr onclick="goToEdit('${doc.document_id}')">
+                    <td><input type="checkbox" class="doc-checkbox" value="${doc.document_id}" onclick="event.stopPropagation();selectSingle(this);" data-title="${escapeHtml(doc.title)}"></td>
+                    <td>${idx + 1}</td>
+                    <td class="doc-meta">${escapeHtml(doc.document_id)}</td>
+                    <td class="doc-title">${escapeHtml(doc.title)}</td>
+                    <td class="doc-meta">${escapeHtml(doc.created_id || '-')}</td>
+                    <td class="doc-meta">${doc.updated_at || '-'}</td>
+                    <td><button class="btn-edit" onclick="event.stopPropagation();goToEdit('${doc.document_id}')">편집</button></td>
+                </tr>
+            `).join('');
+        });
+}
+
+// 단일 선택 (하나만 체크)
+function selectSingle(el) {
+    if (el.checked) {
+        document.querySelectorAll('#documentsBody .doc-checkbox').forEach(cb => {
+            if (cb !== el) cb.checked = false;
+        });
+    }
+}
+
+// HTML 이스케이프
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// 편집 페이지로 이동
+function goToEdit(documentId) {
+    window.location.href = '/dx/documents/' + encodeURIComponent(documentId) + '/edit/';
+}
+
+// === 보고서 출력 팝업 ===
+
+// 출력 버튼 클릭
+function openReportPopup() {
+    const checked = document.querySelectorAll('#documentsBody .doc-checkbox:checked');
+    if (checked.length === 0) {
+        showToast('출력할 문서를 선택해주세요.', 'warning');
+        return;
+    }
+    const documentId = checked[0].value;
+    const title = checked[0].getAttribute('data-title') || '문서';
+
+    // 팝업 열기
+    document.getElementById('reportPopupTitle').textContent = title;
+    document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = '<p style="text-align:center;padding:40px;color:var(--text-secondary);">불러오는 중...</p>';
+    document.getElementById('reportPopupOverlay').classList.add('active');
+
+    // API 호출
+    fetch('{% url "main:api_dx_document_detail" %}?document_id=' + encodeURIComponent(documentId))
+        .then(r => r.json())
+        .then(res => {
+            if (res.success && res.document) {
+                document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = res.document.content || '<p>내용이 없습니다.</p>';
+            } else {
+                document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = '<p style="text-align:center;color:#dc2626;">문서를 불러올 수 없습니다.</p>';
+            }
+        })
+        .catch(() => {
+            document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = '<p style="text-align:center;color:#dc2626;">문서를 불러오는 중 오류가 발생했습니다.</p>';
+        });
+}
+
+// 팝업 닫기
+function closeReportPopup(event) {
+    if (event && event.target && event.target !== document.getElementById('reportPopupOverlay')) return;
+    document.getElementById('reportPopupOverlay').classList.remove('active');
+    document.getElementById('reportPopup').classList.remove('fullscreen');
+}
+
+// ESC 키로 닫기
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeReportPopup();
+    }
+});
+
+// 전체화면 토글
+function toggleFullscreen() {
+    document.getElementById('reportPopup').classList.toggle('fullscreen');
+}
+
+// 내용 복사
+function copyReportContent() {
+    const content = document.getElementById('reportPopupBody').querySelector('.ck-content');
+    if (content) {
+        const range = document.createRange();
+        range.selectNodeContents(content);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        document.execCommand('copy');
+        selection.removeAllRanges();
+        showToast('내용이 복사되었습니다.', 'success');
+    }
+}
+</script>
+{% endblock %}

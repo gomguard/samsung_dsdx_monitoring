@@ -16,7 +16,10 @@ from apps.common.retail_columns import reload_retail_columns, reload_missing_exc
 from apps.common.targets import reload_targets, format_time
 from apps.common.dx_schedules import reload_schedules
 import json
+import boto3
 from datetime import datetime
+from config.config import S3_CONFIG
+from apps.main.api.views import cleanup_orphan_files
 
 
 def is_admin(user):
@@ -189,7 +192,6 @@ def user_create(request):
         profile = get_or_create_profile(user)
         profile.can_access_dx = request.POST.get('can_access_dx') == 'on'
         profile.can_access_ds = request.POST.get('can_access_ds') == 'on'
-        profile.can_access_report = request.POST.get('can_access_report') == 'on'
         profile.save()
 
         messages.success(request, f'회원 "{username}"이(가) 등록되었습니다.')
@@ -249,7 +251,6 @@ def user_edit(request, user_id):
         profile = get_or_create_profile(user)
         profile.can_access_dx = request.POST.get('can_access_dx') == 'on'
         profile.can_access_ds = request.POST.get('can_access_ds') == 'on'
-        profile.can_access_report = request.POST.get('can_access_report') == 'on'
 
         # 계정 잠금 해제
         if request.POST.get('unlock_account') == 'on':
@@ -1173,5 +1174,267 @@ def anomaly_causes_toggle(request, cause_id):
 
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': new_status, 'message': f'원인 옵션이 {status}되었습니다.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+# ============================================================
+# 관리자 페이지 - 문서 카테고리 관리 (monitoring_document_categories)
+# ============================================================
+
+@login_required
+@user_passes_test(is_admin)
+def document_categories(request):
+    """문서 카테고리 관리 페이지"""
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT category_id, category_name, description, sort_order,
+                   is_active, created_id, created_at, updated_id, updated_at, category_type
+            FROM monitoring_document_categories
+            WHERE is_del = false
+            ORDER BY sort_order, created_at
+        """)
+        columns_desc = [desc[0] for desc in cursor.description]
+        rows = [dict(zip(columns_desc, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        rows = []
+        print(f"[ERROR] Failed to load document categories: {e}")
+
+    context = {
+        'admin_menu': 'document_categories',
+        'rows': rows,
+    }
+    return render(request, 'accounts/document_categories.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+def document_category_edit(request, category_id=None):
+    """문서 카테고리 추가/편집 페이지"""
+    category = None
+    next_sort_order = 1
+
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        if category_id:
+            cursor.execute("""
+                SELECT category_id, category_name, description, sort_order,
+                       is_active, template_content, object_document_id, category_type
+                FROM monitoring_document_categories
+                WHERE category_id = %s AND is_del = false
+            """, (category_id,))
+            row = cursor.fetchone()
+            if row:
+                category = {
+                    'category_id': row[0],
+                    'category_name': row[1],
+                    'description': row[2],
+                    'sort_order': row[3],
+                    'is_active': row[4],
+                    'template_content': row[5] or '',
+                    'object_document_id': row[6] or '',
+                    'category_type': row[7] or 1,
+                }
+
+        cursor.execute("""
+            SELECT COALESCE(MAX(sort_order), 0) FROM monitoring_document_categories WHERE is_del = false
+        """)
+        next_sort_order = cursor.fetchone()[0] + 1
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"[ERROR] Failed to load category: {e}")
+
+    context = {
+        'admin_menu': 'document_categories',
+        'category': category,
+        'is_new': category_id is None,
+        'next_sort_order': next_sort_order,
+    }
+    return render(request, 'accounts/document_category_edit.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def document_categories_create(request):
+    """문서 카테고리 추가"""
+    try:
+        data = json.loads(request.body)
+        category_name = data.get('category_name', '').strip()
+        description = data.get('description', '').strip()
+        sort_order = data.get('sort_order', 1)
+        is_active = data.get('is_active', True)
+        template_content = data.get('template_content', '').strip()
+        object_document_id = data.get('object_document_id', '').strip()
+        category_type = data.get('category_type', 1)
+
+        if not category_name:
+            return JsonResponse({'success': False, 'error': '카테고리명은 필수입니다.'})
+
+        if sort_order < 1:
+            return JsonResponse({'success': False, 'error': '순서는 1 이상이어야 합니다.'})
+
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO monitoring_document_categories
+                (category_name, description, sort_order, is_active, template_content,
+                 object_document_id, category_type, created_id, created_at, updated_id, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING category_id
+        """, (category_name, description or None, sort_order, is_active,
+              template_content or None, object_document_id or None, category_type,
+              request.user.username, now, request.user.username, now))
+        new_id = cursor.fetchone()[0]
+        # 고아 파일 정리 (에디터에서 삭제된 이미지)
+        cleanup_orphan_files(cursor, object_document_id, template_content)
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'id': new_id, 'message': '카테고리가 추가되었습니다.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def document_categories_update(request, category_id):
+    """문서 카테고리 수정"""
+    try:
+        data = json.loads(request.body)
+        category_name = data.get('category_name', '').strip()
+        description = data.get('description', '').strip()
+        sort_order = data.get('sort_order', 1)
+        is_active = data.get('is_active', True)
+        template_content = data.get('template_content', '').strip()
+        object_document_id = data.get('object_document_id', '').strip()
+        category_type = data.get('category_type', 1)
+
+        if not category_name:
+            return JsonResponse({'success': False, 'error': '카테고리명은 필수입니다.'})
+
+        if sort_order < 1:
+            return JsonResponse({'success': False, 'error': '순서는 1 이상이어야 합니다.'})
+
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE monitoring_document_categories
+            SET category_name = %s, description = %s, sort_order = %s, is_active = %s,
+                template_content = %s, object_document_id = %s, category_type = %s,
+                updated_id = %s, updated_at = %s
+            WHERE category_id = %s
+        """, (category_name, description or None, sort_order, is_active,
+              template_content or None, object_document_id or None, category_type,
+              request.user.username, now, category_id))
+        # 고아 파일 정리 (에디터에서 삭제된 이미지)
+        cleanup_orphan_files(cursor, object_document_id, template_content)
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'message': '카테고리가 수정되었습니다.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def document_categories_delete(request, category_id):
+    """문서 카테고리 삭제"""
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        # 카테고리의 object_document_id 조회
+        cursor.execute("""
+            SELECT object_document_id FROM monitoring_document_categories
+            WHERE category_id = %s
+        """, (category_id,))
+        row = cursor.fetchone()
+        obj_doc_id = row[0] if row else None
+
+        # 카테고리 soft delete
+        cursor.execute("""
+            UPDATE monitoring_document_categories
+            SET is_del = true, is_active = false, updated_id = %s, updated_at = %s
+            WHERE category_id = %s
+        """, (request.user.username, datetime.now(), category_id))
+
+        # 연결된 S3 파일 삭제
+        if obj_doc_id:
+            cursor.execute("""
+                SELECT file_name, file_path FROM monitoring_files
+                WHERE object_document_id = %s AND is_del = false
+            """, (obj_doc_id,))
+            files = cursor.fetchall()
+
+            cursor.execute("""
+                UPDATE monitoring_files SET is_del = true
+                WHERE object_document_id = %s AND is_del = false
+            """, (obj_doc_id,))
+
+            if files:
+                try:
+                    s3_client = boto3.client(
+                        's3',
+                        region_name=S3_CONFIG['region'],
+                        aws_access_key_id=S3_CONFIG['access_key'],
+                        aws_secret_access_key=S3_CONFIG['secret_key']
+                    )
+                    for f in files:
+                        s3_key = f'{f[1]}/{f[0]}'
+                        s3_client.delete_object(Bucket=S3_CONFIG['bucket'], Key=s3_key)
+                except Exception:
+                    pass
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'message': '카테고리가 삭제되었습니다.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def document_categories_toggle(request, category_id):
+    """문서 카테고리 활성/비활성 토글"""
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE monitoring_document_categories
+            SET is_active = NOT is_active, updated_id = %s, updated_at = %s
+            WHERE category_id = %s
+            RETURNING is_active
+        """, (request.user.username, datetime.now(), category_id))
+        result = cursor.fetchone()
+        if not result:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'success': False, 'error': '해당 카테고리를 찾을 수 없습니다.'})
+        new_status = result[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        status = '활성화' if new_status else '비활성화'
+        return JsonResponse({'success': True, 'is_active': new_status, 'message': f'카테고리가 {status}되었습니다.'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})

@@ -364,8 +364,9 @@ function showConfirm(msg, type) {
         if (remainingSeconds <= 0) {
             // 세션 만료 - 로그아웃
             countdownEl.textContent = '00:00';
-            alert('세션이 만료되었습니다. 다시 로그인해주세요.');
-            window.location.href = '/accounts/logout/';
+            showConfirm('세션이 만료되었습니다. 다시 로그인해주세요.', 'warning').then(function() {
+                window.location.href = '/accounts/logout/';
+            });
             return;
         }
 

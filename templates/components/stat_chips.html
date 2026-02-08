@@ -1,0 +1,14 @@
+{#
+    공통 통계 칩 컴포넌트
+
+    사용법:
+    {% include 'components/stat_chips.html' with
+        stats=stat_list  # [{'id': 'statTotal', 'label': '전체', 'value': 100}, ...]
+    %}
+#}
+
+<div class="stat-chips">
+    {% for stat in stats %}
+    <span class="stat-chip">{{ stat.label }}<strong id="{{ stat.id }}">{{ stat.value|default:0 }}</strong></span>
+    {% endfor %}
+</div>

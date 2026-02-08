@@ -23,9 +23,6 @@ urlpatterns = [
     path('ds/layer2/', include('apps.ds_layer2.urls')),
     path('ds/layer3/', include('apps.ds_layer3.urls')),
 
-    # Report (보고용 페이지)
-    path('ds/report/', include('apps.ds_report.urls')),
-
     # 기존 URL (하위 호환)
     path('layer1/', include('apps.layer1.urls')),
     path('layer2/', include('apps.layer2.urls')),

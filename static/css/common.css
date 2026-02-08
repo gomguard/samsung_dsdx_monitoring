@@ -323,13 +323,20 @@ tr:hover {
 .footer {
     background: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
-    padding: 24px;
-    text-align: center;
+    padding: 12px 24px;
+}
+
+.footer .footer-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .footer p {
     color: var(--text-secondary);
-    font-size: 14px;
+    font-size: 13px;
+    line-height: 1;
+    margin: 0;
 }
 
 /* Utilities */
@@ -394,4 +401,278 @@ tr:hover {
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
+}
+
+/* ============================================================
+   공통 조회박스 (Search Box)
+   - DS, DX, Admin 전체에서 사용 가능
+   ============================================================ */
+.search-box {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 14px 18px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.search-box-select {
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 13px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-width: 120px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+}
+
+.search-box-select:focus {
+    outline: none;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.1);
+}
+
+.search-box-input {
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 13px;
+    min-width: 200px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: border-color 0.2s;
+}
+
+.search-box-input:focus {
+    outline: none;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.1);
+}
+
+.search-box-input::placeholder {
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.search-box-btn {
+    height: 34px;
+    padding: 0 18px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    white-space: nowrap;
+}
+
+.search-box-btn-search {
+    background: #7c3aed;
+    color: white;
+}
+
+.search-box-btn-search:hover {
+    background: #6d28d9;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
+}
+
+.search-box-btn-reset {
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.search-box-btn-reset:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: #94a3b8;
+}
+
+/* 조회박스 구분선 */
+.search-box-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--border-color);
+    margin: 0 4px;
+}
+
+/* 조회박스 라벨 */
+.search-box-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-right: 4px;
+}
+
+/* ============================================================
+   공통 페이지네이션 (Pagination)
+   ============================================================ */
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.pagination-btn {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: rgba(124, 58, 237, 0.05);
+    border-color: #7c3aed;
+    color: #7c3aed;
+}
+
+.pagination-btn.active {
+    background: #7c3aed;
+    border-color: #7c3aed;
+    color: white;
+}
+
+.pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.pagination-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0 12px;
+}
+
+.pagination-ellipsis {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 0 4px;
+}
+
+/* ============================================================
+   공통 통계 칩 (Stat Chips)
+   ============================================================ */
+.stat-chips {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+}
+
+.stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.stat-chip strong {
+    color: #7c3aed;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+/* ============================================================
+   공통 버튼 (AppButton)
+   ============================================================ */
+.app-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.app-btn svg { flex-shrink: 0; }
+
+/* 크기 */
+.app-btn-md { padding: 9px 18px; font-size: 13px; }
+.app-btn-sm { padding: 6px 12px; font-size: 12px; }
+.app-btn-sm svg { width: 12px; height: 12px; }
+
+/* 스타일 */
+.app-btn-primary { background: #7c3aed; color: #fff; }
+.app-btn-primary:hover { background: #6d28d9; }
+
+.app-btn-teal { background: #0d9488; color: #fff; }
+.app-btn-teal:hover { background: #0f766e; }
+
+.app-btn-outline { background: #fff; color: var(--text-primary); border: 1px solid var(--border-color); }
+.app-btn-outline:hover { background: var(--bg-secondary); }
+
+.app-btn-danger { background: #fee2e2; color: #dc2626; }
+.app-btn-danger:hover { background: #fecaca; }
+
+.app-btn-success { background: #d1fae5; color: #059669; }
+.app-btn-success:hover { background: #a7f3d0; }
+
+/* ============================================================
+   공통 배지 (Badges)
+   ============================================================ */
+.badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.badge-active {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+}
+
+.badge-inactive {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+}
+
+.badge-primary {
+    background: rgba(59, 130, 246, 0.1);
+    color: #2563eb;
+}
+
+.badge-warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
 }

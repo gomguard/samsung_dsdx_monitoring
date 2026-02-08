@@ -1,0 +1,242 @@
+<!-- CKEditor 5 Component -->
+<script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/super-build/ckeditor.js"></script>
+<style>
+    .ck-editor__editable_inline {
+        min-height: 400px;
+    }
+    .ck.ck-editor {
+        width: 100%;
+    }
+    .ck-editor__editable_inline {
+        overflow-y: auto !important;
+    }
+    /* 테이블 정렬: float 제거, margin 기반 블록 정렬 */
+    .ck-content figure.table {
+        float: none !important;
+        clear: both;
+    }
+    .ck-content figure.table[style*="float:left"],
+    .ck-content figure.table[style*="float: left"] {
+        margin-left: 0 !important;
+        margin-right: auto !important;
+    }
+    .ck-content figure.table[style*="float:right"],
+    .ck-content figure.table[style*="float: right"] {
+        margin-left: auto !important;
+        margin-right: 0 !important;
+    }
+</style>
+
+<script>
+/**
+ * 이미지 업로드 기본 URL (공통)
+ */
+var EDITOR_UPLOAD_URL = '{% url "main:api_dx_document_upload" %}';
+
+/**
+ * object_document_id 자동 생성 (공통)
+ */
+function generateObjectDocumentId() {
+    var now = new Date();
+    var pad = function(n, len) { return String(n).padStart(len, '0'); };
+    var dateStr = now.getFullYear() + pad(now.getMonth()+1,2) + pad(now.getDate(),2);
+    var timeStr = pad(now.getHours(),2) + pad(now.getMinutes(),2) + pad(now.getSeconds(),2);
+    var random = pad(Math.floor(Math.random() * 10000000000), 10);
+    return dateStr + '-' + timeStr + '.' + random;
+}
+
+/**
+ * CKEditor 5 커스텀 이미지 업로드 어댑터
+ */
+function createUploadAdapterPlugin(uploadUrl, getObjectDocumentId) {
+    return function(editor) {
+        editor.plugins.get('FileRepository').createUploadAdapter = function(loader) {
+            return {
+                upload: function() {
+                    return loader.file.then(function(file) {
+                        return new Promise(function(resolve, reject) {
+                            var objectDocumentId = getObjectDocumentId();
+                            if (!objectDocumentId) {
+                                reject('문서 식별자가 없습니다.');
+                                return;
+                            }
+
+                            var formData = new FormData();
+                            formData.append('file', file, file.name || 'image.png');
+                            formData.append('object_document_id', objectDocumentId);
+
+                            var csrfCookie = document.cookie.split(';').find(function(c) { return c.trim().startsWith('csrftoken='); });
+                            var csrfToken = csrfCookie ? csrfCookie.split('=')[1] : '';
+
+                            fetch(uploadUrl, {
+                                method: 'POST',
+                                headers: { 'X-CSRFToken': csrfToken },
+                                body: formData
+                            })
+                            .then(function(r) { return r.json(); })
+                            .then(function(res) {
+                                if (res.success) {
+                                    resolve({ default: res.url });
+                                } else {
+                                    reject(res.error || '이미지 업로드에 실패했습니다.');
+                                }
+                            })
+                            .catch(function() { reject('이미지 업로드 중 오류가 발생했습니다.'); });
+                        });
+                    });
+                },
+                abort: function() {}
+            };
+        };
+    };
+}
+
+/**
+ * 에디터 초기화
+ * @param {string} elementId - 에디터를 렌더링할 요소 ID
+ * @param {string} initialValue - 초기 내용 (HTML)
+ * @param {object} options - 추가 옵션
+ * @returns {object} 에디터 래퍼 객체
+ */
+function initEditor(elementId, initialValue, options) {
+    initialValue = initialValue || '';
+    options = options || {};
+
+    // 이미지 업로드 설정 (공통 기본값)
+    var uploadUrl = options.uploadUrl || EDITOR_UPLOAD_URL;
+    var getObjectDocumentId = options.getObjectDocumentId;
+    var _autoObjectDocumentId = null;
+
+    if (!getObjectDocumentId) {
+        _autoObjectDocumentId = generateObjectDocumentId();
+        getObjectDocumentId = function() { return _autoObjectDocumentId; };
+    }
+
+    var wrapper = {
+        instance: null,
+        _pendingContent: initialValue || null,
+        _ready: false,
+        objectDocumentId: _autoObjectDocumentId
+    };
+
+    var height = options.height || '800px';
+
+    var config = {
+        toolbar: {
+            items: [
+                'heading', '|',
+                'bold', 'italic', 'strikethrough', 'underline', '|',
+                'fontSize', 'fontFamily', 'fontColor', 'fontBackgroundColor', '|',
+                'alignment', '|',
+                'bulletedList', 'numberedList', 'todoList', '|',
+                'outdent', 'indent', '|',
+                'link', 'uploadImage', 'blockQuote', 'insertTable', '|',
+                'horizontalLine', 'code', 'codeBlock', '|',
+                'sourceEditing', '|',
+                'undo', 'redo'
+            ],
+            shouldNotGroupWhenFull: true
+        },
+        language: 'ko',
+        fontSize: {
+            options: [8, 9, 10, 11, 12, 'default', 14, 16, 18, 20, 24, 28, 32, 36, 48, 72],
+            supportAllValues: true
+        },
+        table: {
+            contentToolbar: ['tableColumn', 'tableRow', 'mergeTableCells', 'tableProperties', 'tableCellProperties']
+        },
+        removePlugins: [
+            'ExportPdf', 'ExportWord', 'AIAssistant', 'CKBox', 'CKFinder',
+            'EasyImage', 'Base64UploadAdapter', 'MultiLevelList',
+            'RealTimeCollaborativeComments', 'RealTimeCollaborativeTrackChanges',
+            'RealTimeCollaborativeRevisionHistory', 'PresenceList', 'Comments',
+            'TrackChanges', 'TrackChangesData', 'RevisionHistory',
+            'Pagination', 'WProofreader', 'MathType', 'SlashCommand',
+            'Template', 'DocumentOutline', 'FormatPainter', 'TableOfContents',
+            'PasteFromOfficeEnhanced', 'CaseChange'
+        ]
+    };
+
+    // 이미지 업로드 어댑터 (항상 활성화)
+    config.extraPlugins = [createUploadAdapterPlugin(uploadUrl, getObjectDocumentId)];
+
+    CKEDITOR.ClassicEditor
+        .create(document.getElementById(elementId), config)
+        .then(function(editor) {
+            wrapper.instance = editor;
+            wrapper._ready = true;
+
+            // 에디터 높이 설정 (고정 높이 + 내부 스크롤)
+            editor.editing.view.change(function(writer) {
+                writer.setStyle('height', height, editor.editing.view.document.getRoot());
+            });
+
+            // 테이블 정렬: float → margin 기반 블록 정렬로 변환
+            editor.conversion.for('dataDowncast').add(function(dispatcher) {
+                dispatcher.on('attribute:tableAlignment:table', function(evt, data, conversionApi) {
+                    if (!conversionApi.consumable.consume(data.item, evt.name)) return;
+                    var figure = conversionApi.mapper.toViewElement(data.item);
+                    var writer = conversionApi.writer;
+                    writer.removeStyle('float', figure);
+                    var val = data.attributeNewValue;
+                    if (val === 'right') {
+                        writer.setStyle('margin-left', 'auto', figure);
+                        writer.setStyle('margin-right', '0', figure);
+                    } else if (val === 'center') {
+                        writer.setStyle('margin-left', 'auto', figure);
+                        writer.setStyle('margin-right', 'auto', figure);
+                    } else {
+                        writer.setStyle('margin-left', '0', figure);
+                        writer.setStyle('margin-right', 'auto', figure);
+                    }
+                }, { priority: 'high' });
+            });
+
+            // 대기 중인 콘텐츠 설정
+            if (wrapper._pendingContent) {
+                editor.setData(wrapper._pendingContent);
+                wrapper._pendingContent = null;
+            }
+        })
+        .catch(function(error) {
+            console.error('CKEditor 초기화 오류:', error);
+        });
+
+    return wrapper;
+}
+
+/**
+ * 에디터 내용 가져오기 (HTML)
+ */
+function getEditorHTML(wrapper) {
+    if (wrapper && wrapper.instance) {
+        return wrapper.instance.getData();
+    }
+    return '';
+}
+
+/**
+ * 에디터 내용 가져오기 (Markdown) - CKEditor는 HTML 기반이므로 HTML 반환
+ */
+function getEditorMarkdown(wrapper) {
+    return getEditorHTML(wrapper);
+}
+
+/**
+ * 에디터 내용 설정 (HTML)
+ */
+function setEditorHTML(wrapper, content) {
+    if (wrapper && wrapper.instance && wrapper._ready) {
+        wrapper.instance.setData(content);
+    } else if (wrapper) {
+        wrapper._pendingContent = content;
+    }
+}
+
+/**
+ * 에디터 내용 설정 (Markdown) - CKEditor는 HTML 기반이므로 HTML로 설정
+ */
+function setEditorMarkdown(wrapper, content) {
+    setEditorHTML(wrapper, content);
+}
+</script>

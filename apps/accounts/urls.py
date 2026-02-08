@@ -49,4 +49,13 @@ urlpatterns = [
     path('admin/anomaly-causes/<int:cause_id>/update/', views.anomaly_causes_update, name='anomaly_causes_update'),
     path('admin/anomaly-causes/<int:cause_id>/delete/', views.anomaly_causes_delete, name='anomaly_causes_delete'),
     path('admin/anomaly-causes/<int:cause_id>/toggle/', views.anomaly_causes_toggle, name='anomaly_causes_toggle'),
+
+    # 관리자 페이지 - 문서 카테고리 관리
+    path('admin/document-categories/', views.document_categories, name='document_categories'),
+    path('admin/document-categories/new/', views.document_category_edit, name='document_category_new'),
+    path('admin/document-categories/<str:category_id>/edit/', views.document_category_edit, name='document_category_edit'),
+    path('admin/document-categories/create/', views.document_categories_create, name='document_categories_create'),
+    path('admin/document-categories/<str:category_id>/update/', views.document_categories_update, name='document_categories_update'),
+    path('admin/document-categories/<str:category_id>/delete/', views.document_categories_delete, name='document_categories_delete'),
+    path('admin/document-categories/<str:category_id>/toggle/', views.document_categories_toggle, name='document_categories_toggle'),
 ]

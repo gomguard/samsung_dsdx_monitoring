@@ -19,7 +19,6 @@ class UserProfile(models.Model):
     # 접근 권한
     can_access_dx = models.BooleanField(default=False, verbose_name='DX 접근 권한')
     can_access_ds = models.BooleanField(default=False, verbose_name='DS 접근 권한')
-    can_access_report = models.BooleanField(default=False, verbose_name='모니터링 보고 권한')
 
     # 로그인 실패 관리
     failed_login_attempts = models.IntegerField(default=0, verbose_name='로그인 실패 횟수')

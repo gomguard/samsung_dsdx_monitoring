@@ -1,0 +1,12 @@
+{#
+    공통 페이지네이션 컴포넌트
+
+    사용법:
+    {% include 'components/pagination.html' with
+        container_id="pagination"  # 컨테이너 ID (JS에서 렌더링)
+    %}
+
+    JavaScript에서 renderPagination() 함수를 호출하여 동적으로 렌더링
+#}
+
+<div class="pagination" id="{{ container_id|default:'pagination' }}"></div>

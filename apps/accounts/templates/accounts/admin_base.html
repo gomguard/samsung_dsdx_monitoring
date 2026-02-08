@@ -8,7 +8,7 @@
 /* 관리자 페이지 레이아웃 */
 .admin-layout {
     display: flex;
-    min-height: calc(100vh - 64px - 60px);
+    min-height: calc(100vh - 64px - 42px);
     margin: -32px -24px;
 }
 
@@ -70,6 +70,8 @@
     flex: 1;
     padding: 32px;
     overflow-x: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 /* 토스트 알림 */
@@ -225,6 +227,14 @@
                         <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
                     </svg>
                     예외조건 관리
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'accounts:document_categories' %}" class="sidebar-menu-item {% if admin_menu == 'document_categories' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    문서 카테고리 관리
                 </a>
             </li>
         </ul>
