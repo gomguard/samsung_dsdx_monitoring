@@ -917,6 +917,30 @@ function selectSingle(el) {
     }
 }
 
+// 클립보드 복사 (HTTP 환경 대응)
+function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+            showToast('공유 링크가 복사되었습니다. (24시간 유효)', 'success');
+        }).catch(function() {
+            fallbackCopy(text);
+        });
+    } else {
+        fallbackCopy(text);
+    }
+}
+function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('공유 링크가 복사되었습니다. (24시간 유효)', 'success');
+}
+
 // HTML 이스케이프
 function escapeHtml(str) {
     if (!str) return '';
@@ -1059,17 +1083,7 @@ function submitShareMemo() {
             if (res.success && res.token) {
                 closeShareMemo();
                 const shareUrl = window.location.origin + '/share/' + encodeURIComponent(res.token) + '/';
-                navigator.clipboard.writeText(shareUrl).then(function() {
-                    showToast('공유 링크가 복사되었습니다. (24시간 유효)', 'success');
-                }).catch(function() {
-                    var ta = document.createElement('textarea');
-                    ta.value = shareUrl;
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                    showToast('공유 링크가 복사되었습니다. (24시간 유효)', 'success');
-                });
+                copyToClipboard(shareUrl);
             } else {
                 showToast(res.error || '링크 생성에 실패했습니다.', 'error');
             }
