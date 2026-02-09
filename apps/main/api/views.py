@@ -952,3 +952,113 @@ def dx_document_files(request):
         return JsonResponse({'success': True, 'files': files})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_POST
+def dx_document_share_token(request):
+    """문서 공유 토큰 생성 API (메모 필수, 매번 새 토큰 생성)"""
+    from django.core.signing import TimestampSigner
+    from apps.main.views import SHARE_MAX_AGE
+
+    try:
+        data = json.loads(request.body)
+        document_id = data.get('document_id', '').strip()
+        category_id = data.get('category_id', '').strip()
+        memo = data.get('memo', '').strip()
+
+        if not document_id:
+            return JsonResponse({'success': False, 'error': '문서 ID가 필요합니다.'})
+        if not category_id:
+            return JsonResponse({'success': False, 'error': '카테고리 ID가 필요합니다.'})
+        if not memo:
+            return JsonResponse({'success': False, 'error': '공유 대상 메모를 입력하세요.'})
+
+        signer = TimestampSigner(salt='document-share')
+        sign_value = f'{category_id}:{document_id}'
+        token = signer.sign(sign_value)
+
+        now = datetime.now()
+        expires_at = now + timedelta(seconds=SHARE_MAX_AGE)
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO monitoring_share_tokens
+                (document_id, category_id, token, memo, created_id, created_at, expires_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (document_id, category_id, token, memo, request.user.username, now, expires_at))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'token': token})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+def dx_document_share_list(request):
+    """문서 공유 이력 조회 API (SQL 기반 상태 판단, 최근 20건)"""
+    document_id = request.GET.get('document_id', '')
+    if not document_id:
+        return JsonResponse({'success': False, 'error': '문서 ID가 필요합니다.'})
+
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, created_id, memo,
+                   TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as created_at,
+                   revoked_id,
+                   TO_CHAR(revoked_at, 'YYYY-MM-DD HH24:MI') as revoked_at,
+                   CASE
+                       WHEN is_revoked THEN 'revoked'
+                       WHEN expires_at IS NOT NULL AND expires_at < NOW() THEN 'expired'
+                       WHEN expires_at IS NULL AND created_at < NOW() - INTERVAL '1 day' THEN 'expired'
+                       ELSE 'active'
+                   END as status
+            FROM monitoring_share_tokens
+            WHERE document_id = %s
+            ORDER BY created_at DESC
+            LIMIT 20
+        """, (document_id,))
+        columns = [desc[0] for desc in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'shares': rows, 'total': len(rows)})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
+
+@login_required
+@require_POST
+def dx_document_share_revoke(request):
+    """공유 토큰 차단 API"""
+    try:
+        data = json.loads(request.body)
+        token_id = data.get('token_id', '')
+        if not token_id:
+            return JsonResponse({'success': False, 'error': '토큰 ID가 필요합니다.'})
+
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE monitoring_share_tokens
+            SET is_revoked = true, revoked_id = %s, revoked_at = %s
+            WHERE id = %s AND is_revoked = false
+        """, (request.user.username, now, token_id))
+        updated = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        if updated == 0:
+            return JsonResponse({'success': False, 'error': '이미 차단되었거나 존재하지 않는 토큰입니다.'})
+
+        return JsonResponse({'success': True, 'message': '공유 링크가 차단되었습니다.'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})

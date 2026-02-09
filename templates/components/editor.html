@@ -25,7 +25,156 @@
         margin-left: auto !important;
         margin-right: 0 !important;
     }
+
+    /* 에디터 미리보기 팝업 (공통) */
+    .editor-preview-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+    .editor-preview-overlay.active {
+        display: flex;
+    }
+    .editor-preview-popup {
+        background: #fff;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 900px;
+        max-height: 92vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    .editor-preview-popup.fullscreen {
+        width: 100%; max-width: 100%;
+        max-height: 100%; height: 100%;
+        border-radius: 0;
+    }
+    .editor-preview-header {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border-color);
+        flex-shrink: 0;
+        position: relative;
+    }
+    .editor-preview-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--text-primary);
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    .editor-preview-actions {
+        display: flex;
+        gap: 8px;
+    }
+    .editor-preview-actions button {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        color: var(--text-secondary);
+        transition: all 0.2s;
+    }
+    .editor-preview-actions button:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+    .editor-preview-actions button svg {
+        width: 14px; height: 14px;
+    }
+    .editor-preview-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 32px;
+    }
+    .editor-preview-doc-title {
+        font-size: 18px;
+        font-weight: 700;
+        text-align: center;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+    .editor-preview-body .ck-content {
+        font-size: 14px;
+        line-height: 1.8;
+        overflow-x: hidden;
+    }
+    .editor-preview-body .ck-content img {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+    .editor-preview-body .ck-content figure.image {
+        max-width: 100%;
+        overflow: hidden;
+    }
+    .editor-preview-body .ck-content figure.table {
+        float: none !important;
+        clear: both;
+        margin: 1em 0;
+    }
+    .editor-preview-body .ck-content figure.table[style*="float:left"],
+    .editor-preview-body .ck-content figure.table[style*="float: left"] {
+        margin-left: 0 !important;
+        margin-right: auto !important;
+    }
+    .editor-preview-body .ck-content figure.table[style*="float:right"],
+    .editor-preview-body .ck-content figure.table[style*="float: right"] {
+        margin-left: auto !important;
+        margin-right: 0 !important;
+    }
+    .editor-preview-body .ck-content table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .editor-preview-body .ck-content table td,
+    .editor-preview-body .ck-content table th {
+        border: 1px solid #d1d5db;
+        padding: 8px 12px;
+    }
+    .editor-preview-body .ck-content table th {
+        background: #f3f4f6;
+        font-weight: 600;
+    }
 </style>
+
+<!-- 에디터 미리보기 팝업 (공통) -->
+<div class="editor-preview-overlay" id="editorPreviewOverlay" onclick="editorPreview.close(event)">
+    <div class="editor-preview-popup" id="editorPreviewPopup" onclick="event.stopPropagation()">
+        <div class="editor-preview-header">
+            <span class="editor-preview-title" id="editorPreviewTitle">미리보기</span>
+            <div class="editor-preview-actions">
+                <button onclick="editorPreview.toggleFullscreen()" title="전체화면">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                    전체화면
+                </button>
+                <button onclick="editorPreview.close()" title="닫기">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    닫기
+                </button>
+            </div>
+        </div>
+        <div class="editor-preview-body">
+            <div class="editor-preview-doc-title" id="editorPreviewDocTitle" style="display:none;"></div>
+            <div class="ck-content" id="editorPreviewContent"></div>
+        </div>
+    </div>
+</div>
 
 <script>
 /**
@@ -239,4 +388,40 @@ function setEditorHTML(wrapper, content) {
 function setEditorMarkdown(wrapper, content) {
     setEditorHTML(wrapper, content);
 }
+
+/**
+ * 에디터 미리보기 (공통)
+ * 사용: editorPreview.open(editorWrapper, '팝업제목', '문서제목')
+ */
+var editorPreview = {
+    open: function(wrapper, title, docTitle) {
+        var html = getEditorHTML(wrapper);
+        if (!html || html === '<p>&nbsp;</p>') {
+            showToast('내용이 없습니다.', 'warning');
+            return;
+        }
+        if (title) document.getElementById('editorPreviewTitle').textContent = title;
+        var docTitleEl = document.getElementById('editorPreviewDocTitle');
+        if (docTitle) {
+            docTitleEl.textContent = docTitle;
+            docTitleEl.style.display = '';
+        } else {
+            docTitleEl.style.display = 'none';
+        }
+        document.getElementById('editorPreviewContent').innerHTML = html;
+        document.getElementById('editorPreviewOverlay').classList.add('active');
+    },
+    close: function(event) {
+        if (event && event.target && event.target !== document.getElementById('editorPreviewOverlay')) return;
+        document.getElementById('editorPreviewOverlay').classList.remove('active');
+        document.getElementById('editorPreviewPopup').classList.remove('fullscreen');
+    },
+    toggleFullscreen: function() {
+        document.getElementById('editorPreviewPopup').classList.toggle('fullscreen');
+    }
+};
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') editorPreview.close();
+});
 </script>

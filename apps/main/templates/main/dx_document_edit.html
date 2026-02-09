@@ -182,9 +182,19 @@
         padding: 0;
     }
 
-    .editor-section .form-label {
-        padding: 20px 24px 12px;
+    .editor-header {
+        padding: 16px 24px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .editor-header .form-label {
         margin-bottom: 0;
+    }
+
+    .editor-header-right {
+        margin-left: auto;
     }
 
     #editor {
@@ -369,7 +379,10 @@
 
         <!-- 에디터 모드 (category_type=1) -->
         <div class="form-section editor-section" id="editorSection">
-            <label class="form-label">내용</label>
+            <div class="editor-header">
+                <label class="form-label">내용</label>
+                <div class="editor-header-right" id="editorPreviewBtnArea"></div>
+            </div>
             <div id="editor"></div>
         </div>
 
@@ -456,6 +469,9 @@ function initEditorMode() {
     document.getElementById('editorSection').style.display = '';
     document.getElementById('fileSection').style.display = 'none';
 
+    // 미리보기 버튼
+    AppButton('#editorPreviewBtnArea', '미리보기', 'openDocPreview', { icon: 'search', style: 'outline', size: 'sm' });
+
     editor = initEditor('editor', '', {
         height: '650px',
         getObjectDocumentId: function() { return objectDocumentId; }
@@ -468,6 +484,12 @@ function initEditorMode() {
             setEditorHTML(editor, tplEl.textContent);
         }
     }
+}
+
+// 문서 미리보기
+function openDocPreview() {
+    var docTitle = document.getElementById('documentTitle').value.trim();
+    editorPreview.open(editor, '문서 미리보기', docTitle);
 }
 
 // 파일저장 모드 초기화
@@ -595,7 +617,10 @@ function loadDocument(id) {
 
                 // 모드별 데이터 로드
                 if (categoryType === 2) {
-                    initFileMode();
+                    if (!document.getElementById('fileSection').style.display ||
+                        document.getElementById('fileSection').style.display === 'none') {
+                        initFileMode();
+                    }
                     document.getElementById('editorSection').style.display = 'none';
                     document.getElementById('fileSection').style.display = '';
                     // 텍스트 메모 로드
@@ -605,7 +630,7 @@ function loadDocument(id) {
                     // 기존 첨부파일 로드
                     loadExistingFiles();
                 } else {
-                    initEditorMode();
+                    // 에디터가 이미 초기화되어 있으면 데이터만 설정
                     if (doc.content) setEditorHTML(editor, doc.content);
                 }
             } else {

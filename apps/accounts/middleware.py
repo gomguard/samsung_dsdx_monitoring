@@ -22,6 +22,7 @@ class LoginRequiredMiddleware:
         r'^/admin/',
         r'^/static/',
         r'^/api/health/?$',  # 헬스체크 API
+        r'^/share/',  # 공개 문서 공유 링크 + 공유 이미지 프록시
     ]
 
     # DX 페이지 패턴

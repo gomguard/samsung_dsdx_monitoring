@@ -12,6 +12,8 @@ urlpatterns = [
     path('dx/documents/new/', views.dx_document_edit, name='dx_document_new'),
     path('dx/documents/<str:document_id>/edit/', views.dx_document_edit, name='dx_document_edit'),
     path('ds/', views.ds_dashboard, name='ds_dashboard'),
+    path('share/file/<path:token>/<str:file_name>', views.dx_document_share_file, name='dx_document_share_file'),
+    path('share/<path:token>/', views.dx_document_share, name='dx_document_share'),
 
     # API
     path('api/dashboard/', api_views.dashboard_stats, name='api_dashboard'),
@@ -30,4 +32,7 @@ urlpatterns = [
     path('api/dx/documents/files/', api_views.dx_document_files, name='api_dx_document_files'),
     path('api/dx/documents/files/<str:file_id>/delete/', api_views.dx_document_file_delete, name='api_dx_document_file_delete'),
     path('api/dx/documents/file/<str:file_name>', api_views.dx_document_file, name='api_dx_document_file'),
+    path('api/dx/documents/share-token/', api_views.dx_document_share_token, name='api_dx_document_share_token'),
+    path('api/dx/documents/share-list/', api_views.dx_document_share_list, name='api_dx_document_share_list'),
+    path('api/dx/documents/share-revoke/', api_views.dx_document_share_revoke, name='api_dx_document_share_revoke'),
 ]

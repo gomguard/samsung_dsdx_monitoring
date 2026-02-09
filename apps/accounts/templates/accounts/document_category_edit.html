@@ -214,127 +214,6 @@
         border-top: 1px solid var(--border-color);
     }
 
-    /* 미리보기 팝업 */
-    .preview-overlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0;
-        width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .preview-overlay.active {
-        display: flex;
-    }
-
-    .preview-popup {
-        background: #fff;
-        border-radius: 12px;
-        width: 90%;
-        max-width: 900px;
-        max-height: 92vh;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    }
-
-    .preview-popup.fullscreen {
-        width: 100%; max-width: 100%;
-        max-height: 100%; height: 100%;
-        border-radius: 0;
-    }
-
-    .preview-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px 24px;
-        border-bottom: 1px solid var(--border-color);
-        flex-shrink: 0;
-    }
-
-    .preview-title {
-        font-size: 16px;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
-    .preview-actions {
-        display: flex;
-        gap: 8px;
-    }
-
-    .preview-actions button {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 6px 12px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        background: #fff;
-        cursor: pointer;
-        font-size: 13px;
-        color: var(--text-secondary);
-        transition: all 0.2s;
-    }
-
-    .preview-actions button:hover {
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-    }
-
-    .preview-actions button svg {
-        width: 14px; height: 14px;
-    }
-
-    .preview-body {
-        flex: 1;
-        overflow-y: auto;
-        padding: 32px;
-    }
-
-    .preview-body .ck-content {
-        font-size: 14px;
-        line-height: 1.8;
-    }
-
-    .preview-body .ck-content figure.table {
-        float: none !important;
-        clear: both;
-        margin: 1em 0;
-    }
-
-    .preview-body .ck-content figure.table[style*="float:left"],
-    .preview-body .ck-content figure.table[style*="float: left"] {
-        margin-left: 0 !important;
-        margin-right: auto !important;
-    }
-
-    .preview-body .ck-content figure.table[style*="float:right"],
-    .preview-body .ck-content figure.table[style*="float: right"] {
-        margin-left: auto !important;
-        margin-right: 0 !important;
-    }
-
-    .preview-body .ck-content table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .preview-body .ck-content table td,
-    .preview-body .ck-content table th {
-        border: 1px solid #d1d5db;
-        padding: 8px 12px;
-    }
-
-    .preview-body .ck-content table th {
-        background: #f3f4f6;
-        font-weight: 600;
-    }
-
     /* 카테고리 ID 표시 */
     .category-id-display {
         font-size: 12px;
@@ -415,27 +294,6 @@
                 <div class="template-header-right" id="previewBtnArea"></div>
             </div>
             <div id="templateEditor"></div>
-        </div>
-    </div>
-</div>
-<!-- 미리보기 팝업 -->
-<div class="preview-overlay" id="previewOverlay" onclick="closePreview(event)">
-    <div class="preview-popup" id="previewPopup" onclick="event.stopPropagation()">
-        <div class="preview-header">
-            <span class="preview-title">템플릿 미리보기</span>
-            <div class="preview-actions">
-                <button onclick="togglePreviewFullscreen()" title="전체화면">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-                    전체화면
-                </button>
-                <button onclick="closePreview()" title="닫기">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    닫기
-                </button>
-            </div>
-        </div>
-        <div class="preview-body">
-            <div class="ck-content" id="previewContent"></div>
         </div>
     </div>
 </div>
@@ -534,30 +392,10 @@ function saveCategory() {
     .catch(err => showToast('요청 오류: ' + err.message, 'error'));
 }
 
-// === 미리보기 ===
+// === 미리보기 (공통 editorPreview 사용) ===
 function openPreview() {
-    var html = getEditorHTML(templateEditor);
-    if (!html || html === '<p>&nbsp;</p>') {
-        showToast('템플릿 내용이 없습니다.', 'warning');
-        return;
-    }
-    document.getElementById('previewContent').innerHTML = html;
-    document.getElementById('previewOverlay').classList.add('active');
+    editorPreview.open(templateEditor, '템플릿 미리보기');
 }
-
-function closePreview(event) {
-    if (event && event.target && event.target !== document.getElementById('previewOverlay')) return;
-    document.getElementById('previewOverlay').classList.remove('active');
-    document.getElementById('previewPopup').classList.remove('fullscreen');
-}
-
-function togglePreviewFullscreen() {
-    document.getElementById('previewPopup').classList.toggle('fullscreen');
-}
-
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closePreview();
-});
 
 async function deleteCategory() {
     if (!categoryId) return;

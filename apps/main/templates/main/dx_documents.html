@@ -340,9 +340,28 @@
         padding: 32px;
     }
 
+    .report-doc-title {
+        font-size: 18px;
+        font-weight: 700;
+        text-align: center;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
     .report-popup-body .ck-content {
         font-size: 14px;
         line-height: 1.8;
+        overflow-x: hidden;
+    }
+    .report-popup-body .ck-content img {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+    .report-popup-body .ck-content figure.image {
+        max-width: 100%;
+        overflow: hidden;
     }
 
     .report-popup-body .ck-content figure.table {
@@ -380,6 +399,251 @@
         font-weight: 600;
     }
 
+    /* 공유 관리 팝업 */
+    .share-mgmt-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1100;
+        justify-content: center;
+        align-items: center;
+    }
+    .share-mgmt-overlay.active { display: flex; }
+    .share-mgmt-popup {
+        background: #fff;
+        border-radius: 12px;
+        width: 720px;
+        max-width: 90%;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    .share-mgmt-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .share-mgmt-header h3 {
+        font-size: 15px;
+        font-weight: 700;
+        margin: 0;
+    }
+    .share-mgmt-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-secondary);
+        padding: 4px;
+    }
+    .share-mgmt-close svg { width: 18px; height: 18px; }
+    .share-mgmt-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px 20px;
+    }
+    .share-mgmt-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+    .share-mgmt-table th {
+        text-align: left;
+        padding: 8px 10px;
+        background: var(--bg-secondary);
+        font-weight: 600;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+    }
+    .share-mgmt-table td {
+        padding: 10px;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+    .share-status-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .share-status-badge.active { background: #dcfce7; color: #16a34a; }
+    .share-status-badge.expired { background: #fef3c7; color: #d97706; }
+    .share-status-badge.revoked { background: #fee2e2; color: #dc2626; }
+    .btn-revoke {
+        padding: 4px 10px;
+        background: #fee2e2;
+        color: #dc2626;
+        border: none;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-revoke:hover { background: #fecaca; }
+    .share-mgmt-empty {
+        text-align: center;
+        padding: 32px;
+        color: var(--text-secondary);
+        font-size: 13px;
+    }
+
+    /* 공유 메모 팝업 */
+    .share-memo-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1100;
+        justify-content: center;
+        align-items: center;
+    }
+    .share-memo-overlay.active { display: flex; }
+    .share-memo-popup {
+        background: #fff;
+        border-radius: 12px;
+        width: 420px;
+        max-width: 90%;
+        padding: 24px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    .share-memo-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .share-memo-title svg {
+        width: 18px;
+        height: 18px;
+        color: #0d9488;
+    }
+    .share-memo-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+    }
+    .share-memo-input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        resize: none;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+    .share-memo-input:focus {
+        border-color: #0d9488;
+    }
+    .share-memo-input::placeholder {
+        color: #94a3b8;
+    }
+    .share-memo-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 16px;
+    }
+    .share-memo-actions button {
+        padding: 8px 20px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .share-memo-cancel {
+        background: #fff;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+    }
+    .share-memo-cancel:hover { background: var(--bg-secondary); }
+    .share-memo-submit {
+        background: #0d9488;
+        border: none;
+        color: #fff;
+    }
+    .share-memo-submit:hover { background: #0f766e; }
+
+    /* 커스텀 확인 팝업 */
+    .confirm-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1200;
+        justify-content: center;
+        align-items: center;
+    }
+    .confirm-overlay.active { display: flex; }
+    .confirm-popup {
+        background: #fff;
+        border-radius: 12px;
+        width: 380px;
+        max-width: 90%;
+        padding: 28px 24px 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        text-align: center;
+    }
+    .confirm-icon {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 16px;
+        color: #dc2626;
+    }
+    .confirm-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+    }
+    .confirm-message {
+        font-size: 13px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        margin-bottom: 24px;
+    }
+    .confirm-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+    }
+    .confirm-actions button {
+        padding: 8px 24px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .confirm-cancel {
+        background: #fff;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+    }
+    .confirm-cancel:hover { background: var(--bg-secondary); }
+    .confirm-ok {
+        background: #dc2626;
+        border: none;
+        color: #fff;
+    }
+    .confirm-ok:hover { background: #b91c1c; }
+
 </style>
 {% endblock %}
 
@@ -397,7 +661,7 @@
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                 </svg>
                 <span class="category-item-text">{{ cat.category_name }}</span>
-                <span class="category-item-count" id="count-{{ cat.category_id }}">0</span>
+                <span class="category-item-count" id="count-{{ cat.category_id }}">{{ cat.doc_count }}</span>
             </div>
             {% empty %}
             <div style="padding: 20px; text-align: center; color: var(--text-secondary); font-size: 13px;">
@@ -451,9 +715,21 @@
         <div class="report-popup-header">
             <span class="report-popup-title" id="reportPopupTitle">문서 보기</span>
             <div class="report-popup-actions">
+                <button onclick="printReportContent()" title="인쇄">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    인쇄
+                </button>
                 <button onclick="copyReportContent()" title="내용 복사">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                     복사
+                </button>
+                <button onclick="copyShareLink()" title="공유 링크 복사">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    공유
+                </button>
+                <button onclick="openShareMgmt()" title="공유 관리">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    공유 관리
                 </button>
                 <button onclick="toggleFullscreen()" title="전체화면">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
@@ -466,7 +742,53 @@
             </div>
         </div>
         <div class="report-popup-body" id="reportPopupBody">
+            <div class="report-doc-title" id="reportDocTitle" style="display:none;"></div>
             <div class="ck-content"></div>
+        </div>
+    </div>
+</div>
+<!-- 공유 메모 팝업 -->
+<div class="share-memo-overlay" id="shareMemoOverlay" onclick="closeShareMemo(event)">
+    <div class="share-memo-popup" onclick="event.stopPropagation()">
+        <div class="share-memo-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            공유 링크 생성
+        </div>
+        <div class="share-memo-label">공유 대상 메모</div>
+        <input type="text" class="share-memo-input" id="shareMemoInput" placeholder="예: 김과장, 마케팅팀" maxlength="100">
+        <div class="share-memo-actions">
+            <button class="share-memo-cancel" onclick="closeShareMemo()">취소</button>
+            <button class="share-memo-submit" onclick="submitShareMemo()">링크 생성</button>
+        </div>
+    </div>
+</div>
+<!-- 커스텀 확인 팝업 -->
+<div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-popup">
+        <svg class="confirm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <div class="confirm-title" id="confirmTitle">확인</div>
+        <div class="confirm-message" id="confirmMessage"></div>
+        <div class="confirm-actions">
+            <button class="confirm-cancel" onclick="closeConfirm()">취소</button>
+            <button class="confirm-ok" id="confirmOkBtn">차단</button>
+        </div>
+    </div>
+</div>
+<!-- 공유 관리 팝업 -->
+<div class="share-mgmt-overlay" id="shareMgmtOverlay" onclick="closeShareMgmt(event)">
+    <div class="share-mgmt-popup" onclick="event.stopPropagation()">
+        <div class="share-mgmt-header">
+            <h3>공유 관리</h3>
+            <button class="share-mgmt-close" onclick="closeShareMgmt()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="share-mgmt-body" id="shareMgmtBody">
+            <div class="share-mgmt-empty">불러오는 중...</div>
         </div>
     </div>
 </div>
@@ -497,10 +819,18 @@ const newDocBaseUrl = '{% url "main:dx_document_new" %}';
     }
 })();
 
+// 출력 버튼 표시/숨김 (에디터 타입=1 일 때만 표시)
+function updateToolbar() {
+    const toolbar = document.getElementById('tableToolbar');
+    toolbar.innerHTML = '';
+    if (currentCategoryType === 1) {
+        AppButton('#tableToolbar', '출력', 'openReportPopup', { icon: 'print', style: 'outline' });
+    }
+}
+
 // 페이지 로드
 document.addEventListener('DOMContentLoaded', function() {
-    // 출력 버튼 생성 (테이블 바로 위)
-    AppButton('#tableToolbar', '출력', 'openReportPopup', { icon: 'print', style: 'outline' });
+    updateToolbar();
 
     if (currentCategoryId) {
         updateNewDocLink();
@@ -530,6 +860,9 @@ function selectCategory(categoryId, element) {
 
     // 새 문서 버튼 링크 업데이트
     updateNewDocLink();
+
+    // 출력 버튼 표시/숨김
+    updateToolbar();
 
     // 문서 목록 렌더링
     renderDocuments(categoryId);
@@ -598,6 +931,8 @@ function goToEdit(documentId) {
 // === 보고서 출력 팝업 ===
 
 // 출력 버튼 클릭
+let currentReportDocId = '';
+
 function openReportPopup() {
     const checked = document.querySelectorAll('#documentsBody .doc-checkbox:checked');
     if (checked.length === 0) {
@@ -605,10 +940,14 @@ function openReportPopup() {
         return;
     }
     const documentId = checked[0].value;
+    currentReportDocId = documentId;
     const title = checked[0].getAttribute('data-title') || '문서';
 
     // 팝업 열기
-    document.getElementById('reportPopupTitle').textContent = title;
+    document.getElementById('reportPopupTitle').textContent = '문서 보기';
+    var docTitleEl = document.getElementById('reportDocTitle');
+    docTitleEl.textContent = title;
+    docTitleEl.style.display = '';
     document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = '<p style="text-align:center;padding:40px;color:var(--text-secondary);">불러오는 중...</p>';
     document.getElementById('reportPopupOverlay').classList.add('active');
 
@@ -634,10 +973,23 @@ function closeReportPopup(event) {
     document.getElementById('reportPopup').classList.remove('fullscreen');
 }
 
-// ESC 키로 닫기
+// ESC 키로 닫기 (최상위 팝업부터)
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        closeReportPopup();
+        if (document.getElementById('confirmOverlay').classList.contains('active')) {
+            closeConfirm();
+        } else if (document.getElementById('shareMemoOverlay').classList.contains('active')) {
+            closeShareMemo();
+        } else if (document.getElementById('shareMgmtOverlay').classList.contains('active')) {
+            closeShareMgmt();
+        } else {
+            closeReportPopup();
+        }
+    }
+    // Enter로 메모 제출
+    if (e.key === 'Enter' && document.getElementById('shareMemoOverlay').classList.contains('active')) {
+        e.preventDefault();
+        submitShareMemo();
     }
 });
 
@@ -659,6 +1011,234 @@ function copyReportContent() {
         selection.removeAllRanges();
         showToast('내용이 복사되었습니다.', 'success');
     }
+}
+
+// 공유 링크 복사 → 메모 팝업 열기
+function copyShareLink() {
+    if (!currentReportDocId) {
+        showToast('문서가 선택되지 않았습니다.', 'warning');
+        return;
+    }
+    document.getElementById('shareMemoInput').value = '';
+    document.getElementById('shareMemoOverlay').classList.add('active');
+    document.getElementById('shareMemoInput').focus();
+}
+
+function closeShareMemo(event) {
+    if (event && event.target && event.target !== document.getElementById('shareMemoOverlay')) return;
+    document.getElementById('shareMemoOverlay').classList.remove('active');
+}
+
+function submitShareMemo() {
+    const memo = document.getElementById('shareMemoInput').value.trim();
+    if (!memo) {
+        showToast('공유 대상 메모를 입력하세요.', 'warning');
+        document.getElementById('shareMemoInput').focus();
+        return;
+    }
+    const submitBtn = document.querySelector('.share-memo-submit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '생성 중...';
+
+    fetch('{% url "main:api_dx_document_share_token" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({
+            document_id: currentReportDocId,
+            category_id: currentCategoryId,
+            memo: memo
+        })
+    })
+        .then(r => r.json())
+        .then(res => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '링크 생성';
+            if (res.success && res.token) {
+                closeShareMemo();
+                const shareUrl = window.location.origin + '/share/' + encodeURIComponent(res.token) + '/';
+                navigator.clipboard.writeText(shareUrl).then(function() {
+                    showToast('공유 링크가 복사되었습니다. (24시간 유효)', 'success');
+                }).catch(function() {
+                    var ta = document.createElement('textarea');
+                    ta.value = shareUrl;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    showToast('공유 링크가 복사되었습니다. (24시간 유효)', 'success');
+                });
+            } else {
+                showToast(res.error || '링크 생성에 실패했습니다.', 'error');
+            }
+        })
+        .catch(function() {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '링크 생성';
+            showToast('링크 생성 중 오류가 발생했습니다.', 'error');
+        });
+}
+
+// === 공유 관리 ===
+function openShareMgmt() {
+    if (!currentReportDocId) {
+        showToast('문서가 선택되지 않았습니다.', 'warning');
+        return;
+    }
+    document.getElementById('shareMgmtOverlay').classList.add('active');
+    loadShareList();
+}
+
+function closeShareMgmt(event) {
+    if (event && event.target && event.target !== document.getElementById('shareMgmtOverlay')) return;
+    document.getElementById('shareMgmtOverlay').classList.remove('active');
+}
+
+function loadShareList() {
+    const body = document.getElementById('shareMgmtBody');
+    body.innerHTML = '<div class="share-mgmt-empty">불러오는 중...</div>';
+
+    fetch('{% url "main:api_dx_document_share_list" %}?document_id=' + encodeURIComponent(currentReportDocId))
+        .then(r => r.json())
+        .then(res => {
+            if (!res.success || !res.shares || res.shares.length === 0) {
+                body.innerHTML = '<div class="share-mgmt-empty">공유 이력이 없습니다.</div>';
+                return;
+            }
+            const statusLabel = { active: '활성', expired: '만료', revoked: '차단' };
+            let html = '<table class="share-mgmt-table"><thead><tr>';
+            html += '<th>ID</th><th>메모</th><th>생성일</th><th>생성자</th><th>상태</th><th>차단일</th><th>차단자</th><th></th>';
+            html += '</tr></thead><tbody>';
+            res.shares.forEach(s => {
+                html += '<tr>';
+                html += '<td>' + escapeHtml(s.id) + '</td>';
+                html += '<td>' + escapeHtml(s.memo || '-') + '</td>';
+                html += '<td>' + (s.created_at || '-') + '</td>';
+                html += '<td>' + escapeHtml(s.created_id || '-') + '</td>';
+                html += '<td><span class="share-status-badge ' + s.status + '">' + (statusLabel[s.status] || s.status) + '</span></td>';
+                html += '<td>' + (s.revoked_at || '-') + '</td>';
+                html += '<td>' + escapeHtml(s.revoked_id || '-') + '</td>';
+                html += '<td>';
+                if (s.status === 'active') {
+                    html += '<button class="btn-revoke" onclick="revokeShareToken(\'' + escapeHtml(s.id) + '\')">차단</button>';
+                }
+                html += '</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            body.innerHTML = html;
+        })
+        .catch(function() {
+            body.innerHTML = '<div class="share-mgmt-empty">불러오는 중 오류가 발생했습니다.</div>';
+        });
+}
+
+function revokeShareToken(tokenId) {
+    showConfirm('공유 링크 차단', '이 공유 링크를 차단하시겠습니까?\n차단된 링크는 더 이상 접근할 수 없습니다.', '차단', function() {
+        fetch('{% url "main:api_dx_document_share_revoke" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({ token_id: tokenId })
+        })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    showToast('공유 링크가 차단되었습니다.', 'success');
+                    loadShareList();
+                } else {
+                    showToast(res.error || '차단에 실패했습니다.', 'error');
+                }
+            })
+            .catch(function() {
+                showToast('차단 중 오류가 발생했습니다.', 'error');
+            });
+    });
+}
+
+function showConfirm(title, message, okText, onConfirm) {
+    document.getElementById('confirmTitle').textContent = title;
+    document.getElementById('confirmMessage').textContent = message;
+    var okBtn = document.getElementById('confirmOkBtn');
+    okBtn.textContent = okText;
+    okBtn.onclick = function() {
+        closeConfirm();
+        onConfirm();
+    };
+    document.getElementById('confirmOverlay').classList.add('active');
+}
+
+function closeConfirm() {
+    document.getElementById('confirmOverlay').classList.remove('active');
+}
+
+function getCsrfToken() {
+    const cookie = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+    return cookie ? cookie.split('=')[1] : '';
+}
+
+// 인쇄
+function printReportContent() {
+    const docTitle = document.getElementById('reportDocTitle').textContent || '';
+    const content = document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML || '';
+
+    var iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    document.body.appendChild(iframe);
+
+    var doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write([
+        '<!DOCTYPE html><html><head><meta charset="utf-8">',
+        '<title>' + docTitle + '</title>',
+        '<style>',
+        '  @page { margin: 15mm 20mm; }',
+        '  * { box-sizing: border-box; }',
+        '  body { font-family: "Malgun Gothic", "맑은 고딕", sans-serif; font-size: 12px; line-height: 1.4; color: #1e293b; max-width: 100%; overflow-x: hidden; }',
+        '  .print-title { font-size: 18px; font-weight: 700; text-align: center; padding-bottom: 12px; margin-bottom: 20px; border-bottom: 2px solid #1e293b; }',
+        '  h2 { font-size: 15px; margin-top: 0.6em; margin-bottom: 0.2em; }',
+        '  h3 { font-size: 14px; margin-top: 0.6em; margin-bottom: 0.2em; }',
+        '  h4 { font-size: 13px; margin-top: 0.5em; margin-bottom: 0.2em; }',
+        '  p { margin: 0.2em 0; }',
+        '  figure { margin: 0.4em 0; display: block; float: none !important; overflow: hidden; }',
+        '  figure.table { margin: 0.4em 0; float: none !important; }',
+        '  table { width: auto; max-width: 100%; border-collapse: collapse; margin: 0.5em 0; page-break-inside: auto; }',
+        '  tr { page-break-inside: avoid; }',
+        '  table td, table th { border: 1px solid #999; padding: 4px 6px; font-size: 11px; word-break: break-word; }',
+        '  table th { background: #eee !important; font-weight: 600; -webkit-print-color-adjust: exact; print-color-adjust: exact; }',
+        '  img { max-width: 100% !important; height: auto !important; page-break-inside: avoid; display: block; margin: 0.5em auto; }',
+        '  figure.image { text-align: center; page-break-inside: avoid; }',
+        '  hr { border: none; border-top: 1px solid #ccc; margin: 0.8em 0; }',
+        '</style>',
+        '</head><body>',
+        docTitle ? '<div class="print-title">' + docTitle.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</div>' : '',
+        '<div class="ck-content">' + content + '</div>',
+        '</body></html>'
+    ].join(''));
+    doc.close();
+
+    iframe.contentWindow.onafterprint = function() {
+        if (iframe.parentNode) document.body.removeChild(iframe);
+    };
+
+    // 이미지 로딩 완료 대기 후 인쇄
+    iframe.contentWindow.onload = function() {
+        setTimeout(function() {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            // fallback: onafterprint 미지원 브라우저
+            setTimeout(function() {
+                if (iframe.parentNode) document.body.removeChild(iframe);
+            }, 5000);
+        }, 200);
+    };
 }
 </script>
 {% endblock %}
