@@ -936,6 +936,17 @@
         padding: 0 8px;
     }
     .screenshot-modal-close:hover { color: #dc2626; }
+    .screenshot-delete-btn {
+        background: #dc2626;
+        border: none;
+        color: #fff;
+        font-size: 13px;
+        cursor: pointer;
+        padding: 5px 14px;
+        border-radius: 4px;
+        margin-right: 8px;
+    }
+    .screenshot-delete-btn:hover { background: #b91c1c; }
     .screenshot-modal-body {
         padding: 16px;
         text-align: center;
@@ -1271,7 +1282,10 @@
     <div class="screenshot-modal-content" onclick="event.stopPropagation()">
         <div class="screenshot-modal-header">
             <span class="screenshot-modal-title" id="screenshotTitle">스크린샷</span>
-            <button class="screenshot-modal-close" onclick="closeScreenshotModal()">&times;</button>
+            <div>
+                <button class="screenshot-delete-btn" id="screenshotDeleteBtn" onclick="deleteScreenshot()" title="스크린샷 삭제" style="display:none;">🗑 삭제</button>
+                <button class="screenshot-modal-close" onclick="closeScreenshotModal()">&times;</button>
+            </div>
         </div>
         <div class="screenshot-modal-body" id="screenshotBody">
             <div class="screenshot-loading">로딩 중...</div>
@@ -1794,7 +1808,7 @@ function renderAnomalyItems(anomalies, retailer) {
                 <td class="overflow-cell ${!a.ships_from ? 'null-value' : ''}" title="${escShipsFrom}">${a.ships_from || 'NULL'}</td>
                 <td class="overflow-cell ${!a.sold_by ? 'null-value' : ''}" title="${escSoldBy}">${a.sold_by || 'NULL'}</td>
                 <td class="text-center">
-                    ${a.screenshot_id ? `<button class="screenshot-btn" onclick="showScreenshot(${a.screenshot_id})" title="스크린샷 보기">📷</button>` : '-'}
+                    ${a.screenshot_id ? `<button class="screenshot-btn" onclick="showScreenshot(${a.screenshot_id}, ${a.id})" title="스크린샷 보기">📷</button>` : '-'}
                 </td>
                 <td>
                     <select id="cause_${a.id}" class="inline-select" ${isClosed ? 'disabled' : 'disabled'}>
@@ -2793,10 +2807,16 @@ document.getElementById('reportOutputOverlay').addEventListener('click', functio
 });
 
 // 스크린샷 모달
-async function showScreenshot(fileId) {
+let currentScreenshotAnomalyId = null;
+
+async function showScreenshot(fileId, anomalyId) {
     const modal = document.getElementById('screenshotModal');
     const body = document.getElementById('screenshotBody');
     const title = document.getElementById('screenshotTitle');
+    const deleteBtn = document.getElementById('screenshotDeleteBtn');
+
+    currentScreenshotAnomalyId = anomalyId || null;
+    deleteBtn.style.display = (!isClosed && anomalyId) ? 'inline-block' : 'none';
 
     // 모달 표시 및 로딩 상태
     modal.classList.add('show');
@@ -2816,6 +2836,52 @@ async function showScreenshot(fileId) {
         body.innerHTML = '<div class="screenshot-loading" style="color: #dc2626;">이미지 로드 실패</div>';
         console.error('Screenshot error:', error);
     }
+}
+
+function deleteScreenshot() {
+    if (!currentScreenshotAnomalyId) return;
+
+    var existing = document.getElementById('screenshotConfirmOverlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'screenshotConfirmOverlay';
+    overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10003; display:flex; justify-content:center; align-items:center;';
+    overlay.innerHTML =
+        '<div style="background:#fff; border-radius:12px; padding:28px 32px 20px; min-width:320px; max-width:400px; box-shadow:0 12px 40px rgba(0,0,0,0.25); text-align:center;">' +
+            '<div style="margin-bottom:12px;"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/></svg></div>' +
+            '<div style="font-size:15px; font-weight:500; color:#1a1a1a; line-height:1.5; margin-bottom:6px;">스크린샷을 삭제하시겠습니까?</div>' +
+            '<div style="font-size:13px; color:#6b7280; margin-bottom:20px;">S3 파일도 함께 삭제됩니다.</div>' +
+            '<div style="display:flex; gap:10px; justify-content:center;">' +
+                '<button id="ssDeleteOk" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:#ef4444; color:#fff;">삭제</button>' +
+                '<button id="ssDeleteCancel" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:#f3f4f6; color:#1a1a1a;">취소</button>' +
+            '</div>' +
+        '</div>';
+    document.body.appendChild(overlay);
+
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    document.getElementById('ssDeleteCancel').onclick = function() { overlay.remove(); };
+    document.getElementById('ssDeleteOk').onclick = async function() {
+        overlay.remove();
+        try {
+            const response = await fetch('/ds/layer2/api/screenshot-delete/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+                body: JSON.stringify({anomaly_ids: [currentScreenshotAnomalyId]})
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                closeScreenshotModal();
+                showToast('스크린샷이 삭제되었습니다.', 'success');
+                loadReportList();
+            } else {
+                showToast(data.error || '삭제 실패', 'error');
+            }
+        } catch (error) {
+            showToast('삭제 중 오류가 발생했습니다.', 'error');
+        }
+    };
 }
 
 function closeScreenshotModal(event) {

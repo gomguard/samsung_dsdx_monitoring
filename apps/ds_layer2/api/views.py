@@ -366,6 +366,48 @@ def layer_stats(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
+        # 마감 여부 확인 → 마감된 날짜는 현황 테이블 스냅샷 사용
+        is_closed = False
+        closed_data = {}
+        try:
+            cursor.execute("""
+                SELECT is_closed FROM ssd_crawl_db.ds_monitoring_report_close
+                WHERE crawl_date = %s
+            """, (target_date,))
+            close_row = cursor.fetchone()
+            if close_row and close_row[0] == 1:
+                is_closed = True
+                cursor.execute("""
+                    SELECT t.retailer, r.expected_count, r.total_count,
+                           r.anomaly_total, r.anomaly_title_null, r.anomaly_image_null,
+                           r.anomaly_partial_null, r.anomaly_price_zero
+                    FROM ssd_crawl_db.ds_monitoring_report_daily r
+                    JOIN ssd_crawl_db.ds_monitoring_targets t ON r.retailer_id = t.retailer_id
+                    WHERE r.crawl_date = %s AND r.is_del = 0
+                """, (target_date,))
+                for row in cursor.fetchall():
+                    anomaly_total = row[3] or 0
+                    a_title_null = row[4] or 0  # 실제로는 null_union
+                    a_image_null = row[5] or 0
+                    a_partial_null = row[6] or 0
+                    a_price_zero = row[7] or 0
+                    a_imageurl_invalid = max(0, anomaly_total - a_title_null - a_price_zero - a_partial_null)
+                    closed_data[row[0]] = {
+                        'expected_count': row[1] or 0,
+                        'total': row[2] or 0,
+                        'title_null': a_title_null,
+                        'imageurl_null': a_image_null,
+                        'null_union': a_title_null,
+                        'imageurl_invalid': a_imageurl_invalid,
+                        'price_zero': a_price_zero,
+                        'partial_null': a_partial_null,
+                        'all_null': 0,
+                        'valid': max(0, (row[2] or 0) - anomaly_total),
+                        'error_count': anomaly_total,
+                    }
+        except:
+            is_closed = False
+
         # 배치 정보 로드
         batches_by_retailer = get_batches_for_date(target_date)
 
@@ -382,6 +424,69 @@ def layer_stats(request):
 
         for idx, (table_name, retailer, region, korea_time, country, mall_name, instance_id, schedule_name) in enumerate(load_monitoring_targets_with_instance(), 1):
             retailer_batches = batches_by_retailer.get(retailer, [])
+
+            # 마감된 날짜 + 현황 데이터 있음 → 스냅샷 사용 (실시간 쿼리 생략)
+            if is_closed and retailer in closed_data:
+                snap = closed_data[retailer]
+                total = snap['total']
+                expected_count = snap['expected_count']
+                title_null = snap['title_null']
+                imageurl_null = snap['imageurl_null']
+                null_union = snap['null_union']
+                imageurl_invalid = snap['imageurl_invalid']
+                price_zero = snap['price_zero']
+                partial_null = snap['partial_null']
+                all_null = snap['all_null']
+                valid = snap['valid']
+                error_count = snap['error_count']
+
+                # 상태 판정
+                if total == 0:
+                    status = 'pending'
+                elif error_count == 0:
+                    status = 'success'
+                elif error_count < total * 0.05:
+                    status = 'warning'
+                else:
+                    status = 'danger'
+
+                total_records += total
+                total_title_null += title_null
+                total_imageurl_null += imageurl_null
+                total_null_union += null_union
+                total_imageurl_invalid += imageurl_invalid
+                total_price_zero += price_zero
+                total_partial_null += partial_null
+                total_all_null += all_null
+                total_valid += valid
+
+                results.append({
+                    'no': idx,
+                    'table_name': table_name,
+                    'retailer': retailer,
+                    'region': region,
+                    'country': country,
+                    'mall_name': mall_name,
+                    'total': total,
+                    'expected_count': expected_count,
+                    'title_null': title_null,
+                    'imageurl_null': imageurl_null,
+                    'null_union': null_union,
+                    'imageurl_invalid': imageurl_invalid,
+                    'price_zero': price_zero,
+                    'partial_null': partial_null,
+                    'all_null': all_null,
+                    'valid': valid,
+                    'error_count': error_count,
+                    'status': status,
+                    'batch_count': 0,
+                    'has_multi_batch': False,
+                    'batches': [],
+                    'final_start_time': None,
+                    'final_end_time': None,
+                    'has_screenshot': bool(instance_id)
+                })
+                continue
 
             # 배치가 2개 이상이고 'final' 뷰인 경우, 마지막 배치만 조회
             final_start_time = None
@@ -517,7 +622,8 @@ def layer_stats(request):
             'all_null': total_all_null,
             'valid': total_valid,
             'total_error': total_error,
-            'status': overall_status
+            'status': overall_status,
+            'is_closed': is_closed
         }
 
     except Exception as e:
@@ -2212,3 +2318,83 @@ def screenshot_status(request):
             cursor.close()
         if conn:
             conn.close()
+
+
+@csrf_exempt
+def screenshot_delete(request):
+    """스크린샷 삭제 API (anomaly screenshot_id NULL + file soft delete + S3 삭제)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST 요청만 허용됩니다.'}, status=405)
+
+    try:
+        body = json.loads(request.body)
+        anomaly_ids = body.get('anomaly_ids', [])
+
+        if not anomaly_ids:
+            return JsonResponse({'success': False, 'error': 'anomaly_ids가 필요합니다.'})
+
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        # 1. anomaly에서 screenshot_id 목록 조회
+        placeholders = ','.join(['%s'] * len(anomaly_ids))
+        cursor.execute(f"""
+            SELECT id, screenshot_id FROM ssd_crawl_db.ds_monitoring_report_anomaly
+            WHERE id IN ({placeholders}) AND screenshot_id IS NOT NULL AND is_del = 0
+        """, anomaly_ids)
+        anomaly_rows = cursor.fetchall()
+
+        if not anomaly_rows:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'success': False, 'error': '삭제할 스크린샷이 없습니다.'})
+
+        screenshot_ids = [row[1] for row in anomaly_rows]
+        target_anomaly_ids = [row[0] for row in anomaly_rows]
+
+        # 2. file 테이블에서 파일 정보 조회
+        file_placeholders = ','.join(['%s'] * len(screenshot_ids))
+        cursor.execute(f"""
+            SELECT file_id, file_path, file_name FROM ssd_crawl_db.ds_monitoring_file
+            WHERE file_id IN ({file_placeholders}) AND is_del = 0
+        """, screenshot_ids)
+        file_rows = cursor.fetchall()
+
+        # 3. S3 파일 삭제
+        if file_rows:
+            try:
+                s3_client = boto3.client(
+                    's3',
+                    region_name=S3_CONFIG['region'],
+                    aws_access_key_id=S3_CONFIG['access_key'],
+                    aws_secret_access_key=S3_CONFIG['secret_key']
+                )
+                for f in file_rows:
+                    s3_key = f'{f[1].rstrip("/")}/{f[2]}'
+                    s3_client.delete_object(Bucket=S3_CONFIG['bucket'], Key=s3_key)
+            except Exception:
+                pass
+
+        # 4. file 테이블 soft delete
+        cursor.execute(f"""
+            UPDATE ssd_crawl_db.ds_monitoring_file
+            SET is_del = 1
+            WHERE file_id IN ({file_placeholders})
+        """, screenshot_ids)
+
+        # 5. anomaly 테이블 screenshot_id = NULL
+        anomaly_placeholders = ','.join(['%s'] * len(target_anomaly_ids))
+        cursor.execute(f"""
+            UPDATE ssd_crawl_db.ds_monitoring_report_anomaly
+            SET screenshot_id = NULL
+            WHERE id IN ({anomaly_placeholders})
+        """, target_anomaly_ids)
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'deleted_count': len(target_anomaly_ids)})
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})

@@ -1556,6 +1556,7 @@ function setNextDay() {
 }
 
 var layer2Data = null;  // Layer2 비정상 데이터 저장
+var reportStatusData = null;  // 저장/마감 현황
 
 async function loadData() {
     let date = document.getElementById('targetDate').value;
@@ -1569,14 +1570,16 @@ async function loadData() {
     document.getElementById('allContent').innerHTML = '';
 
     try {
-        // Fetch all APIs in parallel (Layer1 + Layer2)
-        const [statsResponse, layer2Response] = await Promise.all([
+        // Fetch all APIs in parallel (Layer1 + Layer2 + 저장현황)
+        const [statsResponse, layer2Response, statusResponse] = await Promise.all([
             fetch(`/ds/layer1/api/stats/?date=${date}&batch_view=${currentBatchView}`),
-            fetch(`/ds/layer2/api/stats/?date=${date}&batch_view=${currentBatchView}`)
+            fetch(`/ds/layer2/api/stats/?date=${date}&batch_view=${currentBatchView}`),
+            fetch(`/ds/layer2/api/status/?date=${date}`)
         ]);
 
         statsData = await statsResponse.json();
         layer2Data = await layer2Response.json();
+        reportStatusData = await statusResponse.json();
 
         // Update summary
         updateSummary(statsData);
@@ -1630,7 +1633,11 @@ function renderAllView(data) {
     const queryDate = data.date;
     const todayStr = serverToday.toISOString().split('T')[0];
     const yesterdayStr = serverYesterday.toISOString().split('T')[0];
-    const showRerun = (queryDate === todayStr || queryDate === yesterdayStr);
+    const isToday = queryDate === todayStr;
+    const isYesterday = queryDate === yesterdayStr;
+    const isClosed = reportStatusData && reportStatusData.is_closed;
+    // 전날: 마감되었으면 재실행 컬럼 숨김 / 오늘: 항상 표시
+    const showRerun = isToday || (isYesterday && !isClosed);
 
     let html = `
         <table class="retailer-table">
@@ -1657,7 +1664,8 @@ function renderAllView(data) {
         const l2Status = getLayer2Status(item.retailer);
         // 수집중/대기중일 때는 L2 태그 표시 안함
         const showL2Badge = l2Status && statusClass !== 'collecting' && statusClass !== 'pending';
-        const l2Badge = showL2Badge ? `<span class="layer2-badge ${l2Status.status}" title="L2 비정상: ${l2Status.error_count}건">L2 확인</span>` : '';
+        const l2BadgeClass = showL2Badge ? (l2Status.null_union > 0 ? 'danger' : 'warning') : '';
+        const l2Badge = showL2Badge ? `<span class="layer2-badge ${l2BadgeClass}" title="L2 비정상: ${l2Status.error_count}건">L2 확인</span>` : '';
 
         // 배치 펼침 버튼 (배치가 2개 이상이고, 전체 뷰일 때만)
         const expandBtn = (item.has_multi_batch && currentBatchView === 'all')
@@ -1691,22 +1699,25 @@ function renderAllView(data) {
                         ${getStatusLabel(statusClass)}
                     </span>
                 </td>
-                ${showRerun ? `<td class="col-rerun" onclick="event.stopPropagation()">
-                    ${item.has_instance && statusClass !== 'pending'
+                ${showRerun ? (() => {
+                    const isSaved = reportStatusData && reportStatusData.saved_retailers && reportStatusData.saved_retailers[item.retailer];
+                    return `<td class="col-rerun" onclick="event.stopPropagation()">
+                    ${item.has_instance && statusClass !== 'pending' && !isSaved
                         ? `<button class="btn-rerun" data-retailer="${item.retailer}" onclick="rerunCrawler('${item.retailer}')" title="${item.retailer} 크롤러 재실행">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="23 4 23 10 17 10"/>
                                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                             </svg>
                         </button>`
-                        : `<button class="btn-rerun" disabled title="${statusClass === 'pending' ? '수집 대기중' : 'instance_id 없음'}" style="opacity:0.3; cursor:not-allowed;">
+                        : `<button class="btn-rerun" disabled title="${isSaved ? '수집 완료' : statusClass === 'pending' ? '수집 대기중' : 'instance_id 없음'}" style="opacity:0.3; cursor:not-allowed;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="23 4 23 10 17 10"/>
                                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                             </svg>
                         </button>`
                     }
-                </td>` : ''}
+                </td>`;
+                })() : ''}
             </tr>
         `;
 
