@@ -1176,7 +1176,7 @@
 <!-- 확인 모달 -->
 <div class="confirm-overlay" id="confirmOverlay">
     <div class="confirm-box">
-        <div class="confirm-icon">
+        <div class="confirm-icon" id="confirmIcon">
             <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40">
                 <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
             </svg>
@@ -1332,9 +1332,12 @@ async function saveRetailer(retailer, event) {
         return;
     }
 
-    // 저장 확인 팝업 (이상치 건수 포함)
+    // 저장 확인 팝업
     const errorCount = (retailerData.null_union || 0) + (retailerData.price_zero || 0) + (retailerData.partial_null || 0);
-    const confirmed = await showConfirm(`${retailer} 이상치 데이터 ${errorCount}건을 저장하시겠습니까?`);
+    const confirmMsg = errorCount > 0
+        ? `${retailer} 이상치 데이터 ${errorCount}건을 저장하시겠습니까?`
+        : `${retailer} 현황을 저장하시겠습니까?`;
+    const confirmed = await showConfirm(confirmMsg, errorCount > 0 ? 'warning' : 'info');
     if (!confirmed) {
         return;
     }
@@ -1626,11 +1629,9 @@ function renderNullTable(data) {
             actionButtons = isSaved
                 ? '<span class="saved-badge">저장됨</span>'
                 : '<span style="color: #9ca3af; font-size: 11px;">미저장</span>';
-        } else if (!hasError) {
-            // 이상치가 없으면 버튼 숨김
-            actionButtons = isSaved
-                ? '<span class="saved-badge">저장됨</span>'
-                : '';
+        } else if (nullStatus === 'pending') {
+            // 수집중(대기)이면 버튼 숨김
+            actionButtons = '';
         } else {
             if (isSaved) {
                 actionButtons = `
@@ -2078,10 +2079,19 @@ function getCsrfToken() {
 }
 
 // 커스텀 확인 모달
-function showConfirm(msg) {
+function showConfirm(msg, type) {
     return new Promise(function(resolve) {
         var overlay = document.getElementById('confirmOverlay');
         document.getElementById('confirmMsg').textContent = msg;
+        var iconEl = document.getElementById('confirmIcon');
+        var okBtn = document.getElementById('confirmOk');
+        if (type === 'info') {
+            iconEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" width="40" height="40"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+            okBtn.style.background = '#2563eb';
+        } else {
+            iconEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/></svg>';
+            okBtn.style.background = '#ef4444';
+        }
         overlay.classList.add('show');
         var ok = document.getElementById('confirmOk');
         var cancel = document.getElementById('confirmCancel');

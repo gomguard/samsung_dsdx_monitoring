@@ -3009,7 +3009,7 @@ function startCapturePolling(retailer, date) {
         } catch (e) {
             // 폴링 실패는 무시 (다음 주기에 재시도)
         }
-    }, 30000);
+    }, 10000);
 
     // 10분 후 자동 중지
     const timeoutId = setTimeout(() => {

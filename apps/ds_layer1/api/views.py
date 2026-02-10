@@ -200,6 +200,32 @@ def layer_stats(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
+        # 마감 여부 확인 → 마감된 날짜는 현황 테이블 스냅샷 사용
+        is_closed = False
+        closed_data = {}
+        try:
+            cursor.execute("""
+                SELECT is_closed FROM ssd_crawl_db.ds_monitoring_report_close
+                WHERE crawl_date = %s
+            """, (target_date,))
+            close_row = cursor.fetchone()
+            if close_row and close_row[0] == 1:
+                is_closed = True
+                cursor.execute("""
+                    SELECT t.retailer, r.expected_count, r.total_count, r.completion_rate
+                    FROM ssd_crawl_db.ds_monitoring_report_daily r
+                    JOIN ssd_crawl_db.ds_monitoring_targets t ON r.retailer_id = t.retailer_id
+                    WHERE r.crawl_date = %s AND r.is_del = 0
+                """, (target_date,))
+                for row in cursor.fetchall():
+                    closed_data[row[0]] = {
+                        'expected': row[1] or 0,
+                        'actual': row[2] or 0,
+                        'completion_rate': float(row[3]) if row[3] else 0
+                    }
+        except:
+            is_closed = False
+
         # 배치 정보 로드
         batches_by_retailer = get_batches_for_date(target_date)
 
@@ -208,36 +234,41 @@ def layer_stats(request):
         results = []
 
         for idx, (table_name, retailer, region, korea_time, country, mall_name, instance_id, schedule_name) in enumerate(load_monitoring_targets_with_instance(), 1):
-            expected = get_expected_count(cursor, country, mall_name)
             retailer_batches = batches_by_retailer.get(retailer, [])
-
-            # 'final' 뷰이고 배치가 있으면, 마지막 배치만 조회
             final_start_time = None
             final_end_time = None
-            if len(retailer_batches) >= 1 and batch_view == 'final':
-                # 마지막 배치의 시간 범위
-                last_batch = retailer_batches[-1]
-                final_start_time = last_batch['start_time']
-                final_end_time = None  # 다음날까지
-                actual = get_crawl_count_by_time_range(cursor, table_name, target_date, final_start_time, final_end_time)
-            else:
-                actual = get_crawl_count(cursor, table_name, target_date)
 
-            # 완료율 계산
-            if expected > 0 and actual >= 0:
-                completion_rate = round((actual / expected) * 100, 1)
-            elif expected == 0:
-                completion_rate = 0
+            # 마감된 날짜 + 현황 데이터 있음 → 스냅샷 사용 (실시간 쿼리 생략)
+            if is_closed and retailer in closed_data:
+                expected = closed_data[retailer]['expected']
+                actual = closed_data[retailer]['actual']
+                completion_rate = closed_data[retailer]['completion_rate']
+                status = get_collection_status(korea_time, target_date, completion_rate)
             else:
-                completion_rate = -1
+                # 미마감 → 실시간 쿼리 (기존 로직)
+                expected = get_expected_count(cursor, country, mall_name)
+
+                if len(retailer_batches) >= 1 and batch_view == 'final':
+                    last_batch = retailer_batches[-1]
+                    final_start_time = last_batch['start_time']
+                    final_end_time = None
+                    actual = get_crawl_count_by_time_range(cursor, table_name, target_date, final_start_time, final_end_time)
+                else:
+                    actual = get_crawl_count(cursor, table_name, target_date)
+
+                if expected > 0 and actual >= 0:
+                    completion_rate = round((actual / expected) * 100, 1)
+                elif expected == 0:
+                    completion_rate = 0
+                else:
+                    completion_rate = -1
+
+                status = get_collection_status(korea_time, target_date, completion_rate)
 
             if expected >= 0:
                 total_expected += expected
             if actual >= 0:
                 total_actual += actual
-
-            # 상태 판단 (시간 기반)
-            status = get_collection_status(korea_time, target_date, completion_rate)
 
             result_item = {
                 'no': idx,
@@ -254,24 +285,21 @@ def layer_stats(request):
                 'batches': [],
                 'final_start_time': final_start_time,
                 'final_end_time': final_end_time,
-                'has_instance': bool(instance_id and schedule_name)  # instance_id + schedule_name 둘 다 있어야 재실행 가능
+                'has_instance': bool(instance_id and schedule_name)
             }
 
-            # 배치 정보 추가 (2개 이상이고 'all' 뷰인 경우)
-            if len(retailer_batches) >= 2 and batch_view == 'all':
+            # 배치 정보 추가 (미마감 + 2개 이상 + 'all' 뷰인 경우)
+            if not is_closed and len(retailer_batches) >= 2 and batch_view == 'all':
                 result_item['has_multi_batch'] = True
                 batch_details = []
 
                 for i, batch in enumerate(retailer_batches):
                     start_time = batch['start_time']
-                    # 다음 배치의 시작시간 = 이 배치의 종료시간
                     end_time = retailer_batches[i + 1]['start_time'] if i + 1 < len(retailer_batches) else None
 
-                    # 배치별 건수 조회
                     batch_count = get_crawl_count_by_time_range(cursor, table_name, target_date, start_time, end_time)
                     batch_completion = round((batch_count / expected) * 100, 1) if expected > 0 else 0
 
-                    # 배치별 L2 이상 건수 조회
                     l2_quality = get_quality_counts_by_time_range(cursor, table_name, target_date, start_time, end_time)
                     l2_error_count = l2_quality.get('error_count', 0)
 
@@ -301,7 +329,8 @@ def layer_stats(request):
             'total_expected': total_expected,
             'total_actual': total_actual,
             'total_completion_rate': total_completion_rate,
-            'status': 'success' if total_completion_rate >= 100 else 'danger'
+            'status': 'success' if total_completion_rate >= 100 else 'danger',
+            'is_closed': is_closed
         }
 
     except Exception as e:
@@ -529,107 +558,6 @@ def table_detail(request):
 
     return JsonResponse(data)
 
-
-def date_range_stats(request):
-    """날짜 범위 통계 조회 API"""
-    start_date_str = request.GET.get('start_date')
-    end_date_str = request.GET.get('end_date')
-    table_name = request.GET.get('table')  # 선택적: 특정 테이블만 조회
-
-    if not start_date_str or not end_date_str:
-        return JsonResponse({'error': '시작일과 종료일을 입력하세요.'})
-
-    try:
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-    except ValueError:
-        return JsonResponse({'error': '날짜 형식이 올바르지 않습니다. (YYYY-MM-DD)'})
-
-    # 최대 30일로 제한
-    if (end_date - start_date).days > 30:
-        return JsonResponse({'error': '최대 30일까지 조회 가능합니다.'})
-
-    if end_date < start_date:
-        return JsonResponse({'error': '종료일이 시작일보다 빠릅니다.'})
-
-    # 특정 테이블 필터
-    if table_name:
-        valid_tables = [t[0] for t in get_monitoring_targets()]
-        if table_name not in valid_tables:
-            return JsonResponse({'error': '유효하지 않은 테이블명입니다.'})
-        targets = [t for t in get_monitoring_targets() if t[0] == table_name]
-    else:
-        targets = get_monitoring_targets()
-
-    data = {
-        'timestamp': datetime.now().isoformat(),
-        'start_date': str(start_date),
-        'end_date': str(end_date),
-        'dates': [],
-        'retailers': []
-    }
-
-    try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
-
-        # 날짜 목록 생성
-        date_list = []
-        current_date = start_date
-        while current_date <= end_date:
-            date_list.append(current_date)
-            current_date += timedelta(days=1)
-
-        data['dates'] = [str(d) for d in date_list]
-
-        # 리테일러별 날짜별 데이터 수집
-        retailers_data = []
-        for table_name, retailer, region, korea_time, country, mall_name in targets:
-            expected = get_expected_count(cursor, country, mall_name)
-
-            daily_stats = []
-            for target_date in date_list:
-                actual = get_crawl_count(cursor, table_name, target_date)
-
-                if expected > 0 and actual >= 0:
-                    completion_rate = round((actual / expected) * 100, 1)
-                elif expected == 0:
-                    completion_rate = 0
-                else:
-                    completion_rate = -1
-
-                if completion_rate >= 100:
-                    status = 'success'
-                elif completion_rate >= 0:
-                    status = 'danger'
-                else:
-                    status = 'error'
-
-                daily_stats.append({
-                    'date': str(target_date),
-                    'actual': actual,
-                    'completion_rate': completion_rate,
-                    'status': status
-                })
-
-            retailers_data.append({
-                'table_name': table_name,
-                'retailer': retailer,
-                'region': region,
-                'country': country.upper(),
-                'expected': expected,
-                'daily_stats': daily_stats
-            })
-
-        cursor.close()
-        conn.close()
-
-        data['retailers'] = retailers_data
-
-    except Exception as e:
-        data['error'] = str(e)
-
-    return JsonResponse(data)
 
 
 
