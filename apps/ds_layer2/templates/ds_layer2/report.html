@@ -1430,6 +1430,9 @@ async function loadReportList() {
         updateCloseButton(data);
         renderReportTable(data);
 
+        // running 캡쳐가 있으면 자동 폴링 재개
+        checkRunningCaptures(data);
+
     } catch (error) {
         console.error('Error loading report list:', error);
         content.innerHTML = `
@@ -2966,6 +2969,32 @@ function renderCaptureButton(report) {
     }
 }
 
+// 페이지 로드 시 running 캡쳐 자동 폴링 재개
+function checkRunningCaptures(data) {
+    if (!data.daily_reports) return;
+    const date = document.getElementById('targetDate').value;
+
+    // 기존 폴링 모두 정리
+    Object.keys(capturePollers).forEach(r => stopCapturePolling(r));
+
+    for (const report of data.daily_reports) {
+        if (report.capture_running && !report.all_screenshots_captured) {
+            // 버튼을 로딩 상태로 변경
+            const btn = document.querySelector(`button.btn-screenshot-capture[data-retailer="${report.retailer}"]`);
+            if (btn) {
+                btn.classList.add('loading');
+                btn.innerHTML = `
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+                        <circle cx="12" cy="12" r="10" stroke-dasharray="30" stroke-dashoffset="10"/>
+                    </svg>
+                `;
+            }
+            // 폴링 시작 (팝업 없이)
+            startCapturePolling(report.retailer, date, true);
+        }
+    }
+}
+
 // 스크린샷 캡쳐 폴링 관리
 const capturePollers = {}; // { retailer: { pollId, timeoutId } }
 
@@ -3038,14 +3067,16 @@ function closeCaptureProgress(success, retailer, captured, total) {
     if (hint) hint.style.display = 'none';
 }
 
-function startCapturePolling(retailer, date) {
+function startCapturePolling(retailer, date, silent) {
     // 이미 폴링 중이면 중복 방지
     stopCapturePolling(retailer);
 
     const btn = document.querySelector(`button.btn-screenshot-capture[data-retailer="${retailer}"]`);
 
-    // 진행 팝업 표시
-    showCaptureProgress(retailer);
+    // 진행 팝업 표시 (silent=true면 팝업 없이 폴링만)
+    if (!silent) {
+        showCaptureProgress(retailer);
+    }
 
     const pollId = setInterval(async () => {
         try {
@@ -3053,11 +3084,17 @@ function startCapturePolling(retailer, date) {
             const data = await res.json();
 
             // 팝업 진행상황 업데이트
-            updateCaptureProgress(data.captured, data.total);
+            if (!silent) {
+                updateCaptureProgress(data.captured, data.total);
+            }
 
             if (data.completed) {
                 stopCapturePolling(retailer);
-                closeCaptureProgress(true, retailer, data.captured, data.total);
+                if (!silent) {
+                    closeCaptureProgress(true, retailer, data.captured, data.total);
+                } else {
+                    showToast(`${retailer} 캡쳐 완료 (${data.captured}/${data.total})`, 'success');
+                }
                 // 버튼을 완료 상태로 변경
                 if (btn) {
                     btn.classList.remove('loading');
@@ -3071,6 +3108,8 @@ function startCapturePolling(retailer, date) {
                         </svg>
                     `;
                 }
+                // 목록 갱신
+                loadReportList();
             }
         } catch (e) {
             // 폴링 실패는 무시 (다음 주기에 재시도)
@@ -3082,7 +3121,9 @@ function startCapturePolling(retailer, date) {
         clearInterval(pollId);
         const poller = capturePollers[retailer];
         delete capturePollers[retailer];
-        closeCaptureProgress(false, retailer, '?', '?');
+        if (!silent) {
+            closeCaptureProgress(false, retailer, '?', '?');
+        }
         // 버튼 복구
         if (btn) {
             btn.classList.remove('loading');

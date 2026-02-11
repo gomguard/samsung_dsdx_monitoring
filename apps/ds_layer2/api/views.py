@@ -1988,11 +1988,37 @@ def report_list(request):
         for row in screenshot_rows:
             screenshot_status_by_retailer[row[0]] = {'total': row[1], 'captured': row[2]}
 
-        # daily_reports에 all_screenshots_captured 필드 추가
+        # 캡쳐 로그: 30분 넘은 running → failed 자동 정리 (비정상 종료 안전장치)
+        running_captures = {}
+        try:
+            cursor.execute("""
+                UPDATE ssd_crawl_db.ds_monitoring_capture_log
+                SET status = 'failed'
+                WHERE crawl_date = %s AND status = 'running'
+                AND triggered_at < %s
+            """, (target_date, datetime.now() - timedelta(minutes=30)))
+            if cursor.rowcount > 0:
+                conn.commit()
+
+            # 30분 이내 running 조회
+            cursor.execute("""
+                SELECT t.retailer, cl.triggered_at
+                FROM ssd_crawl_db.ds_monitoring_capture_log cl
+                JOIN ssd_crawl_db.ds_monitoring_targets t ON cl.retailer_id = t.retailer_id
+                WHERE cl.crawl_date = %s AND cl.status = 'running'
+                AND cl.triggered_at >= %s
+            """, (target_date, datetime.now() - timedelta(minutes=30)))
+            for row in cursor.fetchall():
+                running_captures[row[0]] = row[1].strftime('%Y-%m-%d %H:%M:%S') if row[1] else None
+        except:
+            pass
+
+        # daily_reports에 all_screenshots_captured + capture_running 필드 추가
         for report in daily_reports:
             retailer = report['retailer']
             status = screenshot_status_by_retailer.get(retailer, {'total': 0, 'captured': 0})
             report['all_screenshots_captured'] = status['total'] > 0 and status['total'] == status['captured']
+            report['capture_running'] = retailer in running_captures
 
         cursor.close()
         conn.close()
@@ -2110,33 +2136,61 @@ def screenshot_capture(request):
     if not retailer or not crawl_date:
         return JsonResponse({'error': '리테일러와 날짜가 필요합니다.'}, status=400)
 
-    # DB에서 해당 리테일러의 instance_id, instance_region 조회
+    # DB에서 해당 리테일러의 instance_id, instance_region, retailer_id 조회
+    conn = None
+    cursor = None
     try:
         conn = get_ds_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT instance_id, instance_region, mall_name FROM ssd_crawl_db.ds_monitoring_targets
+            SELECT retailer_id, instance_id, instance_region, mall_name FROM ssd_crawl_db.ds_monitoring_targets
             WHERE retailer = %s AND is_active = 1
         """, (retailer,))
         row = cursor.fetchone()
-        cursor.close()
-        conn.close()
 
         if not row:
             return JsonResponse({'error': '해당 리테일러를 찾을 수 없습니다.'}, status=404)
 
-        instance_id = row[0]
-        instance_region = row[1] or SSM_CONFIG['region']  # NULL이면 기본값 사용
-        mall_name = row[2]
+        retailer_id = row[0]
+        instance_id = row[1]
+        instance_region = row[2] or SSM_CONFIG['region']  # NULL이면 기본값 사용
+        mall_name = row[3]
 
         if not instance_id:
             return JsonResponse({'error': '이 리테일러는 스크린샷 캡쳐를 지원하지 않습니다.'}, status=400)
 
+        # 30분 넘은 running → failed 자동 정리 (비정상 종료 안전장치)
+        cursor.execute("""
+            UPDATE ssd_crawl_db.ds_monitoring_capture_log
+            SET status = 'failed'
+            WHERE retailer_id = %s AND crawl_date = %s AND status = 'running'
+            AND triggered_at < %s
+        """, (retailer_id, crawl_date, datetime.now() - timedelta(minutes=30)))
+        if cursor.rowcount > 0:
+            conn.commit()
+
+        # running 기록 확인 (중복 실행 방지)
+        cursor.execute("""
+            SELECT id, triggered_at FROM ssd_crawl_db.ds_monitoring_capture_log
+            WHERE retailer_id = %s AND crawl_date = %s AND status = 'running'
+            ORDER BY triggered_at DESC LIMIT 1
+        """, (retailer_id, crawl_date))
+        running_row = cursor.fetchone()
+
+        if running_row:
+            return JsonResponse({'error': '이미 캡쳐가 진행 중입니다.'}, status=409)
+
     except Exception as e:
         return JsonResponse({'error': f'DB 조회 실패: {str(e)}'}, status=500)
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
     # 리테일러명 변환 (소문자)
     retailer_key = retailer.lower()
+    created_id = request.user.username if request.user.is_authenticated else ''
 
     # SSM 명령 실행 (Task Scheduler 방식)
     try:
@@ -2151,8 +2205,6 @@ def screenshot_capture(request):
         task_name = 'capture_error'
         param_file = 'C:\\samsung_ds_retail_com\\monitoring\\capture_params.json'
 
-        # 파라미터를 JSON 파일로 저장 후 task 실행 (task 설정은 변경하지 않음)
-        created_id = request.user.username if request.user.is_authenticated else ''
         param_json = f'{{"retailer": "{retailer_key}", "crawl_date": "{crawl_date}", "created_id": "{created_id}"}}'
 
         commands = [
@@ -2171,6 +2223,21 @@ def screenshot_capture(request):
         )
 
         command_id = response['Command']['CommandId']
+
+        # 캡쳐 로그 INSERT
+        try:
+            conn2 = get_ds_connection()
+            cursor2 = conn2.cursor()
+            cursor2.execute("""
+                INSERT INTO ssd_crawl_db.ds_monitoring_capture_log
+                (retailer_id, crawl_date, triggered_at, triggered_id, status)
+                VALUES (%s, %s, %s, %s, 'running')
+            """, (retailer_id, crawl_date, datetime.now(), created_id))
+            conn2.commit()
+            cursor2.close()
+            conn2.close()
+        except Exception:
+            pass  # 로그 INSERT 실패해도 캡쳐는 진행
 
         return JsonResponse({
             'success': True,
@@ -2290,6 +2357,7 @@ def screenshot_status(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
+        # 스크린샷 캡쳐 현황
         cursor.execute("""
             SELECT
                 COUNT(*) as total,
@@ -2302,13 +2370,34 @@ def screenshot_status(request):
         row = cursor.fetchone()
         total = row[0] or 0
         captured = row[1] or 0
+        completed = total > 0 and total == captured
+
+        # 캡쳐 로그 처리
+        is_running = False
+        triggered_at = None
+
+        # running 로그 확인
+        cursor.execute("""
+            SELECT cl.id, cl.triggered_at
+            FROM ssd_crawl_db.ds_monitoring_capture_log cl
+            JOIN ssd_crawl_db.ds_monitoring_targets t ON cl.retailer_id = t.retailer_id
+            WHERE LOWER(t.retailer) = LOWER(%s) AND cl.crawl_date = %s AND cl.status = 'running'
+            ORDER BY cl.triggered_at DESC LIMIT 1
+        """, (retailer, crawl_date))
+        log_row = cursor.fetchone()
+
+        if log_row:
+            is_running = True
+            triggered_at = log_row[1].strftime('%Y-%m-%d %H:%M:%S') if log_row[1] else None
 
         return JsonResponse({
             'retailer': retailer,
             'total': total,
             'captured': captured,
             'remaining': total - captured,
-            'completed': total == captured
+            'completed': completed,
+            'is_running': is_running,
+            'triggered_at': triggered_at
         })
 
     except Exception as e:
