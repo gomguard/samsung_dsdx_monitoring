@@ -1592,7 +1592,7 @@ function renderNullTable(data) {
                     <th>부분 NULL</th>
                     <th>정상</th>
                     <th>상태</th>
-                    <th>관리</th>
+                    ${!(reportStatus.is_closed || currentBatchView === 'all') ? '<th>관리</th>' : ''}
                 </tr>
             </thead>
             <tbody>
@@ -1621,26 +1621,20 @@ function renderNullTable(data) {
 
         let actionButtons = '';
 
-        // 전체 탭일 때는 버튼 숨김
-        if (currentBatchView === 'all') {
-            actionButtons = isSaved
-                ? '<span class="saved-badge">저장됨</span>'
-                : '';
-        } else if (isClosed) {
-            actionButtons = isSaved
-                ? '<span class="saved-badge">저장됨</span>'
-                : '<span style="color: #9ca3af; font-size: 11px;">미저장</span>';
+        // 전체 탭 또는 마감된 날짜면 관리 열 비움
+        if (currentBatchView === 'all' || isClosed) {
+            actionButtons = '';
         } else if (nullStatus === 'pending') {
             // 수집중(대기)이면 버튼 숨김
             actionButtons = '';
         } else {
             if (isSaved) {
                 actionButtons = `
-                    <button class="action-btn delete-btn" onclick="deleteRetailer('${item.retailer}', event)" title="삭제">삭제</button>
+                    <button class="action-btn delete-btn" onclick="deleteRetailer('${item.retailer}', event)" title="취소">취소</button>
                 `;
             } else {
                 actionButtons = `
-                    <button class="action-btn save-btn" onclick="saveRetailer('${item.retailer}', event)" title="저장">저장</button>
+                    <button class="action-btn save-btn" onclick="saveRetailer('${item.retailer}', event)" title="마감">마감</button>
                 `;
             }
         }
@@ -1664,7 +1658,7 @@ function renderNullTable(data) {
                         ${getStatusLabel(nullStatus)}
                     </span>
                 </td>
-                <td onclick="event.stopPropagation()">${actionButtons}</td>
+                ${!(currentBatchView === 'all' || isClosed) ? `<td onclick="event.stopPropagation()">${actionButtons}</td>` : ''}
             </tr>
         `;
 
