@@ -1584,6 +1584,7 @@ function renderNullTable(data) {
                     <th>리테일러</th>
                     <th>지역</th>
                     <th>국가</th>
+                    <th>예상</th>
                     <th>전체</th>
                     <th>Title NULL</th>
                     <th>Image NULL</th>
@@ -1650,6 +1651,7 @@ function renderNullTable(data) {
                 <td><span class="retailer-name">${item.retailer}</span>${expandBtn}</td>
                 <td>${item.region}</td>
                 <td><span class="country-badge">${item.country}</span></td>
+                <td>${item.expected_count.toLocaleString()}</td>
                 <td>${item.total.toLocaleString()}</td>
                 <td class="error-count ${item.title_null > 0 ? 'has-error' : 'no-error'}">${item.title_null}</td>
                 <td class="error-count ${(item.imageurl_null || 0) > 0 ? 'has-error' : 'no-error'}">${item.imageurl_null || 0}</td>
@@ -1680,7 +1682,7 @@ function renderNullTable(data) {
                         onclick="event.stopPropagation(); openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${batch.null_union}, 0, ${batch.price_zero || 0}, ${batch.partial_null}, '${batch.start_time}', ${endTimeParam})"
                         title="클릭하여 배치 상세 보기" style="cursor: pointer;">
                         <td></td>
-                        <td colspan="3">
+                        <td colspan="4">
                             <span class="batch-indicator">
                                 <span class="batch-time">${batch.start_time} ~ ${batch.end_time}</span>
                                 <span class="batch-memo">${batch.memo || ''}</span>

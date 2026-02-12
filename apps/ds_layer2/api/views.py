@@ -1985,8 +1985,12 @@ def report_list(request):
         cursor.execute(screenshot_query, [target_date])
         screenshot_rows = cursor.fetchall()
         screenshot_status_by_retailer = {}
+        total_screenshots = 0
+        captured_screenshots = 0
         for row in screenshot_rows:
             screenshot_status_by_retailer[row[0]] = {'total': row[1], 'captured': row[2]}
+            total_screenshots += row[1]
+            captured_screenshots += row[2]
 
         # 캡쳐 로그: 30분 넘은 running → failed 자동 정리 (비정상 종료 안전장치)
         running_captures = {}
@@ -2039,6 +2043,8 @@ def report_list(request):
             'total_anomalies': total_anomalies,
             'filled_cause': filled_cause,
             'filled_memo': filled_memo,
+            'total_screenshots': total_screenshots,
+            'captured_screenshots': captured_screenshots,
             'total_retailers': total_retailers,
             'cause_options': cause_options,
             'cause_summary': cause_summary

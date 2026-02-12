@@ -1,0 +1,795 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{% if is_new %}새 문서{% else %}문서 편집{% endif %} - DS Documents{% endblock %}
+
+{% block extra_css %}
+<style>
+    .edit-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    /* 헤더 */
+    .edit-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .edit-header-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: var(--border-color);
+    }
+
+    .btn-back svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .edit-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .edit-header-right {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn-delete {
+        padding: 10px 20px;
+        background: #fee2e2;
+        color: #dc2626;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-delete:hover {
+        background: #fecaca;
+    }
+
+    .btn-save {
+        padding: 10px 24px;
+        background: #7c3aed;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-save:hover {
+        background: #6d28d9;
+    }
+
+    /* 폼 영역 */
+    .edit-form {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .form-section {
+        padding: 24px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-section:last-child {
+        border-bottom: none;
+    }
+
+    .form-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .form-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .form-group {
+        flex: 1;
+    }
+
+    .form-label {
+        flex-shrink: 0;
+        width: 70px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 0;
+    }
+
+    .form-label .required {
+        color: #dc2626;
+        margin-left: 2px;
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 15px;
+        color: var(--text-primary);
+        background: var(--bg-primary);
+        transition: all 0.2s;
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: #7c3aed;
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+    }
+
+    .form-input::placeholder {
+        color: var(--text-secondary);
+    }
+
+    .form-select {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 15px;
+        color: var(--text-primary);
+        background: var(--bg-primary);
+        cursor: pointer;
+    }
+
+    .form-select:focus {
+        outline: none;
+        border-color: #7c3aed;
+    }
+
+    /* 에디터 영역 */
+    .editor-section {
+        padding: 0;
+    }
+
+    .editor-header {
+        padding: 16px 24px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .editor-header .form-label {
+        margin-bottom: 0;
+    }
+
+    .editor-header-right {
+        margin-left: auto;
+    }
+
+    #editor {
+        border-top: 1px solid var(--border-color);
+    }
+
+    /* 파일 업로드 모드 (category_type=2,3) */
+    .file-upload-section {
+        padding: 24px;
+    }
+
+    .file-dropzone {
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 40px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--bg-primary);
+        margin-bottom: 16px;
+    }
+
+    .file-dropzone:hover,
+    .file-dropzone.dragover {
+        border-color: #7c3aed;
+        background: rgba(124, 58, 237, 0.05);
+    }
+
+    .file-dropzone svg {
+        width: 48px;
+        height: 48px;
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+        opacity: 0.5;
+    }
+
+    .file-dropzone p {
+        color: var(--text-secondary);
+        font-size: 14px;
+        margin: 0 0 4px;
+    }
+
+    .file-dropzone .hint {
+        font-size: 12px;
+        opacity: 0.7;
+    }
+
+    .file-list {
+        margin-top: 16px;
+    }
+
+    .file-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        margin-bottom: 8px;
+        font-size: 13px;
+    }
+
+    .file-item svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+        color: var(--text-secondary);
+    }
+
+    .file-item-name {
+        flex: 1;
+        color: var(--text-primary);
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .file-item-size {
+        color: var(--text-secondary);
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+
+    .file-item-remove {
+        background: none;
+        border: none;
+        color: #dc2626;
+        cursor: pointer;
+        padding: 2px;
+        display: flex;
+        align-items: center;
+    }
+
+    .file-item-remove:hover {
+        opacity: 0.7;
+    }
+
+    .file-content-textarea {
+        width: 100%;
+        min-height: 200px;
+        padding: 14px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        color: var(--text-primary);
+        background: var(--bg-primary);
+        resize: vertical;
+        box-sizing: border-box;
+        line-height: 1.6;
+    }
+
+    .file-content-textarea:focus {
+        outline: none;
+        border-color: #7c3aed;
+        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+    }
+
+    .file-section-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 10px;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="edit-container">
+    <!-- 헤더 -->
+    <div class="edit-header">
+        <div class="edit-header-left">
+            <a id="btnBackToList" href="{% url 'main:ds_documents' %}" class="btn-back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                목록으로
+            </a>
+            <h1 class="edit-title">{% if is_new %}새 문서 작성{% else %}문서 편집{% endif %}</h1>
+        </div>
+        <div class="edit-header-right">
+            {% if not is_new %}
+            <button class="btn-delete" onclick="deleteDocument()">삭제</button>
+            {% endif %}
+            <button class="btn-save" onclick="saveDocument()">저장</button>
+        </div>
+    </div>
+
+    <!-- 폼 -->
+    <div class="edit-form">
+        <div class="form-section">
+            <div class="form-row">
+                <label class="form-label">카테고리</label>
+                {% if is_new and selected_category %}
+                <span style="font-size: 15px; font-weight: 700; color: var(--text-primary);">{{ selected_category_name }}</span>
+                <input type="hidden" id="categoryIdHidden" value="{{ selected_category }}">
+                {% else %}
+                <span id="categoryName" style="font-size: 15px; font-weight: 700; color: var(--text-primary);"></span>
+                <select class="form-select" id="categoryId" style="display:none;">
+                    <option value="">선택하세요</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.category_id }}" {% if cat.category_id == selected_category %}selected{% endif %}>{{ cat.category_name }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+                {% if document_id %}
+                <div style="margin-left: auto; display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 13px; font-weight: 700; color: var(--text-secondary);">문서번호</span>
+                    <span style="font-size: 15px; font-weight: 700; color: var(--text-primary);">{{ document_id }}</span>
+                </div>
+                {% endif %}
+            </div>
+            <div class="form-row">
+                <label class="form-label">제목 <span class="required">*</span></label>
+                <div class="form-group">
+                    <input type="text" class="form-input" id="documentTitle" placeholder="문서 제목을 입력하세요">
+                </div>
+            </div>
+        </div>
+
+        <!-- 에디터 모드 (category_type=1,3) -->
+        <div class="form-section editor-section" id="editorSection">
+            <div class="editor-header">
+                <label class="form-label">내용</label>
+                <div class="editor-header-right" id="editorPreviewBtnArea"></div>
+            </div>
+            <div id="editor"></div>
+        </div>
+
+        <!-- 파일저장 모드 (category_type=2,3) -->
+        <div class="form-section file-upload-section" id="fileSection" style="display:none;">
+            <div class="file-section-label">파일 첨부</div>
+            <div class="file-dropzone" id="fileDropzone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <p>파일을 드래그하거나 클릭하여 업로드</p>
+                <p class="hint">여러 파일을 한 번에 업로드할 수 있습니다</p>
+                <input type="file" id="fileInput" multiple style="display:none;">
+            </div>
+            <div class="file-list" id="fileList"></div>
+
+            <!-- type 2만: 메모 textarea (에디터 없을 때만 표시) -->
+            <div id="fileMemoSection">
+                <div class="file-section-label" style="margin-top: 20px;">내용 (메모)</div>
+                <textarea class="file-content-textarea" id="fileContent" placeholder="파일에 대한 설명이나 메모를 입력하세요"></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+{% include 'components/editor.html' %}
+{% if is_new and template_content %}
+<script type="text/template" id="templateContentData">{{ template_content|safe }}</script>
+{% endif %}
+
+<script>
+let editor = null;
+const documentId = '{{ document_id|default:"" }}';
+const isNew = {{ is_new|yesno:"true,false" }};
+let categoryType = {{ selected_category_type|default:1 }};
+
+// object_document_id: 기존 문서면 API에서 로드, 새 문서면 JS에서 생성
+let objectDocumentId = '';
+
+// 파일 목록 (파일저장 모드)
+let existingFiles = [];
+let pendingFiles = [];
+let pendingDeletes = [];
+
+// 페이지 로드
+document.addEventListener('DOMContentLoaded', function() {
+    if (isNew) {
+        objectDocumentId = generateObjectDocumentId();
+    }
+
+    // 모드별 UI 초기화
+    if (categoryType === 2) {
+        document.getElementById('editorSection').style.display = 'none';
+        initFileMode();
+    } else if (categoryType === 3) {
+        initEditorMode();
+        initFileMode();
+    } else {
+        initEditorMode();
+    }
+
+    if (!isNew && documentId) {
+        loadDocument(documentId);
+    }
+
+    updateBackLink();
+});
+
+// 목록 링크에 현재 카테고리 반영
+function updateBackLink() {
+    const btn = document.getElementById('btnBackToList');
+    if (!btn) return;
+    const catId = document.getElementById('categoryIdHidden')
+        ? document.getElementById('categoryIdHidden').value
+        : (document.getElementById('categoryId') ? document.getElementById('categoryId').value : '');
+    if (catId) {
+        btn.href = '{% url "main:ds_documents" %}?category=' + encodeURIComponent(catId);
+    }
+}
+
+// 에디터 초기화
+function initEditorMode() {
+    document.getElementById('editorSection').style.display = '';
+    if (editor) return;
+
+    AppButton('#editorPreviewBtnArea', '미리보기', 'openDocPreview', { icon: 'search', style: 'outline', size: 'sm' });
+
+    editor = initEditor('editor', '', {
+        height: '650px',
+        uploadUrl: '{% url "main:api_ds_document_upload" %}',
+        getObjectDocumentId: function() { return objectDocumentId; }
+    });
+
+    if (isNew) {
+        const tplEl = document.getElementById('templateContentData');
+        if (tplEl && tplEl.textContent.trim()) {
+            setEditorHTML(editor, tplEl.textContent);
+        }
+    }
+}
+
+// 파일저장 초기화
+function initFileMode() {
+    document.getElementById('fileSection').style.display = '';
+    document.getElementById('fileMemoSection').style.display = editor ? 'none' : '';
+    setupFileDropzone();
+}
+
+// 문서 미리보기
+function openDocPreview() {
+    var docTitle = document.getElementById('documentTitle').value.trim();
+    editorPreview.open(editor, '문서 미리보기', docTitle);
+}
+
+// 파일 드롭존 설정
+let _dropzoneInitialized = false;
+function setupFileDropzone() {
+    if (_dropzoneInitialized) return;
+    _dropzoneInitialized = true;
+    const dropzone = document.getElementById('fileDropzone');
+    const fileInput = document.getElementById('fileInput');
+
+    dropzone.addEventListener('click', function() { fileInput.click(); });
+
+    fileInput.addEventListener('change', function() {
+        handleFiles(fileInput.files);
+        fileInput.value = '';
+    });
+
+    dropzone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', function() {
+        dropzone.classList.remove('dragover');
+    });
+    dropzone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+}
+
+// 파일 처리 (메모리에 보관, 저장 시 업로드)
+function handleFiles(files) {
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const tempId = 'pending-' + Date.now() + '-' + i;
+        pendingFiles.push({ tempId: tempId, name: file.name, size: file.size, fileObj: file });
+        addFileItem(tempId, file.name, file.size, null, false, true);
+    }
+}
+
+// 파일 목록 UI 추가
+function addFileItem(id, name, size, url, uploading, isPending) {
+    const sizeStr = formatFileSize(size);
+    const list = document.getElementById('fileList');
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    div.id = 'file-' + id;
+    div.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span class="file-item-name">${escapeHtml(name)}</span>
+        <span class="file-item-size">${uploading ? '업로드 중...' : sizeStr}</span>
+        ${uploading ? '' : `<button class="file-item-remove" onclick="removeFile('${id}', ${isPending ? 'true' : 'false'})" title="삭제">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+        </button>`}
+    `;
+    list.appendChild(div);
+}
+
+function removeFileItem(id) {
+    const el = document.getElementById('file-' + id);
+    if (el) el.remove();
+}
+
+function removeFile(id, isPending) {
+    if (isPending) {
+        pendingFiles = pendingFiles.filter(f => f.tempId !== id);
+    } else {
+        existingFiles = existingFiles.filter(f => String(f.file_id) !== String(id));
+        pendingDeletes.push(id);
+    }
+    removeFileItem(id);
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+// 문서 로드
+function loadDocument(id) {
+    fetch('{% url "main:api_ds_document_detail" %}?document_id=' + encodeURIComponent(id))
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                const doc = res.document;
+                objectDocumentId = doc.object_document_id || '';
+                categoryType = doc.category_type || 1;
+
+                const catSelect = document.getElementById('categoryId');
+                const catName = document.getElementById('categoryName');
+                if (catSelect && catName) {
+                    catSelect.value = doc.category_id;
+                    const selectedOption = catSelect.options[catSelect.selectedIndex];
+                    catName.textContent = selectedOption ? selectedOption.text : doc.category_id;
+                }
+                document.getElementById('documentTitle').value = doc.title;
+
+                updateBackLink();
+
+                if (categoryType === 2) {
+                    document.getElementById('editorSection').style.display = 'none';
+                    initFileMode();
+                    if (doc.content) document.getElementById('fileContent').value = doc.content;
+                    loadExistingFiles();
+                } else if (categoryType === 3) {
+                    initEditorMode();
+                    initFileMode();
+                    if (doc.content) setEditorHTML(editor, doc.content);
+                    loadExistingFiles();
+                } else {
+                    document.getElementById('fileSection').style.display = 'none';
+                    initEditorMode();
+                    if (doc.content) setEditorHTML(editor, doc.content);
+                }
+            } else {
+                showToast(res.error || '문서를 불러올 수 없습니다.', 'error');
+            }
+        });
+}
+
+// 기존 첨부파일 로드
+function loadExistingFiles() {
+    if (!objectDocumentId) return;
+    fetch('{% url "main:api_ds_document_files" %}?object_document_id=' + encodeURIComponent(objectDocumentId))
+        .then(r => r.json())
+        .then(res => {
+            if (res.success && res.files) {
+                res.files.forEach(f => {
+                    existingFiles.push({
+                        file_id: f.file_id,
+                        name: f.original_file_name,
+                        size: f.file_size,
+                        url: '/api/ds/documents/file/' + f.file_name
+                    });
+                    addFileItem(f.file_id, f.original_file_name, f.file_size, '/api/ds/documents/file/' + f.file_name, false, false);
+                });
+            }
+        });
+}
+
+// 파일 일괄 업로드 (저장 시 호출, upload_type=2 첨부파일)
+function uploadPendingFiles() {
+    const promises = pendingFiles.map(f => {
+        const formData = new FormData();
+        formData.append('file', f.fileObj, f.name);
+        formData.append('object_document_id', objectDocumentId);
+        formData.append('upload_type', '2');
+        return fetch('{% url "main:api_ds_document_upload" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() },
+            body: formData
+        }).then(r => r.json());
+    });
+    return Promise.all(promises);
+}
+
+// 파일 일괄 삭제 (저장 시 호출)
+function deletePendingFiles() {
+    const promises = pendingDeletes.map(fileId => {
+        return fetch('/api/ds/documents/files/' + fileId + '/delete/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        }).then(r => r.json());
+    });
+    return Promise.all(promises);
+}
+
+// 문서 저장
+function saveDocument() {
+    const hiddenCat = document.getElementById('categoryIdHidden');
+    const categoryId = hiddenCat ? hiddenCat.value : document.getElementById('categoryId').value;
+    const title = document.getElementById('documentTitle').value.trim();
+
+    // 모드별 content 결정
+    let content;
+    if (categoryType === 2) {
+        content = document.getElementById('fileContent').value.trim();
+    } else if (categoryType === 3) {
+        content = getEditorHTML(editor);
+    } else {
+        content = getEditorHTML(editor);
+    }
+
+    if (!categoryId) {
+        showToast('카테고리를 선택하세요.', 'error');
+        return;
+    }
+
+    if (!title) {
+        showToast('문서 제목을 입력하세요.', 'error');
+        return;
+    }
+
+    // 파일 모드(type 2, 3): 업로드/삭제 먼저 처리 후 문서 저장
+    if ((categoryType === 2 || categoryType === 3) && (pendingFiles.length > 0 || pendingDeletes.length > 0)) {
+        Promise.all([uploadPendingFiles(), deletePendingFiles()])
+            .then(function(results) {
+                const uploadResults = results[0];
+                const failedUploads = uploadResults.filter(r => !r.success);
+                if (failedUploads.length > 0) {
+                    showToast('일부 파일 업로드에 실패했습니다.', 'error');
+                    return;
+                }
+                pendingFiles = [];
+                pendingDeletes = [];
+                doSaveDocument(categoryId, title, content);
+            })
+            .catch(function() {
+                showToast('파일 처리 중 오류가 발생했습니다.', 'error');
+            });
+    } else {
+        doSaveDocument(categoryId, title, content);
+    }
+}
+
+// 실제 문서 저장 API 호출
+function doSaveDocument(categoryId, title, content) {
+    let url, body;
+    if (isNew) {
+        url = '{% url "main:api_ds_document_create" %}';
+        body = { category_id: categoryId, title: title, content: content, object_document_id: objectDocumentId };
+    } else {
+        url = '/api/ds/documents/' + encodeURIComponent(documentId) + '/update/';
+        body = { title: title, content: content };
+    }
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify(body)
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            showToast(res.message, 'success');
+            if (isNew && res.document_id) {
+                setTimeout(() => {
+                    window.location.href = '/ds/documents/' + encodeURIComponent(res.document_id) + '/edit/';
+                }, 1000);
+            }
+        } else {
+            showToast(res.error || '저장에 실패했습니다.', 'error');
+        }
+    });
+}
+
+// 문서 삭제
+function deleteDocument() {
+    showConfirm('이 문서를 삭제하시겠습니까?').then(confirmed => {
+        if (confirmed) {
+            fetch('/api/ds/documents/' + encodeURIComponent(documentId) + '/delete/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken() }
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    setTimeout(() => {
+                        window.location.href = '{% url "main:ds_documents" %}';
+                    }, 1000);
+                } else {
+                    showToast(res.error || '삭제에 실패했습니다.', 'error');
+                }
+            });
+        }
+    });
+}
+
+// CSRF 토큰
+function getCsrfToken() {
+    const cookie = document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='));
+    return cookie ? cookie.split('=')[1] : '';
+}
+</script>
+{% endblock %}

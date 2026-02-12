@@ -58,4 +58,13 @@ urlpatterns = [
     path('admin/document-categories/<str:category_id>/update/', views.document_categories_update, name='document_categories_update'),
     path('admin/document-categories/<str:category_id>/delete/', views.document_categories_delete, name='document_categories_delete'),
     path('admin/document-categories/<str:category_id>/toggle/', views.document_categories_toggle, name='document_categories_toggle'),
+
+    # 관리자 페이지 - DS 문서 카테고리 관리
+    path('admin/ds-document-categories/', views.ds_document_categories, name='ds_document_categories'),
+    path('admin/ds-document-categories/new/', views.ds_document_category_edit, name='ds_document_category_new'),
+    path('admin/ds-document-categories/<str:category_id>/edit/', views.ds_document_category_edit, name='ds_document_category_edit'),
+    path('admin/ds-document-categories/create/', views.ds_document_categories_create, name='ds_document_categories_create'),
+    path('admin/ds-document-categories/<str:category_id>/update/', views.ds_document_categories_update, name='ds_document_categories_update'),
+    path('admin/ds-document-categories/<str:category_id>/delete/', views.ds_document_categories_delete, name='ds_document_categories_delete'),
+    path('admin/ds-document-categories/<str:category_id>/toggle/', views.ds_document_categories_toggle, name='ds_document_categories_toggle'),
 ]

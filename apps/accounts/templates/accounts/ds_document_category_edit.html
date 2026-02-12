@@ -1,0 +1,425 @@
+{% extends 'accounts/admin_base.html' %}
+{% load static %}
+
+{% block title %}{% if is_new %}카테고리 추가{% else %}카테고리 편집{% endif %} - 관리자{% endblock %}
+
+{% block admin_css %}
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .page-header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 12px;
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+
+    .btn-back svg { width: 14px; height: 14px; }
+
+    .page-title {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .page-header-right {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-delete {
+        padding: 7px 16px;
+        background: #fee2e2;
+        color: #dc2626;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-delete:hover { background: #fecaca; }
+
+    .btn-save {
+        padding: 7px 20px;
+        background: #7c3aed;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-save:hover { background: #6d28d9; }
+
+    /* 폼 */
+    .edit-form {
+        background: #fff;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .form-section {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-section:last-child {
+        border-bottom: none;
+    }
+
+    .form-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+    }
+
+    .form-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .form-label {
+        flex-shrink: 0;
+        width: 70px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .form-label .required {
+        color: #dc2626;
+        margin-left: 2px;
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+        color: var(--text-primary);
+        background: var(--bg-primary);
+        box-sizing: border-box;
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: #7c3aed;
+    }
+
+    .form-input-sm {
+        width: 80px;
+    }
+
+    .form-group {
+        flex: 1;
+    }
+
+    .form-textarea {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+        color: var(--text-primary);
+        background: var(--bg-primary);
+        box-sizing: border-box;
+        resize: vertical;
+        font-family: inherit;
+    }
+
+    .form-textarea:focus {
+        outline: none;
+        border-color: #7c3aed;
+    }
+
+    .form-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .form-checkbox input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+    }
+
+    .form-checkbox label {
+        font-size: 12px;
+        color: var(--text-primary);
+        cursor: pointer;
+    }
+
+    /* 템플릿 에디터 영역 */
+    .template-section {
+        padding: 0;
+    }
+
+    .template-header {
+        padding: 16px 24px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .template-label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .template-hint {
+        font-size: 11px;
+        color: var(--text-secondary);
+        opacity: 0.7;
+    }
+
+    .template-header-right {
+        margin-left: auto;
+    }
+
+    #templateEditor {
+        border-top: 1px solid var(--border-color);
+    }
+
+    /* 카테고리 ID 표시 */
+    .category-id-display {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-left: auto;
+    }
+
+    .category-id-display strong {
+        color: var(--text-primary);
+        margin-left: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div>
+    <!-- 헤더 -->
+    <div class="page-header">
+        <div class="page-header-left">
+            <a href="{% url 'accounts:ds_document_categories' %}" class="btn-back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                목록
+            </a>
+            <h1 class="page-title">{% if is_new %}카테고리 추가{% else %}카테고리 편집{% endif %}</h1>
+            {% if not is_new and category %}
+            <span class="category-id-display">ID: <strong>{{ category.category_id }}</strong></span>
+            {% endif %}
+        </div>
+        <div class="page-header-right">
+            {% if not is_new %}
+            <button class="btn-delete" onclick="deleteCategory()">삭제</button>
+            {% endif %}
+            <button class="btn-save" onclick="saveCategory()">저장</button>
+        </div>
+    </div>
+
+    <!-- 폼 -->
+    <div class="edit-form">
+        <div class="form-section">
+            <div class="form-row">
+                <label class="form-label">순서 <span class="required">*</span></label>
+                <input type="number" class="form-input form-input-sm" id="formOrder"
+                       value="{% if category %}{{ category.sort_order }}{% else %}{{ next_sort_order }}{% endif %}" min="1">
+
+                <label class="form-label" style="width: 80px; margin-left: 20px;">카테고리명 <span class="required">*</span></label>
+                <div class="form-group">
+                    <input type="text" class="form-input" id="formName"
+                           value="{% if category %}{{ category.category_name }}{% endif %}"
+                           placeholder="예: DS 검수 매뉴얼">
+                </div>
+            </div>
+            <div class="form-row">
+                <label class="form-label">설명</label>
+                <div class="form-group">
+                    <textarea class="form-textarea" id="formDesc" rows="2"
+                              placeholder="카테고리에 대한 설명 (선택)">{% if category %}{{ category.description|default:'' }}{% endif %}</textarea>
+                </div>
+            </div>
+            <div class="form-row">
+                <label class="form-label">유형 <span class="required">*</span></label>
+                <select class="form-input" id="formCategoryType" style="width: 160px;">
+                    <option value="1" {% if not category or category.category_type == 1 %}selected{% endif %}>에디터</option>
+                    <option value="2" {% if category and category.category_type == 2 %}selected{% endif %}>파일저장</option>
+                    <option value="3" {% if category and category.category_type == 3 %}selected{% endif %}>에디터+파일저장</option>
+                </select>
+                <div class="form-checkbox" style="margin-left: 20px;">
+                    <input type="checkbox" id="formActive" {% if is_new or category.is_active %}checked{% endif %}>
+                    <label for="formActive">활성</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section template-section">
+            <div class="template-header">
+                <span class="template-label">템플릿</span>
+                <span class="template-hint">이 카테고리로 새 문서 작성 시 기본으로 표시되는 내용입니다</span>
+                <div class="template-header-right" id="previewBtnArea"></div>
+            </div>
+            <div id="templateEditor"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+{% include 'components/editor.html' %}
+{% if category.template_content %}
+<script type="text/template" id="templateContentData">{{ category.template_content|safe }}</script>
+{% endif %}
+
+<script>
+let templateEditor = null;
+const isNew = {{ is_new|yesno:"true,false" }};
+const categoryId = '{{ category.category_id|default:"" }}';
+let objectDocumentId = '{{ category.object_document_id|default:"" }}';
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 미리보기 버튼 생성
+    AppButton('#previewBtnArea', '미리보기', 'openPreview', { icon: 'search', style: 'outline', size: 'sm' });
+
+    var editorOpts = {
+        height: '600px',
+        uploadUrl: '{% url "main:api_ds_document_upload" %}'
+    };
+    if (objectDocumentId) {
+        editorOpts.getObjectDocumentId = function() { return objectDocumentId; };
+    }
+    templateEditor = initEditor('templateEditor', '', editorOpts);
+
+    // 새 카테고리: 에디터 자동 생성 ID 사용
+    if (!objectDocumentId && templateEditor.objectDocumentId) {
+        objectDocumentId = templateEditor.objectDocumentId;
+    }
+
+    {% if category.template_content %}
+    const tplEl = document.getElementById('templateContentData');
+    if (tplEl && tplEl.textContent) {
+        setEditorHTML(templateEditor, tplEl.textContent);
+    }
+    {% endif %}
+});
+
+function getCsrfToken() {
+    return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+function saveCategory() {
+    const sortOrder = parseInt(document.getElementById('formOrder').value) || 1;
+    const categoryName = document.getElementById('formName').value.trim();
+    const description = document.getElementById('formDesc').value.trim();
+    const isActive = document.getElementById('formActive').checked;
+    const templateContent = getEditorHTML(templateEditor);
+
+    if (sortOrder < 1) {
+        showToast('순서는 1 이상이어야 합니다.', 'error');
+        return;
+    }
+
+    if (!categoryName) {
+        showToast('카테고리명을 입력하세요.', 'error');
+        return;
+    }
+
+    const categoryType = parseInt(document.getElementById('formCategoryType').value) || 1;
+
+    const data = {
+        category_name: categoryName,
+        description: description,
+        sort_order: sortOrder,
+        is_active: isActive,
+        template_content: templateContent,
+        object_document_id: objectDocumentId,
+        category_type: categoryType,
+    };
+
+    const url = isNew
+        ? '{% url "accounts:ds_document_categories_create" %}'
+        : `/accounts/admin/ds-document-categories/${categoryId}/update/`;
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            showToast(res.message, 'success');
+            if (isNew && res.id) {
+                setTimeout(() => {
+                    window.location.href = `/accounts/admin/ds-document-categories/${res.id}/edit/`;
+                }, 800);
+            }
+        } else {
+            showToast(res.error || '오류가 발생했습니다.', 'error');
+        }
+    })
+    .catch(err => showToast('요청 오류: ' + err.message, 'error'));
+}
+
+// === 미리보기 (공통 editorPreview 사용) ===
+function openPreview() {
+    editorPreview.open(templateEditor, '템플릿 미리보기');
+}
+
+async function deleteCategory() {
+    if (!categoryId) return;
+    if (!await showConfirm('정말 삭제하시겠습니까?\n해당 카테고리의 문서도 함께 삭제됩니다.')) return;
+
+    fetch(`/accounts/admin/ds-document-categories/${categoryId}/delete/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            showToast(res.message, 'success');
+            setTimeout(() => {
+                window.location.href = '{% url "accounts:ds_document_categories" %}';
+            }, 800);
+        } else {
+            showToast(res.error, 'error');
+        }
+    });
+}
+</script>
+{% endblock %}
