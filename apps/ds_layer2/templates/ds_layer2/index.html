@@ -826,6 +826,38 @@
         gap: 12px;
     }
 
+    /* 일괄 마감 체크박스 */
+    .bulk-checkbox {
+        width: 15px;
+        height: 15px;
+        cursor: pointer;
+        accent-color: #3b82f6;
+    }
+    .bulk-checkbox:disabled {
+        cursor: not-allowed;
+        opacity: 0.3;
+    }
+    .bulk-actions {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    .btn-bulk-save {
+        padding: 8px 20px;
+        background: #f97316;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .btn-bulk-save:hover { background: #ea580c; }
+    .btn-bulk-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
     /* 저장/삭제/마감 버튼 */
     .action-btn {
         padding: 4px 10px;
@@ -1115,8 +1147,9 @@
 </div>
 
 <div class="table-section">
-    <div class="table-header">
+    <div class="table-header" style="display: flex; justify-content: space-between; align-items: center;">
         <div class="table-title">리테일러별 NULL 검증 현황</div>
+        <div class="bulk-actions" id="bulkActionsTop" style="margin-top: 0;"></div>
     </div>
     <div class="loading hidden" id="nullTableLoading">
         <div class="loading-spinner"></div>
@@ -1446,6 +1479,158 @@ function goToReportManage() {
     window.location.href = `/ds/layer2/report/?date=${date}`;
 }
 
+// 체크박스 전체선택
+function toggleBulkSelectAll() {
+    const selectAll = document.getElementById('bulkSelectAll');
+    const checkboxes = document.querySelectorAll('.bulk-retailer-check:not(:disabled)');
+    checkboxes.forEach(cb => cb.checked = selectAll.checked);
+    updateBulkCount();
+}
+
+// 체크된 개수 업데이트
+function updateBulkCount() {
+    const checked = document.querySelectorAll('.bulk-retailer-check:checked');
+    const countEl = document.getElementById('bulkCount');
+    const btn = document.getElementById('bulkSaveBtn');
+    if (!countEl || !btn) return;
+
+    if (checked.length > 0) {
+        countEl.textContent = `${checked.length}개 선택`;
+        btn.disabled = false;
+        btn.textContent = `일괄 마감 (${checked.length}개)`;
+    } else {
+        countEl.textContent = '';
+        btn.disabled = true;
+        btn.textContent = '일괄 마감';
+    }
+
+    // 전체선택 체크박스 상태 동기화
+    const all = document.querySelectorAll('.bulk-retailer-check:not(:disabled)');
+    const selectAll = document.getElementById('bulkSelectAll');
+    if (selectAll && all.length > 0) {
+        const allChecked = Array.from(all).every(cb => cb.checked);
+        const someChecked = Array.from(all).some(cb => cb.checked);
+        selectAll.checked = allChecked;
+        selectAll.indeterminate = someChecked && !allChecked;
+    }
+}
+
+// 리테일러 일괄 마감
+async function bulkSaveRetailers() {
+    const checked = document.querySelectorAll('.bulk-retailer-check:checked');
+    if (checked.length === 0) return;
+
+    const date = document.getElementById('targetDate').value;
+    const selectedRetailers = Array.from(checked).map(cb => cb.dataset.retailer);
+
+    // 최종 배치 데이터 조회
+    showToast('마감 조건 확인 중...', 'info');
+    let finalData = null;
+    try {
+        const res = await fetch(`/ds/layer2/api/stats/?date=${date}&batch_view=final`);
+        finalData = await res.json();
+    } catch (e) {
+        showToast('데이터 조회 실패', 'error');
+        return;
+    }
+
+    // 조건 체크: 최종 배치 수집 건수 >= 예상 건수
+    const eligible = [];
+    const ineligible = [];
+
+    for (const retailer of selectedRetailers) {
+        const finalInfo = finalData.results?.find(r => r.retailer === retailer);
+        if (!finalInfo) {
+            ineligible.push({ retailer, reason: '데이터 없음' });
+        } else if (finalInfo.total < finalInfo.expected_count) {
+            ineligible.push({ retailer, reason: `수집 미완료 (${finalInfo.total}/${finalInfo.expected_count})` });
+        } else {
+            eligible.push(retailer);
+        }
+    }
+
+    // 전부 미충족
+    if (eligible.length === 0) {
+        let msg = '마감 가능한 리테일러가 없습니다.\n\n';
+        ineligible.forEach(r => { msg += `- ${r.retailer}: ${r.reason}\n`; });
+        await showConfirm(msg, 'warning');
+        return;
+    }
+
+    // 일부 미충족
+    let confirmMsg = '';
+    if (ineligible.length > 0) {
+        confirmMsg += '다음 리테일러는 마감 대상이 아닙니다.\n\n';
+        ineligible.forEach(r => { confirmMsg += `- ${r.retailer}: ${r.reason}\n`; });
+        confirmMsg += `\n나머지 ${eligible.length}개를 마감하시겠습니까?`;
+    } else {
+        confirmMsg = `${eligible.length}개 리테일러를 일괄 마감하시겠습니까?`;
+    }
+
+    const confirmed = await showConfirm(confirmMsg, ineligible.length > 0 ? 'warning' : 'info');
+    if (!confirmed) return;
+
+    // 순차 저장
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < eligible.length; i++) {
+        const retailer = eligible[i];
+        showToast(`일괄 마감 중... (${i + 1}/${eligible.length}) ${retailer}`, 'info');
+
+        try {
+            const retailerData = statsData.results.find(r => r.retailer === retailer);
+            if (!retailerData) { failCount++; continue; }
+
+            // 최종 배치 정보
+            const finalInfo = finalData.results.find(r => r.retailer === retailer);
+            const batchInfo = {
+                table_name: retailerData.table_name,
+                country: retailerData.country,
+                final_start_time: finalInfo.final_start_time,
+                final_end_time: finalInfo.final_end_time
+            };
+
+            // 이상치 조회
+            const anomalies = await fetchAnomalies(
+                batchInfo.table_name, date, batchInfo.country,
+                batchInfo.final_start_time, batchInfo.final_end_time
+            );
+
+            // 저장
+            const response = await fetch('/ds/layer2/api/save/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    crawl_date: date,
+                    retailer: retailer,
+                    anomalies: anomalies,
+                    user_id: currentUserId
+                })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        } catch (e) {
+            failCount++;
+        }
+    }
+
+    // 결과
+    if (failCount > 0) {
+        showToast(`일괄 마감 완료 (성공 ${successCount}개, 실패 ${failCount}개)`, 'warning');
+    } else {
+        showToast(`일괄 마감 완료 (${successCount}개)`, 'success');
+    }
+
+    await loadReportStatus();
+    renderNullTable(statsData);
+}
+
 // 일괄 마감
 async function closeReport() {
     const date = document.getElementById('targetDate').value;
@@ -1580,6 +1765,7 @@ function renderNullTable(data) {
         <table class="retailer-table" id="nullTable">
             <thead>
                 <tr>
+                    ${!(reportStatus.is_closed || currentBatchView === 'all') ? '<th class="text-center"><input type="checkbox" class="bulk-checkbox" id="bulkSelectAll" onchange="toggleBulkSelectAll()"></th>' : ''}
                     <th>No</th>
                     <th>리테일러</th>
                     <th>지역</th>
@@ -1639,8 +1825,12 @@ function renderNullTable(data) {
             }
         }
 
+        // 체크박스: 미저장 + 수집완료만 활성화
+        const canCheck = !isClosed && currentBatchView !== 'all' && !isSaved && nullStatus !== 'pending';
+
         html += `
             <tr class="${rowClass}" onclick="openNullDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${item.title_null}, ${item.imageurl_null || 0}, ${item.price_zero || 0}, ${item.partial_null}, ${finalStartTime}, ${finalEndTime})" title="클릭하여 상세 보기" data-retailer="${item.retailer}">
+                ${!(reportStatus.is_closed || currentBatchView === 'all') ? `<td class="text-center" onclick="event.stopPropagation()"><input type="checkbox" class="bulk-checkbox bulk-retailer-check" data-retailer="${item.retailer}" ${canCheck ? '' : 'disabled'} onchange="updateBulkCount()"></td>` : ''}
                 <td>${item.no}</td>
                 <td><span class="retailer-name">${item.retailer}</span>${expandBtn}</td>
                 <td>${item.region}</td>
@@ -1695,7 +1885,22 @@ function renderNullTable(data) {
     }
 
     html += '</tbody></table>';
+
     container.innerHTML = html;
+
+    // 일괄 마감 버튼 (마감 전 + 최종 탭) → 상단에 렌더링
+    const bulkTop = document.getElementById('bulkActionsTop');
+    if (bulkTop) {
+        if (!reportStatus.is_closed && currentBatchView !== 'all') {
+            bulkTop.innerHTML = `
+                <span id="bulkCount" style="font-size: 13px; color: var(--text-secondary);"></span>
+                <button class="btn-bulk-save" id="bulkSaveBtn" onclick="bulkSaveRetailers()" disabled>일괄 마감</button>
+            `;
+        } else {
+            bulkTop.innerHTML = '';
+        }
+    }
+    updateBulkCount();
 }
 
 function getStatusLabel(status) {

@@ -289,12 +289,16 @@ function showConfirm(msg, type) {
     if (!type) type = 'info';
 
     var icons = {
-        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/></svg>',
-        info: '<svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" width="40" height="40"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
+        success: '<svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" width="40" height="40"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>',
+        error: '<svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>',
+        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" width="40" height="40"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/></svg>',
+        info: '<svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" width="40" height="40"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
     };
     var colors = {
-        warning: '#ef4444',
-        info: '#2563eb'
+        success: '#10b981',
+        error: '#ef4444',
+        warning: '#f59e0b',
+        info: '#3b82f6'
     };
 
     return new Promise(function(resolve) {
