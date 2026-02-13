@@ -413,7 +413,7 @@
     .share-mgmt-popup {
         background: #fff;
         border-radius: 12px;
-        width: 720px;
+        width: 580px;
         max-width: 90%;
         max-height: 80vh;
         display: flex;
@@ -464,39 +464,26 @@
         border-bottom: 1px solid var(--border-color);
         color: var(--text-primary);
     }
-    .share-status-badge {
+    .share-status-dot {
         display: inline-block;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: 600;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
     }
-    .share-status-badge.active { background: #dcfce7; color: #16a34a; }
-    .share-status-badge.expired { background: #fef3c7; color: #d97706; }
-    .share-status-badge.revoked { background: #fee2e2; color: #dc2626; }
-    .btn-revoke {
-        padding: 4px 10px;
-        background: #fee2e2;
-        color: #dc2626;
+    .share-status-dot.active { background: #22c55e; }
+    .share-status-dot.revoked, .share-status-dot.expired { background: #ef4444; }
+    .share-mgmt-table td.actions { white-space: nowrap; }
+    .btn-share-icon {
+        background: none;
         border: none;
-        border-radius: 4px;
-        font-size: 12px;
         cursor: pointer;
-        transition: all 0.2s;
-    }
-    .btn-revoke:hover { background: #fecaca; }
-    .btn-copy-link {
-        padding: 4px 10px;
-        background: #ede9fe;
-        color: #7c3aed;
-        border: none;
+        padding: 4px;
         border-radius: 4px;
-        font-size: 12px;
-        cursor: pointer;
-        transition: all 0.2s;
-        margin-right: 4px;
+        color: var(--text-secondary);
+        transition: all 0.15s;
     }
-    .btn-copy-link:hover { background: #ddd6fe; }
+    .btn-share-icon:hover { background: var(--bg-secondary); }
+    .btn-share-icon svg { width: 16px; height: 16px; vertical-align: middle; }
     .share-mgmt-empty {
         text-align: center;
         padding: 32px;
@@ -1187,23 +1174,20 @@ function loadShareList() {
                 body.innerHTML = '<div class="share-mgmt-empty">공유 이력이 없습니다.</div>';
                 return;
             }
-            const statusLabel = { active: '활성', expired: '만료', revoked: '차단' };
+            const statusTitle = { active: '활성', expired: '만료', revoked: '차단' };
             let html = '<table class="share-mgmt-table"><thead><tr>';
-            html += '<th>ID</th><th>메모</th><th>생성일</th><th>생성자</th><th>상태</th><th>차단일</th><th>차단자</th><th></th>';
+            html += '<th>메모</th><th>생성일</th><th>생성자</th><th>상태</th><th></th>';
             html += '</tr></thead><tbody>';
             res.shares.forEach(s => {
                 html += '<tr>';
-                html += '<td>' + escapeHtml(s.id) + '</td>';
                 html += '<td>' + escapeHtml(s.memo || '-') + '</td>';
                 html += '<td>' + (s.created_at || '-') + '</td>';
                 html += '<td>' + escapeHtml(s.created_id || '-') + '</td>';
-                html += '<td><span class="share-status-badge ' + s.status + '">' + (statusLabel[s.status] || s.status) + '</span></td>';
-                html += '<td>' + (s.revoked_at || '-') + '</td>';
-                html += '<td>' + escapeHtml(s.revoked_id || '-') + '</td>';
-                html += '<td>';
+                html += '<td><span class="share-status-dot ' + s.status + '" title="' + (statusTitle[s.status] || s.status) + '"></span></td>';
+                html += '<td class="actions">';
                 if (s.status === 'active') {
-                    html += '<button class="btn-copy-link" onclick="copyExistingShareLink(\'' + escapeHtml(s.token) + '\')">복사</button>';
-                    html += '<button class="btn-revoke" onclick="revokeShareToken(\'' + escapeHtml(s.id) + '\')">차단</button>';
+                    html += '<button class="btn-share-icon" title="링크 복사" onclick="copyExistingShareLink(\'' + escapeHtml(s.token) + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
+                    html += '<button class="btn-share-icon" title="차단" onclick="revokeShareToken(\'' + escapeHtml(s.id) + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>';
                 }
                 html += '</td>';
                 html += '</tr>';
