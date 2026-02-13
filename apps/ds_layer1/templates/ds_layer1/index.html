@@ -1570,6 +1570,13 @@ async function loadData() {
     document.getElementById('allContent').innerHTML = '';
 
     try {
+        // 배치가 없으면 자동 생성 (이미 있으면 서버에서 무시)
+        await fetch('/ds/layer1/api/batch/init/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ date: date })
+        }).catch(() => {});
+
         // Fetch all APIs in parallel (Layer1 + Layer2 + 저장현황)
         const [statsResponse, layer2Response, statusResponse] = await Promise.all([
             fetch(`/ds/layer1/api/stats/?date=${date}&batch_view=${currentBatchView}`),
@@ -2110,13 +2117,6 @@ async function loadBatchData() {
             document.getElementById('batchContent').innerHTML = `<div class="batch-empty">${data.error}</div>`;
         } else {
             batchData = data.batches || [];
-
-            // 배치가 없으면 자동으로 기본 배치 생성
-            if (batchData.length === 0) {
-                await autoInitBatches(date);
-                return;  // autoInitBatches에서 다시 loadBatchData 호출
-            }
-
             renderBatchTable();
         }
     } catch (error) {
@@ -2127,30 +2127,6 @@ async function loadBatchData() {
     document.getElementById('batchLoading').classList.add('hidden');
 }
 
-async function autoInitBatches(date) {
-    try {
-        const response = await fetch('/ds/layer1/api/batch/init/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken()
-            },
-            body: JSON.stringify({ date: date })
-        });
-
-        const result = await response.json();
-
-        if (!result.error && result.created > 0) {
-            await loadBatchData();  // 다시 로드
-        } else {
-            document.getElementById('batchLoading').classList.add('hidden');
-            renderBatchTable();
-        }
-    } catch (error) {
-        console.error('Error auto-init batches:', error);
-        document.getElementById('batchLoading').classList.add('hidden');
-    }
-}
 
 function filterBatches() {
     renderBatchTable();
