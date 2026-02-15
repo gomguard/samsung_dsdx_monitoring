@@ -1,18 +1,17 @@
-{#
+{% comment %}
     공통 조회박스 컴포넌트
 
     사용법:
-    {% include 'components/search_box.html' with
-        fields=search_fields       # [{'value': 'id', 'label': 'ID'}, {'value': 'name', 'label': '이름'}]
-        show_status=True           # 활성여부 드롭다운 표시 여부 (기본: True)
-        input_placeholder="검색..."  # 입력창 플레이스홀더
-        input_id="filterInput"     # 입력창 ID
-        field_id="filterField"     # 필드 드롭다운 ID
-        status_id="filterStatus"   # 상태 드롭다운 ID
-        on_search="applyFilter()"  # 조회 버튼 클릭 함수
-        on_reset="resetFilter()"   # 해제 버튼 클릭 함수
-    %}
-#}
+    include 'components/search_box.html' with
+        fields=search_fields       [{'value': 'id', 'label': 'ID'}, {'value': 'name', 'label': '이름'}]
+        show_status=True           활성여부 드롭다운 표시 여부 (기본: True)
+        input_placeholder="검색..."  입력창 플레이스홀더
+        input_id="filterInput"     입력창 ID
+        field_id="filterField"     필드 드롭다운 ID
+        status_id="filterStatus"   상태 드롭다운 ID
+        on_search="applyFilter()"  조회 버튼 클릭 함수
+        on_reset="resetFilter()"   해제 버튼 클릭 함수
+{% endcomment %}
 
 <div class="search-box">
     {% if fields %}

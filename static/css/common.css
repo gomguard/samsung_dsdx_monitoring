@@ -412,7 +412,7 @@ tr:hover {
     gap: 8px;
     align-items: center;
     padding: 14px 18px;
-    background: var(--bg-secondary);
+    background: #f1f5f9;
     border: 1px solid var(--border-color);
     border-radius: 10px;
     margin-bottom: 16px;
@@ -426,7 +426,7 @@ tr:hover {
     border: 1px solid var(--border-color);
     border-radius: 6px;
     font-size: 13px;
-    background: var(--bg-primary);
+    background: #ffffff;
     color: var(--text-primary);
     min-width: 120px;
     cursor: pointer;
@@ -453,7 +453,7 @@ tr:hover {
     border-radius: 6px;
     font-size: 13px;
     min-width: 200px;
-    background: var(--bg-primary);
+    background: #ffffff;
     color: var(--text-primary);
     transition: border-color 0.2s;
 }

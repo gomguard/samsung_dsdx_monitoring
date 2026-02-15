@@ -18,6 +18,9 @@ urlpatterns = [
     path('dx/layer4/', include('apps.layer4.urls', namespace='dx_layer4')),
     path('dx/layer5/', include('apps.layer5.urls', namespace='dx_layer5')),
 
+    # DX 데이터 관리
+    path('dx/data/', include('apps.dx_data.urls', namespace='dx_data')),
+
     # DS (Global Price Tracking) Layer URLs
     path('ds/layer1/', include('apps.ds_layer1.urls')),
     path('ds/layer2/', include('apps.ds_layer2.urls')),
