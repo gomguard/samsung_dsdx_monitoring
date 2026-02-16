@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from datetime import datetime, timedelta
-from apps.common.db import get_dx_connection
+from apps.common.db import get_dx_connection, DX_SHARE_TOKEN_TABLE, DS_SHARE_TOKEN_TABLE
 from apps.common.dx_schedules import load_collection_schedules, get_schedules_by_type
 from config.config import S3_CONFIG
 import json
@@ -982,8 +982,8 @@ def dx_document_share_token(request):
         expires_at = now + timedelta(seconds=SHARE_MAX_AGE)
         conn = get_dx_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO monitoring_share_tokens
+        cursor.execute(f"""
+            INSERT INTO {DX_SHARE_TOKEN_TABLE}
                 (document_id, category_id, token, memo, created_id, created_at, expires_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id
@@ -1007,7 +1007,7 @@ def dx_document_share_list(request):
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT id, created_id, memo,
                    TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as created_at,
                    revoked_id,
@@ -1018,7 +1018,7 @@ def dx_document_share_list(request):
                        WHEN expires_at IS NULL AND created_at < NOW() - INTERVAL '1 day' THEN 'expired'
                        ELSE 'active'
                    END as status
-            FROM monitoring_share_tokens
+            FROM {DX_SHARE_TOKEN_TABLE}
             WHERE document_id = %s
             ORDER BY created_at DESC
             LIMIT 20
@@ -1046,8 +1046,8 @@ def dx_document_share_revoke(request):
         now = datetime.now()
         conn = get_dx_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE monitoring_share_tokens
+        cursor.execute(f"""
+            UPDATE {DX_SHARE_TOKEN_TABLE}
             SET is_revoked = true, revoked_id = %s, revoked_at = %s
             WHERE id = %s AND is_revoked = false
         """, (request.user.username, now, token_id))
@@ -1500,8 +1500,8 @@ def ds_document_share_token(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
         token_id = generate_ds_token_id(cursor)
-        cursor.execute("""
-            INSERT INTO ssd_crawl_db.ds_monitoring_share_tokens
+        cursor.execute(f"""
+            INSERT INTO {DS_SHARE_TOKEN_TABLE}
                 (id, document_id, category_id, token, memo, created_id, created_at, expires_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (token_id, document_id, category_id, token, memo, request.user.username, now, expires_at))
@@ -1527,7 +1527,7 @@ def ds_document_share_list(request):
     try:
         conn = get_ds_connection()
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT id, token, created_id, memo,
                    DATE_FORMAT(created_at, '%%Y-%%m-%%d %%H:%%i') as created_at,
                    revoked_id,
@@ -1538,7 +1538,7 @@ def ds_document_share_list(request):
                        WHEN expires_at IS NULL AND created_at < DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 'expired'
                        ELSE 'active'
                    END as status
-            FROM ssd_crawl_db.ds_monitoring_share_tokens
+            FROM {DS_SHARE_TOKEN_TABLE}
             WHERE document_id = %s
             ORDER BY created_at DESC
             LIMIT 20
@@ -1569,8 +1569,8 @@ def ds_document_share_revoke(request):
         now = datetime.now()
         conn = get_ds_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE ssd_crawl_db.ds_monitoring_share_tokens
+        cursor.execute(f"""
+            UPDATE {DS_SHARE_TOKEN_TABLE}
             SET is_revoked = 1, revoked_id = %s, revoked_at = %s
             WHERE id = %s AND is_revoked = 0
         """, (request.user.username, now, token_id))

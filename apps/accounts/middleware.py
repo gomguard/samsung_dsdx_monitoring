@@ -22,7 +22,7 @@ class LoginRequiredMiddleware:
         r'^/admin/',
         r'^/static/',
         r'^/api/health/?$',  # 헬스체크 API
-        r'^/share/',  # DX 공개 문서 공유 링크 + 공유 이미지 프록시
+        r'^/dx-share/',  # DX 공개 문서 공유 링크 + 공유 이미지 프록시
         r'^/ds-share/',  # DS 공개 문서 공유 링크 + 공유 이미지 프록시
     ]
 

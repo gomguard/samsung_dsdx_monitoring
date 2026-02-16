@@ -3,7 +3,12 @@
 """
 
 import psycopg2
+from django.conf import settings
 from config.config import DB_CONFIG, DB_CONFIG_V2
+
+# 공유 토큰 테이블명 (로컬: test_ 접두사)
+DX_SHARE_TOKEN_TABLE = 'test_monitoring_share_tokens' if settings.DEBUG else 'monitoring_share_tokens'
+DS_SHARE_TOKEN_TABLE = 'ssd_crawl_db.test_ds_monitoring_share_tokens' if settings.DEBUG else 'ssd_crawl_db.ds_monitoring_share_tokens'
 
 
 def get_dx_connection():

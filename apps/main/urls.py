@@ -15,8 +15,8 @@ urlpatterns = [
     path('ds/documents/', views.ds_documents, name='ds_documents'),
     path('ds/documents/new/', views.ds_document_edit, name='ds_document_new'),
     path('ds/documents/<str:document_id>/edit/', views.ds_document_edit, name='ds_document_edit'),
-    path('share/file/<path:token>/<str:file_name>', views.dx_document_share_file, name='dx_document_share_file'),
-    path('share/<path:token>/', views.dx_document_share, name='dx_document_share'),
+    path('dx-share/file/<path:token>/<str:file_name>', views.dx_document_share_file, name='dx_document_share_file'),
+    path('dx-share/<path:token>/', views.dx_document_share, name='dx_document_share'),
     path('ds-share/file/<path:token>/<str:file_name>', views.ds_document_share_file, name='ds_document_share_file'),
     path('ds-share/<path:token>/', views.ds_document_share, name='ds_document_share'),
 

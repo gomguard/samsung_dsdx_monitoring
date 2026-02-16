@@ -6,7 +6,7 @@
 from django.shortcuts import render
 from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotFound
-from apps.common.db import get_dx_connection, get_ds_connection
+from apps.common.db import get_dx_connection, get_ds_connection, DX_SHARE_TOKEN_TABLE, DS_SHARE_TOKEN_TABLE
 
 # 문서 공유 토큰 서명
 SHARE_SIGNER = TimestampSigner(salt='document-share')
@@ -373,8 +373,8 @@ def dx_document_share(request, token):
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT is_revoked FROM monitoring_share_tokens
+        cursor.execute(f"""
+            SELECT is_revoked FROM {DX_SHARE_TOKEN_TABLE}
             WHERE token = %s
         """, [token])
         token_row = cursor.fetchone()
@@ -412,7 +412,7 @@ def dx_document_share(request, token):
         if document.get('content'):
             document['content'] = document['content'].replace(
                 '/api/dx/documents/file/',
-                f'/share/file/{token}/'
+                f'/dx-share/file/{token}/'
             )
     except Exception as e:
         print(f"[ERROR] Failed to load shared document: {e}")
@@ -442,8 +442,8 @@ def dx_document_share_file(request, token, file_name):
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT is_revoked FROM monitoring_share_tokens
+        cursor.execute(f"""
+            SELECT is_revoked FROM {DX_SHARE_TOKEN_TABLE}
             WHERE token = %s
         """, [token])
         token_row = cursor.fetchone()
@@ -514,8 +514,8 @@ def ds_document_share(request, token):
     try:
         conn = get_ds_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT is_revoked FROM ssd_crawl_db.ds_monitoring_share_tokens
+        cursor.execute(f"""
+            SELECT is_revoked FROM {DS_SHARE_TOKEN_TABLE}
             WHERE token = %s
         """, [token])
         token_row = cursor.fetchone()
@@ -583,8 +583,8 @@ def ds_document_share_file(request, token, file_name):
     try:
         conn = get_ds_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT is_revoked FROM ssd_crawl_db.ds_monitoring_share_tokens
+        cursor.execute(f"""
+            SELECT is_revoked FROM {DS_SHARE_TOKEN_TABLE}
             WHERE token = %s
         """, [token])
         token_row = cursor.fetchone()

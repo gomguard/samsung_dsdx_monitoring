@@ -4,6 +4,7 @@ DS ID 생성 헬퍼
 
 import random
 from datetime import datetime, timezone, timedelta
+from apps.common.db import DS_SHARE_TOKEN_TABLE
 
 KST = timezone(timedelta(hours=9))
 
@@ -34,9 +35,9 @@ def generate_ds_object_document_id():
 
 def generate_ds_token_id(cursor):
     """DS 공유 토큰 ID 생성 (token-N)"""
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT COALESCE(MAX(CAST(SUBSTRING(id, 7) AS UNSIGNED)), 0) + 1
-        FROM ssd_crawl_db.ds_monitoring_share_tokens
+        FROM {DS_SHARE_TOKEN_TABLE}
     """)
     next_num = int(cursor.fetchone()[0])
 
