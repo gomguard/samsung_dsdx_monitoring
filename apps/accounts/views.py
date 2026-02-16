@@ -1707,3 +1707,172 @@ def ds_document_categories_toggle(request, category_id):
         return JsonResponse({'success': True, 'is_active': bool(new_status), 'message': f'카테고리가 {status}되었습니다.'})
     except Exception as e:
         return error_response(e, 'DS 카테고리 토글 실패')
+
+
+# ============================================================
+# 관리자 페이지 - DX 카테고리 검증 규칙 (monitoring_category_rules)
+# ============================================================
+
+@login_required
+@user_passes_test(is_admin)
+def category_rules(request):
+    """카테고리 검증 규칙 관리 페이지"""
+    context = {
+        'admin_menu': 'category_rules',
+    }
+    return render(request, 'accounts/category_rules.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+def category_rules_edit(request, rule_id=None):
+    """카테고리 검증 규칙 추가/편집 페이지"""
+    context = {
+        'admin_menu': 'category_rules',
+        'rule_id': rule_id,
+    }
+    return render(request, 'accounts/category_rules_edit.html', context)
+
+
+# ── 카테고리 검증 규칙 API ──
+
+_RULE_COLUMNS = [
+    'id', 'rule_name', 'display_name', 'category', 'category_name',
+    'table_name', 'date_column', 'product_line', 'retailer',
+    'field1', 'validation_type', 'threshold',
+    'error_message', 'display_columns', 'query',
+    'sort_order', 'is_active', 'created_at', 'created_id', 'updated_at', 'updated_id'
+]
+
+_RULE_SELECT = """
+    SELECT id, rule_name, display_name, category, category_name,
+           table_name, date_column, product_line, retailer,
+           field1, validation_type, threshold,
+           error_message, display_columns, query,
+           sort_order, is_active, created_at, created_id, updated_at, updated_id
+    FROM monitoring_category_rules
+"""
+
+
+@login_required
+@user_passes_test(is_admin)
+def category_rules_list_api(request):
+    """카테고리 검증 규칙 목록 조회 API"""
+    category = request.GET.get('category', '')
+
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        if category:
+            cursor.execute(_RULE_SELECT + " WHERE category = %s ORDER BY sort_order, id", [category])
+        else:
+            cursor.execute(_RULE_SELECT + " ORDER BY sort_order, id")
+
+        rules = []
+        for row in cursor.fetchall():
+            rule = dict(zip(_RULE_COLUMNS, row))
+            rule['created_at'] = str(rule['created_at']) if rule['created_at'] else None
+            rule['updated_at'] = str(rule['updated_at']) if rule['updated_at'] else None
+            rules.append(rule)
+
+        cursor.execute("""
+            SELECT DISTINCT category, category_name
+            FROM monitoring_category_rules
+            ORDER BY category
+        """)
+        categories = [{'value': r[0], 'label': r[1]} for r in cursor.fetchall()]
+
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({
+            'rules': rules,
+            'total': len(rules),
+            'categories': categories,
+        })
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def category_rules_save_api(request):
+    """카테고리 검증 규칙 저장 (신규/수정) API"""
+    try:
+        data = json.loads(request.body)
+        rule_id = data.get('id')
+        user_id = data.get('user_id', 'system')
+        now = datetime.now()
+
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        if rule_id:
+            cursor.execute("""
+                UPDATE monitoring_category_rules
+                SET rule_name = %s, display_name = %s, category = %s, category_name = %s,
+                    table_name = %s, date_column = %s, product_line = %s, retailer = %s,
+                    field1 = %s, validation_type = %s, threshold = %s,
+                    error_message = %s, display_columns = %s, query = %s,
+                    sort_order = %s, is_active = %s, updated_at = %s, updated_id = %s
+                WHERE id = %s
+            """, (
+                data['rule_name'], data['display_name'], data['category'], data['category_name'],
+                data['table_name'], data.get('date_column'), data.get('product_line'), data.get('retailer', 'all'),
+                data.get('field1'), data.get('validation_type'), data.get('threshold'),
+                data.get('error_message'), data.get('display_columns'), data['query'],
+                data.get('sort_order', 0), data.get('is_active', True), now, user_id,
+                rule_id
+            ))
+        else:
+            cursor.execute("""
+                INSERT INTO monitoring_category_rules (
+                    rule_name, display_name, category, category_name,
+                    table_name, date_column, product_line, retailer,
+                    field1, validation_type, threshold,
+                    error_message, display_columns, query,
+                    sort_order, is_active, created_at, created_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s)
+            """, (
+                data['rule_name'], data['display_name'], data['category'], data['category_name'],
+                data['table_name'], data.get('date_column'), data.get('product_line'), data.get('retailer', 'all'),
+                data.get('field1'), data.get('validation_type'), data.get('threshold'),
+                data.get('error_message'), data.get('display_columns'), data['query'],
+                data.get('sort_order', 0), now, user_id
+            ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'id': rule_id})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def category_rules_delete_api(request):
+    """카테고리 검증 규칙 삭제 API"""
+    try:
+        data = json.loads(request.body)
+        rule_id = data.get('id')
+
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM monitoring_category_rules WHERE id = %s", [rule_id])
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True})
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

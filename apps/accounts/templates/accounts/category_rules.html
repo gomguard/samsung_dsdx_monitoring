@@ -1,0 +1,304 @@
+{% extends 'accounts/admin_base.html' %}
+{% load static %}
+
+{% block title %}카테고리 검증 규칙 - 관리자{% endblock %}
+
+{% block admin_css %}
+<style>
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .admin-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .admin-title-sub {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .btn-add {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 20px;
+        background: #7c3aed;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.2s;
+        text-decoration: none;
+    }
+
+    .btn-add:hover { background: #6d28d9; }
+    .btn-add svg { width: 18px; height: 18px; }
+
+    /* 필터 */
+    .filter-section {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+        align-items: center;
+    }
+
+    .filter-select {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        min-width: 120px;
+    }
+
+    /* 통계 */
+    .stats-row {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .stat-chip {
+        padding: 6px 14px;
+        background: var(--bg-secondary);
+        border-radius: 20px;
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .stat-chip strong {
+        color: var(--text-primary);
+        margin-left: 4px;
+    }
+
+    /* 테이블 */
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    .rc-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        table-layout: fixed;
+    }
+
+    .rc-table thead th {
+        background: var(--bg-secondary);
+        padding: 10px 12px;
+        text-align: left;
+        font-weight: 600;
+        color: var(--text-secondary);
+        border-bottom: 2px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
+        white-space: nowrap;
+    }
+
+    .rc-table thead th:last-child {
+        border-right: none;
+    }
+
+    /* 컬럼 너비 */
+    .rc-table .col-no { width: 40px; text-align: center; }
+    .rc-table .col-name { width: 180px; }
+    .rc-table .col-category { width: 140px; }
+    .rc-table .col-table { width: 130px; }
+    .rc-table .col-field { width: 110px; }
+    .rc-table .col-threshold { width: 80px; }
+    .rc-table .col-status { width: 60px; text-align: center; }
+    .rc-table .col-actions { width: 50px; text-align: center; }
+
+    .rc-table tbody td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .rc-table tbody td:last-child {
+        border-right: none;
+    }
+
+    .rc-table tbody tr:hover {
+        background: rgba(139, 92, 246, 0.03);
+    }
+
+    .rc-table tbody tr.inactive {
+        opacity: 0.5;
+    }
+
+    .category-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        background: #ede9fe;
+        color: #6d28d9;
+    }
+
+    /* 상태 도트 */
+    .status-dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+    .status-dot.active { background: #22c55e; }
+    .status-dot.inactive { background: #ef4444; }
+
+    .list-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        border: 1px solid var(--border-color);
+    }
+
+    .loading-msg {
+        text-align: center;
+        padding: 40px 0;
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div>
+    <div class="admin-header">
+        <div>
+            <h1 class="admin-title">카테고리 검증 규칙</h1>
+            <p class="admin-title-sub">Layer3 카테고리별 특성 검증 규칙을 관리합니다</p>
+        </div>
+        <a href="{% url 'accounts:category_rules_new' %}" class="btn-add">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            규칙 추가
+        </a>
+    </div>
+
+    <div class="list-card">
+        <!-- 통계 -->
+        <div class="stats-row">
+            <span class="stat-chip">전체<strong id="statTotal">0</strong></span>
+            <span class="stat-chip">활성<strong id="statActive">0</strong></span>
+        </div>
+
+        <!-- 필터 -->
+        <div class="filter-section">
+            <select class="filter-select" id="filterCategory" onchange="loadRules()">
+                <option value="">카테고리 (전체)</option>
+            </select>
+        </div>
+
+        <!-- 테이블 -->
+        <div class="table-wrapper">
+            <table class="rc-table">
+                <thead>
+                    <tr>
+                        <th class="col-no">No</th>
+                        <th class="col-name">규칙명</th>
+                        <th class="col-category">카테고리</th>
+                        <th class="col-table">테이블</th>
+                        <th class="col-field">검증 필드</th>
+                        <th class="col-threshold">범위</th>
+                        <th class="col-status">활성</th>
+                        <th class="col-actions">관리</th>
+                    </tr>
+                </thead>
+                <tbody id="rulesBody">
+                    <tr><td colspan="8" class="loading-msg">로딩 중...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+async function loadRules() {
+    const category = document.getElementById('filterCategory').value;
+    const params = category ? `?category=${category}` : '';
+
+    try {
+        const res = await fetch(`/accounts/admin/category-rules/api/list/${params}`);
+        const data = await res.json();
+
+        if (data.error) {
+            document.getElementById('rulesBody').innerHTML =
+                `<tr><td colspan="8" class="loading-msg">${data.error}</td></tr>`;
+            return;
+        }
+
+        // 카테고리 필터 옵션 업데이트 (최초 1회)
+        const filterEl = document.getElementById('filterCategory');
+        if (filterEl.options.length <= 1 && data.categories) {
+            data.categories.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.value;
+                opt.textContent = c.label;
+                filterEl.appendChild(opt);
+            });
+        }
+
+        renderTable(data.rules || []);
+    } catch (e) {
+        document.getElementById('rulesBody').innerHTML =
+            `<tr><td colspan="8" class="loading-msg">데이터 로딩 실패</td></tr>`;
+    }
+}
+
+function renderTable(rules) {
+    const tbody = document.getElementById('rulesBody');
+
+    // 통계
+    document.getElementById('statTotal').textContent = rules.length;
+    document.getElementById('statActive').textContent = rules.filter(r => r.is_active).length;
+
+    if (!rules.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="loading-msg">등록된 규칙이 없습니다</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = rules.map((r, i) => `
+        <tr class="${r.is_active ? '' : 'inactive'}" style="cursor:pointer"
+            ondblclick="location.href='/accounts/admin/category-rules/${r.id}/edit/'"
+            data-id="${r.id}">
+            <td class="col-no">${i + 1}</td>
+            <td class="col-name" title="${r.display_name}">${r.display_name}</td>
+            <td class="col-category"><span class="category-badge">${r.category_name || r.category}</span></td>
+            <td class="col-table">${r.table_name}</td>
+            <td class="col-field">${r.field1 || '-'}</td>
+            <td class="col-threshold">${r.threshold || '-'}</td>
+            <td class="col-status">
+                <span class="status-dot ${r.is_active ? 'active' : 'inactive'}"></span>
+            </td>
+            <td class="col-actions">
+                ${AppButton.iconHtml('edit', `event.stopPropagation(); location.href='/accounts/admin/category-rules/${r.id}/edit/'`)}
+            </td>
+        </tr>
+    `).join('');
+}
+
+// 초기 로드
+loadRules();
+enableColumnResize('.rc-table');
+</script>
+{% endblock %}

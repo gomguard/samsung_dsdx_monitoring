@@ -1,0 +1,453 @@
+{% extends 'accounts/admin_base.html' %}
+{% load static %}
+
+{% block title %}카테고리 검증 규칙 {% if rule_id %}수정{% else %}추가{% endif %} - 관리자{% endblock %}
+
+{% block admin_css %}
+<style>
+    .edit-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 28px;
+    }
+
+    .edit-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .edit-title-sub {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .btn-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover { background: var(--bg-primary); color: var(--text-primary); }
+    .btn-back svg { width: 16px; height: 16px; }
+
+    .form-section-title-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-section-title-row .form-section-title {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: none;
+    }
+
+    /* 폼 카드 */
+    .edit-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 32px;
+        max-width: 100%;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        border: 1px solid var(--border-color);
+    }
+
+    .form-section {
+        margin-bottom: 28px;
+    }
+
+    .form-section-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-group { margin-bottom: 16px; }
+
+    .form-group label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+    }
+
+    .form-group label .required { color: #ef4444; }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 14px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        box-sizing: border-box;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #7c3aed;
+        box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.1);
+    }
+
+    .form-group textarea {
+        resize: vertical;
+        font-family: 'Consolas', 'Monaco', monospace;
+        line-height: 1.5;
+    }
+
+    .form-row {
+        display: flex;
+        gap: 16px;
+    }
+
+    .form-row .form-group { flex: 1; }
+
+    .form-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+    .form-checkbox input[type="checkbox"] { width: 16px; height: 16px; }
+    .form-checkbox label {
+        font-size: 14px;
+        color: var(--text-primary);
+        margin-bottom: 0;
+    }
+
+    /* 메타 정보 테이블 */
+    .form-meta {
+        margin-top: 24px;
+    }
+
+    .form-meta table {
+        width: 100%;
+        font-size: 12px;
+        border-collapse: collapse;
+        border: 1px solid var(--border-color);
+    }
+
+    .form-meta th,
+    .form-meta td {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+    }
+
+    .form-meta th {
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        font-weight: 500;
+        white-space: nowrap;
+        width: 80px;
+    }
+
+    .form-meta td {
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    /* 하단 버튼 */
+    .form-actions {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 32px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .form-actions-right {
+        display: flex;
+        gap: 8px;
+    }
+
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div>
+    <div class="edit-header">
+        <div>
+            <h1 class="edit-title">카테고리 검증 규칙 {% if rule_id %}수정{% else %}추가{% endif %}</h1>
+            <p class="edit-title-sub">Layer3 카테고리별 특성 검증 규칙을 {% if rule_id %}수정{% else %}추가{% endif %}합니다</p>
+        </div>
+        <a href="{% url 'accounts:category_rules' %}" class="btn-back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            목록으로
+        </a>
+    </div>
+
+    <div class="edit-card">
+        <!-- 기본 정보 -->
+        <div class="form-section">
+            <div class="form-section-title-row">
+                <div class="form-section-title">기본 정보</div>
+                <div class="form-checkbox">
+                    <input type="checkbox" id="ruleIsActive" checked>
+                    <label for="ruleIsActive">활성</label>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>규칙명 (rule_name) <span class="required">*</span></label>
+                    <input type="text" id="ruleName" placeholder="screen_size_range_tv">
+                </div>
+                <div class="form-group">
+                    <label>표시명 (display_name) <span class="required">*</span></label>
+                    <input type="text" id="displayName" placeholder="TV 화면 크기 범위">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>카테고리 (category) <span class="required">*</span></label>
+                    <input type="text" id="ruleCategory" placeholder="tv_retail">
+                </div>
+                <div class="form-group">
+                    <label>카테고리명 (category_name) <span class="required">*</span></label>
+                    <input type="text" id="categoryName" placeholder="TV Retail 카테고리 특성">
+                </div>
+            </div>
+        </div>
+
+        <!-- 테이블/필터 -->
+        <div class="form-section">
+            <div class="form-section-title">데이터 소스</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>테이블 (table_name) <span class="required">*</span></label>
+                    <input type="text" id="tableName" placeholder="tv_retail_com">
+                </div>
+                <div class="form-group">
+                    <label>날짜 컬럼 (date_column)</label>
+                    <input type="text" id="dateColumn" placeholder="crawl_datetime::timestamp">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>제품군 (product_line)</label>
+                    <select id="productLine">
+                        <option value="tv">tv</option>
+                        <option value="hhp">hhp</option>
+                        <option value="all">all</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>리테일러 (retailer)</label>
+                    <input type="text" id="retailer" value="all" placeholder="all">
+                </div>
+            </div>
+        </div>
+
+        <!-- 검증 설정 -->
+        <div class="form-section">
+            <div class="form-section-title">검증 설정</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>검증 필드 (field1)</label>
+                    <input type="text" id="field1" placeholder="screen_size">
+                </div>
+                <div class="form-group">
+                    <label>검증 유형 (validation_type)</label>
+                    <input type="text" id="validationType" placeholder="category_range">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>범위 (threshold)</label>
+                    <input type="text" id="threshold" placeholder="5-120">
+                </div>
+                <div class="form-group">
+                    <label>표시 순서 (sort_order)</label>
+                    <input type="number" id="sortOrder" value="0">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>에러 메시지 (error_message)</label>
+                <input type="text" id="errorMessage" placeholder="TV 화면 크기가 5~120인치 범위 벗어남">
+            </div>
+            <div class="form-group">
+                <label>표시 컬럼 (display_columns)</label>
+                <input type="text" id="displayColumns" placeholder="id:ID|item:제품명|account_name:리테일러|...">
+            </div>
+            <div class="form-group">
+                <label>검증 쿼리 (query) <span class="required">*</span></label>
+                <textarea id="ruleQuery" rows="6" placeholder="SELECT ... FROM {table} WHERE DATE({date_col}) = %s AND ..."></textarea>
+            </div>
+        </div>
+
+        <!-- 메타 정보 (수정 모드만) -->
+        {% if rule_id %}
+        <div class="form-meta" id="formMeta"></div>
+        {% endif %}
+
+        <!-- 버튼 -->
+        <div class="form-actions">
+            {% if rule_id %}
+            <button class="app-btn app-btn-md app-btn-delete" onclick="deleteRule()">삭제</button>
+            {% endif %}
+            <div class="form-actions-right">
+                <a href="{% url 'accounts:category_rules' %}" class="app-btn app-btn-md app-btn-cancel">취소</a>
+                <button class="app-btn app-btn-md app-btn-save" onclick="saveRule()">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+const RULE_ID = {{ rule_id|default:"null" }};
+
+function getCsrfToken() {
+    return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+// 수정 모드: 기존 데이터 로드
+async function loadRule() {
+    if (!RULE_ID) return;
+
+    try {
+        const res = await fetch('/accounts/admin/category-rules/api/list/');
+        const data = await res.json();
+        if (data.error) { showToast(data.error, 'error'); return; }
+
+        const rule = (data.rules || []).find(r => r.id === RULE_ID);
+        if (!rule) { showToast('규칙을 찾을 수 없습니다', 'error'); return; }
+
+        document.getElementById('ruleName').value = rule.rule_name || '';
+        document.getElementById('displayName').value = rule.display_name || '';
+        document.getElementById('ruleCategory').value = rule.category || '';
+        document.getElementById('categoryName').value = rule.category_name || '';
+        document.getElementById('tableName').value = rule.table_name || '';
+        document.getElementById('dateColumn').value = rule.date_column || '';
+        document.getElementById('productLine').value = rule.product_line || 'all';
+        document.getElementById('retailer').value = rule.retailer || 'all';
+        document.getElementById('field1').value = rule.field1 || '';
+        document.getElementById('validationType').value = rule.validation_type || '';
+        document.getElementById('threshold').value = rule.threshold || '';
+        document.getElementById('sortOrder').value = rule.sort_order || 0;
+        document.getElementById('errorMessage').value = rule.error_message || '';
+        document.getElementById('displayColumns').value = rule.display_columns || '';
+        document.getElementById('ruleQuery').value = rule.query || '';
+        document.getElementById('ruleIsActive').checked = rule.is_active;
+
+        // 메타 정보 표시
+        const metaEl = document.getElementById('formMeta');
+        if (metaEl) {
+            const fmt = (dt) => dt ? dt.substring(0, 16) : '-';
+            metaEl.innerHTML = `
+                <table>
+                    <tr>
+                        <th>생성자</th><td>${rule.created_id || '-'}</td>
+                        <th>생성일시</th><td>${fmt(rule.created_at)}</td>
+                        <th>수정자</th><td>${rule.updated_id || '-'}</td>
+                        <th>수정일시</th><td>${fmt(rule.updated_at)}</td>
+                    </tr>
+                </table>
+            `;
+        }
+    } catch (e) {
+        showToast('데이터 로드 실패', 'error');
+    }
+}
+
+async function saveRule() {
+    const data = {
+        rule_name: document.getElementById('ruleName').value.trim(),
+        display_name: document.getElementById('displayName').value.trim(),
+        category: document.getElementById('ruleCategory').value.trim(),
+        category_name: document.getElementById('categoryName').value.trim(),
+        table_name: document.getElementById('tableName').value.trim(),
+        date_column: document.getElementById('dateColumn').value.trim() || null,
+        product_line: document.getElementById('productLine').value,
+        retailer: document.getElementById('retailer').value.trim() || 'all',
+        field1: document.getElementById('field1').value.trim() || null,
+        validation_type: document.getElementById('validationType').value.trim() || null,
+        threshold: document.getElementById('threshold').value.trim() || null,
+        sort_order: parseInt(document.getElementById('sortOrder').value) || 0,
+        error_message: document.getElementById('errorMessage').value.trim() || null,
+        display_columns: document.getElementById('displayColumns').value.trim() || null,
+        query: document.getElementById('ruleQuery').value.trim(),
+        is_active: document.getElementById('ruleIsActive').checked,
+        user_id: '{{ request.user.username }}',
+    };
+
+    if (!data.rule_name || !data.display_name || !data.category || !data.category_name || !data.table_name || !data.query) {
+        showToast('필수 항목을 입력하세요 (규칙명, 표시명, 카테고리, 카테고리명, 테이블, 쿼리)', 'warn');
+        return;
+    }
+
+    if (RULE_ID) data.id = RULE_ID;
+
+    try {
+        const res = await fetch('/accounts/admin/category-rules/api/save/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+
+        if (result.success) {
+            showToast(RULE_ID ? '규칙이 수정되었습니다' : '규칙이 추가되었습니다', 'success');
+            setTimeout(() => { location.href = '{% url "accounts:category_rules" %}'; }, 800);
+        } else {
+            showToast('저장 실패: ' + (result.error || ''), 'error');
+        }
+    } catch (e) {
+        showToast('저장 실패', 'error');
+    }
+}
+
+async function deleteRule() {
+    if (!RULE_ID) return;
+    if (!await showConfirm('이 규칙을 삭제하시겠습니까?')) return;
+
+    try {
+        const res = await fetch('/accounts/admin/category-rules/api/delete/', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken()},
+            body: JSON.stringify({ id: RULE_ID })
+        });
+        const result = await res.json();
+
+        if (result.success) {
+            showToast('규칙이 삭제되었습니다', 'success');
+            setTimeout(() => { location.href = '{% url "accounts:category_rules" %}'; }, 800);
+        } else {
+            showToast('삭제 실패: ' + (result.error || ''), 'error');
+        }
+    } catch (e) {
+        showToast('삭제 실패', 'error');
+    }
+}
+
+// 초기 로드
+loadRule();
+</script>
+{% endblock %}

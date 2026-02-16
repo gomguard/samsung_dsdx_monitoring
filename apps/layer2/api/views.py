@@ -84,7 +84,7 @@ def layer_stats(request):
             'tables': []
         }
 
-        # CSV에서 모든 category 가져와서 동적으로 테이블 생성
+        # DB에서 모든 category 가져와서 동적으로 테이블 생성
         all_categories = get_all_categories()
 
         # category별 표시명 매핑 (category -> display_name)

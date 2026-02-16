@@ -621,6 +621,7 @@ tr:hover {
     transition: all 0.2s;
     white-space: nowrap;
     line-height: 1;
+    text-decoration: none;
 }
 
 .app-btn svg { flex-shrink: 0; }
@@ -630,7 +631,47 @@ tr:hover {
 .app-btn-sm { padding: 6px 12px; font-size: 12px; }
 .app-btn-sm svg { width: 12px; height: 12px; }
 
-/* 스타일 */
+/* 스타일 — 용도별 */
+.app-btn-save { background: #7c3aed; color: #fff; }
+.app-btn-save:hover { background: #6d28d9; }
+
+.app-btn-cancel { background: #fff; color: var(--text-primary); border: 1px solid var(--border-color); }
+.app-btn-cancel:hover { background: var(--bg-secondary); }
+
+.app-btn-delete { background: #fee2e2; color: #dc2626; }
+.app-btn-delete:hover { background: #fecaca; }
+
+/* ── 아이콘 전용 버튼 (.app-icon-btn) ── */
+.app-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+}
+.app-icon-btn svg { width: 16px; height: 16px; }
+
+.app-icon-btn-blue { background: #dbeafe; color: #2563eb; }
+.app-icon-btn-blue:hover { background: #bfdbfe; }
+
+.app-icon-btn-yellow { background: #fef9c3; color: #ca8a04; }
+.app-icon-btn-yellow:hover { background: #fef08a; }
+
+.app-icon-btn-red { background: #fee2e2; color: #dc2626; }
+.app-icon-btn-red:hover { background: #fecaca; }
+
+.app-icon-btn-green { background: #dcfce7; color: #16a34a; }
+.app-icon-btn-green:hover { background: #bbf7d0; }
+
+.app-icon-btn-purple { background: #ede9fe; color: #7c3aed; }
+.app-icon-btn-purple:hover { background: #ddd6fe; }
+
+/* 스타일 — 색상별 */
 .app-btn-primary { background: #7c3aed; color: #fff; }
 .app-btn-primary:hover { background: #6d28d9; }
 

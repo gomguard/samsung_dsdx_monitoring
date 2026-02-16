@@ -40,15 +40,30 @@ def load_crossfield_rules():
 
 
 def load_category_rules():
-    """dx_category_rules.csv 파일에서 카테고리별 특성 검증 규칙 로드"""
+    """DB에서 카테고리별 특성 검증 규칙 로드 (monitoring_category_rules 테이블)"""
     rules = []
-    csv_path = os.path.join(settings.BASE_DIR, 'config', 'csv', 'dx_category_rules.csv')
-
     try:
-        with open(csv_path, 'r', encoding='utf-8', newline='') as f:
-            reader = csv.DictReader(f, quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            for row in reader:
-                rules.append(row)
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, rule_name, display_name, category, category_name,
+                   table_name, date_column, product_line, retailer,
+                   field1, validation_type, threshold,
+                   error_message, display_columns, query, sort_order
+            FROM monitoring_category_rules
+            WHERE is_active = true
+            ORDER BY sort_order, id
+        """)
+        columns = [
+            'rule_id', 'rule_name', 'display_name', 'category', 'category_name',
+            'table_name', 'date_column', 'product_line', 'retailer',
+            'field1', 'validation_type', 'threshold',
+            'error_message', 'display_columns', 'query', 'sort_order'
+        ]
+        for row in cursor.fetchall():
+            rules.append(dict(zip(columns, row)))
+        cursor.close()
+        conn.close()
     except Exception as e:
         print(f"[ERROR] Failed to load category rules: {e}")
 
@@ -151,7 +166,7 @@ def validate_review_detail_match(row, product_line, return_detail=False):
 
 
 def get_category_display_name(category, rules=None):
-    """category 코드를 화면에 표시할 이름으로 변환 (CSV의 category_name 사용)"""
+    """category 코드를 화면에 표시할 이름으로 변환"""
     # rules가 전달되면 첫 번째 규칙의 category_name 사용
     if rules:
         for rule in rules:
@@ -171,7 +186,7 @@ def get_category_description(category, rules):
 
 
 def validate_all_category_specs(target_date):
-    """CSV 기반 카테고리별 특성 검증 - 모든 카테고리를 동적으로 처리
+    """카테고리별 특성 검증 - 모든 카테고리를 동적으로 처리
 
     Returns:
         list: 각 카테고리별로 그룹화된 검증 결과
@@ -220,8 +235,7 @@ def validate_all_category_specs(target_date):
             if not query_template:
                 continue
 
-            # CSV에서 date_column 읽기 (빈값이면 날짜 필터 없음)
-            date_col = rule.get('date_column', '').strip()
+            date_col = (rule.get('date_column') or '').strip()
             has_date_filter = bool(date_col)
 
             try:
@@ -237,10 +251,10 @@ def validate_all_category_specs(target_date):
 
                 # 이상치 쿼리 실행
                 query = query_template.replace('{table}', table_name).replace('{date_col}', date_col)
-                # LIKE 절의 %를 %%로 이스케이프 (파라미터 바인딩 충돌 방지)
-                # CSV에서 이미 %%로 이스케이프된 경우는 그대로 유지
-                if '%%' not in query:
-                    query = query.replace('%', '%%').replace('%%s', '%s')
+                # psycopg2 파라미터 바인딩용 이스케이프: LIKE의 %를 %%로
+                # 먼저 %%를 %로 통일한 뒤, 다시 %를 %%로 이스케이프 (%s 파라미터는 복원)
+                query = query.replace('%%', '%')
+                query = query.replace('%', '%%').replace('%%s', '%s')
 
                 # date_column이 있으면 날짜 파라미터 전달, 없으면 파라미터 없이 실행
                 if has_date_filter:
@@ -263,11 +277,12 @@ def validate_all_category_specs(target_date):
                 })
 
             except Exception as e:
+                conn.rollback()
                 print(f"[ERROR] Category rule {rule_id} ({rule_name}): {e}")
                 import traceback
                 traceback.print_exc()
 
-        # 카테고리별 결과 추가 (category_name을 CSV에서 가져옴)
+        # 카테고리별 결과 추가
         results.append({
             'category': category,
             'display_name': get_category_display_name(category, cat_rules),
@@ -284,7 +299,7 @@ def validate_all_category_specs(target_date):
 
 
 def execute_crossfield_query(rule, table_name, date_col, target_date, product_line='tv'):
-    """CSV 규칙의 쿼리를 실행하고 결과 건수 반환
+    """규칙의 쿼리를 실행하고 결과 건수 반환
 
     예외 처리된 record_id는 결과에서 제외됨
     """
@@ -382,13 +397,12 @@ def validate_crossfield_by_csv(target_date, category='tv_retail'):
             'rule_name': rule.get('rule_name'),
             'display_name': rule.get('display_name'),
             'field1': rule.get('field1'),
-            'field2': rule.get('field2'),
-            'validation_type': rule.get('validation_type'),  # 검증 타입 추가
+            'validation_type': rule.get('validation_type'),
             'error_message': rule.get('error_message'),
             'error_count': error_count,
-            'error_details': error_details,  # 전체 상세 반환
-            'query': rule.get('query', ''),  # 검증 쿼리 추가
-            'select_fields': rule.get('select_fields', '')  # 조회쿼리용 필드 목록 (파이프 구분)
+            'error_details': error_details,
+            'query': rule.get('query', ''),
+            'select_fields': rule.get('select_fields', '')
         })
 
     # 테이블/컬럼 정보도 결과에 포함 (프론트엔드 플레이스홀더 치환용)
@@ -1031,7 +1045,7 @@ def layer_stats(request):
             })
 
         # ============================================================
-        # 3. 카테고리별 특성 기반 검증 (CSV 기반, 동적 처리)
+        # 3. 카테고리별 특성 기반 검증 (DB 규칙 기반, 동적 처리)
         # ============================================================
         try:
             category_spec_results = validate_all_category_specs(target_date)
@@ -1130,7 +1144,7 @@ def layer_stats(request):
                 'status': get_status(comp_product_cross_anomaly, comp_product_total)
             })
 
-            # Forecast는 CSV 기반으로 카테고리별 특성에서 처리됨
+            # Forecast는 카테고리별 특성에서 처리됨
 
             # Market 커넥션 닫기
             market_cursor.close()
@@ -1224,8 +1238,7 @@ def cross_field_detail(request):
                         'rule_id': rule_result['rule_id'],
                         'rule_name': rule_result['rule_name'],
                         'field1': rule_result['field1'],
-                        'field2': rule_result['field2'],
-                        'validation_type': validation_type,  # 검증 타입 추가
+                        'validation_type': validation_type,
                         'error_message': rule_result['error_message'],
                         'total_anomalies': rule_result['error_count'],
                         'anomalies': anomalies,
@@ -1242,8 +1255,7 @@ def cross_field_detail(request):
                 'rule_id': r['rule_id'],
                 'rule_name': r['rule_name'],
                 'field1': r['field1'],
-                'field2': r['field2'],
-                'validation_type': r.get('validation_type', ''),  # 검증 타입 추가
+                'validation_type': r.get('validation_type', ''),
                 'error_message': r['error_message'],
                 'error_count': r['error_count'],
                 'query': r.get('query', ''),  # 검증 쿼리 추가
@@ -2233,7 +2245,7 @@ def price_changes(request):
 
 
 def category_spec_detail(request):
-    """카테고리별 특성 상세 API - 규칙별 요약 또는 상세 데이터 (CSV 기반)
+    """카테고리별 특성 상세 API - 규칙별 요약 또는 상세 데이터
 
     Parameters:
         - display_name: 화면 표시 이름 (TV 카테고리 특성, Forecast 등)
@@ -2253,10 +2265,10 @@ def category_spec_detail(request):
         target_date = (datetime.now() - timedelta(days=1)).date()
 
     try:
-        # CSV에서 규칙 로드
+        # DB에서 규칙 로드
         rules = load_category_rules()
 
-        # display_name으로 category 찾기 (CSV의 category_name 사용)
+        # display_name으로 category 찾기
         target_category = ''
         if display_name:
             for rule in rules:
@@ -2301,8 +2313,8 @@ def category_spec_detail(request):
                 if not query_template:
                     continue
 
-                # CSV에서 date_column 읽기 (빈값이면 날짜 필터 없음)
-                date_col = rule.get('date_column', '').strip()
+                # date_column (빈값이면 날짜 필터 없음)
+                date_col = (rule.get('date_column') or '').strip()
                 has_date_filter = bool(date_col)
 
                 try:
@@ -2318,9 +2330,9 @@ def category_spec_detail(request):
 
                     # 이상치 쿼리 실행
                     query = query_template.replace('{table}', table_name).replace('{date_col}', date_col)
-                    # LIKE 절의 %를 %%로 이스케이프 (파라미터 바인딩 충돌 방지)
-                    if '%%' not in query:
-                        query = query.replace('%', '%%').replace('%%s', '%s')
+                    # psycopg2 파라미터 바인딩용 이스케이프: LIKE의 %를 %%로
+                    query = query.replace('%%', '%')
+                    query = query.replace('%', '%%').replace('%%s', '%s')
 
                     if has_date_filter:
                         cursor.execute(query, (target_date,))
@@ -2341,6 +2353,7 @@ def category_spec_detail(request):
                     })
 
                 except Exception as e:
+                    conn.rollback()
                     print(f"[ERROR] Category spec rule {rule_id_val}: {e}")
                     import traceback
                     traceback.print_exc()
@@ -2359,7 +2372,7 @@ def category_spec_detail(request):
                 'rule_summary': rules_summary
             })
 
-        # rule_id로 상세 데이터 조회 - CSV에서 쿼리 읽어오기
+        # rule_id로 상세 데이터 조회
         category_rules = load_category_rules()
         target_rule = None
 
@@ -2382,18 +2395,18 @@ def category_spec_detail(request):
             conn.close()
             return JsonResponse({'error': '규칙을 찾을 수 없습니다.', 'anomalies': []})
 
-        # 테이블과 날짜 컬럼 설정 (CSV의 date_column 사용)
+        # 테이블과 날짜 컬럼 설정
         table_name = target_rule.get('table_name', 'tv_retail_com')
-        date_col = target_rule.get('date_column', '').strip()
+        date_col = (target_rule.get('date_column') or '').strip()
         has_date_filter = bool(date_col)
 
-        # CSV에서 쿼리 가져와서 실행
+        # 쿼리 가져와서 실행
         query_template = target_rule.get('query', '')
         if query_template:
             query = query_template.replace('{table}', table_name).replace('{date_col}', date_col)
-            # LIKE 절의 %를 %%로 이스케이프 (파라미터 바인딩 충돌 방지)
-            if '%%' not in query:
-                query = query.replace('%', '%%').replace('%%s', '%s')
+            # psycopg2 파라미터 바인딩용 이스케이프: LIKE의 %를 %%로
+            query = query.replace('%%', '%')
+            query = query.replace('%', '%%').replace('%%s', '%s')
 
             # date_column이 있으면 날짜 파라미터 전달, 없으면 파라미터 없이 실행
             if has_date_filter:
@@ -2417,6 +2430,13 @@ def category_spec_detail(request):
                 row_dict['crawl_strdatetime'] = str(row_dict['crawl_strdatetime'])
             anomalies.append(row_dict)
 
+        # account_name, item, crawl_strdatetime 순 정렬
+        anomalies.sort(key=lambda r: (
+            r.get('account_name', ''),
+            r.get('item', ''),
+            r.get('crawl_strdatetime', '') or r.get('crawl_datetime', '') or ''
+        ))
+
         cursor.close()
         conn.close()
 
@@ -2425,7 +2445,7 @@ def category_spec_detail(request):
         check_type = 'screen_size' if 'screen' in field1 else 'price'
 
         # display_columns 파싱 (db컬럼:표시명|db컬럼:표시명 형식)
-        display_columns_str = target_rule.get('display_columns', '')
+        display_columns_str = target_rule.get('display_columns') or ''
         display_columns = []
         if display_columns_str:
             for col_pair in display_columns_str.split('|'):
@@ -3114,8 +3134,6 @@ def crossfield_rules(request):
                     'display_name': rule.get('display_name'),
                     'category': rule.get('category'),
                     'field1': rule.get('field1'),
-                    'field2': rule.get('field2'),
-                    'condition': rule.get('condition'),
                     'error_message': rule.get('error_message'),
                     'retailer': rule.get('retailer'),
                     'threshold': rule.get('threshold')
@@ -3135,7 +3153,7 @@ def crossfield_rules(request):
 
 
 def category_rules(request):
-    """카테고리별 특성 검증 규칙 목록 API (CSV 기반)
+    """카테고리별 특성 검증 규칙 목록 API (DB 기반)
 
     Parameters:
         - category: category 코드로 필터링 (tv_retail, hhp_retail, market_forecast 등)
@@ -3147,9 +3165,8 @@ def category_rules(request):
     try:
         rules = load_category_rules()
 
-        # display_name으로 필터링 (category별 그룹 조회) - CSV의 category_name 사용
+        # display_name으로 필터링 (category별 그룹 조회)
         if display_name:
-            # category_name -> category 매핑 찾기
             display_to_category = {}
             for rule in rules:
                 rule_cat = rule.get('category', '').lower()
@@ -3157,7 +3174,6 @@ def category_rules(request):
                 if rule_category_name and rule_category_name not in display_to_category:
                     display_to_category[rule_category_name] = rule_cat
 
-            # display_name에 해당하는 category 찾기
             target_category = display_to_category.get(display_name, '')
             if target_category:
                 category_param = target_category
@@ -3167,7 +3183,6 @@ def category_rules(request):
         for rule in rules:
             rule_category = rule.get('category', '').lower()
 
-            # 지정된 category만 포함, 없으면 전체
             if not category_param or category_param == 'all' or rule_category == category_param:
                 filtered_rules.append({
                     'rule_id': rule.get('rule_id'),
@@ -3176,8 +3191,6 @@ def category_rules(request):
                     'category': rule.get('category'),
                     'product_line': rule.get('product_line'),
                     'field1': rule.get('field1'),
-                    'field2': rule.get('field2'),
-                    'condition': rule.get('condition'),
                     'threshold': rule.get('threshold'),
                     'error_message': rule.get('error_message'),
                     'retailer': rule.get('retailer')

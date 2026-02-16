@@ -1800,12 +1800,12 @@ ORDER BY item, ${dateColumn} ASC;`;
 
                     html += '<div class="rule-summary-container">';
                     ruleSummary.forEach((rule, idx) => {
-                        // field1 ↔ field2 형식으로 표시
-                        const fieldDisplay = `${rule.field1} ↔ ${rule.field2}`;
+                        // field1 표시
+                        const fieldDisplay = rule.field1;
                         const queryId = `crossfield-query-${idx}`;
                         // 플레이스홀더 치환된 쿼리
                         const displayQuery = replaceCrossfieldQueryPlaceholders(rule.query, tableName, dateCol, noReviewTexts, targetDate);
-                        // 상세보기 타이틀: field1 ↔ field2 (설명)
+                        // 상세보기 타이틀: field1 (설명)
                         const detailTitle = `${fieldDisplay} (${rule.error_message})`;
                         html += `
                             <div class="rule-summary-card-wrapper">
@@ -2688,7 +2688,7 @@ ORDER BY item, ${dateCol};`;
                                 <div class="rule-content">
                                     <div class="rule-title">${rule.display_name}${retailerInfo}</div>
                                     <div class="rule-desc">${rule.error_message}</div>
-                                    <div class="rule-example">조건: ${rule.condition}${thresholdInfo ? ' / 범위: ' + rule.threshold : ''}</div>
+                                    <div class="rule-example">${rule.error_message}${thresholdInfo ? ' / 범위: ' + rule.threshold : ''}</div>
                                 </div>
                             </li>
                         `;
@@ -2698,9 +2698,9 @@ ORDER BY item, ${dateCol};`;
                             <li>
                                 <div class="rule-number">${idx + 1}</div>
                                 <div class="rule-content">
-                                    <div class="rule-title">${rule.field1} ↔ ${rule.field2}${retailerInfo}</div>
+                                    <div class="rule-title">${rule.field1}${retailerInfo}</div>
                                     <div class="rule-desc">${rule.error_message}</div>
-                                    <div class="rule-example">조건: ${rule.condition}</div>
+                                    <div class="rule-example">${rule.error_message}</div>
                                 </div>
                             </li>
                         `;

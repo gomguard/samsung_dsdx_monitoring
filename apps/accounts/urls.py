@@ -59,6 +59,14 @@ urlpatterns = [
     path('admin/document-categories/<str:category_id>/delete/', views.document_categories_delete, name='document_categories_delete'),
     path('admin/document-categories/<str:category_id>/toggle/', views.document_categories_toggle, name='document_categories_toggle'),
 
+    # 관리자 페이지 - DX 카테고리 검증 규칙
+    path('admin/category-rules/', views.category_rules, name='category_rules'),
+    path('admin/category-rules/new/', views.category_rules_edit, name='category_rules_new'),
+    path('admin/category-rules/<int:rule_id>/edit/', views.category_rules_edit, name='category_rules_edit'),
+    path('admin/category-rules/api/list/', views.category_rules_list_api, name='category_rules_list_api'),
+    path('admin/category-rules/api/save/', views.category_rules_save_api, name='category_rules_save_api'),
+    path('admin/category-rules/api/delete/', views.category_rules_delete_api, name='category_rules_delete_api'),
+
     # 관리자 페이지 - DS 문서 카테고리 관리
     path('admin/ds-document-categories/', views.ds_document_categories, name='ds_document_categories'),
     path('admin/ds-document-categories/new/', views.ds_document_category_edit, name='ds_document_category_new'),
