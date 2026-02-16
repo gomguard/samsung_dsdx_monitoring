@@ -1012,7 +1012,7 @@ def report_save(request):
 
         retailer_id = stats['retailer_id']
 
-        # 1. 기존 데이터 soft delete (is_del = 1)
+        # 1. 기존 활성 데이터 soft delete (is_del = 1)
         cursor.execute("""
             UPDATE ssd_crawl_db.ds_monitoring_report_daily
             SET is_del = 1, updated_at = %s, updated_id = %s
@@ -1025,62 +1025,156 @@ def report_save(request):
             WHERE crawl_date = %s AND retailer_id = %s AND is_del = 0
         """, (now, user_id, crawl_date, retailer_id))
 
-        # 2. report_daily INSERT (파일 정보는 별도 API에서 저장)
+        # 2. report_daily — 기존 soft-deleted 레코드 복구 또는 신규 INSERT
         cursor.execute("""
-            INSERT INTO ssd_crawl_db.ds_monitoring_report_daily (
-                crawl_date, retailer_id, expected_count, final_batch_count, total_count,
-                completion_rate, rerun_count, file_name, file_size,
-                anomaly_total, anomaly_title_null, anomaly_image_null,
-                anomaly_partial_null, anomaly_price_zero,
-                memo, is_del, created_at, created_id
-            ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, '', 0, %s, %s, %s, %s, %s, %s, 0, %s, %s
-            )
-        """, (
-            crawl_date, retailer_id,
-            stats['expected_count'],
-            stats['final_batch_count'],
-            stats['total_count'],
-            stats['completion_rate'],
-            stats['rerun_count'],
-            stats['anomaly_total'],
-            stats['anomaly_title_null'],
-            stats['anomaly_image_null'],
-            stats['anomaly_partial_null'],
-            stats['anomaly_price_zero'],
-            memo,
-            now, user_id
-        ))
+            SELECT id FROM ssd_crawl_db.ds_monitoring_report_daily
+            WHERE crawl_date = %s AND retailer_id = %s AND is_del = 1
+            ORDER BY updated_at DESC LIMIT 1
+        """, (crawl_date, retailer_id))
+        old_daily = cursor.fetchone()
 
-        report_daily_id = cursor.lastrowid
-
-        # 3. report_anomaly INSERT (각 이상치 데이터)
-        anomaly_ids = []
-        for anomaly in anomalies:
+        if old_daily:
+            # 기존 레코드 복구: 통계만 갱신, file_name/file_size는 유지
+            report_daily_id = old_daily[0]
             cursor.execute("""
-                INSERT INTO ssd_crawl_db.ds_monitoring_report_anomaly (
-                    crawl_date, retailer_id, country_code, title, retailprice,
-                    ships_from, sold_by, imageurl, producturl, retailersku,
-                    screenshot_id, cause, memo, is_del, created_at, created_id
+                UPDATE ssd_crawl_db.ds_monitoring_report_daily
+                SET is_del = 0,
+                    expected_count = %s, final_batch_count = %s, total_count = %s,
+                    completion_rate = %s, rerun_count = %s,
+                    anomaly_total = %s, anomaly_title_null = %s, anomaly_image_null = %s,
+                    anomaly_partial_null = %s, anomaly_price_zero = %s,
+                    memo = %s, updated_at = %s, updated_id = %s
+                WHERE id = %s
+            """, (
+                stats['expected_count'],
+                stats['final_batch_count'],
+                stats['total_count'],
+                stats['completion_rate'],
+                stats['rerun_count'],
+                stats['anomaly_total'],
+                stats['anomaly_title_null'],
+                stats['anomaly_image_null'],
+                stats['anomaly_partial_null'],
+                stats['anomaly_price_zero'],
+                memo,
+                now, user_id,
+                report_daily_id
+            ))
+        else:
+            # 최초 저장: 신규 INSERT (파일 정보는 별도 API에서 저장)
+            cursor.execute("""
+                INSERT INTO ssd_crawl_db.ds_monitoring_report_daily (
+                    crawl_date, retailer_id, expected_count, final_batch_count, total_count,
+                    completion_rate, rerun_count, file_name, file_size,
+                    anomaly_total, anomaly_title_null, anomaly_image_null,
+                    anomaly_partial_null, anomaly_price_zero,
+                    memo, is_del, created_at, created_id
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, '', 0, %s, %s, %s, %s, %s, %s, 0, %s, %s
                 )
             """, (
                 crawl_date, retailer_id,
-                anomaly.get('country_code', ''),
-                anomaly.get('title', ''),
-                anomaly.get('retailprice'),
-                anomaly.get('ships_from', ''),
-                anomaly.get('sold_by', ''),
-                anomaly.get('imageurl', ''),
-                anomaly.get('producturl', ''),
-                anomaly.get('retailersku', ''),
-                anomaly.get('screenshot_id'),
-                anomaly.get('cause', ''),
-                anomaly.get('memo', ''),
+                stats['expected_count'],
+                stats['final_batch_count'],
+                stats['total_count'],
+                stats['completion_rate'],
+                stats['rerun_count'],
+                stats['anomaly_total'],
+                stats['anomaly_title_null'],
+                stats['anomaly_image_null'],
+                stats['anomaly_partial_null'],
+                stats['anomaly_price_zero'],
+                memo,
                 now, user_id
             ))
-            anomaly_ids.append(cursor.lastrowid)
+            report_daily_id = cursor.lastrowid
+
+        # 3. report_anomaly — retailersku 매칭으로 복구 또는 신규 INSERT
+        #    복구 시 screenshot_id, cause, memo 유지
+        cursor.execute("""
+            SELECT id, retailersku, screenshot_id, cause, memo
+            FROM ssd_crawl_db.ds_monitoring_report_anomaly
+            WHERE crawl_date = %s AND retailer_id = %s AND is_del = 1
+        """, (crawl_date, retailer_id))
+        old_anomaly_rows = cursor.fetchall()
+
+        # retailersku → {id, screenshot_id, cause, memo} 매핑 (첫 매칭만 사용)
+        old_anomaly_map = {}
+        for row in old_anomaly_rows:
+            sku = row[1]
+            if sku and sku not in old_anomaly_map:
+                old_anomaly_map[sku] = {
+                    'id': row[0],
+                    'screenshot_id': row[2],
+                    'cause': row[3],
+                    'memo': row[4]
+                }
+
+        anomaly_ids = []
+        for anomaly in anomalies:
+            sku = anomaly.get('retailersku', '')
+            old = old_anomaly_map.pop(sku, None) if sku else None
+
+            if old:
+                # 기존 레코드 복구: 상품 데이터 갱신, screenshot_id/cause/memo 유지
+                cursor.execute("""
+                    UPDATE ssd_crawl_db.ds_monitoring_report_anomaly
+                    SET is_del = 0,
+                        country_code = %s, title = %s, retailprice = %s,
+                        ships_from = %s, sold_by = %s, imageurl = %s, producturl = %s,
+                        updated_at = %s, updated_id = %s
+                    WHERE id = %s
+                """, (
+                    anomaly.get('country_code', ''),
+                    anomaly.get('title', ''),
+                    anomaly.get('retailprice'),
+                    anomaly.get('ships_from', ''),
+                    anomaly.get('sold_by', ''),
+                    anomaly.get('imageurl', ''),
+                    anomaly.get('producturl', ''),
+                    now, user_id,
+                    old['id']
+                ))
+                anomaly_ids.append(old['id'])
+            else:
+                # 신규 INSERT (매칭 안 되는 이상치)
+                cursor.execute("""
+                    INSERT INTO ssd_crawl_db.ds_monitoring_report_anomaly (
+                        crawl_date, retailer_id, country_code, title, retailprice,
+                        ships_from, sold_by, imageurl, producturl, retailersku,
+                        screenshot_id, cause, memo, is_del, created_at, created_id
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, %s, %s
+                    )
+                """, (
+                    crawl_date, retailer_id,
+                    anomaly.get('country_code', ''),
+                    anomaly.get('title', ''),
+                    anomaly.get('retailprice'),
+                    anomaly.get('ships_from', ''),
+                    anomaly.get('sold_by', ''),
+                    anomaly.get('imageurl', ''),
+                    anomaly.get('producturl', ''),
+                    anomaly.get('retailersku', ''),
+                    anomaly.get('screenshot_id'),
+                    anomaly.get('cause', ''),
+                    anomaly.get('memo', ''),
+                    now, user_id
+                ))
+                anomaly_ids.append(cursor.lastrowid)
+
+        # 4. 미매칭 이상치의 스크린샷 파일 soft delete
+        orphan_screenshot_ids = [
+            v['screenshot_id'] for v in old_anomaly_map.values()
+            if v['screenshot_id']
+        ]
+        if orphan_screenshot_ids:
+            placeholders = ','.join(['%s'] * len(orphan_screenshot_ids))
+            cursor.execute(f"""
+                UPDATE ssd_crawl_db.ds_monitoring_file
+                SET is_del = 1, updated_at = %s
+                WHERE file_id IN ({placeholders}) AND is_del = 0
+            """, [now] + orphan_screenshot_ids)
 
         conn.commit()
         cursor.close()
