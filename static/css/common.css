@@ -671,6 +671,18 @@ tr:hover {
 .app-icon-btn-purple { background: #ede9fe; color: #7c3aed; }
 .app-icon-btn-purple:hover { background: #ddd6fe; }
 
+/* ghost: 배경 없는 인라인 아이콘 (테이블 셀 내 복사 등) */
+.app-icon-btn-ghost {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: none; border: none; cursor: pointer;
+    padding: 2px 4px; margin-left: 4px;
+    color: var(--text-secondary); vertical-align: middle;
+    border-radius: 4px; transition: all 0.15s;
+    text-decoration: none;
+}
+.app-icon-btn-ghost svg { width: 13px; height: 13px; }
+.app-icon-btn-ghost:hover { color: #2563eb; background: #eff6ff; }
+
 /* 스타일 — 색상별 */
 .app-btn-primary { background: #7c3aed; color: #fff; }
 .app-btn-primary:hover { background: #6d28d9; }

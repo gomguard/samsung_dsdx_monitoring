@@ -70,6 +70,18 @@ def load_category_rules():
     return rules
 
 
+def _get_non_product_set(cursor, table_name, product_line, pairs):
+    """item_mst에서 is_product=false인 (item, account_name) 집합 반환"""
+    if not pairs or 'retail_com' not in table_name:
+        return set()
+    pl = (product_line or '').lower()
+    mst = 'hhp_item_mst' if 'hhp' in pl or 'hhp' in table_name else 'tv_item_mst'
+    ph = ' OR '.join(['(item = %s AND account_name = %s)'] * len(pairs))
+    params = [v for p in pairs for v in p]
+    cursor.execute(f"SELECT item, account_name FROM {mst} WHERE is_product = false AND ({ph})", params)
+    return {(r[0], r[1]) for r in cursor.fetchall()}
+
+
 def get_no_review_texts(account_name):
     """리테일러별 리뷰없음 텍스트 반환"""
     if account_name == 'Amazon':
@@ -261,7 +273,19 @@ def validate_all_category_specs(target_date):
                     cursor.execute(query, (target_date,))
                 else:
                     cursor.execute(query)
-                anomaly_count = cursor.rowcount
+
+                anomaly_rows = cursor.fetchall()
+                col_names = [desc[0] for desc in cursor.description] if cursor.description else []
+                anomaly_count = len(anomaly_rows)
+
+                # 비제품 제외 카운트
+                item_idx = col_names.index('item') if 'item' in col_names else -1
+                acct_idx = col_names.index('account_name') if 'account_name' in col_names else -1
+                if anomaly_rows and item_idx >= 0 and acct_idx >= 0:
+                    pairs = list({(r[item_idx], r[acct_idx]) for r in anomaly_rows})
+                    non_products = _get_non_product_set(cursor, table_name, rule.get('product_line'), pairs)
+                    if non_products:
+                        anomaly_count = sum(1 for r in anomaly_rows if (r[item_idx], r[acct_idx]) not in non_products)
 
                 cat_total += total_count
                 cat_anomaly += anomaly_count
@@ -397,7 +421,9 @@ def validate_crossfield_by_csv(target_date, category='tv_retail'):
             'rule_name': rule.get('rule_name'),
             'display_name': rule.get('display_name'),
             'field1': rule.get('field1'),
+            'field2': rule.get('field2'),
             'validation_type': rule.get('validation_type'),
+            'condition': rule.get('condition'),
             'error_message': rule.get('error_message'),
             'error_count': error_count,
             'error_details': error_details,
@@ -1238,11 +1264,12 @@ def cross_field_detail(request):
                         'rule_id': rule_result['rule_id'],
                         'rule_name': rule_result['rule_name'],
                         'field1': rule_result['field1'],
+                        'field2': rule_result.get('field2'),
                         'validation_type': validation_type,
                         'error_message': rule_result['error_message'],
                         'total_anomalies': rule_result['error_count'],
                         'anomalies': anomalies,
-                        'select_fields': rule_result.get('select_fields', '')  # 조회쿼리용 필드 목록
+                        'select_fields': rule_result.get('select_fields', '')
                     })
 
             return JsonResponse({'error': f'Rule {rule_id} not found'})
@@ -1255,11 +1282,13 @@ def cross_field_detail(request):
                 'rule_id': r['rule_id'],
                 'rule_name': r['rule_name'],
                 'field1': r['field1'],
+                'field2': r.get('field2'),
                 'validation_type': r.get('validation_type', ''),
+                'condition': r.get('condition'),
                 'error_message': r['error_message'],
                 'error_count': r['error_count'],
-                'query': r.get('query', ''),  # 검증 쿼리 추가
-                'select_fields': r.get('select_fields', '')  # 조회쿼리용 필드 목록
+                'query': r.get('query', ''),
+                'select_fields': r.get('select_fields', '')
             })
             total_anomalies += r['error_count']
 
@@ -2338,7 +2367,19 @@ def category_spec_detail(request):
                         cursor.execute(query, (target_date,))
                     else:
                         cursor.execute(query)
-                    anomaly_count = cursor.rowcount
+
+                    anomaly_rows = cursor.fetchall()
+                    col_names = [desc[0] for desc in cursor.description] if cursor.description else []
+                    anomaly_count = len(anomaly_rows)
+
+                    # 비제품 제외 카운트
+                    item_idx = col_names.index('item') if 'item' in col_names else -1
+                    acct_idx = col_names.index('account_name') if 'account_name' in col_names else -1
+                    if anomaly_rows and item_idx >= 0 and acct_idx >= 0:
+                        pairs = list({(r[item_idx], r[acct_idx]) for r in anomaly_rows})
+                        non_products = _get_non_product_set(cursor, table_name, rule.get('product_line'), pairs)
+                        if non_products:
+                            anomaly_count = sum(1 for r in anomaly_rows if (r[item_idx], r[acct_idx]) not in non_products)
 
                     rules_summary.append({
                         'rule_id': rule_id_val,
@@ -2437,6 +2478,28 @@ def category_spec_detail(request):
             r.get('crawl_strdatetime', '') or r.get('crawl_datetime', '') or ''
         ))
 
+        # item_mst에서 mst_id, is_product 병합 (retail_com 테이블인 경우)
+        if 'retail_com' in table_name and anomalies:
+            product_line_val = (target_rule.get('product_line') or '').lower()
+            mst_table = 'hhp_item_mst' if 'hhp' in product_line_val or 'hhp' in table_name else 'tv_item_mst'
+            pairs = list({(r.get('item', ''), r.get('account_name', '')) for r in anomalies})
+            if pairs:
+                placeholders = ' OR '.join(['(item = %s AND account_name = %s)'] * len(pairs))
+                params = [v for p in pairs for v in p]
+                cursor.execute(f"SELECT id, item, account_name, is_product FROM {mst_table} WHERE {placeholders}", params)
+                mst_map = {}
+                for row in cursor.fetchall():
+                    mst_map[(row[1], row[2])] = {'mst_id': row[0], 'is_product': row[3]}
+                for a in anomalies:
+                    key = (a.get('item', ''), a.get('account_name', ''))
+                    mst = mst_map.get(key)
+                    if mst:
+                        a['mst_id'] = mst['mst_id']
+                        a['is_product'] = mst['is_product']
+                    else:
+                        a['mst_id'] = None
+                        a['is_product'] = None
+
         cursor.close()
         conn.close()
 
@@ -2453,10 +2516,10 @@ def category_spec_detail(request):
                     db_col, display_name = col_pair.split(':', 1)
                     display_columns.append({'key': db_col.strip(), 'label': display_name.strip()})
 
-        # 마스터 테이블인 경우 리테일러별로 그룹화
+        # 리테일러별로 그룹화
         is_master_table = table_name.endswith('_mst')
         retailer_data = {}
-        if is_master_table and anomalies:
+        if anomalies:
             for row in anomalies:
                 retailer_name = row.get('account_name', 'Unknown')
                 if retailer_name not in retailer_data:
@@ -2473,7 +2536,7 @@ def category_spec_detail(request):
             'anomalies': anomalies,
             'is_master_table': is_master_table,
             'retailer_data': retailer_data,
-            'retailer_counts': {k: len(v) for k, v in retailer_data.items()} if is_master_table else {}
+            'retailer_counts': {k: len(v) for k, v in retailer_data.items()}
         })
 
     except Exception as e:
@@ -3134,6 +3197,8 @@ def crossfield_rules(request):
                     'display_name': rule.get('display_name'),
                     'category': rule.get('category'),
                     'field1': rule.get('field1'),
+                    'field2': rule.get('field2'),
+                    'condition': rule.get('condition'),
                     'error_message': rule.get('error_message'),
                     'retailer': rule.get('retailer'),
                     'threshold': rule.get('threshold')

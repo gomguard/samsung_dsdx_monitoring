@@ -88,18 +88,29 @@ var AppButton = (function() {
     };
 
     // 아이콘 전용 버튼 HTML
+    //   style: 'ghost' — 배경 없는 인라인 아이콘 (테이블 셀 내 복사 등)
     function buildIconHtml(iconName, fnExpr, opts) {
         opts = opts || {};
-        var color = opts.color || ICON_COLORS[iconName] || 'blue';
         var iconHtml = ICONS[iconName] || '';
+        var title = opts.title ? ' title="' + opts.title + '"' : '';
+        var onclick = fnExpr ? ' onclick="' + fnExpr + '"' : '';
+
+        if (opts.style === 'ghost') {
+            var cls = 'app-icon-btn-ghost';
+            if (opts.href) {
+                return '<a href="' + opts.href + '" class="' + cls + '"' + title + '>' + iconHtml + '</a>';
+            }
+            return '<button class="' + cls + '"' + onclick + title + '>' + iconHtml + '</button>';
+        }
+
+        var color = opts.color || ICON_COLORS[iconName] || 'blue';
         var cls = 'app-icon-btn app-icon-btn-' + color;
 
         if (opts.href) {
-            return '<a href="' + opts.href + '" class="' + cls + '">' + iconHtml + '</a>';
+            return '<a href="' + opts.href + '" class="' + cls + '"' + title + '>' + iconHtml + '</a>';
         }
 
-        var onclick = fnExpr ? ' onclick="' + fnExpr + '"' : '';
-        return '<button class="' + cls + '"' + onclick + '>' + iconHtml + '</button>';
+        return '<button class="' + cls + '"' + onclick + title + '>' + iconHtml + '</button>';
     }
 
     // 텍스트 버튼 — 컨테이너 삽입
