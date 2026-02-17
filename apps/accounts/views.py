@@ -1738,54 +1738,73 @@ def category_rules_edit(request, rule_id=None):
     return render(request, 'accounts/category_rules_edit.html', context)
 
 
-# ── 카테고리 검증 규칙 API ──
+# ── 검증 규칙 API (monitoring_validation_rules) ──
 
 _RULE_COLUMNS = [
-    'id', 'rule_name', 'display_name', 'category', 'category_name',
+    'id', 'rule_type', 'section_code', 'section_name', 'detail_code', 'detail_name',
     'table_name', 'date_column', 'product_line', 'retailer',
-    'field1', 'validation_type', 'threshold',
-    'error_message', 'display_columns', 'query',
+    'field1', 'field2', 'validation_type', 'check_column', 'check_type',
+    'comparison_type', 'threshold', 'threshold_pct', 'threshold_min',
+    'error_message', 'display_columns', 'select_fields', 'query', 'query_detail',
     'sort_order', 'is_active', 'created_at', 'created_id', 'updated_at', 'updated_id'
 ]
 
 _RULE_SELECT = """
-    SELECT id, rule_name, display_name, category, category_name,
+    SELECT id, rule_type, section_code, section_name, detail_code, detail_name,
            table_name, date_column, product_line, retailer,
-           field1, validation_type, threshold,
-           error_message, display_columns, query,
+           field1, field2, validation_type, check_column, check_type,
+           comparison_type, threshold, threshold_pct, threshold_min,
+           error_message, display_columns, select_fields, query, query_detail,
            sort_order, is_active, created_at, created_id, updated_at, updated_id
-    FROM monitoring_category_rules
+    FROM monitoring_validation_rules
 """
 
 
 @login_required
 @user_passes_test(is_admin)
 def category_rules_list_api(request):
-    """카테고리 검증 규칙 목록 조회 API"""
-    category = request.GET.get('category', '')
+    """검증 규칙 목록 조회 API"""
+    section = request.GET.get('section', '')
+    rule_type = request.GET.get('rule_type', '')
 
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
 
-        if category:
-            cursor.execute(_RULE_SELECT + " WHERE category = %s ORDER BY sort_order, id", [category])
-        else:
-            cursor.execute(_RULE_SELECT + " ORDER BY sort_order, id")
+        conditions = []
+        params = []
+        if rule_type:
+            conditions.append("rule_type = %s")
+            params.append(rule_type)
+        if section:
+            conditions.append("section_code = %s")
+            params.append(section)
+
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        cursor.execute(_RULE_SELECT + where + " ORDER BY rule_type, sort_order, id", params)
 
         rules = []
         for row in cursor.fetchall():
             rule = dict(zip(_RULE_COLUMNS, row))
             rule['created_at'] = str(rule['created_at']) if rule['created_at'] else None
             rule['updated_at'] = str(rule['updated_at']) if rule['updated_at'] else None
+            # numeric 타입을 float로 변환
+            if rule['threshold_pct'] is not None:
+                rule['threshold_pct'] = float(rule['threshold_pct'])
             rules.append(rule)
 
         cursor.execute("""
-            SELECT DISTINCT category, category_name
-            FROM monitoring_category_rules
-            ORDER BY category
+            SELECT DISTINCT section_code, section_name
+            FROM monitoring_validation_rules
+            ORDER BY section_code
         """)
-        categories = [{'value': r[0], 'label': r[1]} for r in cursor.fetchall()]
+        sections = [{'value': r[0], 'label': r[1]} for r in cursor.fetchall()]
+
+        # rule_type별 건수
+        cursor.execute("""
+            SELECT rule_type, COUNT(*) FROM monitoring_validation_rules GROUP BY rule_type
+        """)
+        type_counts = {r[0]: r[1] for r in cursor.fetchall()}
 
         cursor.close()
         conn.close()
@@ -1793,7 +1812,8 @@ def category_rules_list_api(request):
         return JsonResponse({
             'rules': rules,
             'total': len(rules),
-            'categories': categories,
+            'sections': sections,
+            'type_counts': type_counts,
         })
 
     except Exception as e:
@@ -1804,7 +1824,7 @@ def category_rules_list_api(request):
 @user_passes_test(is_admin)
 @require_POST
 def category_rules_save_api(request):
-    """카테고리 검증 규칙 저장 (신규/수정) API"""
+    """검증 규칙 저장 (신규/수정) API"""
     try:
         data = json.loads(request.body)
         rule_id = data.get('id')
@@ -1816,35 +1836,47 @@ def category_rules_save_api(request):
 
         if rule_id:
             cursor.execute("""
-                UPDATE monitoring_category_rules
-                SET rule_name = %s, display_name = %s, category = %s, category_name = %s,
+                UPDATE monitoring_validation_rules
+                SET section_code = %s, section_name = %s, detail_code = %s, detail_name = %s,
                     table_name = %s, date_column = %s, product_line = %s, retailer = %s,
-                    field1 = %s, validation_type = %s, threshold = %s,
-                    error_message = %s, display_columns = %s, query = %s,
+                    field1 = %s, field2 = %s, validation_type = %s,
+                    check_column = %s, check_type = %s, comparison_type = %s,
+                    threshold = %s, threshold_pct = %s, threshold_min = %s,
+                    error_message = %s, display_columns = %s, select_fields = %s,
+                    query = %s, query_detail = %s,
                     sort_order = %s, is_active = %s, updated_at = %s, updated_id = %s
                 WHERE id = %s
             """, (
-                data['rule_name'], data['display_name'], data['category'], data['category_name'],
+                data['section_code'], data['section_name'], data['detail_code'], data['detail_name'],
                 data['table_name'], data.get('date_column'), data.get('product_line'), data.get('retailer', 'all'),
-                data.get('field1'), data.get('validation_type'), data.get('threshold'),
-                data.get('error_message'), data.get('display_columns'), data['query'],
+                data.get('field1'), data.get('field2'), data.get('validation_type'),
+                data.get('check_column'), data.get('check_type'), data.get('comparison_type'),
+                data.get('threshold'), data.get('threshold_pct'), data.get('threshold_min'),
+                data.get('error_message'), data.get('display_columns'), data.get('select_fields'),
+                data['query'], data.get('query_detail'),
                 data.get('sort_order', 0), data.get('is_active', True), now, user_id,
                 rule_id
             ))
         else:
             cursor.execute("""
-                INSERT INTO monitoring_category_rules (
-                    rule_name, display_name, category, category_name,
+                INSERT INTO monitoring_validation_rules (
+                    rule_type, section_code, section_name, detail_code, detail_name,
                     table_name, date_column, product_line, retailer,
-                    field1, validation_type, threshold,
-                    error_message, display_columns, query,
+                    field1, field2, validation_type,
+                    check_column, check_type, comparison_type,
+                    threshold, threshold_pct, threshold_min,
+                    error_message, display_columns, select_fields,
+                    query, query_detail,
                     sort_order, is_active, created_at, created_id
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, true, %s, %s)
             """, (
-                data['rule_name'], data['display_name'], data['category'], data['category_name'],
+                data['rule_type'], data['section_code'], data['section_name'], data['detail_code'], data['detail_name'],
                 data['table_name'], data.get('date_column'), data.get('product_line'), data.get('retailer', 'all'),
-                data.get('field1'), data.get('validation_type'), data.get('threshold'),
-                data.get('error_message'), data.get('display_columns'), data['query'],
+                data.get('field1'), data.get('field2'), data.get('validation_type'),
+                data.get('check_column'), data.get('check_type'), data.get('comparison_type'),
+                data.get('threshold'), data.get('threshold_pct'), data.get('threshold_min'),
+                data.get('error_message'), data.get('display_columns'), data.get('select_fields'),
+                data['query'], data.get('query_detail'),
                 data.get('sort_order', 0), now, user_id
             ))
 
@@ -1862,7 +1894,7 @@ def category_rules_save_api(request):
 @user_passes_test(is_admin)
 @require_POST
 def category_rules_delete_api(request):
-    """카테고리 검증 규칙 삭제 API"""
+    """검증 규칙 삭제 API"""
     try:
         data = json.loads(request.body)
         rule_id = data.get('id')
@@ -1870,7 +1902,7 @@ def category_rules_delete_api(request):
         conn = get_dx_connection()
         cursor = conn.cursor()
 
-        cursor.execute("DELETE FROM monitoring_category_rules WHERE id = %s", [rule_id])
+        cursor.execute("DELETE FROM monitoring_validation_rules WHERE id = %s", [rule_id])
 
         conn.commit()
         cursor.close()

@@ -67,22 +67,22 @@ def load_crossfield_rules():
 
 
 def load_category_rules():
-    """DB에서 카테고리별 특성 검증 규칙 로드 (monitoring_category_rules 테이블)"""
+    """DB에서 카테고리별 특성 검증 규칙 로드 (monitoring_validation_rules 테이블)"""
     rules = []
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, rule_name, display_name, category, category_name,
+            SELECT id, detail_code, detail_name, section_code, section_name,
                    table_name, date_column, product_line, retailer,
                    field1, validation_type, threshold,
                    error_message, display_columns, query, sort_order
-            FROM monitoring_category_rules
-            WHERE is_active = true
+            FROM monitoring_validation_rules
+            WHERE rule_type = 'category_spec' AND is_active = true
             ORDER BY sort_order, id
         """)
         columns = [
-            'rule_id', 'rule_name', 'display_name', 'category', 'category_name',
+            'rule_id', 'detail_code', 'detail_name', 'section_code', 'section_name',
             'table_name', 'date_column', 'product_line', 'retailer',
             'field1', 'validation_type', 'threshold',
             'error_message', 'display_columns', 'query', 'sort_order'
@@ -204,16 +204,16 @@ def validate_review_detail_match(row, product_line, return_detail=False):
         return make_result(True, f'패턴 "{pattern}" 없음', pattern, False, max_review_num)
 
 
-def get_category_display_name(category, rules=None):
-    """category 코드를 화면에 표시할 이름으로 변환"""
-    # rules가 전달되면 첫 번째 규칙의 category_name 사용
+def get_category_display_name(section_code, rules=None):
+    """section_code를 화면에 표시할 이름으로 변환"""
+    # rules가 전달되면 첫 번째 규칙의 section_name 사용
     if rules:
         for rule in rules:
-            category_name = rule.get('category_name', '').strip()
+            category_name = rule.get('section_name', '').strip()
             if category_name:
                 return category_name
-    # fallback: category 코드 그대로 반환
-    return category
+    # fallback: section_code 그대로 반환
+    return section_code
 
 
 def get_category_description(category, rules):
@@ -225,14 +225,14 @@ def get_category_description(category, rules):
 
 
 def validate_all_category_specs(target_date):
-    """카테고리별 특성 검증 - 모든 카테고리를 동적으로 처리
+    """카테고리별 특성 검증 - 모든 섹션을 동적으로 처리
 
     Returns:
-        list: 각 카테고리별로 그룹화된 검증 결과
+        list: 각 섹션별로 그룹화된 검증 결과
         [
             {
-                'category': 'tv_retail',
-                'display_name': 'TV 카테고리 특성',
+                'section_code': 'tv_retail',
+                'section_name': 'TV 카테고리 특성',
                 'description': 'screen_size, final_sku_price 범위 검증',
                 'total': 5000,
                 'anomaly': 59,
@@ -245,27 +245,27 @@ def validate_all_category_specs(target_date):
     if not rules:
         return []
 
-    # category별로 규칙 그룹화
-    category_rules_map = {}
+    # section별로 규칙 그룹화
+    section_rules_map = {}
     for rule in rules:
-        cat = rule.get('category', '').lower()
-        if cat not in category_rules_map:
-            category_rules_map[cat] = []
-        category_rules_map[cat].append(rule)
+        sec = rule.get('section_code', '').lower()
+        if sec not in section_rules_map:
+            section_rules_map[sec] = []
+        section_rules_map[sec].append(rule)
 
     results = []
     conn = get_dx_connection()
     cursor = conn.cursor()
 
-    for category, cat_rules in category_rules_map.items():
+    for section, sec_rules in section_rules_map.items():
         cat_total = 0
         cat_anomaly = 0
         rule_results = []
 
-        for rule in cat_rules:
+        for rule in sec_rules:
             rule_id = rule.get('rule_id')
-            rule_name = rule.get('rule_name')
-            display_name = rule.get('display_name')
+            detail_code = rule.get('detail_code')
+            detail_name = rule.get('detail_name')
             table_name = rule.get('table_name', '')
             field1 = rule.get('field1')
             error_message = rule.get('error_message')
@@ -291,7 +291,7 @@ def validate_all_category_specs(target_date):
                 # 이상치 쿼리 실행
                 query = query_template.replace('{table}', table_name).replace('{date_col}', date_col)
                 if not _validate_select_query(query):
-                    raise ValueError(f'허용되지 않은 쿼리 유형: {rule_name}')
+                    raise ValueError(f'허용되지 않은 쿼리 유형: {detail_code}')
                 # psycopg2 파라미터 바인딩용 이스케이프: LIKE의 %를 %%로
                 # 먼저 %%를 %로 통일한 뒤, 다시 %를 %%로 이스케이프 (%s 파라미터는 복원)
                 query = query.replace('%%', '%')
@@ -321,8 +321,8 @@ def validate_all_category_specs(target_date):
 
                 rule_results.append({
                     'rule_id': rule_id,
-                    'rule_name': rule_name,
-                    'display_name': display_name,
+                    'detail_code': detail_code,
+                    'detail_name': detail_name,
                     'field1': field1,
                     'error_message': error_message,
                     'total': total_count,
@@ -335,11 +335,11 @@ def validate_all_category_specs(target_date):
                 import traceback
                 traceback.print_exc()
 
-        # 카테고리별 결과 추가
+        # 섹션별 결과 추가
         results.append({
-            'category': category,
-            'display_name': get_category_display_name(category, cat_rules),
-            'description': get_category_description(category, cat_rules),
+            'section_code': section,
+            'section_name': get_category_display_name(section, sec_rules),
+            'description': get_category_description(section, sec_rules),
             'total': cat_total,
             'anomaly': cat_anomaly,
             'rules': rule_results
@@ -1112,12 +1112,12 @@ def layer_stats(request):
                 category_spec_results = validate_all_category_specs(target_date)
                 for cat_result in category_spec_results:
                     # product_line 필터링
-                    cat_name = cat_result.get('category', '').lower()
-                    if product_line == 'tv' and 'hhp' in cat_name:
+                    sec_code = cat_result.get('section_code', '').lower()
+                    if product_line == 'tv' and 'hhp' in sec_code:
                         continue
-                    if product_line == 'hhp' and 'tv' in cat_name and 'hhp' not in cat_name:
+                    if product_line == 'hhp' and 'tv' in sec_code and 'hhp' not in sec_code:
                         continue
-                    if product_line not in ['market', 'all'] and 'market' in cat_name:
+                    if product_line not in ['market', 'all'] and 'market' in sec_code:
                         continue
 
                     cat_total = cat_result.get('total', 0)
@@ -1128,7 +1128,7 @@ def layer_stats(request):
 
                     results['checks'].append({
                         'category': '카테고리별 특성',
-                        'name': cat_result.get('display_name', cat_name),
+                        'name': cat_result.get('section_name', sec_code),
                         'description': cat_result.get('description', ''),
                         'checked': cat_total,
                         'passed': cat_total - cat_anomaly,
@@ -2331,14 +2331,14 @@ def category_spec_detail(request):
         # DB에서 규칙 로드
         rules = load_category_rules()
 
-        # display_name으로 category 찾기
+        # display_name으로 section_code 찾기
         target_category = ''
         if display_name:
             for rule in rules:
-                rule_cat = rule.get('category', '').lower()
-                rule_category_name = rule.get('category_name', '').strip()
-                if rule_category_name == display_name:
-                    target_category = rule_cat
+                rule_sec = rule.get('section_code', '').lower()
+                rule_section_name = rule.get('section_name', '').strip()
+                if rule_section_name == display_name:
+                    target_category = rule_sec
                     break
 
         # 하위호환: type 파라미터로 category 결정
@@ -2358,15 +2358,15 @@ def category_spec_detail(request):
             rules_summary = []
 
             for rule in rules:
-                rule_category = rule.get('category', '').lower()
+                rule_section = rule.get('section_code', '').lower()
 
                 # target_category와 매칭되는 규칙만 처리
-                if target_category and rule_category != target_category:
+                if target_category and rule_section != target_category:
                     continue
 
                 rule_id_val = rule.get('rule_id')
-                rule_name = rule.get('rule_name')
-                rule_display_name = rule.get('display_name')
+                detail_code = rule.get('detail_code')
+                detail_name = rule.get('detail_name')
                 table_name = rule.get('table_name', '')
                 field1 = rule.get('field1')
                 threshold = rule.get('threshold')
@@ -2394,7 +2394,7 @@ def category_spec_detail(request):
                     # 이상치 쿼리 실행
                     query = query_template.replace('{table}', table_name).replace('{date_col}', date_col)
                     if not query.strip().upper().startswith('SELECT'):
-                        raise ValueError(f'허용되지 않은 쿼리 유형: {rule_name}')
+                        raise ValueError(f'허용되지 않은 쿼리 유형: {detail_code}')
                     # psycopg2 파라미터 바인딩용 이스케이프: LIKE의 %를 %%로
                     query = query.replace('%%', '%')
                     query = query.replace('%', '%%').replace('%%s', '%s')
@@ -2419,8 +2419,8 @@ def category_spec_detail(request):
 
                     rules_summary.append({
                         'rule_id': rule_id_val,
-                        'rule_name': rule_name,
-                        'display_name': rule_display_name,
+                        'detail_code': detail_code,
+                        'detail_name': detail_name,
                         'field1': field1,
                         'threshold': threshold,
                         'error_message': error_message,
@@ -3278,39 +3278,39 @@ def category_rules(request):
     """카테고리별 특성 검증 규칙 목록 API (DB 기반)
 
     Parameters:
-        - category: category 코드로 필터링 (tv_retail, hhp_retail, market_forecast 등)
+        - section: section_code로 필터링 (tv_retail, hhp_retail, market_forecast 등)
         - display_name: 화면 표시 이름으로 필터링 (TV 카테고리 특성, Forecast 등)
     """
-    category_param = request.GET.get('category', '')
+    section_param = request.GET.get('section', request.GET.get('category', ''))
     display_name = request.GET.get('display_name', '')
 
     try:
         rules = load_category_rules()
 
-        # display_name으로 필터링 (category별 그룹 조회)
+        # display_name으로 필터링 (section별 그룹 조회)
         if display_name:
-            display_to_category = {}
+            display_to_section = {}
             for rule in rules:
-                rule_cat = rule.get('category', '').lower()
-                rule_category_name = rule.get('category_name', '').strip()
-                if rule_category_name and rule_category_name not in display_to_category:
-                    display_to_category[rule_category_name] = rule_cat
+                rule_sec = rule.get('section_code', '').lower()
+                rule_section_name = rule.get('section_name', '').strip()
+                if rule_section_name and rule_section_name not in display_to_section:
+                    display_to_section[rule_section_name] = rule_sec
 
-            target_category = display_to_category.get(display_name, '')
-            if target_category:
-                category_param = target_category
+            target_section = display_to_section.get(display_name, '')
+            if target_section:
+                section_param = target_section
 
-        # category별 필터링
+        # section별 필터링
         filtered_rules = []
         for rule in rules:
-            rule_category = rule.get('category', '').lower()
+            rule_section = rule.get('section_code', '').lower()
 
-            if not category_param or category_param == 'all' or rule_category == category_param:
+            if not section_param or section_param == 'all' or rule_section == section_param:
                 filtered_rules.append({
                     'rule_id': rule.get('rule_id'),
-                    'rule_name': rule.get('rule_name'),
-                    'display_name': rule.get('display_name'),
-                    'category': rule.get('category'),
+                    'detail_code': rule.get('detail_code'),
+                    'detail_name': rule.get('detail_name'),
+                    'section_code': rule.get('section_code'),
                     'product_line': rule.get('product_line'),
                     'field1': rule.get('field1'),
                     'threshold': rule.get('threshold'),
@@ -3320,7 +3320,7 @@ def category_rules(request):
 
         return JsonResponse({
             'status': 'success',
-            'category': category_param or 'all',
+            'section': section_param or 'all',
             'total_rules': len(filtered_rules),
             'rules': filtered_rules
         })

@@ -1,7 +1,7 @@
 {% extends 'accounts/admin_base.html' %}
 {% load static %}
 
-{% block title %}카테고리 검증 규칙 - 관리자{% endblock %}
+{% block title %}검증 규칙 관리 - 관리자{% endblock %}
 
 {% block admin_css %}
 <style>
@@ -42,6 +42,52 @@
 
     .btn-add:hover { background: #6d28d9; }
     .btn-add svg { width: 18px; height: 18px; }
+
+    /* rule_type 탭 */
+    .type-tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0;
+    }
+
+    .type-tab {
+        padding: 8px 16px;
+        border: none;
+        background: none;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        transition: all 0.2s;
+    }
+
+    .type-tab:hover { color: var(--text-primary); }
+    .type-tab.active {
+        color: #7c3aed;
+        border-bottom-color: #7c3aed;
+        font-weight: 600;
+    }
+
+    .type-tab .tab-count {
+        display: inline-block;
+        min-width: 18px;
+        padding: 1px 6px;
+        margin-left: 4px;
+        background: var(--bg-secondary);
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    .type-tab.active .tab-count {
+        background: #ede9fe;
+        color: #7c3aed;
+    }
 
     /* 필터 */
     .filter-section {
@@ -110,8 +156,9 @@
 
     /* 컬럼 너비 */
     .rc-table .col-no { width: 40px; text-align: center; }
+    .rc-table .col-type { width: 100px; }
     .rc-table .col-name { width: 180px; }
-    .rc-table .col-category { width: 140px; }
+    .rc-table .col-section { width: 140px; }
     .rc-table .col-table { width: 130px; }
     .rc-table .col-field { width: 110px; }
     .rc-table .col-threshold { width: 80px; }
@@ -150,6 +197,18 @@
         color: #6d28d9;
     }
 
+    /* 유형 뱃지 */
+    .type-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+    .type-badge.category_spec { background: #ede9fe; color: #6d28d9; }
+    .type-badge.crossfield { background: #dbeafe; color: #1d4ed8; }
+    .type-badge.timeseries { background: #d1fae5; color: #047857; }
+
     /* 상태 도트 */
     .status-dot {
         display: inline-block;
@@ -181,8 +240,8 @@
 <div>
     <div class="admin-header">
         <div>
-            <h1 class="admin-title">카테고리 검증 규칙</h1>
-            <p class="admin-title-sub">Layer3 카테고리별 특성 검증 규칙을 관리합니다</p>
+            <h1 class="admin-title">검증 규칙 관리</h1>
+            <p class="admin-title-sub">Layer3 검증 규칙을 통합 관리합니다</p>
         </div>
         <a href="{% url 'accounts:category_rules_new' %}" class="btn-add">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -194,6 +253,14 @@
     </div>
 
     <div class="list-card">
+        <!-- rule_type 탭 -->
+        <div class="type-tabs" id="typeTabs">
+            <button class="type-tab active" data-type="" onclick="switchTab(this)">전체 <span class="tab-count" id="countAll">0</span></button>
+            <button class="type-tab" data-type="category_spec" onclick="switchTab(this)">카테고리별 특성 <span class="tab-count" id="countCatspec">0</span></button>
+            <button class="type-tab" data-type="crossfield" onclick="switchTab(this)">크로스 필드 <span class="tab-count" id="countCrossfield">0</span></button>
+            <button class="type-tab" data-type="timeseries" onclick="switchTab(this)">시계열 이상치 <span class="tab-count" id="countTimeseries">0</span></button>
+        </div>
+
         <!-- 통계 -->
         <div class="stats-row">
             <span class="stat-chip">전체<strong id="statTotal">0</strong></span>
@@ -202,8 +269,8 @@
 
         <!-- 필터 -->
         <div class="filter-section">
-            <select class="filter-select" id="filterCategory" onchange="loadRules()">
-                <option value="">카테고리 (전체)</option>
+            <select class="filter-select" id="filterSection" onchange="loadRules()">
+                <option value="">섹션 (전체)</option>
             </select>
         </div>
 
@@ -213,8 +280,9 @@
                 <thead>
                     <tr>
                         <th class="col-no">No</th>
+                        <th class="col-type">유형</th>
                         <th class="col-name">규칙명</th>
-                        <th class="col-category">카테고리</th>
+                        <th class="col-section">섹션</th>
                         <th class="col-table">테이블</th>
                         <th class="col-field">검증 필드</th>
                         <th class="col-threshold">범위</th>
@@ -223,7 +291,7 @@
                     </tr>
                 </thead>
                 <tbody id="rulesBody">
-                    <tr><td colspan="8" class="loading-msg">로딩 중...</td></tr>
+                    <tr><td colspan="9" class="loading-msg">로딩 중...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -233,24 +301,50 @@
 
 {% block admin_js %}
 <script>
+const TYPE_LABELS = {
+    category_spec: '카테고리별 특성',
+    crossfield: '크로스 필드',
+    timeseries: '시계열 이상치'
+};
+
+let currentType = '';
+
+function switchTab(el) {
+    document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    currentType = el.dataset.type;
+    loadRules();
+}
+
 async function loadRules() {
-    const category = document.getElementById('filterCategory').value;
-    const params = category ? `?category=${category}` : '';
+    const section = document.getElementById('filterSection').value;
+    const params = new URLSearchParams();
+    if (currentType) params.set('rule_type', currentType);
+    if (section) params.set('section', section);
+    const qs = params.toString() ? `?${params}` : '';
 
     try {
-        const res = await fetch(`/accounts/admin/category-rules/api/list/${params}`);
+        const res = await fetch(`/accounts/admin/category-rules/api/list/${qs}`);
         const data = await res.json();
 
         if (data.error) {
             document.getElementById('rulesBody').innerHTML =
-                `<tr><td colspan="8" class="loading-msg">${esc(data.error)}</td></tr>`;
+                `<tr><td colspan="9" class="loading-msg">${esc(data.error)}</td></tr>`;
             return;
         }
 
-        // 카테고리 필터 옵션 업데이트 (최초 1회)
-        const filterEl = document.getElementById('filterCategory');
-        if (filterEl.options.length <= 1 && data.categories) {
-            data.categories.forEach(c => {
+        // 탭 건수 업데이트
+        const tc = data.type_counts || {};
+        const total = Object.values(tc).reduce((a, b) => a + b, 0);
+        document.getElementById('countAll').textContent = total;
+        document.getElementById('countCatspec').textContent = tc.category_spec || 0;
+        document.getElementById('countCrossfield').textContent = tc.crossfield || 0;
+        document.getElementById('countTimeseries').textContent = tc.timeseries || 0;
+
+        // 섹션 필터 옵션 업데이트 (최초 1회)
+        const filterEl = document.getElementById('filterSection');
+        if (filterEl.options.length <= 1 && data.sections) {
+            data.sections.forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.value;
                 opt.textContent = c.label;
@@ -261,7 +355,7 @@ async function loadRules() {
         renderTable(data.rules || []);
     } catch (e) {
         document.getElementById('rulesBody').innerHTML =
-            `<tr><td colspan="8" class="loading-msg">데이터 로딩 실패</td></tr>`;
+            `<tr><td colspan="9" class="loading-msg">데이터 로딩 실패</td></tr>`;
     }
 }
 
@@ -273,7 +367,7 @@ function renderTable(rules) {
     document.getElementById('statActive').textContent = rules.filter(r => r.is_active).length;
 
     if (!rules.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="loading-msg">등록된 규칙이 없습니다</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="loading-msg">등록된 규칙이 없습니다</td></tr>';
         return;
     }
 
@@ -282,8 +376,9 @@ function renderTable(rules) {
             ondblclick="location.href='/accounts/admin/category-rules/${r.id}/edit/'"
             data-id="${r.id}">
             <td class="col-no">${i + 1}</td>
-            <td class="col-name" title="${esc(r.display_name)}">${esc(r.display_name)}</td>
-            <td class="col-category"><span class="category-badge">${esc(r.category_name || r.category)}</span></td>
+            <td class="col-type"><span class="type-badge ${esc(r.rule_type)}">${esc(TYPE_LABELS[r.rule_type] || r.rule_type)}</span></td>
+            <td class="col-name" title="${esc(r.detail_name)}">${esc(r.detail_name)}</td>
+            <td class="col-section"><span class="category-badge">${esc(r.section_name || r.section_code)}</span></td>
             <td class="col-table">${esc(r.table_name)}</td>
             <td class="col-field">${esc(r.field1 || '-')}</td>
             <td class="col-threshold">${esc(r.threshold || '-')}</td>

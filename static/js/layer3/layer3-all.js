@@ -646,9 +646,9 @@ function renderCatSpecSummaryContent(title, data) {
         html += '<div class="rule-summary-container">';
         ruleSummary.forEach(rule => {
             html += `
-                <div class="rule-summary-card" onclick="loadCategorySpecRuleDetail('${escJs(title)}', '${escJs(rule.rule_id)}', '${escJs(data.date)}', '${escJs(rule.display_name)}')">
+                <div class="rule-summary-card" onclick="loadCategorySpecRuleDetail('${escJs(title)}', '${escJs(rule.rule_id)}', '${escJs(data.date)}', '${escJs(rule.detail_name)}')">
                     <div class="rule-info">
-                        <div class="rule-name">${esc(rule.display_name)}</div>
+                        <div class="rule-name">${esc(rule.detail_name)}</div>
                         <div class="rule-desc">${esc(rule.error_message)}</div>
                     </div>
                     <div class="rule-count${rule.error_count === 0 ? ' zero' : ''}">${rule.error_count}건</div>
@@ -1673,12 +1673,12 @@ async function showRulesModal(checkName) {
                 const thresholdInfo = rule.threshold ? ` [${rule.threshold}]` : '';
 
                 if (isCategorySpec) {
-                    // 카테고리별 특성 규칙 표시 - display_name 사용
+                    // 카테고리별 특성 규칙 표시 - detail_name 사용
                     html += `
                         <li>
                             <div class="rule-number">${idx + 1}</div>
                             <div class="rule-content">
-                                <div class="rule-title">${esc(rule.display_name)}${esc(retailerInfo)}</div>
+                                <div class="rule-title">${esc(rule.detail_name)}${esc(retailerInfo)}</div>
                                 <div class="rule-desc">${esc(rule.error_message)}</div>
                                 <div class="rule-example">${esc(rule.error_message)}${thresholdInfo ? ' / 범위: ' + esc(String(rule.threshold)) : ''}</div>
                             </div>
