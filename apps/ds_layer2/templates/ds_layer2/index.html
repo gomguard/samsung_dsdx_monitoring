@@ -1241,7 +1241,7 @@ let currentDetailData = []; // 현재 보이는 상세 데이터
 let currentRetailerName = ''; // 현재 리테일러 이름
 let currentCountry = ''; // 현재 국가
 let reportStatus = { is_closed: false, saved_retailers: {} }; // 보고서 상태
-const currentUserId = '{{ request.user.username|default:"anonymous" }}'; // 로그인 사용자 ID
+const currentUserId = '{{ request.user.username|default:"anonymous"|escapejs }}'; // 로그인 사용자 ID
 
 document.addEventListener('DOMContentLoaded', function() {
     // 저장된 날짜 또는 어제 날짜로 초기화
@@ -1411,7 +1411,7 @@ async function saveRetailer(retailer, event) {
         // 백엔드에서 stats 직접 계산하므로 anomalies만 전송
         const response = await fetch('/ds/layer2/api/save/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
                 crawl_date: date,
                 retailer: retailer,
@@ -1452,7 +1452,7 @@ async function deleteRetailer(retailer, event) {
     try {
         const response = await fetch('/ds/layer2/api/delete/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
                 crawl_date: date,
                 retailer: retailer,
@@ -1600,7 +1600,7 @@ async function bulkSaveRetailers() {
             // 저장
             const response = await fetch('/ds/layer2/api/save/', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
                 body: JSON.stringify({
                     crawl_date: date,
                     retailer: retailer,
@@ -1644,7 +1644,7 @@ async function closeReport() {
     try {
         const response = await fetch('/ds/layer2/api/close/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
                 crawl_date: date,
                 user_id: currentUserId
@@ -1995,7 +1995,7 @@ async function loadDetailData() {
         const data = await response.json();
 
         if (data.error) {
-            document.getElementById('modalContent').innerHTML = `<div class="loading">${data.error}</div>`;
+            document.getElementById('modalContent').innerHTML = `<div class="loading">${esc(data.error)}</div>`;
         } else {
             renderDetailTable(data);
             totalPages = data.total_pages;

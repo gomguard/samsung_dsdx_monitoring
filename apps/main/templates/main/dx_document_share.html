@@ -1,3 +1,4 @@
+{% load components %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -207,7 +208,7 @@
     </div>
     <div class="share-content">
         <div class="share-doc-title">{{ document.title }}</div>
-        <div class="ck-content">{{ document.content|safe }}</div>
+        <div class="ck-content">{{ document.content|sanitize_html }}</div>
     </div>
     <div class="share-footer">
         이 문서는 공유 링크를 통해 제공됩니다. 링크는 생성 후 24시간 동안 유효합니다.

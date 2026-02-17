@@ -360,7 +360,7 @@
 let currentTable = 'tv';
 let currentPage = 1;
 const PAGE_SIZE = 50;
-const currentUserId = '{{ user.username }}';
+const currentUserId = '{{ user.username|escapejs }}';
 let pager = null;
 
 // 변경 추적: { id: { is_product: bool } }
@@ -433,7 +433,7 @@ async function loadData(page) {
         const data = await res.json();
 
         if (data.error) {
-            container.innerHTML = `<div class="empty-state">${data.error}</div>`;
+            container.innerHTML = `<div class="empty-state">${esc(data.error)}</div>`;
             return;
         }
 
@@ -508,7 +508,7 @@ async function loadData(page) {
         pager.render(data.total, page);
 
     } catch (e) {
-        container.innerHTML = `<div class="empty-state">데이터 로드 실패: ${e.message}</div>`;
+        container.innerHTML = `<div class="empty-state">데이터 로드 실패: ${esc(e.message)}</div>`;
     }
 }
 

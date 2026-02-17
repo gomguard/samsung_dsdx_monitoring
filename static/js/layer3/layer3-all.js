@@ -240,7 +240,7 @@ function renderData(data) {
                 <div class="category-header" onclick="toggleCategory(${catIdx})">
                     <div class="category-title">
                         <div class="category-icon ${config.class}">${config.icon}</div>
-                        <span>${categoryName}</span>
+                        <span>${esc(categoryName)}</span>
                         <span class="toggle-icon" id="cat-toggle-${catIdx}">▶</span>
                     </div>
                     <div class="category-summary">
@@ -567,7 +567,7 @@ ORDER BY item, ${dateColumn} ASC;`;
                 <label style="font-weight: 500;">조회 날짜:</label>
                 <input type="date" id="crossfield-date-picker" value="${data.date}"
                     style="padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;"
-                    onchange="reloadCrossfieldData(this.value, '${data.product_line}', '${title}')">
+                    onchange="reloadCrossfieldData(this.value, '${escJs(data.product_line)}', '${escJs(title)}')">
             </div>`;
 
             if (ruleSummary.length === 0) {
@@ -598,7 +598,7 @@ ORDER BY item, ${dateColumn} ASC;`;
                                 <div class="rule-count${rule.error_count === 0 ? ' zero' : ''}">${rule.error_count}건</div>
                             </div>
                             <div id="${queryId}" class="crossfield-query-box" style="display: none;">
-                                <pre>${displayQuery}</pre>
+                                <pre>${esc(displayQuery)}</pre>
                                 <button class="btn-copy-query" onclick="copyQueryToClipboard(this.previousElementSibling)">복사</button>
                             </div>
                         </div>
@@ -636,7 +636,7 @@ function renderCatSpecSummaryContent(title, data) {
             <label style="font-weight: 500;">조회 날짜:</label>
             <input type="date" id="category-spec-date-picker" value="${data.date}"
                 style="padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;"
-                onchange="reloadCategorySpecData(this.value, '${title}', '${title}')">
+                onchange="reloadCategorySpecData(this.value, '${escJs(title)}', '${escJs(title)}')">
         </div>`;
     }
 
@@ -1035,8 +1035,8 @@ function renderCategorySpecDetail(data, ruleName, selectedRetailer) {
     retailers.forEach(retailer => {
         const count = retailerCounts[retailer];
         const isActive = selectedRetailer === retailer;
-        html += `<button class="retailer-tab" onclick="switchMasterTableRetailer('${retailer}')" style="padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 13px; ${isActive ? 'background: #3b82f6; color: white; border-color: #3b82f6;' : 'background: white; color: #374151;'}">
-            ${retailer} <span style="font-weight: 600;">(${count})</span>
+        html += `<button class="retailer-tab" onclick="switchMasterTableRetailer('${escJs(retailer)}')" style="padding: 8px 16px; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; font-size: 13px; ${isActive ? 'background: #3b82f6; color: white; border-color: #3b82f6;' : 'background: white; color: #374151;'}">
+            ${esc(retailer)} <span style="font-weight: 600;">(${count})</span>
         </button>`;
     });
 
@@ -1107,14 +1107,14 @@ ORDER BY account_name, item;`;
                     <span style="font-size: 13px; font-weight: 600; color: #dc2626;">Item 목록 (${items.length}개)</span>
                     <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('spec-item-list'))" style="padding: 4px 10px; font-size: 11px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
                 </div>
-                <div id="spec-item-list" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${itemListDisplay}</div>
+                <div id="spec-item-list" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${esc(itemListDisplay)}</div>
             </div>
             <div class="query-box" style="flex: 1; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px;">
                 <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <span style="font-size: 13px; font-weight: 600; color: #374151;">조회 쿼리</span>
                     <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('spec-query-box'))" style="padding: 4px 10px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
                 </div>
-                <pre id="spec-query-box" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #1e40af; background: #dbeafe; padding: 10px; border-radius: 6px; margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto;">${query}</pre>
+                <pre id="spec-query-box" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #1e40af; background: #dbeafe; padding: 10px; border-radius: 6px; margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto;">${esc(query)}</pre>
             </div>
         </div>`;
     }
@@ -1500,17 +1500,17 @@ ORDER BY item, ${dateCol};`;
         <div class="query-section" style="display: flex; gap: 16px; margin-bottom: 16px;">
             <div class="item-list-box" style="flex: 0 0 300px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px;">
                 <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 13px; font-weight: 600; color: #dc2626;">${retailer} - Item 목록 (${items.length}개)</span>
+                    <span style="font-size: 13px; font-weight: 600; color: #dc2626;">${esc(retailer)} - Item 목록 (${items.length}개)</span>
                     <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('item-list-${retailerSafe}'))" style="padding: 4px 10px; font-size: 11px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
                 </div>
-                <div id="item-list-${retailerSafe}" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${itemListDisplay}</div>
+                <div id="item-list-${retailerSafe}" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${esc(itemListDisplay)}</div>
             </div>
             <div class="query-box" style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
                 <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <span style="font-size: 13px; font-weight: 600; color: #374151;">3일치 조회 쿼리</span>
                     <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('query-box-${retailerSafe}'))" style="padding: 4px 10px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
                 </div>
-                <pre id="query-box-${retailerSafe}" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto; margin: 0;">${query}</pre>
+                <pre id="query-box-${retailerSafe}" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto; margin: 0;">${esc(query)}</pre>
             </div>
         </div>`;
 
@@ -1953,7 +1953,7 @@ function renderMissingSummary(missingFields, summary, date, prevDates, retailer)
             <label style="font-weight: 500;">조회 날짜:</label>
             <input type="date" id="summary-date-input" value="${date}"
                 style="padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px;">
-            <button onclick="changeSummaryDate('${retailer}')" style="padding: 4px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">조회</button>
+            <button onclick="changeSummaryDate('${escJs(retailer)}')" style="padding: 4px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">조회</button>
         </div>
         <span style="color: #6b7280;">|</span>
         <span><strong>기간:</strong> ${periodStart} ~ ${periodEnd}</span>
@@ -2031,7 +2031,7 @@ async function viewFieldMissingDetail(retailer, field, date) {
         if (data.status === 'success') {
             renderFieldMissingDetail(data, retailer, field);
         } else {
-            document.getElementById('modal-body').innerHTML = `<p style="text-align: center; padding: 40px;">오류: ${data.message || '데이터 로드 실패'}</p>`;
+            document.getElementById('modal-body').innerHTML = `<p style="text-align: center; padding: 40px;">오류: ${esc(data.message || '데이터 로드 실패')}</p>`;
         }
     } catch (error) {
         console.error('Error:', error);
@@ -2053,9 +2053,9 @@ function renderFieldMissingDetail(data, retailer, field) {
 
     // 상단: 뒤로가기 + 정보
     let html = `<div style="margin-bottom: 12px; padding: 12px; background: var(--bg-primary); border-radius: 8px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-        <button onclick="viewMissingSummary('${retailer}', '${data.date}')" style="padding: 6px 12px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">← 뒤로가기</button>
+        <button onclick="viewMissingSummary('${escJs(retailer)}', '${escJs(data.date)}')" style="padding: 6px 12px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">← 뒤로가기</button>
         <span style="color: #6b7280;">|</span>
-        <span><strong>필드:</strong> <span style="color: #dc2626;">${field}</span></span>
+        <span><strong>필드:</strong> <span style="color: #dc2626;">${esc(field)}</span></span>
         <span><strong>기간:</strong> ${data.prev_dates?.[0] || ''} ~ ${data.date || ''}</span>
         <span><strong>누락 item 수:</strong> <span style="color: #dc2626;">${missingItemCount}개</span></span>
         <span><strong>누락 데이터 수:</strong> <span style="color: #dc2626;">${todayNullCount}건</span></span>
@@ -2087,14 +2087,14 @@ ORDER BY item, ${dateColumn} ASC;`;
                     <span style="font-size: 13px; font-weight: 600; color: #dc2626;">누락 Item 목록 (${uniqueItems.length}개)</span>
                     <button class="btn-copy" onclick="copyQueryToClipboard(this.parentElement.nextElementSibling)" style="padding: 4px 10px; font-size: 11px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
                 </div>
-                <div style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${itemListDisplay}</div>
+                <div style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${esc(itemListDisplay)}</div>
             </div>
             <div class="query-box" style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
                 <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <span style="font-size: 13px; font-weight: 600; color: #374151;">3일치 조회 쿼리</span>
                     <button class="btn-copy" onclick="copyQueryToClipboard(this.parentElement.nextElementSibling)" style="padding: 4px 10px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
                 </div>
-                <pre style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto; margin: 0;">${query}</pre>
+                <pre style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto; margin: 0;">${esc(query)}</pre>
             </div>
         </div>`;
     }
@@ -2261,7 +2261,7 @@ async function loadMissingItems(isInitial = false) {
             updateMissingItemsLoadStatus();
         } else {
             if (isInitial) {
-                document.getElementById('modal-body').innerHTML = `<p>오류: ${data.message || '데이터 로드 실패'}</p>`;
+                document.getElementById('modal-body').innerHTML = `<p>오류: ${esc(data.message || '데이터 로드 실패')}</p>`;
             }
         }
     } catch (error) {
@@ -2334,11 +2334,11 @@ function getMissingItemRow(row) {
     const todayValue = row.today_has_value ? (row.today_value || '-') : '❌ 없음';
 
     return `<tr>
-        <td>${row.item || '-'}</td>
-        <td>${row.account_name || '-'}</td>
-        <td style="font-weight: 500;">${row.field_name || '-'}</td>
-        <td>${row.d1_value || '-'}</td>
-        <td style="${todayStyle}">${todayValue}</td>
+        <td>${esc(row.item || '-')}</td>
+        <td>${esc(row.account_name || '-')}</td>
+        <td style="font-weight: 500;">${esc(row.field_name || '-')}</td>
+        <td>${esc(row.d1_value || '-')}</td>
+        <td style="${todayStyle}">${esc(todayValue)}</td>
     </tr>`;
 }
 
@@ -2447,7 +2447,7 @@ async function load3DaysData(isInitial = false) {
             updateLoadStatus();
         } else {
             if (isInitial) {
-                document.getElementById('modal-body').innerHTML = `<p>오류: ${data.message || '데이터 로드 실패'}</p>`;
+                document.getElementById('modal-body').innerHTML = `<p>오류: ${esc(data.message || '데이터 로드 실패')}</p>`;
             }
         }
     } catch (error) {
@@ -2560,11 +2560,14 @@ function buildRowHtml(row, columns, bgColor = '#ffffff') {
         if (val === null || val === undefined || val === '') {
             val = '<span style="color: #dc2626;">-</span>';
         } else if (col === 'product_url') {
-            val = `<a href="${val}" target="_blank" style="color: #2563eb; text-decoration: none;">링크</a>`;
+            val = `<a href="${safeUrl(String(val))}" target="_blank" style="color: #2563eb; text-decoration: none;">링크</a>`;
         } else if (col === 'id') {
             style += ' color: #6b7280; font-size: 11px;';
+            val = esc(String(val));
         } else if (typeof val === 'string' && val.length > 50) {
-            val = val.substring(0, 50) + '...';
+            val = esc(val.substring(0, 50)) + '...';
+        } else {
+            val = esc(String(val));
         }
 
         if (col === 'item') {
@@ -2698,7 +2701,7 @@ function loadFieldList() {
 
     fieldSelect.innerHTML = '<option value="">-- 필드 선택 --</option>';
     fields.forEach(field => {
-        fieldSelect.innerHTML += `<option value="${field}">${field}</option>`;
+        fieldSelect.innerHTML += `<option value="${esc(field)}">${esc(field)}</option>`;
     });
 }
 
@@ -2812,11 +2815,11 @@ function renderFieldMissing(data) {
     let html = '';
     missingFields.forEach((field, idx) => {
         html += `
-            <div class="check-item" style="cursor: pointer;" onclick="showFieldMissingDetail('${field.retailer}', '${field.field_name}')">
+            <div class="check-item" style="cursor: pointer;" onclick="showFieldMissingDetail('${escJs(field.retailer)}', '${escJs(field.field_name)}')">
                 <div class="check-info">
                     <div class="check-name">
-                        ${field.field_name}
-                        <span class="threshold-badge">${field.retailer}</span>
+                        ${esc(field.field_name)}
+                        <span class="threshold-badge">${esc(field.retailer)}</span>
                     </div>
                     <div class="check-description">직전 2일 값 있었으나 오늘 누락된 케이스</div>
                 </div>
@@ -2826,8 +2829,8 @@ function renderFieldMissing(data) {
                         <div class="label">누락 건수</div>
                     </div>
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn-rules" onclick="event.stopPropagation(); showFieldMissingDetailAll('${field.retailer}', '${field.field_name}')">전체보기</button>
-                        <button class="btn-rules" style="background: #fef3c7; color: #d97706;" onclick="event.stopPropagation(); showFieldMissingDetailProblem('${field.retailer}', '${field.field_name}')">문제만</button>
+                        <button class="btn-rules" onclick="event.stopPropagation(); showFieldMissingDetailAll('${escJs(field.retailer)}', '${escJs(field.field_name)}')">전체보기</button>
+                        <button class="btn-rules" style="background: #fef3c7; color: #d97706;" onclick="event.stopPropagation(); showFieldMissingDetailProblem('${escJs(field.retailer)}', '${escJs(field.field_name)}')">문제만</button>
                     </div>
                 </div>
             </div>
@@ -3085,7 +3088,7 @@ function renderSubitems(containerId, items, parentSection) {
 
     let html = '';
     items.forEach(item => {
-        html += `<a class="sidebar-subitem" data-check="${item.check}" onclick="onSubitemClick('${parentSection}', '${item.check}')">${item.label}</a>`;
+        html += `<a class="sidebar-subitem" data-check="${esc(item.check)}" onclick="onSubitemClick('${escJs(parentSection)}', '${escJs(item.check)}')">${esc(item.label)}</a>`;
     });
     container.innerHTML = html;
 }

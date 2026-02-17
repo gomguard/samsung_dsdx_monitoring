@@ -23,9 +23,8 @@
  *                                    duration: 표시 시간(ms), 기본 3000
  *
  * [보안]
- * - esc(str)                       : HTML 특수문자 이스케이프 (XSS 방어)
- * - escJs(str)                     : JS 문자열 리터럴 이스케이프 (onclick 등)
- * - safeUrl(url)                   : 안전한 URL 반환 (javascript: 차단)
+ * - getCsrfToken()                 : Django CSRF 쿠키에서 토큰 읽기 (POST 요청용)
+ *   (기타 보안 기능은 → security.js로 분리됨)
  *
  * [API]
  * - fetchAPI(url)                  : API 호출 헬퍼 (GET 요청, JSON 응답)
@@ -41,23 +40,16 @@
  * ============================================================
  */
 
-// HTML 이스케이프 (XSS 방어)
-function esc(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-
-// JS 문자열 리터럴 이스케이프 (onclick 등에서 사용)
-function escJs(str) {
-    return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
-}
-
-// 안전한 URL 반환 (javascript: 등 차단)
-function safeUrl(url) {
-    if (!url) return '';
-    const trimmed = url.trim();
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+// CSRF 토큰 (Django POST 요청용)
+function getCsrfToken() {
+    const name = 'csrftoken';
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+        cookie = cookie.trim();
+        if (cookie.startsWith(name + '=')) {
+            return cookie.substring(name.length + 1);
+        }
+    }
     return '';
 }
 
@@ -125,10 +117,9 @@ function showLoading(container) {
 // 에러 표시
 function showError(container, message) {
     container.innerHTML = `
-        <div class="loading" style="color: var(--color-critical);">
-            ${message || '데이터를 불러올 수 없습니다.'}
-        </div>
+        <div class="loading" style="color: var(--color-critical);"></div>
     `;
+    container.querySelector('.loading').textContent = message || '데이터를 불러올 수 없습니다.';
 }
 
 // 날짜 포맷팅
@@ -270,8 +261,9 @@ function showToast(message, type = 'info', duration = 3000) {
 
     toast.innerHTML = `
         <span style="margin-right: 8px; font-size: 16px;">${icons[type] || icons.info}</span>
-        <span>${message}</span>
+        <span></span>
     `;
+    toast.querySelectorAll('span')[1].textContent = message;
 
     toast.style.cssText = `
         position: fixed;

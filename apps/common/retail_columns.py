@@ -6,6 +6,7 @@ DB에서 TV/HHP 리테일러별 컬럼 정보 및 NULL 체크 컬럼 정보를 �
 import csv
 from pathlib import Path
 from apps.common.db import execute_dx_query
+from apps.common.response import log_error
 
 # CSV 파일 경로 (config/csv 폴더) - 형식검증, 시계열 규칙용
 CSV_DIR = Path(__file__).parent.parent.parent / 'config' / 'csv'
@@ -63,7 +64,7 @@ def load_retail_columns():
         _retail_columns_cache = result
         print(f"[INFO] Retail columns loaded from DB: TV retailers={list(result['tv'].keys())}, HHP retailers={list(result['hhp'].keys())}")
     except Exception as e:
-        print(f"[ERROR] Failed to load retail columns from DB: {e}")
+        log_error(e, 'db')
 
     return result
 
@@ -145,7 +146,7 @@ def get_retail_duplicate_keys(product_line):
         rows = execute_dx_query(query, (product_line.lower(),))
         return [row['column_name'] for row in rows]
     except Exception as e:
-        print(f"[ERROR] Failed to get retail duplicate keys from DB: {e}")
+        log_error(e, 'db')
         return ['item', 'account_name']  # 기본값
 
 
@@ -171,7 +172,7 @@ def get_retail_columns_for_retailer(product_line, retailer):
         rows = execute_dx_query(query, (product_line.lower(), retailer.lower()))
         return [row['column_name'] for row in rows]
     except Exception as e:
-        print(f"[ERROR] Failed to get retail columns for {retailer}: {e}")
+        log_error(e, 'db')
         return []
 
 
@@ -196,7 +197,7 @@ def get_retail_columns_with_related(product_line, retailer):
         rows = execute_dx_query(query, (product_line.lower(), retailer.lower()))
         return [{'column_name': row['column_name'], 'related_columns': row['related_columns'] or ''} for row in rows]
     except Exception as e:
-        print(f"[ERROR] Failed to get retail columns with related for {retailer}: {e}")
+        log_error(e, 'db')
         return []
 
 
@@ -279,7 +280,7 @@ def load_null_check_config():
         _null_check_config_cache = result
         print(f"[INFO] Null check config loaded from DB: categories={list(result.keys())}")
     except Exception as e:
-        print(f"[ERROR] Failed to load null check config from DB: {e}")
+        log_error(e, 'db')
 
     return result
 
@@ -717,7 +718,7 @@ def load_missing_exclude_rules():
         _missing_exclude_cache = result
         _missing_exclude_cache_time = now
     except Exception as e:
-        print(f"[ERROR] Failed to load missing exclude rules from DB: {e}")
+        log_error(e, 'db')
         result = {}
 
     return result
@@ -889,7 +890,7 @@ def load_format_rules():
         _format_rules_cache = result
         print(f"[INFO] Format rules loaded from DB: tables={list(result.keys())}")
     except Exception as e:
-        print(f"[ERROR] Failed to load format rules from DB: {e}")
+        log_error(e, 'db')
 
     return result
 
@@ -1139,7 +1140,7 @@ def load_timeseries_rules():
         _timeseries_rules_cache = rules
         print(f"[INFO] Timeseries rules loaded from CSV: {len(rules)} rules")
     except Exception as e:
-        print(f"[ERROR] Failed to load timeseries rules CSV: {e}")
+        log_error(e, 'db')
 
     return rules
 

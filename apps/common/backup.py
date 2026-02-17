@@ -5,6 +5,7 @@ Retail 데이터 백업 유틸리티
 """
 
 from apps.common.db import get_dx_connection
+from apps.common.response import log_error
 
 
 def backup_tv_retail():
@@ -31,7 +32,8 @@ def backup_tv_retail():
         return {'success': True, 'count': count, 'category': 'TV'}
     except Exception as e:
         conn.rollback()
-        return {'success': False, 'error': str(e), 'category': 'TV'}
+        log_error(e, 'backup')
+        return {'success': False, 'error': '백업 중 오류가 발생했습니다.', 'category': 'TV'}
     finally:
         cursor.close()
         conn.close()
@@ -61,7 +63,8 @@ def backup_hhp_retail():
         return {'success': True, 'count': count, 'category': 'HHP'}
     except Exception as e:
         conn.rollback()
-        return {'success': False, 'error': str(e), 'category': 'HHP'}
+        log_error(e, 'backup')
+        return {'success': False, 'error': '백업 중 오류가 발생했습니다.', 'category': 'HHP'}
     finally:
         cursor.close()
         conn.close()
@@ -93,7 +96,8 @@ def get_backup_count():
             'total_count': tv_count + hhp_count
         }
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        log_error(e, 'backup')
+        return {'success': False, 'error': '백업 조회 중 오류가 발생했습니다.'}
     finally:
         cursor.close()
         conn.close()

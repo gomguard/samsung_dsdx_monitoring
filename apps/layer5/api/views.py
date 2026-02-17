@@ -8,6 +8,7 @@ Layer 5 API: 전문가 전수 검수 (Expert Review & Final Validation)
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
+from apps.common.response import safe_error, log_error
 
 
 def layer_stats(request):
@@ -178,7 +179,7 @@ def layer_stats(request):
         }
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
         results['summary']['status'] = 'ERROR'
 
     return JsonResponse(results)
@@ -189,7 +190,10 @@ def pending_items(request):
     date_str = request.GET.get('date')
     category = request.GET.get('category', 'tv')  # tv, hhp, youtube
     issue_type = request.GET.get('issue', 'all')  # all, price, unanalyzed
-    limit = int(request.GET.get('limit', 50))
+    try:
+        limit = min(int(request.GET.get('limit', 50)), 500)
+    except (ValueError, TypeError):
+        limit = 50
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -281,7 +285,7 @@ def pending_items(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def quality_summary(request):
@@ -365,4 +369,4 @@ def quality_summary(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)

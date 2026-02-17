@@ -1266,7 +1266,7 @@ async function loadDetailData() {
         const data = await response.json();
 
         if (data.error) {
-            document.getElementById('modalContent').innerHTML = `<div class="loading">${data.error}</div>`;
+            document.getElementById('modalContent').innerHTML = `<div class="loading">${esc(data.error)}</div>`;
         } else {
             renderDetailTable(data);
             totalPages = data.total_pages;

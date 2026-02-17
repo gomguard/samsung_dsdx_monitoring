@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
 from apps.common.retail_columns import get_retailer_columns, get_all_retailer_columns
+from apps.common.response import safe_error, log_error
 
 
 # 리테일러 설정
@@ -2199,7 +2200,7 @@ def layer_stats(request):
         }
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
         results['summary']['status'] = 'ERROR'
 
     return JsonResponse(results)
@@ -2271,7 +2272,7 @@ def retail_detail(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def retail_summary(request):
@@ -2412,7 +2413,7 @@ def retail_summary(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def sentiment_stats(request):
@@ -2634,7 +2635,7 @@ def sentiment_stats(request):
         conn.close()
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     return JsonResponse(results)
 
@@ -2715,7 +2716,7 @@ def retailer_raw_data(request):
         conn.close()
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     return JsonResponse(results)
 
@@ -2846,7 +2847,7 @@ def sentiment_raw_data(request):
         conn.close()
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     return JsonResponse(results)
 
@@ -2989,7 +2990,7 @@ def youtube_raw_data(request):
         conn.close()
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     return JsonResponse(results)
 
@@ -3075,7 +3076,7 @@ def market_trend_raw_data(request):
         conn.close()
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     return JsonResponse(results)
 
@@ -3139,7 +3140,7 @@ def market_demand_raw_data(request):
         conn.close()
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     return JsonResponse(results)
 
@@ -3238,7 +3239,7 @@ def market_demand_missing_keywords(request):
         conn.close()
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
         import traceback
         traceback.print_exc()
 
@@ -3317,7 +3318,7 @@ def market_promotion_raw_data(request):
         conn.close()
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     return JsonResponse(results)
 

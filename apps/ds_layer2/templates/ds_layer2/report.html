@@ -1428,7 +1428,7 @@
 {% block extra_js %}
 <script src="{% static 'js/table.js' %}"></script>
 <script>
-const currentUserId = '{{ request.user.username|default:"anonymous" }}';
+const currentUserId = '{{ request.user.username|default:"anonymous"|escapejs }}';
 let reportData = null;
 let isClosed = false;
 let currentReportView = 'status'; // 'status' or 'detail'
@@ -1526,7 +1526,7 @@ async function loadReportList() {
                     <line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
                 <h3>오류 발생</h3>
-                <p>${error.message}</p>
+                <p>${esc(error.message)}</p>
             </div>
         `;
     }
@@ -2013,7 +2013,7 @@ async function saveAnomalyAll(anomalyId) {
     try {
         const response = await fetch('/ds/layer2/api/update/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
                 anomaly_id: anomalyId,
                 cause: cause,
@@ -2106,7 +2106,7 @@ async function saveStatusMemos() {
     try {
         const response = await fetch('/ds/layer2/api/daily-update/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
                 memos: memos,
                 user_id: currentUserId
@@ -2176,7 +2176,7 @@ async function saveCheckedMemos() {
     try {
         const response = await fetch('/ds/layer2/api/daily-update/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
                 memos: memos,
                 user_id: currentUserId
@@ -2293,7 +2293,7 @@ async function saveCheckedAnomalies(retailer) {
     try {
         const response = await fetch('/ds/layer2/api/update/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
                 updates: updates,
                 user_id: currentUserId
@@ -2353,7 +2353,7 @@ async function saveFileInfo() {
 
         const response = await fetch('/ds/layer2/api/save-file-info/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
                 crawl_date: date,
                 user_id: currentUserId
@@ -2410,7 +2410,7 @@ async function closeReport() {
     try {
         const response = await fetch('/ds/layer2/api/close/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
                 crawl_date: date,
                 user_id: currentUserId
@@ -2468,7 +2468,7 @@ function cancelClose() {
         try {
             const response = await fetch('/ds/layer2/api/cancel-close/', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
                 body: JSON.stringify({
                     crawl_date: date,
                     user_id: currentUserId,
@@ -2925,9 +2925,9 @@ async function loadScreenshotImage(fileId, anomalyId) {
 
         if (data.success) {
             title.textContent = data.file_name || '스크린샷';
-            body.innerHTML = `<img src="${data.url}" alt="스크린샷" style="max-width:100%; max-height:80vh;">`;
+            body.innerHTML = `<img src="${safeUrl(data.url)}" alt="스크린샷" style="max-width:100%; max-height:80vh;">`;
         } else {
-            body.innerHTML = `<div class="screenshot-loading" style="color: #dc2626;">이미지를 불러올 수 없습니다: ${data.error}</div>`;
+            body.innerHTML = `<div class="screenshot-loading" style="color: #dc2626;">이미지를 불러올 수 없습니다: ${esc(data.error)}</div>`;
         }
     } catch (error) {
         body.innerHTML = '<div class="screenshot-loading" style="color: #dc2626;">이미지 로드 실패</div>';

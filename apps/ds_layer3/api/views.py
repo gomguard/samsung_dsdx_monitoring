@@ -13,6 +13,7 @@ from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_ds_connection
 from apps.common.targets import load_monitoring_targets
+from apps.common.response import log_error
 
 
 def get_monitoring_targets():
@@ -109,12 +110,10 @@ def get_error_analysis(cursor, table_name, target_date, days=3):
 def layer_stats(request):
     """DS Layer 3 전체 에러 통계 API - 신규/반복 구분"""
     date_str = request.GET.get('date')
-    days = int(request.GET.get('days', 3))  # 분석할 기간
-
-    if days < 1:
-        days = 1
-    elif days > 7:
-        days = 7
+    try:
+        days = max(1, min(int(request.GET.get('days', 3)), 30))
+    except (ValueError, TypeError):
+        days = 3
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -202,7 +201,7 @@ def layer_stats(request):
                     'recurring_title_null': 0, 'recurring_imageurl_null': 0, 'recurring_imageurl_invalid': 0, 'recurring_partial_null': 0, 'recurring_total': 0,
                     'total': 0,
                     'status': 'error',
-                    'error': str(e)
+                    'error': log_error(e)
                 })
 
         cursor.close()
@@ -235,7 +234,7 @@ def layer_stats(request):
         }
 
     except Exception as e:
-        data['error'] = str(e)
+        data['error'] = log_error(e)
         data['summary'] = {
             'total_tables': len(get_monitoring_targets()),
             'new_total': 0,
@@ -255,10 +254,13 @@ def recurring_detail(request):
     date_str = request.GET.get('date')
     table_name = request.GET.get('table')
     error_type = request.GET.get('error_type', 'title_null')
-    days = int(request.GET.get('days', 3))
+    try:
+        days = int(request.GET.get('days', 3))
+        page = max(1, int(request.GET.get('page', 1)))
+        page_size = min(int(request.GET.get('page_size', 50)), 200)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': '잘못된 페이지 파라미터'}, status=400)
     filter_type = request.GET.get('filter', 'all')  # all, new, recurring
-    page = int(request.GET.get('page', 1))
-    page_size = int(request.GET.get('page_size', 50))
 
     if not table_name:
         return JsonResponse({'error': '테이블명을 입력하세요.'})
@@ -369,6 +371,6 @@ def recurring_detail(request):
         data['data'] = items
 
     except Exception as e:
-        data['error'] = str(e)
+        data['error'] = log_error(e)
 
     return JsonResponse(data)

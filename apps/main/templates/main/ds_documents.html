@@ -652,7 +652,7 @@
         </div>
         <div class="category-list" id="categoryList">
             {% for cat in categories %}
-            <div class="category-item {% if forloop.first %}active{% endif %}" data-id="{{ cat.category_id }}" data-type="{{ cat.category_type|default:1 }}" onclick="selectCategory('{{ cat.category_id }}', this)">
+            <div class="category-item {% if forloop.first %}active{% endif %}" data-id="{{ cat.category_id }}" data-type="{{ cat.category_type|default:1 }}" onclick="selectCategory('{{ cat.category_id|escapejs }}', this)">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                 </svg>
@@ -795,7 +795,7 @@
 
 {% block extra_js %}
 <script>
-let currentCategoryId = '{% if categories %}{{ categories.0.category_id }}{% endif %}';
+let currentCategoryId = '{% if categories %}{{ categories.0.category_id|escapejs }}{% endif %}';
 let currentCategoryType = {% if categories %}{{ categories.0.category_type|default:1 }}{% else %}1{% endif %};
 const newDocBaseUrl = '{% url "main:ds_document_new" %}';
 
@@ -948,7 +948,13 @@ function openReportPopup() {
         .then(r => r.json())
         .then(res => {
             if (res.success && res.document) {
-                document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = res.document.content || '<p>내용이 없습니다.</p>';
+                const _tmp = document.createElement('div');
+                _tmp.innerHTML = res.document.content || '<p>내용이 없습니다.</p>';
+                _tmp.querySelectorAll('script,iframe,object,embed').forEach(el => el.remove());
+                _tmp.querySelectorAll('*').forEach(el => {
+                    [...el.attributes].forEach(attr => { if (attr.name.startsWith('on')) el.removeAttribute(attr.name); });
+                });
+                document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = _tmp.innerHTML;
             } else {
                 document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = '<p style="text-align:center;color:#dc2626;">문서를 불러올 수 없습니다.</p>';
             }

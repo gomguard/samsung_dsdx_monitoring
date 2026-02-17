@@ -2362,8 +2362,8 @@ async function loadStats() {
                 <div class="check-item">
                     <div class="check-main">
                         <div class="check-info">
-                            <div class="check-name">${check.name}</div>
-                            <div class="check-description">${check.description || ''}</div>
+                            <div class="check-name">${esc(check.name)}</div>
+                            <div class="check-description">${esc(check.description || '')}</div>
                         </div>
                         <div class="check-stats">
                             ${getStatusBadge(check.status)}
@@ -2404,20 +2404,20 @@ async function loadStats() {
         } else {
             tbody.innerHTML = data.failed_items.map(item => `
                 <tr>
-                    <td><strong>${item.source}</strong></td>
-                    <td>${item.error_type}</td>
-                    <td>${item.expected}</td>
+                    <td><strong>${esc(item.source)}</strong></td>
+                    <td>${esc(item.error_type)}</td>
+                    <td>${esc(item.expected)}</td>
                     <td style="color: ${item.actual === 0 ? 'var(--color-critical)' : 'var(--color-warning)'}; font-weight: 600;">
                         ${item.actual.toLocaleString()}
                     </td>
-                    <td>${item.timestamp}</td>
+                    <td>${esc(item.timestamp)}</td>
                 </tr>
             `).join('');
         }
 
     } catch (error) {
         console.error('Stats load failed:', error);
-        const errorHtml = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 로드 실패</div><div class="check-description">' + error.message + '</div></div></div></div>';
+        const errorHtml = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 로드 실패</div><div class="check-description">' + esc(error.message) + '</div></div></div></div>';
         document.getElementById('daily-checks-list').innerHTML = errorHtml;
         document.getElementById('period-checks-list').innerHTML = errorHtml;
     }
@@ -3261,9 +3261,9 @@ function renderMarketCompetitorCheck(check, checkIdx) {
                 <div class="check-info">
                     <div class="check-name">
                         <span class="toggle-icon">▶</span>
-                        ${check.name}
+                        ${esc(check.name)}
                     </div>
-                    <div class="check-description">${check.description}</div>
+                    <div class="check-description">${esc(check.description)}</div>
                 </div>
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
@@ -3445,9 +3445,9 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
                 <div class="check-info">
                     <div class="check-name">
                         <span class="toggle-icon">▶</span>
-                        ${check.name}
+                        ${esc(check.name)}
                     </div>
-                    <div class="check-description">${check.description}</div>
+                    <div class="check-description">${esc(check.description)}</div>
                 </div>
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
@@ -3541,9 +3541,9 @@ function renderMarketDemandCheck(check, checkIdx) {
                 <div class="check-info">
                     <div class="check-name">
                         ${hasCategories ? '<span class="toggle-icon">▶</span>' : ''}
-                        ${check.name}
+                        ${esc(check.name)}
                     </div>
-                    <div class="check-description">${check.description}</div>
+                    <div class="check-description">${esc(check.description)}</div>
                 </div>
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
@@ -3686,9 +3686,9 @@ function renderMarketPromotionCheck(check, checkIdx) {
                 <div class="check-info">
                     <div class="check-name">
                         <span class="toggle-icon">▶</span>
-                        ${check.name}
+                        ${esc(check.name)}
                     </div>
-                    <div class="check-description">${check.description}</div>
+                    <div class="check-description">${esc(check.description)}</div>
                 </div>
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
@@ -3758,7 +3758,7 @@ function openRawDataModal(category, retailer, period) {
         .then(function(response) { return response.json(); })
         .then(function(result) {
             if (result.error) {
-                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + result.error + '</div>';
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(result.error) + '</div>';
                 return;
             }
 
@@ -3821,7 +3821,7 @@ function renderRawDataTable() {
         const sortClass = rawDataState.sortColumn === i
             ? (rawDataState.sortDirection === 'asc' ? 'sort-asc' : 'sort-desc')
             : '';
-        parts.push('<th class="', sortClass, '" onclick="sortByColumn(', i, ')">', rawDataState.columns[i], '<div class="column-resizer" onmousedown="event.stopPropagation(); startResize(event,', i + 1, ')"></div></th>');
+        parts.push('<th class="', sortClass, '" onclick="sortByColumn(', i, ')">', esc(rawDataState.columns[i]), '<div class="column-resizer" onmousedown="event.stopPropagation(); startResize(event,', i + 1, ')"></div></th>');
     }
     parts.push('</tr></thead><tbody id="rawDataTbody"></tbody></table>');
 
@@ -3854,7 +3854,7 @@ function renderMoreRows() {
         parts.push('<td>', r + 1, '</td>');  // 순번
         for (let c = 0; c < row.length; c++) {
             const v = row[c];
-            parts.push('<td>', (v === null || v === undefined) ? '' : v, '</td>');
+            parts.push('<td>', (v === null || v === undefined) ? '' : esc(String(v)), '</td>');
         }
         parts.push('</tr>');
     }
@@ -4103,7 +4103,7 @@ function renderColumnsTable() {
 
     allColumns.forEach(function(col) {
         bodyHtml += '<tr>';
-        bodyHtml += '<td>' + col + '</td>';
+        bodyHtml += '<td>' + esc(col) + '</td>';
         retailers.forEach(function(retailer) {
             var hasColumn = columnsByRetailer[retailer].indexOf(col) !== -1;
             if (hasColumn) {
@@ -4157,7 +4157,7 @@ function openSentimentModal(category, retailer, period) {
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.error) {
-                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(data.error) + '</div>';
                 return;
             }
 
@@ -4176,7 +4176,7 @@ function openSentimentModal(category, retailer, period) {
             renderSentimentTable();
         })
         .catch(function(error) {
-            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(error.message) + '</div>';
         });
 }
 
@@ -4216,7 +4216,7 @@ function renderSentimentTable() {
 
     sentimentDataState.columns.forEach(function(col, idx) {
         tableHtml += '<th style="cursor: pointer; position: relative;" onclick="sortSentimentData(' + idx + ')">' +
-            '<span class="column-name">' + col + '</span>' +
+            '<span class="column-name">' + esc(col) + '</span>' +
             '<span class="sort-indicator" id="sentiment-sort-' + idx + '"></span>' +
             '<div class="column-resizer" onmousedown="event.stopPropagation(); startSentimentResize(event, ' + (idx + 1) + ')"></div>' +
         '</th>';
@@ -4318,7 +4318,7 @@ function renderMoreSentimentRows() {
         parts.push('<td>', r + 1, '</td>');
         for (var c = 0; c < row.length; c++) {
             var v = row[c];
-            parts.push('<td>', (v === null || v === undefined) ? '' : v, '</td>');
+            parts.push('<td>', (v === null || v === undefined) ? '' : esc(String(v)), '</td>');
         }
         parts.push('</tr>');
     }
@@ -4456,7 +4456,7 @@ function loadSummaryData(type) {
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.error) {
-                bodyEl.innerHTML = '<div style="text-align: center; padding: 40px; color: red;">오류: ' + data.error + '</div>';
+                bodyEl.innerHTML = '<div style="text-align: center; padding: 40px; color: red;">오류: ' + esc(data.error) + '</div>';
                 return;
             }
 
@@ -4655,7 +4655,7 @@ function loadYoutubeData() {
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.error) {
-                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(data.error) + '</div>';
                 return;
             }
 
@@ -4674,7 +4674,7 @@ function loadYoutubeData() {
             renderYoutubeTable();
         })
         .catch(function(error) {
-            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(error.message) + '</div>';
         });
 }
 
@@ -4723,7 +4723,7 @@ function renderYoutubeTable() {
 
     youtubeDataState.columns.forEach(function(col, idx) {
         tableHtml += '<th style="cursor: pointer; position: relative;" onclick="sortYoutubeData(' + idx + ')">' +
-            '<span class="column-name">' + col + '</span>' +
+            '<span class="column-name">' + esc(col) + '</span>' +
             '<span class="sort-indicator" id="youtube-sort-' + idx + '"></span>' +
             '<div class="column-resizer" onmousedown="event.stopPropagation(); startYoutubeResize(event, ' + (idx + 1) + ')"></div>' +
         '</th>';
@@ -4826,7 +4826,7 @@ function renderMoreYoutubeRows() {
         parts.push('<td>', r + 1, '</td>');
         for (var c = 0; c < row.length; c++) {
             var v = row[c];
-            parts.push('<td>', (v === null || v === undefined) ? '' : v, '</td>');
+            parts.push('<td>', (v === null || v === undefined) ? '' : esc(String(v)), '</td>');
         }
         parts.push('</tr>');
     }
@@ -4979,7 +4979,7 @@ function loadMarketTrendData() {
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.error) {
-                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(data.error) + '</div>';
                 return;
             }
 
@@ -4998,7 +4998,7 @@ function loadMarketTrendData() {
             renderMarketTrendTable();
         })
         .catch(function(error) {
-            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(error.message) + '</div>';
         });
 }
 
@@ -5021,7 +5021,7 @@ function renderMarketTrendTable() {
 
     marketTrendDataState.columns.forEach(function(col, idx) {
         tableHtml += '<th style="cursor: pointer; position: relative;" onclick="sortMarketTrendData(' + idx + ')">' +
-            '<span class="column-name">' + col + '</span>' +
+            '<span class="column-name">' + esc(col) + '</span>' +
             '<span class="sort-indicator" id="market-trend-sort-' + idx + '"></span>' +
             '<div class="column-resizer" onmousedown="event.stopPropagation(); startMarketTrendResize(event, ' + (idx + 1) + ')"></div>' +
         '</th>';
@@ -5123,7 +5123,7 @@ function renderMoreMarketTrendRows() {
         parts.push('<td>', r + 1, '</td>');
         for (var c = 0; c < row.length; c++) {
             var v = row[c];
-            parts.push('<td>', (v === null || v === undefined) ? '' : v, '</td>');
+            parts.push('<td>', (v === null || v === undefined) ? '' : esc(String(v)), '</td>');
         }
         parts.push('</tr>');
     }
@@ -5286,7 +5286,7 @@ function loadDemandMissingData() {
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.error) {
-                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(data.error) + '</div>';
                 return;
             }
 
@@ -5312,7 +5312,7 @@ function loadDemandMissingData() {
             renderDemandMissingTable();
         })
         .catch(function(error) {
-            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(error.message) + '</div>';
         });
 }
 
@@ -5359,7 +5359,7 @@ function loadMarketDemandData() {
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.error) {
-                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(data.error) + '</div>';
                 return;
             }
 
@@ -5378,7 +5378,7 @@ function loadMarketDemandData() {
             renderMarketDemandTable();
         })
         .catch(function(error) {
-            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(error.message) + '</div>';
         });
 }
 
@@ -5398,7 +5398,7 @@ function renderMarketDemandTable() {
         if (marketDemandDataState.sortColumn === idx) {
             sortIndicator = marketDemandDataState.sortDirection === 'asc' ? ' ▲' : ' ▼';
         }
-        headerHtml += '<th onclick="sortMarketDemandTable(' + idx + ')" style="cursor: pointer;">' + col + sortIndicator + '</th>';
+        headerHtml += '<th onclick="sortMarketDemandTable(' + idx + ')" style="cursor: pointer;">' + esc(col) + sortIndicator + '</th>';
     });
     headerHtml += '</tr></thead>';
 
@@ -5428,7 +5428,7 @@ function renderMarketDemandRows() {
             if (cell === null || cell === undefined) {
                 cellValue = '-';
             }
-            return '<td>' + cellValue + '</td>';
+            return '<td>' + esc(String(cellValue)) + '</td>';
         }).join('');
         tbody.appendChild(tr);
     }
@@ -5531,7 +5531,7 @@ function loadMarketPromotionData() {
         .then(function(response) { return response.json(); })
         .then(function(data) {
             if (data.error) {
-                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + data.error + '</div>';
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(data.error) + '</div>';
                 return;
             }
 
@@ -5550,7 +5550,7 @@ function loadMarketPromotionData() {
             renderMarketPromotionTable();
         })
         .catch(function(error) {
-            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + error.message + '</div>';
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(error.message) + '</div>';
         });
 }
 
@@ -5570,7 +5570,7 @@ function renderMarketPromotionTable() {
         if (marketPromotionDataState.sortColumn === idx) {
             sortIndicator = marketPromotionDataState.sortDirection === 'asc' ? ' ▲' : ' ▼';
         }
-        headerHtml += '<th class="sortable-header" onclick="sortMarketPromotionTable(' + idx + ')">' + col + sortIndicator + '</th>';
+        headerHtml += '<th class="sortable-header" onclick="sortMarketPromotionTable(' + idx + ')">' + esc(col) + sortIndicator + '</th>';
     });
     headerHtml += '</tr>';
 
@@ -5609,7 +5609,7 @@ function renderMoreMarketPromotionRows() {
             if (cell === null || cell === undefined) {
                 displayValue = '-';
             }
-            rowsHtml += '<td>' + displayValue + '</td>';
+            rowsHtml += '<td>' + esc(String(displayValue)) + '</td>';
         });
         rowsHtml += '</tr>';
     }

@@ -305,7 +305,7 @@
                     data-created-at="{% if row.created_at %}{{ row.created_at|date:'Y-m-d H:i' }}{% endif %}"
                     data-updated-id="{{ row.updated_id|default:'' }}"
                     data-updated-at="{% if row.updated_at %}{{ row.updated_at|date:'Y-m-d H:i' }}{% endif %}"
-                    ondblclick="goToEdit('{{ row.category_id }}')"
+                    ondblclick="goToEdit('{{ row.category_id|escapejs }}')"
                     class="{% if not row.is_active %}inactive{% endif %}">
                     <td class="col-no">{{ row.sort_order }}</td>
                     <td class="col-id">{{ row.category_id }}</td>

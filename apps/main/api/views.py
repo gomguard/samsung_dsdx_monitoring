@@ -6,6 +6,7 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
+from apps.common.response import safe_error, log_error
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection, DX_SHARE_TOKEN_TABLE, DS_SHARE_TOKEN_TABLE
 from apps.common.dx_schedules import load_collection_schedules, get_schedules_by_type
@@ -285,7 +286,7 @@ def dashboard_stats(request):
             })
 
     except Exception as e:
-        data['error'] = str(e)
+        data['error'] = log_error(e)
         data['summary'] = {
             'total_raw_data': 0,
             'total_trusted_data': 0,
@@ -441,7 +442,7 @@ def dx_dashboard_stats(request):
         conn.close()
 
     except Exception as e:
-        data['error'] = str(e)
+        data['error'] = log_error(e)
         for i in range(1, 6):
             data['layer_status'][f'layer{i}'] = 'danger'
         data['failed_layers'] = 5
@@ -515,7 +516,7 @@ def ds_dashboard_stats(request):
         data['warning_layers'] += 1
 
     except Exception as e:
-        data['error'] = str(e)
+        data['error'] = log_error(e)
         for i in range(1, 6):
             data['layer_status'][f'layer{i}'] = 'danger'
         data['failed_layers'] = 5
@@ -542,7 +543,8 @@ def health_check(request):
         conn.close()
         status['database']['dx'] = 'connected'
     except Exception as e:
-        status['database']['dx'] = f'error: {str(e)}'
+        log_error(e)
+        status['database']['dx'] = 'error'
         status['status'] = 'degraded'
 
     # DS MySQL 연결 테스트
@@ -554,7 +556,8 @@ def health_check(request):
         conn.close()
         status['database']['ds'] = 'connected'
     except Exception as e:
-        status['database']['ds'] = f'error: {str(e)}'
+        log_error(e)
+        status['database']['ds'] = 'error'
         status['status'] = 'degraded'
 
     return JsonResponse(status)
@@ -588,7 +591,7 @@ def dx_documents_list(request):
 
         return JsonResponse({'success': True, 'documents': documents, 'total': len(documents)})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 def dx_document_detail(request):
@@ -621,7 +624,7 @@ def dx_document_detail(request):
         document = dict(zip(columns, row))
         return JsonResponse({'success': True, 'document': document})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -668,7 +671,7 @@ def dx_document_create(request):
             'message': '문서가 저장되었습니다.'
         })
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -711,7 +714,7 @@ def dx_document_update(request, document_id):
 
         return JsonResponse({'success': True, 'message': '문서가 수정되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -774,7 +777,7 @@ def dx_document_delete(request, document_id):
 
         return JsonResponse({'success': True, 'message': '문서가 삭제되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -841,9 +844,9 @@ def dx_document_upload(request):
             'url': proxy_url
         })
     except ClientError as e:
-        return JsonResponse({'success': False, 'error': f'S3 오류: {str(e)}'})
+        return safe_error(e, success=False)
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -882,7 +885,7 @@ def dx_document_file(request, file_name):
 
         return HttpResponseRedirect(url)
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -923,7 +926,7 @@ def dx_document_file_delete(request, file_id):
 
         return JsonResponse({'success': True, 'message': '파일이 삭제되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -951,7 +954,7 @@ def dx_document_files(request):
 
         return JsonResponse({'success': True, 'files': files})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -994,7 +997,7 @@ def dx_document_share_token(request):
 
         return JsonResponse({'success': True, 'token': token})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -1030,7 +1033,7 @@ def dx_document_share_list(request):
 
         return JsonResponse({'success': True, 'shares': rows, 'total': len(rows)})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -1061,7 +1064,7 @@ def dx_document_share_revoke(request):
 
         return JsonResponse({'success': True, 'message': '공유 링크가 차단되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 # ============================================================
@@ -1073,7 +1076,7 @@ def dx_document_share_revoke(request):
 def ds_document_upload(request):
     """DS 문서 이미지 업로드"""
     from apps.common.ds.files import ds_upload_file
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     try:
         file = request.FILES.get('file')
@@ -1084,7 +1087,10 @@ def ds_document_upload(request):
         if not object_document_id:
             return JsonResponse({'success': False, 'error': 'object_document_id가 필요합니다.'})
 
-        upload_type = int(request.POST.get('upload_type', 1))
+        try:
+            upload_type = int(request.POST.get('upload_type', 1))
+        except (ValueError, TypeError):
+            upload_type = 1
         result = ds_upload_file(file, object_document_id, request.user.username, upload_type=upload_type)
 
         proxy_url = f'/api/ds/documents/file/{result["file_name"]}'
@@ -1094,7 +1100,7 @@ def ds_document_upload(request):
             'url': proxy_url
         })
     except Exception as e:
-        return error_response(e, 'DS 파일 업로드 실패')
+        return safe_error(e, 'upload')
 
 
 @login_required
@@ -1134,7 +1140,7 @@ def ds_document_file(request, file_name):
 
         return HttpResponseRedirect(url)
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        return safe_error(e, success=False)
 
 
 # ── DS 문서 CRUD API ──────────────────────────────────────────────
@@ -1143,7 +1149,7 @@ def ds_document_file(request, file_name):
 def ds_documents_list(request):
     """DS 문서 목록 조회 API (카테고리별)"""
     from apps.common.db import get_ds_connection
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     category_id = request.GET.get('category_id', '')
     if not category_id:
@@ -1166,14 +1172,14 @@ def ds_documents_list(request):
 
         return JsonResponse({'success': True, 'documents': documents, 'total': len(documents)})
     except Exception as e:
-        return error_response(e, 'DS 문서 목록 조회 실패')
+        return safe_error(e, 'db')
 
 
 @login_required
 def ds_document_detail(request):
     """DS 문서 상세 조회 API"""
     from apps.common.db import get_ds_connection
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     document_id = request.GET.get('document_id', '')
     if not document_id:
@@ -1202,7 +1208,7 @@ def ds_document_detail(request):
         document = dict(zip(columns, row))
         return JsonResponse({'success': True, 'document': document})
     except Exception as e:
-        return error_response(e, 'DS 문서 상세 조회 실패')
+        return safe_error(e, 'db')
 
 
 @login_required
@@ -1212,7 +1218,7 @@ def ds_document_create(request):
     from apps.common.db import get_ds_connection
     from apps.common.ds.id_generator import generate_ds_id
     from apps.common.ds.files import ds_cleanup_orphan_files
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     try:
         data = json.loads(request.body)
@@ -1271,7 +1277,7 @@ def ds_document_create(request):
             'message': '문서가 저장되었습니다.'
         })
     except Exception as e:
-        return error_response(e, 'DS 문서 생성 실패')
+        return safe_error(e, 'save')
 
 
 @login_required
@@ -1280,7 +1286,7 @@ def ds_document_update(request, document_id):
     """DS 문서 수정 API"""
     from apps.common.db import get_ds_connection
     from apps.common.ds.files import ds_cleanup_orphan_files
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     try:
         data = json.loads(request.body)
@@ -1318,7 +1324,7 @@ def ds_document_update(request, document_id):
 
         return JsonResponse({'success': True, 'message': '문서가 수정되었습니다.'})
     except Exception as e:
-        return error_response(e, 'DS 문서 수정 실패')
+        return safe_error(e, 'update')
 
 
 @login_required
@@ -1326,7 +1332,7 @@ def ds_document_update(request, document_id):
 def ds_document_delete(request, document_id):
     """DS 문서 삭제 API (soft delete + 파일 정리)"""
     from apps.common.db import get_ds_connection
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     try:
         now = datetime.now()
@@ -1382,14 +1388,14 @@ def ds_document_delete(request, document_id):
 
         return JsonResponse({'success': True, 'message': '문서가 삭제되었습니다.'})
     except Exception as e:
-        return error_response(e, 'DS 문서 삭제 실패')
+        return safe_error(e, 'delete')
 
 
 @login_required
 def ds_document_files(request):
     """DS 문서 첨부파일 목록 조회 API"""
     from apps.common.db import get_ds_connection
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     object_document_id = request.GET.get('object_document_id', '')
     if not object_document_id:
@@ -1412,7 +1418,7 @@ def ds_document_files(request):
 
         return JsonResponse({'success': True, 'files': files})
     except Exception as e:
-        return error_response(e, 'DS 첨부파일 목록 조회 실패')
+        return safe_error(e, 'db')
 
 
 @login_required
@@ -1420,7 +1426,7 @@ def ds_document_files(request):
 def ds_document_file_delete(request, file_id):
     """DS 첨부파일 개별 삭제 API (DB soft delete + S3 삭제)"""
     from apps.common.db import get_ds_connection
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     try:
         now = datetime.now()
@@ -1461,7 +1467,7 @@ def ds_document_file_delete(request, file_id):
 
         return JsonResponse({'success': True, 'message': '파일이 삭제되었습니다.'})
     except Exception as e:
-        return error_response(e, 'DS 첨부파일 삭제 실패')
+        return safe_error(e, 'delete')
 
 
 # ============================================================
@@ -1476,7 +1482,7 @@ def ds_document_share_token(request):
     from apps.main.views import SHARE_MAX_AGE
     from apps.common.ds.id_generator import generate_ds_token_id
     from apps.common.db import get_ds_connection
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     try:
         data = json.loads(request.body)
@@ -1511,14 +1517,14 @@ def ds_document_share_token(request):
 
         return JsonResponse({'success': True, 'token': token})
     except Exception as e:
-        return error_response(e, 'DS 공유 토큰 생성 실패')
+        return safe_error(e, 'save')
 
 
 @login_required
 def ds_document_share_list(request):
     """DS 문서 공유 이력 조회 API (SQL 기반 상태 판단, 최근 20건)"""
     from apps.common.db import get_ds_connection
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     document_id = request.GET.get('document_id', '')
     if not document_id:
@@ -1550,7 +1556,7 @@ def ds_document_share_list(request):
 
         return JsonResponse({'success': True, 'shares': rows, 'total': len(rows)})
     except Exception as e:
-        return error_response(e, 'DS 공유 이력 조회 실패')
+        return safe_error(e, 'db')
 
 
 @login_required
@@ -1558,7 +1564,7 @@ def ds_document_share_list(request):
 def ds_document_share_revoke(request):
     """DS 공유 토큰 차단 API"""
     from apps.common.db import get_ds_connection
-    from apps.common.response import error_response
+    from apps.common.response import safe_error
 
     try:
         data = json.loads(request.body)
@@ -1584,4 +1590,4 @@ def ds_document_share_revoke(request):
 
         return JsonResponse({'success': True, 'message': '공유 링크가 차단되었습니다.'})
     except Exception as e:
-        return error_response(e, 'DS 공유 토큰 차단 실패')
+        return safe_error(e, 'update')

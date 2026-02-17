@@ -795,7 +795,7 @@
 
 {% block extra_js %}
 <script>
-let currentCategoryId = '{% if categories %}{{ categories.0.category_id }}{% endif %}';
+let currentCategoryId = '{% if categories %}{{ categories.0.category_id|escapejs }}{% endif %}';
 let currentCategoryType = {% if categories %}{{ categories.0.category_type|default:1 }}{% else %}1{% endif %};
 const newDocBaseUrl = '{% url "main:dx_document_new" %}';
 
@@ -979,7 +979,13 @@ function openReportPopup() {
         .then(r => r.json())
         .then(res => {
             if (res.success && res.document) {
-                document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = res.document.content || '<p>내용이 없습니다.</p>';
+                const _tmp = document.createElement('div');
+                _tmp.innerHTML = res.document.content || '<p>내용이 없습니다.</p>';
+                _tmp.querySelectorAll('script,iframe,object,embed').forEach(el => el.remove());
+                _tmp.querySelectorAll('*').forEach(el => {
+                    [...el.attributes].forEach(attr => { if (attr.name.startsWith('on')) el.removeAttribute(attr.name); });
+                });
+                document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = _tmp.innerHTML;
             } else {
                 document.getElementById('reportPopupBody').querySelector('.ck-content').innerHTML = '<p style="text-align:center;color:#dc2626;">문서를 불러올 수 없습니다.</p>';
             }

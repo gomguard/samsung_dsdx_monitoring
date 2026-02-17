@@ -302,14 +302,14 @@
 {% block admin_js %}
 {% include 'components/editor.html' %}
 {% if category.template_content %}
-<script type="text/template" id="templateContentData">{{ category.template_content|safe }}</script>
+<textarea id="templateContentData" style="display:none;">{{ category.template_content }}</textarea>
 {% endif %}
 
 <script>
 let templateEditor = null;
 const isNew = {{ is_new|yesno:"true,false" }};
-const categoryId = '{{ category.category_id|default:"" }}';
-let objectDocumentId = '{{ category.object_document_id|default:"" }}';
+const categoryId = '{{ category.category_id|default:""|escapejs }}';
+let objectDocumentId = '{{ category.object_document_id|default:""|escapejs }}';
 
 document.addEventListener('DOMContentLoaded', function() {
     // 미리보기 버튼 생성
@@ -328,8 +328,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     {% if category.template_content %}
     const tplEl = document.getElementById('templateContentData');
-    if (tplEl && tplEl.textContent) {
-        setEditorHTML(templateEditor, tplEl.textContent);
+    if (tplEl && tplEl.value) {
+        setEditorHTML(templateEditor, tplEl.value);
     }
     {% endif %}
 });

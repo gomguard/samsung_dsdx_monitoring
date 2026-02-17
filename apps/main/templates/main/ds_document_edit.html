@@ -415,12 +415,12 @@
 {% block extra_js %}
 {% include 'components/editor.html' %}
 {% if is_new and template_content %}
-<script type="text/template" id="templateContentData">{{ template_content|safe }}</script>
+<textarea id="templateContentData" style="display:none;">{{ template_content }}</textarea>
 {% endif %}
 
 <script>
 let editor = null;
-const documentId = '{{ document_id|default:"" }}';
+const documentId = '{{ document_id|default:""|escapejs }}';
 const isNew = {{ is_new|yesno:"true,false" }};
 let categoryType = {{ selected_category_type|default:1 }};
 
@@ -483,8 +483,8 @@ function initEditorMode() {
 
     if (isNew) {
         const tplEl = document.getElementById('templateContentData');
-        if (tplEl && tplEl.textContent.trim()) {
-            setEditorHTML(editor, tplEl.textContent);
+        if (tplEl && tplEl.value.trim()) {
+            setEditorHTML(editor, tplEl.value);
         }
     }
 }

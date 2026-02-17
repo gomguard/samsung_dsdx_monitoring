@@ -395,7 +395,7 @@ async function saveRule() {
         display_columns: document.getElementById('displayColumns').value.trim() || null,
         query: document.getElementById('ruleQuery').value.trim(),
         is_active: document.getElementById('ruleIsActive').checked,
-        user_id: '{{ request.user.username }}',
+        user_id: '{{ request.user.username|escapejs }}',
     };
 
     if (!data.rule_name || !data.display_name || !data.category || !data.category_name || !data.table_name || !data.query) {

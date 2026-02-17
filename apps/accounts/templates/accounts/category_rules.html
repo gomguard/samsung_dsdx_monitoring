@@ -243,7 +243,7 @@ async function loadRules() {
 
         if (data.error) {
             document.getElementById('rulesBody').innerHTML =
-                `<tr><td colspan="8" class="loading-msg">${data.error}</td></tr>`;
+                `<tr><td colspan="8" class="loading-msg">${esc(data.error)}</td></tr>`;
             return;
         }
 
@@ -282,11 +282,11 @@ function renderTable(rules) {
             ondblclick="location.href='/accounts/admin/category-rules/${r.id}/edit/'"
             data-id="${r.id}">
             <td class="col-no">${i + 1}</td>
-            <td class="col-name" title="${r.display_name}">${r.display_name}</td>
-            <td class="col-category"><span class="category-badge">${r.category_name || r.category}</span></td>
-            <td class="col-table">${r.table_name}</td>
-            <td class="col-field">${r.field1 || '-'}</td>
-            <td class="col-threshold">${r.threshold || '-'}</td>
+            <td class="col-name" title="${esc(r.display_name)}">${esc(r.display_name)}</td>
+            <td class="col-category"><span class="category-badge">${esc(r.category_name || r.category)}</span></td>
+            <td class="col-table">${esc(r.table_name)}</td>
+            <td class="col-field">${esc(r.field1 || '-')}</td>
+            <td class="col-threshold">${esc(r.threshold || '-')}</td>
             <td class="col-status">
                 <span class="status-dot ${r.is_active ? 'active' : 'inactive'}"></span>
             </td>

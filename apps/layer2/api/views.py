@@ -7,6 +7,7 @@ Layer 2 API: 형식/NULL 검증 (Formatting & Null Validation)
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
+from apps.common.response import safe_error, log_error
 from apps.common.retail_columns import (
     get_null_check_query_parts, get_null_detail_query_parts, get_null_check_columns,
     validate_field, get_duplicate_key_columns, get_duplicate_check_query,
@@ -951,12 +952,8 @@ def layer_stats(request):
         }
 
     except Exception as e:
-        import traceback
-        results['error'] = str(e)
-        results['error_detail'] = traceback.format_exc()
+        results['error'] = log_error(e)
         results['summary']['overall_status'] = 'ERROR'
-        print(f"[Layer2 DX Error] {e}")
-        print(traceback.format_exc())
 
     return JsonResponse(results)
 
@@ -1140,7 +1137,7 @@ def null_detail(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def format_detail(request):
@@ -1883,7 +1880,7 @@ def format_detail(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def anomaly_detail(request):
@@ -1891,8 +1888,11 @@ def anomaly_detail(request):
     date_str = request.GET.get('date')
     table = request.GET.get('table', 'tv_retail')
     retailer = request.GET.get('retailer', '')
-    page = int(request.GET.get('page', 1))
-    page_size = int(request.GET.get('page_size', 50))
+    try:
+        page = max(1, int(request.GET.get('page', 1)))
+        page_size = min(int(request.GET.get('page_size', 50)), 200)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': '잘못된 페이지 파라미터'}, status=400)
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -2232,7 +2232,7 @@ def anomaly_detail(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 # ============================================================
@@ -2376,7 +2376,7 @@ def ds_layer_stats(request):
                     'null_imageurl': 0,
                     'null_total': 0,
                     'status': 'ERROR',
-                    'error': str(e)
+                    'error': log_error(e)
                 })
 
         # 지역별 NULL 검증 결과 추가
@@ -2487,7 +2487,7 @@ def ds_layer_stats(request):
                     'total': 0,
                     'format_total': 0,
                     'status': 'ERROR',
-                    'error': str(e)
+                    'error': log_error(e)
                 })
 
         # 지역별 형식 검증 결과 추가
@@ -2572,7 +2572,7 @@ def ds_layer_stats(request):
                     'actual': 0,
                     'rate': 0,
                     'status': 'ERROR',
-                    'error': str(e)
+                    'error': log_error(e)
                 })
 
         # 지역별 수집률 결과 추가
@@ -2615,7 +2615,7 @@ def ds_layer_stats(request):
         }
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
         results['summary']['overall_status'] = 'ERROR'
 
     return JsonResponse(results)
@@ -2745,7 +2745,7 @@ def retailer_detail(request):
         conn.close()
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     return JsonResponse(results)
 

@@ -13,6 +13,7 @@ from django.conf import settings
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
 from apps.common.retail_columns import get_timeseries_rules
+from apps.common.response import safe_error, log_error
 
 
 _DANGEROUS_SQL = {'DROP', 'DELETE', 'TRUNCATE', 'UPDATE', 'INSERT', 'ALTER', 'GRANT', 'REVOKE'}
@@ -26,6 +27,18 @@ def _validate_select_query(query):
     for keyword in _DANGEROUS_SQL:
         if keyword in upper:
             return False
+    return True
+
+
+def _validate_exclude_condition(condition):
+    """exclude_condition SQL 조각 검증 — 위험한 키워드 차단"""
+    upper = condition.upper().strip()
+    for keyword in _DANGEROUS_SQL:
+        if keyword in upper:
+            return False
+    # 세미콜론 차단 (다중 문 실행 방지)
+    if ';' in condition:
+        return False
     return True
 
 
@@ -48,7 +61,7 @@ def load_crossfield_rules():
                     print(f"[DEBUG] Rule {rule_id} query parsing issue: {query[:100]}...")
                 rules.append(row)
     except Exception as e:
-        print(f"[ERROR] Failed to load crossfield rules: {e}")
+        log_error(e)
 
     return rules
 
@@ -79,7 +92,7 @@ def load_category_rules():
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"[ERROR] Failed to load category rules: {e}")
+        log_error(e)
 
     return rules
 
@@ -318,7 +331,7 @@ def validate_all_category_specs(target_date):
 
             except Exception as e:
                 conn.rollback()
-                print(f"[ERROR] Category rule {rule_id} ({rule_name}): {e}")
+                log_error(e)
                 import traceback
                 traceback.print_exc()
 
@@ -390,7 +403,7 @@ def execute_crossfield_query(rule, table_name, date_col, target_date, product_li
         return len(results), results
     except Exception as e:
         import traceback
-        print(f"[ERROR] Crossfield query failed for rule {rule_id}: {e}")
+        log_error(e)
         print(f"[DEBUG] Query: {query[:500]}...")
         print(f"[DEBUG] Traceback: {traceback.format_exc()}")
         return 0, []
@@ -1208,7 +1221,7 @@ def layer_stats(request):
         conn.close()
 
     except Exception as e:
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     # Summary 계산 - checks 배열에서 합산
     summary_checked = sum(check.get('checked', 0) for check in results['checks'])
@@ -1294,7 +1307,7 @@ def cross_field_detail(request):
                         'select_fields': rule_result.get('select_fields', '')
                     })
 
-            return JsonResponse({'error': f'Rule {rule_id} not found'})
+            return JsonResponse({'error': '해당 규칙을 찾을 수 없습니다.'})
 
         # 규칙별 요약 반환 (검증 유형별 건수) - 0건도 포함
         rule_summary = []
@@ -1331,7 +1344,7 @@ def cross_field_detail(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def sentiment_cross_detail(request):
@@ -1445,7 +1458,7 @@ def sentiment_cross_detail(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'error': str(e), 'anomalies': []})
+        return safe_error(e, anomalies=[])
 
 
 def comp_product_cross_detail(request):
@@ -1524,7 +1537,7 @@ def comp_product_cross_detail(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'error': str(e), 'anomalies': []})
+        return safe_error(e, anomalies=[])
 
 
 def time_series_detail(request):
@@ -1842,9 +1855,8 @@ def time_series_detail(request):
 
     except Exception as e:
         import traceback
-        print(f"[ERROR] time_series_detail error: {e}")
         traceback.print_exc()
-        return JsonResponse({'error': str(e), 'changes': []})
+        return safe_error(e, changes=[])
 
 
 def duplicate_detail(request):
@@ -1942,7 +1954,7 @@ def duplicate_detail(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def review_change_detail(request):
@@ -2119,7 +2131,7 @@ def review_change_detail(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def price_anomalies(request):
@@ -2185,7 +2197,7 @@ def price_anomalies(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def price_changes(request):
@@ -2292,7 +2304,7 @@ def price_changes(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def category_spec_detail(request):
@@ -2419,7 +2431,7 @@ def category_spec_detail(request):
 
                 except Exception as e:
                     conn.rollback()
-                    print(f"[ERROR] Category spec rule {rule_id_val}: {e}")
+                    log_error(e)
                     import traceback
                     traceback.print_exc()
 
@@ -2569,9 +2581,8 @@ def category_spec_detail(request):
 
     except Exception as e:
         import traceback
-        print(f"[ERROR] category_spec_detail error: {e}")
         traceback.print_exc()
-        return JsonResponse({'error': str(e), 'anomalies': []})
+        return safe_error(e, anomalies=[])
 
 
 def field_missing_detection(request):
@@ -2653,6 +2664,7 @@ def field_missing_detection(request):
 
                 # exclude 조건 적용
                 exclude_conds = get_missing_exclude_conditions(ret, table_name, col)
+                exclude_conds = [c for c in exclude_conds if _validate_exclude_condition(c)]
                 exclude_sql = ""
                 if exclude_conds:
                     # psycopg2에서 %를 %%로 이스케이프 (LIKE 패턴 등)
@@ -2697,6 +2709,7 @@ def field_missing_detection(request):
                     placeholders = ', '.join(['%s'] * len(stats['missing_items']))
                     # exclude 조건 적용
                     exclude_conds = get_missing_exclude_conditions(ret, table_name, col)
+                    exclude_conds = [c for c in exclude_conds if _validate_exclude_condition(c)]
                     exclude_sql = ""
                     if exclude_conds:
                         exclude_parts = " OR ".join([f"({c.replace('%', '%%')})" for c in exclude_conds])
@@ -2740,7 +2753,7 @@ def field_missing_detection(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'error': str(e)})
+        return safe_error(e)
 
 
 def field_missing_detail_all(request):
@@ -2755,8 +2768,12 @@ def field_missing_detail_all(request):
     date_str = request.GET.get('date')
     product_line = request.GET.get('product_line', request.GET.get('type', 'tv'))
     retailer = request.GET.get('retailer', 'Amazon')
-    offset = int(request.GET.get('offset', 0))
-    limit = int(request.GET.get('limit', 100))
+    try:
+        offset = max(0, int(request.GET.get('offset', 0)))
+        limit = min(int(request.GET.get('limit', 100)), 500)
+    except (ValueError, TypeError):
+        offset = 0
+        limit = 100
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -2863,7 +2880,8 @@ def field_missing_detail_all(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'status': 'error', 'message': str(e)})
+        log_error(e)
+        return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 
 
 def field_missing_detail_problem(request):
@@ -2879,8 +2897,12 @@ def field_missing_detail_problem(request):
     product_line = request.GET.get('product_line', request.GET.get('type', 'tv'))
     retailer = request.GET.get('retailer', 'Amazon')
     column = request.GET.get('column', '')  # 선택: 검사할 컬럼 (없으면 모든 컬럼)
-    offset = int(request.GET.get('offset', 0))
-    limit = int(request.GET.get('limit', 100))
+    try:
+        offset = max(0, int(request.GET.get('offset', 0)))
+        limit = min(int(request.GET.get('limit', 100)), 500)
+    except (ValueError, TypeError):
+        offset = 0
+        limit = 100
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -3012,7 +3034,8 @@ def field_missing_detail_problem(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'status': 'error', 'message': str(e)})
+        log_error(e)
+        return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 
 
 def field_missing_detail_by_field(request):
@@ -3083,6 +3106,7 @@ def field_missing_detail_by_field(request):
         # (직전 2일에 값이 있었고, 오늘 NULL인 item)
         # exclude 조건 적용 (요약과 동일)
         exclude_conds = get_exclude_conds(retailer, table_name, field)
+        exclude_conds = [c for c in exclude_conds if _validate_exclude_condition(c)]
         exclude_sql = ""
         if exclude_conds:
             exclude_parts = " OR ".join([f"({c.replace('%', '%%')})" for c in exclude_conds])
@@ -3201,7 +3225,8 @@ def field_missing_detail_by_field(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'status': 'error', 'message': str(e)})
+        log_error(e)
+        return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 
 
 def crossfield_rules(request):
@@ -3245,7 +3270,8 @@ def crossfield_rules(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'status': 'error', 'message': str(e)})
+        log_error(e)
+        return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 
 
 def category_rules(request):
@@ -3302,6 +3328,7 @@ def category_rules(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({'status': 'error', 'message': str(e)})
+        log_error(e)
+        return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 
 

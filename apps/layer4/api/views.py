@@ -1,7 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 import json
+from apps.common.response import safe_error
 
 
 def layer4_status(request):
@@ -19,7 +19,6 @@ def layer4_status(request):
     })
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def save_suspicious(request):
     """Layer3에서 발견된 의심 케이스를 DB에 저장"""
@@ -41,13 +40,9 @@ def save_suspicious(request):
             'product_line': product_line
         })
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
+        return safe_error(e, success=False)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def start_analysis(request):
     """저장된 의심 케이스에 대해 LLM 분석 시작"""
@@ -68,10 +63,7 @@ def start_analysis(request):
             'date': date
         })
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
+        return safe_error(e, success=False)
 
 
 def get_cases(request):

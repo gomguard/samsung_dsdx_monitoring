@@ -7,7 +7,7 @@ DS Layer 1 API: 기본 통계 검수
 from django.http import JsonResponse
 from datetime import datetime, timedelta, date
 from apps.common.db import get_ds_connection
-from apps.common.response import error_response
+from apps.common.response import safe_error, log_error
 from config.config import FILE_SERVER_CONFIG, SSM_CONFIG
 from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_local_time, load_monitoring_targets_with_instance, get_retailer_map, format_time
 import json
@@ -334,7 +334,7 @@ def layer_stats(request):
         }
 
     except Exception as e:
-        data['error'] = str(e)
+        data['error'] = log_error(e)
         data['summary'] = {
             'total_tables': len(get_monitoring_targets()),
             'total_expected': 0,
@@ -427,7 +427,7 @@ def instances_stats(request):
         data['regions'] = regions
 
     except Exception as e:
-        data['error'] = str(e)
+        data['error'] = log_error(e)
 
     return JsonResponse(data)
 
@@ -436,8 +436,11 @@ def table_detail(request):
     """특정 테이블의 수집 데이터 상세 조회 API"""
     date_str = request.GET.get('date')
     table_name = request.GET.get('table')
-    page = int(request.GET.get('page', 1))
-    page_size = int(request.GET.get('page_size', 50))
+    try:
+        page = max(1, int(request.GET.get('page', 1)))
+        page_size = min(int(request.GET.get('page_size', 50)), 200)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': '잘못된 페이지 파라미터'}, status=400)
     # 배치별 시간 범위 파라미터 (HH:MM 형식)
     start_time = request.GET.get('start_time')
     end_time = request.GET.get('end_time')
@@ -554,7 +557,7 @@ def table_detail(request):
         data['data'] = items
 
     except Exception as e:
-        data['error'] = str(e)
+        data['error'] = log_error(e)
 
     return JsonResponse(data)
 
@@ -635,7 +638,7 @@ def batch_list(request):
         data['batches'] = batches
 
     except Exception as e:
-        data['error'] = str(e)
+        data['error'] = log_error(e)
 
     return JsonResponse(data)
 
@@ -697,7 +700,7 @@ def batch_init(request):
         return JsonResponse({'message': f'{created_count}개 배치가 생성되었습니다.', 'created': created_count})
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return safe_error(e)
 
 
 def batch_create(request):
@@ -741,7 +744,7 @@ def batch_create(request):
         return JsonResponse({'message': '배치가 추가되었습니다.', 'id': new_id})
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return safe_error(e)
 
 
 def batch_update(request):
@@ -801,7 +804,7 @@ def batch_update(request):
         return JsonResponse({'message': '배치가 수정되었습니다.'})
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return safe_error(e)
 
 
 def batch_delete(request):
@@ -841,7 +844,7 @@ def batch_delete(request):
         return JsonResponse({'message': '배치가 삭제되었습니다.'})
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return safe_error(e)
 
 
 def fileserver_stats(request):
@@ -965,7 +968,7 @@ def fileserver_stats(request):
         }
 
     except Exception as e:
-        data['error'] = str(e)
+        data['error'] = log_error(e)
         data['summary'] = {
             'total_countries': 0,
             'total_files': 0,
@@ -1024,7 +1027,7 @@ def rerun_crawler(request):
             return JsonResponse({'error': '이 리테일러는 schedule_name이 등록되지 않았습니다.'}, status=400)
 
     except Exception as e:
-        return error_response(e, 'DB 조회 실패')
+        return safe_error(e, 'db')
 
     # SSM 명령 실행 (Task Scheduler 방식)
     try:
@@ -1054,7 +1057,7 @@ def rerun_crawler(request):
     except Exception as e:
         cursor.close()
         conn.close()
-        return error_response(e, 'SSM 명령 실행 실패')
+        return safe_error(e)
 
     now = datetime.now()
 
@@ -1083,7 +1086,7 @@ def rerun_crawler(request):
 
         conn.commit()
     except Exception as e:
-        error_response(e, '재실행 로그/배치 저장 실패')
+        return safe_error(e, 'save')
     finally:
         cursor.close()
         conn.close()

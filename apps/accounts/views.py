@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.http import JsonResponse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from .models import UserProfile
@@ -21,7 +22,7 @@ from datetime import datetime
 from config.config import S3_CONFIG
 from apps.main.api.views import cleanup_orphan_files
 from apps.common.ds.id_generator import generate_ds_id
-from apps.common.response import error_response
+from apps.common.response import safe_error, log_error
 
 
 def is_admin(user):
@@ -70,6 +71,8 @@ def login_view(request):
 
                 login(request, user)
                 next_url = request.GET.get('next', '/')
+                if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                    next_url = '/'
                 return redirect(next_url)
             else:
                 messages.error(request, '계정이 비활성화되어 있습니다. 관리자에게 문의하세요.')
@@ -334,7 +337,7 @@ def retail_columns(request):
         conn.close()
     except Exception as e:
         rows = []
-        print(f"[ERROR] Failed to load retail columns: {e}")
+        log_error(e, 'db')
 
     context = {
         'admin_menu': 'retail_columns',
@@ -381,7 +384,7 @@ def retail_columns_create(request):
         reload_retail_columns()
         return JsonResponse({'success': True, 'id': new_id, 'message': '수집항목이 추가되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -422,7 +425,7 @@ def retail_columns_update(request, column_id):
         reload_retail_columns()
         return JsonResponse({'success': True, 'message': '수집항목이 수정되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -445,7 +448,7 @@ def retail_columns_delete(request, column_id):
         reload_retail_columns()
         return JsonResponse({'success': True, 'message': '수집항목이 삭제되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -472,7 +475,7 @@ def retail_columns_toggle(request, column_id):
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': new_status, 'message': f'수집항목이 {status}되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 # ============================================================
@@ -499,7 +502,7 @@ def exclude_rules(request):
         conn.close()
     except Exception as e:
         rows = []
-        print(f"[ERROR] Failed to load exclude rules: {e}")
+        log_error(e, 'db')
 
     context = {
         'admin_menu': 'exclude_rules',
@@ -545,7 +548,7 @@ def exclude_rules_create(request):
         reload_missing_exclude_rules()
         return JsonResponse({'success': True, 'id': new_id, 'message': '예외조건이 추가되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -584,7 +587,7 @@ def exclude_rules_update(request, rule_id):
         reload_missing_exclude_rules()
         return JsonResponse({'success': True, 'message': '예외조건이 수정되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -607,7 +610,7 @@ def exclude_rules_delete(request, rule_id):
         reload_missing_exclude_rules()
         return JsonResponse({'success': True, 'message': '예외조건이 삭제되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -634,7 +637,7 @@ def exclude_rules_toggle(request, rule_id):
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': new_status, 'message': f'예외조건이 {status}되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 # ============================================================
@@ -667,7 +670,7 @@ def schedule_settings(request):
         conn.close()
     except Exception as e:
         rows = []
-        print(f"[ERROR] Failed to load schedule settings: {e}")
+        log_error(e, 'db')
 
     context = {
         'admin_menu': 'schedule',
@@ -712,7 +715,7 @@ def schedule_settings_create(request):
         reload_targets()
         return JsonResponse({'success': True, 'id': new_id, 'message': '스케줄이 추가되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -752,7 +755,7 @@ def schedule_settings_update(request, target_id):
         reload_targets()
         return JsonResponse({'success': True, 'message': '스케줄이 수정되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -775,7 +778,7 @@ def schedule_settings_delete(request, target_id):
         reload_targets()
         return JsonResponse({'success': True, 'message': '스케줄이 삭제되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -805,7 +808,7 @@ def schedule_settings_toggle(request, target_id):
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': new_status, 'message': f'스케줄이 {status}되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 # ============================================================
@@ -833,7 +836,7 @@ def dx_schedule_settings(request):
         conn.close()
     except Exception as e:
         rows = []
-        print(f"[ERROR] Failed to load DX schedule settings: {e}")
+        log_error(e, 'db')
 
     context = {
         'admin_menu': 'dx_schedule',
@@ -880,7 +883,7 @@ def dx_schedule_settings_create(request):
         reload_schedules()
         return JsonResponse({'success': True, 'id': new_id, 'message': '스케줄이 추가되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -921,7 +924,7 @@ def dx_schedule_settings_update(request, schedule_id):
         reload_schedules()
         return JsonResponse({'success': True, 'message': '스케줄이 수정되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -944,7 +947,7 @@ def dx_schedule_settings_delete(request, schedule_id):
         reload_schedules()
         return JsonResponse({'success': True, 'message': '스케줄이 삭제되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -973,7 +976,7 @@ def dx_schedule_settings_toggle(request, schedule_id):
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': new_status, 'message': f'스케줄이 {status}되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 # =====================================================
@@ -1041,7 +1044,8 @@ def anomaly_causes(request):
             'admin_menu': 'anomaly_causes'
         })
     except Exception as e:
-        messages.error(request, f'오류가 발생했습니다: {str(e)}')
+        log_error(e)
+        messages.error(request, '처리 중 오류가 발생했습니다.')
         return render(request, 'accounts/anomaly_causes.html', {
             'causes': [],
             'retailers': [],
@@ -1091,7 +1095,7 @@ def anomaly_causes_create(request):
 
         return JsonResponse({'success': True, 'message': '원인 옵션이 추가되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -1120,7 +1124,7 @@ def anomaly_causes_update(request, cause_id):
 
         return JsonResponse({'success': True, 'message': '원인 옵션이 수정되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -1141,7 +1145,7 @@ def anomaly_causes_delete(request, cause_id):
 
         return JsonResponse({'success': True, 'message': '원인 옵션이 삭제되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -1177,7 +1181,7 @@ def anomaly_causes_toggle(request, cause_id):
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': new_status, 'message': f'원인 옵션이 {status}되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 # ============================================================
@@ -1204,7 +1208,7 @@ def document_categories(request):
         conn.close()
     except Exception as e:
         rows = []
-        print(f"[ERROR] Failed to load document categories: {e}")
+        log_error(e, 'db')
 
     context = {
         'admin_menu': 'document_categories',
@@ -1252,7 +1256,7 @@ def document_category_edit(request, category_id=None):
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"[ERROR] Failed to load category: {e}")
+        log_error(e, 'db')
 
     context = {
         'admin_menu': 'document_categories',
@@ -1305,7 +1309,7 @@ def document_categories_create(request):
 
         return JsonResponse({'success': True, 'id': new_id, 'message': '카테고리가 추가되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -1349,7 +1353,7 @@ def document_categories_update(request, category_id):
 
         return JsonResponse({'success': True, 'message': '카테고리가 수정되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -1409,7 +1413,7 @@ def document_categories_delete(request, category_id):
 
         return JsonResponse({'success': True, 'message': '카테고리가 삭제되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 @login_required
@@ -1439,7 +1443,7 @@ def document_categories_toggle(request, category_id):
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': new_status, 'message': f'카테고리가 {status}되었습니다.'})
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 # ============================================================
@@ -1468,7 +1472,7 @@ def ds_document_categories(request):
         conn.close()
     except Exception as e:
         rows = []
-        print(f"[ERROR] Failed to load DS document categories: {e}")
+        log_error(e, 'db')
 
     context = {
         'admin_menu': 'ds_document_categories',
@@ -1516,7 +1520,7 @@ def ds_document_category_edit(request, category_id=None):
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"[ERROR] Failed to load DS category: {e}")
+        log_error(e, 'db')
 
     context = {
         'admin_menu': 'ds_document_categories',
@@ -1569,7 +1573,7 @@ def ds_document_categories_create(request):
 
         return JsonResponse({'success': True, 'id': new_id, 'message': '카테고리가 추가되었습니다.'})
     except Exception as e:
-        return error_response(e, 'DS 카테고리 추가 실패')
+        return safe_error(e, 'save')
 
 
 @login_required
@@ -1613,7 +1617,7 @@ def ds_document_categories_update(request, category_id):
 
         return JsonResponse({'success': True, 'message': '카테고리가 수정되었습니다.'})
     except Exception as e:
-        return error_response(e, 'DS 카테고리 수정 실패')
+        return safe_error(e, 'update')
 
 
 @login_required
@@ -1671,7 +1675,7 @@ def ds_document_categories_delete(request, category_id):
 
         return JsonResponse({'success': True, 'message': '카테고리가 삭제되었습니다.'})
     except Exception as e:
-        return error_response(e, 'DS 카테고리 삭제 실패')
+        return safe_error(e, 'delete')
 
 
 @login_required
@@ -1706,7 +1710,7 @@ def ds_document_categories_toggle(request, category_id):
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': bool(new_status), 'message': f'카테고리가 {status}되었습니다.'})
     except Exception as e:
-        return error_response(e, 'DS 카테고리 토글 실패')
+        return safe_error(e, 'update')
 
 
 # ============================================================
@@ -1793,7 +1797,7 @@ def category_rules_list_api(request):
         })
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return safe_error(e)
 
 
 @login_required
@@ -1851,7 +1855,7 @@ def category_rules_save_api(request):
         return JsonResponse({'success': True, 'id': rule_id})
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return safe_error(e)
 
 
 @login_required
@@ -1875,4 +1879,4 @@ def category_rules_delete_api(request):
         return JsonResponse({'success': True})
 
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return safe_error(e)

@@ -7,10 +7,30 @@
 {% stat_chips stats="total:전체,active:활성" %}
 {% pagination id="pagination" %}
 """
+import re
 from django import template
 from django.utils.safestring import mark_safe
 
 register = template.Library()
+
+
+# CKEditor HTML에서 위험한 태그만 제거하는 필터
+_DANGEROUS_TAGS = re.compile(
+    r'<\s*/?\s*(script|iframe|object|embed|form|meta|link|base|applet)'
+    r'[^>]*>',
+    re.IGNORECASE | re.DOTALL
+)
+_ON_EVENTS = re.compile(r'\s+on\w+\s*=\s*["\'][^"\']*["\']', re.IGNORECASE)
+
+
+@register.filter(name='sanitize_html')
+def sanitize_html(value):
+    """CKEditor HTML에서 script/iframe 등 위험한 태그와 on* 이벤트 속성 제거"""
+    if not value:
+        return ''
+    cleaned = _DANGEROUS_TAGS.sub('', str(value))
+    cleaned = _ON_EVENTS.sub('', cleaned)
+    return mark_safe(cleaned)
 
 
 @register.simple_tag

@@ -1356,7 +1356,7 @@ async function loadFileserverData() {
         fileserverData = await response.json();
 
         if (fileserverData.error) {
-            document.getElementById('fileserverContent').innerHTML = `<div class="loading">${fileserverData.error}</div>`;
+            document.getElementById('fileserverContent').innerHTML = `<div class="loading">${esc(fileserverData.error)}</div>`;
         } else {
             renderFileserverData(fileserverData);
         }
@@ -1676,7 +1676,7 @@ function renderAllView(data) {
 
         // 배치 펼침 버튼 (배치가 2개 이상이고, 전체 뷰일 때만)
         const expandBtn = (item.has_multi_batch && currentBatchView === 'all')
-            ? `<button class="expand-btn" onclick="event.stopPropagation(); toggleBatchRows('${item.retailer}')" id="expandBtn_${item.retailer}">▶ 배치별</button>`
+            ? `<button class="expand-btn" onclick="event.stopPropagation(); toggleBatchRows('${escJs(item.retailer)}')" id="expandBtn_${esc(item.retailer)}">▶ 배치별</button>`
             : '';
 
         // 최종 모드에서 마지막 배치 시간 범위가 있으면 사용
@@ -1684,7 +1684,7 @@ function renderAllView(data) {
         const finalEndTime = item.final_end_time ? `'${item.final_end_time}'` : 'null';
 
         html += `
-            <tr onclick="openDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${finalStartTime}, ${finalEndTime})" title="클릭하여 상세 보기" data-retailer="${item.retailer}">
+            <tr onclick="openDetail('${escJs(item.table_name)}', '${escJs(item.retailer)}', '${escJs(item.country)}', ${finalStartTime}, ${finalEndTime})" title="클릭하여 상세 보기" data-retailer="${esc(item.retailer)}">
                 <td>${item.no}</td>
                 <td><span class="retailer-name">${item.retailer}</span>${l2Badge} ${expandBtn}</td>
                 <td>${item.region}</td>
@@ -1710,7 +1710,7 @@ function renderAllView(data) {
                     const isSaved = reportStatusData && reportStatusData.saved_retailers && reportStatusData.saved_retailers[item.retailer];
                     return `<td class="col-rerun" onclick="event.stopPropagation()">
                     ${item.has_instance && statusClass !== 'pending' && !isSaved
-                        ? `<button class="btn-rerun" data-retailer="${item.retailer}" onclick="rerunCrawler('${item.retailer}')" title="${item.retailer} 크롤러 재실행">
+                        ? `<button class="btn-rerun" data-retailer="${esc(item.retailer)}" onclick="rerunCrawler('${escJs(item.retailer)}')" title="${esc(item.retailer)} 크롤러 재실행">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="23 4 23 10 17 10"/>
                                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -1740,8 +1740,8 @@ function renderAllView(data) {
                 // end_time이 '다음날'이면 null로 전달
                 const endTimeParam = batch.end_time === '다음날' ? 'null' : `'${batch.end_time}'`;
                 html += `
-                    <tr class="batch-sub-row hidden" data-parent="${item.retailer}"
-                        onclick="openDetail('${item.table_name}', '${item.retailer}', '${item.country}', '${batch.start_time}', ${endTimeParam})"
+                    <tr class="batch-sub-row hidden" data-parent="${esc(item.retailer)}"
+                        onclick="openDetail('${escJs(item.table_name)}', '${escJs(item.retailer)}', '${escJs(item.country)}', '${escJs(batch.start_time)}', ${endTimeParam})"
                         title="클릭하여 배치 상세 보기">
                         <td></td>
                         <td colspan="3">
@@ -1881,7 +1881,7 @@ async function loadDetailData() {
         const data = await response.json();
 
         if (data.error) {
-            document.getElementById('modalContent').innerHTML = `<div class="loading">${data.error}</div>`;
+            document.getElementById('modalContent').innerHTML = `<div class="loading">${esc(data.error)}</div>`;
         } else {
             renderDetailTable(data);
             totalPages = data.total_pages;
@@ -2085,7 +2085,7 @@ async function openBatchModal() {
         const select = document.getElementById('batchRetailerFilter');
         select.innerHTML = '<option value="">전체</option>';
         retailerList.forEach(r => {
-            select.innerHTML += `<option value="${r}">${r}</option>`;
+            select.innerHTML += `<option value="${esc(r)}">${esc(r)}</option>`;
         });
     }
 
@@ -2114,7 +2114,7 @@ async function loadBatchData() {
         const data = await response.json();
 
         if (data.error) {
-            document.getElementById('batchContent').innerHTML = `<div class="batch-empty">${data.error}</div>`;
+            document.getElementById('batchContent').innerHTML = `<div class="batch-empty">${esc(data.error)}</div>`;
         } else {
             batchData = data.batches || [];
             renderBatchTable();

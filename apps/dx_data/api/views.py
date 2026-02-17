@@ -9,6 +9,7 @@ from datetime import datetime
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from apps.common.db import get_dx_connection
+from apps.common.response import safe_error
 
 
 ALLOWED_TABLES = {'tv': 'tv_item_mst', 'hhp': 'hhp_item_mst'}
@@ -129,8 +130,7 @@ def item_master_list(request):
         })
 
     except Exception as e:
-        print(f'[ERROR] item_master_list: {e}')
-        return JsonResponse({'error': '서버 오류가 발생했습니다.'}, status=500)
+        return safe_error(e)
 
 
 @require_POST
@@ -191,8 +191,7 @@ def item_master_save(request):
         return JsonResponse({'success': True, 'updated': updated})
 
     except Exception as e:
-        print(f'[ERROR] item_master_save: {e}')
-        return JsonResponse({'error': '서버 오류가 발생했습니다.'}, status=500)
+        return safe_error(e, 'save')
 
 
 def item_master_history(request):
@@ -295,5 +294,4 @@ def item_master_history(request):
         })
 
     except Exception as e:
-        print(f'[ERROR] item_master_history: {e}')
-        return JsonResponse({'error': '서버 오류가 발생했습니다.'}, status=500)
+        return safe_error(e, 'db')

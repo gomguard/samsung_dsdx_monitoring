@@ -7,6 +7,7 @@ from django.shortcuts import render
 from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
 from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotFound
 from apps.common.db import get_dx_connection, get_ds_connection, DX_SHARE_TOKEN_TABLE, DS_SHARE_TOKEN_TABLE
+from apps.common.response import log_error
 
 # 문서 공유 토큰 서명
 SHARE_SIGNER = TimestampSigner(salt='document-share')
@@ -129,7 +130,7 @@ def dx_documents(request):
         conn.close()
     except Exception as e:
         categories = []
-        print(f"[ERROR] Failed to load document categories: {e}")
+        log_error(e, 'db')
 
     context = {
         'data_source': {
@@ -163,10 +164,13 @@ def dx_document_edit(request, document_id=None):
         conn.close()
     except Exception as e:
         categories = []
-        print(f"[ERROR] Failed to load categories for edit: {e}")
+        log_error(e, 'db')
 
     selected_category_name = ''
-    selected_category_type = int(request.GET.get('type', 1))
+    try:
+        selected_category_type = int(request.GET.get('type', 1))
+    except (ValueError, TypeError):
+        selected_category_type = 1
     if selected_category:
         for cat in categories:
             if cat['category_id'] == selected_category:
@@ -259,7 +263,7 @@ def ds_documents(request):
         conn.close()
     except Exception as e:
         categories = []
-        print(f"[ERROR] Failed to load DS document categories: {e}")
+        log_error(e, 'db')
 
     context = {
         'data_source': {
@@ -293,10 +297,13 @@ def ds_document_edit(request, document_id=None):
         conn.close()
     except Exception as e:
         categories = []
-        print(f"[ERROR] Failed to load DS categories for edit: {e}")
+        log_error(e, 'db')
 
     selected_category_name = ''
-    selected_category_type = int(request.GET.get('type', 1))
+    try:
+        selected_category_type = int(request.GET.get('type', 1))
+    except (ValueError, TypeError):
+        selected_category_type = 1
 
     # 편집: 문서의 실제 category_type 조회
     if document_id:
@@ -415,7 +422,7 @@ def dx_document_share(request, token):
                 f'/dx-share/file/{token}/'
             )
     except Exception as e:
-        print(f"[ERROR] Failed to load shared document: {e}")
+        log_error(e, 'db')
         return render(request, 'main/dx_document_share.html', {
             'error': '문서를 불러오는 중 오류가 발생했습니다.',
             'error_type': 'error',
@@ -556,7 +563,7 @@ def ds_document_share(request, token):
                 f'/ds-share/file/{token}/'
             )
     except Exception as e:
-        print(f"[ERROR] Failed to load shared DS document: {e}")
+        log_error(e, 'db')
         return render(request, 'main/ds_document_share.html', {
             'error': '문서를 불러오는 중 오류가 발생했습니다.',
             'error_type': 'error',

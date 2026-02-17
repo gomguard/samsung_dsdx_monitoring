@@ -10,24 +10,16 @@ DS Layer 2 API: 데이터 품질 검수 (NULL 필드 체크)
 """
 
 import json
-import traceback
 import paramiko
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
-from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime, timedelta, date
 from apps.common.db import get_ds_connection
 from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_instance, format_time
-from apps.common.response import error_response
+from apps.common.response import safe_error, log_error
 from config.config import FILE_SERVER_CONFIG, S3_CONFIG, SSM_CONFIG
 import boto3
 from botocore.exceptions import ClientError
-
-
-def log_error(func_name, error):
-    """공통 에러 로깅 함수"""
-    print(f"[DB ERROR] {func_name}: {error}")
-    traceback.print_exc()
 
 
 def get_monitoring_targets():
@@ -66,7 +58,7 @@ def get_batches_for_date(target_date):
         cursor.close()
         conn.close()
     except Exception as e:
-        log_error('get_batches_for_date', e)
+        log_error(e)
 
     return batches_by_retailer
 
@@ -84,7 +76,7 @@ def get_expected_count(cursor, country, mall_name):
         count = result[0] if result else 0
         return count
     except Exception as e:
-        log_error('get_expected_count', e)
+        log_error(e)
         return 0
 
 
@@ -214,8 +206,7 @@ def get_quality_counts(cursor, table_name, target_date):
         results['valid'] = cursor.fetchone()[0] or 0
 
     except Exception as e:
-        log_error('get_quality_counts', e)
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     return results
 
@@ -337,8 +328,7 @@ def get_quality_counts_by_time_range(cursor, table_name, target_date, start_time
         results['valid'] = cursor.fetchone()[0] or 0
 
     except Exception as e:
-        log_error('get_quality_counts_by_time_range', e)
-        results['error'] = str(e)
+        results['error'] = log_error(e)
 
     return results
 
@@ -627,8 +617,7 @@ def layer_stats(request):
         }
 
     except Exception as e:
-        log_error('layer_stats', e)
-        data['error'] = str(e)
+        data['error'] = log_error(e)
         data['summary'] = {
             'total_tables': len(get_monitoring_targets()),
             'total_records': 0,
@@ -652,8 +641,11 @@ def table_null_detail(request):
     date_str = request.GET.get('date')
     table_name = request.GET.get('table')
     error_type = request.GET.get('error_type', 'title_null')
-    page = int(request.GET.get('page', 1))
-    page_size = int(request.GET.get('page_size', 50))
+    try:
+        page = max(1, int(request.GET.get('page', 1)))
+        page_size = min(int(request.GET.get('page_size', 50)), 200)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': '잘못된 페이지 파라미터'}, status=400)
 
     # 시간 범위 파라미터 (배치별 상세보기)
     start_time = request.GET.get('start_time')
@@ -804,8 +796,7 @@ def table_null_detail(request):
             data['time_range'] = f"{start_time} ~ {end_time if end_time else '다음날'}"
 
     except Exception as e:
-        log_error('table_null_detail', e)
-        data['error'] = str(e)
+        data['error'] = log_error(e)
 
     return JsonResponse(data)
 
@@ -885,7 +876,7 @@ def get_file_info_for_date(target_date):
         transport.close()
 
     except Exception as e:
-        log_error('get_file_info_for_date', e)
+        log_error(e)
 
     return file_info
 
@@ -975,7 +966,6 @@ def get_retailer_stats(cursor, retailer, target_date, file_info_cache=None, incl
     }
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def report_save(request):
     """
@@ -1189,11 +1179,9 @@ def report_save(request):
         })
 
     except Exception as e:
-        log_error('report_save', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def report_delete(request):
     """
@@ -1256,11 +1244,9 @@ def report_delete(request):
         })
 
     except Exception as e:
-        log_error('report_delete', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def report_update(request):
     """
@@ -1387,11 +1373,9 @@ def report_update(request):
         })
 
     except Exception as e:
-        log_error('report_update', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def report_daily_update(request):
     """
@@ -1468,11 +1452,9 @@ def report_daily_update(request):
         })
 
     except Exception as e:
-        log_error('report_daily_update', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def report_save_all(request):
     """
@@ -1571,11 +1553,9 @@ def report_save_all(request):
         })
 
     except Exception as e:
-        log_error('report_save_all', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def report_save_file_info(request):
     """
@@ -1668,11 +1648,9 @@ def report_save_file_info(request):
         })
 
     except Exception as e:
-        log_error('report_save_file_info', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def report_close(request):
     """
@@ -1755,11 +1733,9 @@ def report_close(request):
         })
 
     except Exception as e:
-        log_error('report_close', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
-@csrf_exempt
 @require_http_methods(["POST"])
 def report_cancel_close(request):
     """
@@ -1821,8 +1797,7 @@ def report_cancel_close(request):
         })
 
     except Exception as e:
-        log_error('report_cancel_close', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 def report_status(request):
@@ -1885,8 +1860,7 @@ def report_status(request):
         })
 
     except Exception as e:
-        log_error('report_status', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 def report_list(request):
@@ -2145,8 +2119,7 @@ def report_list(request):
         })
 
     except Exception as e:
-        log_error('report_list', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 def get_screenshot_url(request):
@@ -2213,11 +2186,9 @@ def get_screenshot_url(request):
         })
 
     except ClientError as e:
-        log_error('get_screenshot_url', e)
-        return JsonResponse({'success': False, 'error': 'S3 error: ' + str(e)})
+        return safe_error(e, 's3', success=False)
     except Exception as e:
-        log_error('get_screenshot_url', e)
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
 
 
 def screenshot_capture(request):
@@ -2281,7 +2252,7 @@ def screenshot_capture(request):
             return JsonResponse({'error': '이미 캡쳐가 진행 중입니다.'}, status=409)
 
     except Exception as e:
-        return JsonResponse({'error': f'DB 조회 실패: {str(e)}'}, status=500)
+        return safe_error(e)
     finally:
         if cursor:
             cursor.close()
@@ -2350,8 +2321,7 @@ def screenshot_capture(request):
         })
 
     except Exception as e:
-        print(f"[SSM ERROR] screenshot_capture: {str(e)}")
-        return JsonResponse({'error': f'SSM 명령 실행 실패: {str(e)}'}, status=500)
+        return safe_error(e)
 
 
 @require_http_methods(["GET"])
@@ -2372,7 +2342,10 @@ def report_file_size_history(request):
     }
     """
     end_date_str = request.GET.get('end_date')
-    days = int(request.GET.get('days', 7))
+    try:
+        days = max(1, min(int(request.GET.get('days', 7)), 90))
+    except (ValueError, TypeError):
+        days = 7
 
     if end_date_str:
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
@@ -2434,7 +2407,7 @@ def report_file_size_history(request):
         })
 
     except Exception as e:
-        return error_response(e, '파일 용량 히스토리 조회 실패')
+        return safe_error(e, 'db')
     finally:
         if cursor:
             cursor.close()
@@ -2501,7 +2474,7 @@ def screenshot_status(request):
         })
 
     except Exception as e:
-        return error_response(e, '스크린샷 상태 조회 실패')
+        return safe_error(e, 'db')
     finally:
         if cursor:
             cursor.close()
@@ -2509,7 +2482,6 @@ def screenshot_status(request):
             conn.close()
 
 
-@csrf_exempt
 def screenshot_delete(request):
     """스크린샷 삭제 API (anomaly screenshot_id NULL + file soft delete + S3 삭제)"""
     if request.method != 'POST':
@@ -2586,4 +2558,4 @@ def screenshot_delete(request):
         return JsonResponse({'success': True, 'deleted_count': len(target_anomaly_ids)})
 
     except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)})
+        return safe_error(e, success=False)
