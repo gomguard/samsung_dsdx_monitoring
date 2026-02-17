@@ -22,10 +22,11 @@
     </select>
     {% endif %}
 
-    <input type="text"
+    <input type="{{ input_type|default:'text' }}"
            class="search-box-input"
            id="{{ input_id|default:'filterInput' }}"
            placeholder="{{ input_placeholder|default:'검색어 입력...' }}"
+           {% if input_type == 'date' %}onchange="{{ on_search|default:'applyFilter()' }}"{% endif %}
            onkeypress="if(event.key==='Enter') {{ on_search|default:'applyFilter()' }}">
 
     {% if show_status != False %}

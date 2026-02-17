@@ -5,7 +5,14 @@ from .api import views as api_views
 app_name = 'layer3'
 
 urlpatterns = [
-    path('', views.index, name='index'),
+    # 페이지
+    path('', views.dashboard, name='dashboard'),
+    path('time-series/', views.time_series, name='time_series'),
+    path('cross-field/', views.cross_field, name='cross_field'),
+    path('category-spec/', views.category_spec, name='category_spec'),
+    path('field-missing/', views.field_missing, name='field_missing'),
+
+    # API
     path('api/stats/', api_views.layer_stats, name='api_stats'),
     path('api/price-anomalies/', api_views.price_anomalies, name='api_price_anomalies'),
     path('api/price-changes/', api_views.price_changes, name='api_price_changes'),

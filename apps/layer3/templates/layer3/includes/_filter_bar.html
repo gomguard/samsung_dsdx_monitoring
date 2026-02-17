@@ -1,0 +1,17 @@
+<div class="filter-section">
+    {% if section != 'dashboard' %}
+    <span class="filter-section-title">{{ section_title }}</span>
+    <span class="filter-divider"></span>
+    {% endif %}
+    <div class="filter-group">
+        <label>조회일자:</label>
+        <input type="date" id="target-date">
+        <span id="weekday-display" style="margin-left: 8px; font-weight: 500; color: var(--text-secondary);"></span>
+    </div>
+    <button class="btn-search" onclick="loadData()">조회</button>
+    <button class="btn-today" onclick="setPrevDay()">전날</button>
+    <button class="btn-today" onclick="setNextDay()">다음날</button>
+    <div class="filter-group" style="margin-left: auto;">
+        <span id="current-info" style="font-weight: 600; color: var(--text-secondary);"></span>
+    </div>
+</div>

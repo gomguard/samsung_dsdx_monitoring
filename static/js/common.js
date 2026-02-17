@@ -22,6 +22,11 @@
  *                                    type: 'success' | 'error' | 'warning' | 'info'
  *                                    duration: 표시 시간(ms), 기본 3000
  *
+ * [보안]
+ * - esc(str)                       : HTML 특수문자 이스케이프 (XSS 방어)
+ * - escJs(str)                     : JS 문자열 리터럴 이스케이프 (onclick 등)
+ * - safeUrl(url)                   : 안전한 URL 반환 (javascript: 차단)
+ *
  * [API]
  * - fetchAPI(url)                  : API 호출 헬퍼 (GET 요청, JSON 응답)
  *
@@ -35,6 +40,26 @@
  *
  * ============================================================
  */
+
+// HTML 이스케이프 (XSS 방어)
+function esc(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// JS 문자열 리터럴 이스케이프 (onclick 등에서 사용)
+function escJs(str) {
+    return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// 안전한 URL 반환 (javascript: 등 차단)
+function safeUrl(url) {
+    if (!url) return '';
+    const trimmed = url.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+    return '';
+}
 
 // 숫자 포맷팅
 function formatNumber(num) {

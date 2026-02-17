@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Layer 3: {{ layer.name }} - {% block page_title %}대시보드{% endblock %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/layer3.css' %}?v=1">
+<style>
+    :root { --layer-color: {{ layer.color|escapejs }}; }
+</style>
+{% block layer3_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="l3-layout">
+    <!-- 사이드바 -->
+    {% include 'layer3/includes/_sidebar.html' %}
+
+    <!-- 콘텐츠 영역 -->
+    <div class="l3-content">
+        {% if section == 'dashboard' %}
+        <!-- Layer 헤더 (대시보드만) -->
+        <div class="layer-header">
+            <div class="layer-header-content">
+                <div class="layer-badge">{{ layer.number }}</div>
+                <div class="layer-info">
+                    <h1>{{ layer.name }}</h1>
+                    <p>{{ layer.name_en }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 필터 영역 -->
+        {% include 'layer3/includes/_filter_bar.html' %}
+
+        {% block layer3_content %}{% endblock %}
+    </div>
+</div>
+
+<!-- Detail Modal (검증 규칙 등 참조용) -->
+<div class="modal-overlay" id="detail-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title">상세 정보</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.LAYER3 = {
+        color: '{{ layer.color|escapejs }}',
+        section: '{{ section|escapejs }}',
+        targetDate: '{{ target_date|default:""|escapejs }}',
+        username: '{{ request.user.username|default:""|escapejs }}'
+    };
+</script>
+{% block layer3_js %}{% endblock %}
+{% endblock %}

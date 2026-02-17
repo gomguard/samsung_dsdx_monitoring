@@ -15,6 +15,20 @@ from apps.common.db import get_dx_connection
 from apps.common.retail_columns import get_timeseries_rules
 
 
+_DANGEROUS_SQL = {'DROP', 'DELETE', 'TRUNCATE', 'UPDATE', 'INSERT', 'ALTER', 'GRANT', 'REVOKE'}
+
+
+def _validate_select_query(query):
+    """SELECT 전용 쿼리인지 검증. 위험 키워드 포함 시 False 반환."""
+    upper = query.strip().upper()
+    if not upper.startswith('SELECT'):
+        return False
+    for keyword in _DANGEROUS_SQL:
+        if keyword in upper:
+            return False
+    return True
+
+
 # ============================================================
 # CSV 기반 크로스필드 검증 규칙 로드
 # ============================================================
@@ -71,14 +85,14 @@ def load_category_rules():
 
 
 def _get_non_product_set(cursor, table_name, product_line, pairs):
-    """item_mst에서 is_product=false인 (item, account_name) 집합 반환"""
+    """item_mst에서 is_product=false 또는 is_checked=true인 (item, account_name) 집합 반환"""
     if not pairs or 'retail_com' not in table_name:
         return set()
     pl = (product_line or '').lower()
     mst = 'hhp_item_mst' if 'hhp' in pl or 'hhp' in table_name else 'tv_item_mst'
     ph = ' OR '.join(['(item = %s AND account_name = %s)'] * len(pairs))
     params = [v for p in pairs for v in p]
-    cursor.execute(f"SELECT item, account_name FROM {mst} WHERE is_product = false AND ({ph})", params)
+    cursor.execute(f"SELECT item, account_name FROM {mst} WHERE (is_product = false OR is_checked = true) AND ({ph})", params)
     return {(r[0], r[1]) for r in cursor.fetchall()}
 
 
@@ -263,6 +277,8 @@ def validate_all_category_specs(target_date):
 
                 # 이상치 쿼리 실행
                 query = query_template.replace('{table}', table_name).replace('{date_col}', date_col)
+                if not _validate_select_query(query):
+                    raise ValueError(f'허용되지 않은 쿼리 유형: {rule_name}')
                 # psycopg2 파라미터 바인딩용 이스케이프: LIKE의 %를 %%로
                 # 먼저 %%를 %로 통일한 뒤, 다시 %를 %%로 이스케이프 (%s 파라미터는 복원)
                 query = query.replace('%%', '%')
@@ -343,6 +359,8 @@ def execute_crossfield_query(rule, table_name, date_col, target_date, product_li
     query = query.replace('{date_col}', date_col)
     query = query.replace('{no_review_texts}', get_all_no_review_texts())
     query = query.replace('{product_line}', product_line)
+    if not _validate_select_query(query):
+        return 0, []
 
     # LIKE 절의 %를 %%로 이스케이프 (파라미터 바인딩 충돌 방지)
     # %s 플레이스홀더는 유지하면서 LIKE의 %만 이스케이프
@@ -657,8 +675,9 @@ def layer_stats(request):
     """Layer 3 통계 API - 이상치 탐지 및 크로스 필드 검증"""
     date_str = request.GET.get('date')
     product_line = request.GET.get('type', 'all')
+    section = request.GET.get('section', '')  # 섹션 필터: time_series, cross_field, category_spec, field_missing
 
-    print(f"[DEBUG] layer_stats called - date: {date_str}, product_line: {product_line}")
+    print(f"[DEBUG] layer_stats called - date: {date_str}, product_line: {product_line}, section: {section}")
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -696,10 +715,16 @@ def layer_stats(request):
         conn = get_dx_connection()
         cursor = conn.cursor()
 
+        # 섹션별 실행 대상 결정
+        run_timeseries = section in ('', 'time_series')
+        run_crossfield = section in ('', 'cross_field')
+        run_catspec = section in ('', 'category_spec')
+        run_market = section in ('', 'category_spec')
+
         # ============================================================
         # 1. 시계열 이상치 탐지 (CSV 기반 - 전일 대비 급격한 변화)
         # ============================================================
-        timeseries_rules = get_timeseries_rules()
+        timeseries_rules = get_timeseries_rules() if run_timeseries else []
 
         # 제품라인별로 필터링
         if product_line != 'all':
@@ -866,46 +891,42 @@ def layer_stats(request):
                 'status': get_status(anomaly_count, table_total, needs_review=(check_type == 'review' and anomaly_count > 0))
             })
 
-        # TV/HHP 전체 건수 저장 (아래 쿼리들에서 사용)
+        # TV/HHP 전체 건수 저장 (크로스 필드에서 사용)
         tv_total = table_totals.get('tv_retail_com', 0)
         hhp_total = table_totals.get('hhp_retail_com', 0)
 
-        # TV 전체 건수가 없으면 직접 조회
-        if tv_total == 0 and product_line in ['tv', 'all']:
-            try:
-                cursor.execute("""
-                    SELECT COUNT(*) FROM tv_retail_com
-                    WHERE DATE(crawl_datetime::timestamp) = %s
-                """, (target_date,))
-                tv_total = cursor.fetchone()[0] or 0
-                table_totals['tv_retail_com'] = tv_total
-            except:
-                pass
+        if run_crossfield:
+            # TV 전체 건수가 없으면 직접 조회
+            if tv_total == 0 and product_line in ['tv', 'all']:
+                try:
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM tv_retail_com
+                        WHERE DATE(crawl_datetime::timestamp) = %s
+                    """, (target_date,))
+                    tv_total = cursor.fetchone()[0] or 0
+                    table_totals['tv_retail_com'] = tv_total
+                except:
+                    pass
 
-        # HHP 전체 건수가 없으면 직접 조회
-        if hhp_total == 0 and product_line in ['hhp', 'all']:
-            if hhp_conn is None:
-                hhp_conn = get_dx_connection()
-                hhp_cursor = hhp_conn.cursor()
-            try:
-                hhp_cursor.execute("""
-                    SELECT COUNT(*) FROM hhp_retail_com
-                    WHERE DATE(crawl_strdatetime) = %s
-                """, (target_date,))
-                hhp_total = hhp_cursor.fetchone()[0] or 0
-                table_totals['hhp_retail_com'] = hhp_total
-            except:
-                pass
-
-        # HHP 커넥션은 아직 닫지 않음 - 아래 HHP 쿼리들에서 계속 사용
-        if hhp_conn is None and product_line in ['hhp', 'all']:
-            hhp_conn = get_dx_connection()
-            hhp_cursor = hhp_conn.cursor()
+            # HHP 전체 건수가 없으면 직접 조회
+            if hhp_total == 0 and product_line in ['hhp', 'all']:
+                if hhp_conn is None:
+                    hhp_conn = get_dx_connection()
+                    hhp_cursor = hhp_conn.cursor()
+                try:
+                    hhp_cursor.execute("""
+                        SELECT COUNT(*) FROM hhp_retail_com
+                        WHERE DATE(crawl_strdatetime) = %s
+                    """, (target_date,))
+                    hhp_total = hhp_cursor.fetchone()[0] or 0
+                    table_totals['hhp_retail_com'] = hhp_total
+                except:
+                    pass
 
         # ============================================================
         # 2. 크로스 필드 논리 검증 (CSV 기반)
         # ============================================================
-        if product_line in ['tv', 'all']:
+        if run_crossfield and product_line in ['tv', 'all']:
             # TV Retail 크로스 필드 검증 - CSV 기반 쿼리 실행
             tv_cross_total = tv_total
             try:
@@ -930,7 +951,7 @@ def layer_stats(request):
                 'status': get_status(tv_cross_errors, tv_cross_total)
             })
 
-        if product_line in ['hhp', 'all']:
+        if run_crossfield and product_line in ['hhp', 'all']:
             # HHP Retail 크로스 필드 검증 - CSV 기반 쿼리 실행
             hhp_cross_total = hhp_total
             try:
@@ -959,7 +980,7 @@ def layer_stats(request):
         # 2-3. Sentiment ↔ Retail 리뷰 수 일관성 검증
         # 기준: sentiment 점수가 있는데 원본 retail의 리뷰 수가 0인 경우
         # ---------------------------------------------------------
-        if product_line in ['tv', 'all']:
+        if run_crossfield and product_line in ['tv', 'all']:
             tv_sentiment_cross_total = 0
             tv_sentiment_cross_anomaly = 0
             try:
@@ -1013,7 +1034,7 @@ def layer_stats(request):
                 'status': get_status(tv_sentiment_cross_anomaly, tv_sentiment_cross_total)
             })
 
-        if product_line in ['hhp', 'all']:
+        if run_crossfield and product_line in ['hhp', 'all']:
             hhp_sentiment_cross_total = 0
             hhp_sentiment_cross_anomaly = 0
             try:
@@ -1073,42 +1094,43 @@ def layer_stats(request):
         # ============================================================
         # 3. 카테고리별 특성 기반 검증 (DB 규칙 기반, 동적 처리)
         # ============================================================
-        try:
-            category_spec_results = validate_all_category_specs(target_date)
-            for cat_result in category_spec_results:
-                # product_line 필터링
-                cat_name = cat_result.get('category', '').lower()
-                if product_line == 'tv' and 'hhp' in cat_name:
-                    continue
-                if product_line == 'hhp' and 'tv' in cat_name and 'hhp' not in cat_name:
-                    continue
-                if product_line not in ['market', 'all'] and 'market' in cat_name:
-                    continue
+        if run_catspec:
+            try:
+                category_spec_results = validate_all_category_specs(target_date)
+                for cat_result in category_spec_results:
+                    # product_line 필터링
+                    cat_name = cat_result.get('category', '').lower()
+                    if product_line == 'tv' and 'hhp' in cat_name:
+                        continue
+                    if product_line == 'hhp' and 'tv' in cat_name and 'hhp' not in cat_name:
+                        continue
+                    if product_line not in ['market', 'all'] and 'market' in cat_name:
+                        continue
 
-                cat_total = cat_result.get('total', 0)
-                cat_anomaly = cat_result.get('anomaly', 0)
+                    cat_total = cat_result.get('total', 0)
+                    cat_anomaly = cat_result.get('anomaly', 0)
 
-                total_checked += cat_total
-                total_anomalies += cat_anomaly
+                    total_checked += cat_total
+                    total_anomalies += cat_anomaly
 
-                results['checks'].append({
-                    'category': '카테고리별 특성',
-                    'name': cat_result.get('display_name', cat_name),
-                    'description': cat_result.get('description', ''),
-                    'checked': cat_total,
-                    'passed': cat_total - cat_anomaly,
-                    'failed': cat_anomaly,
-                    'status': get_status(cat_anomaly, cat_total)
-                })
-        except Exception as e:
-            print(f"Category spec validation error: {e}")
-            import traceback
-            traceback.print_exc()
+                    results['checks'].append({
+                        'category': '카테고리별 특성',
+                        'name': cat_result.get('display_name', cat_name),
+                        'description': cat_result.get('description', ''),
+                        'checked': cat_total,
+                        'passed': cat_total - cat_anomaly,
+                        'failed': cat_anomaly,
+                        'status': get_status(cat_anomaly, cat_total)
+                    })
+            except Exception as e:
+                print(f"Category spec validation error: {e}")
+                import traceback
+                traceback.print_exc()
 
         # ============================================================
         # 4. Market 검증 (market 타입 또는 all인 경우)
         # ============================================================
-        if product_line in ['market', 'all']:
+        if run_market and product_line in ['market', 'all']:
             market_conn = get_dx_connection()
             market_cursor = market_conn.cursor()
 
@@ -1177,7 +1199,7 @@ def layer_stats(request):
             market_conn.close()
 
         # HHP 커넥션 닫기
-        if product_line in ['hhp', 'all']:
+        if hhp_conn is not None:
             hhp_cursor.close()
             hhp_conn.close()
 
@@ -2359,6 +2381,8 @@ def category_spec_detail(request):
 
                     # 이상치 쿼리 실행
                     query = query_template.replace('{table}', table_name).replace('{date_col}', date_col)
+                    if not query.strip().upper().startswith('SELECT'):
+                        raise ValueError(f'허용되지 않은 쿼리 유형: {rule_name}')
                     # psycopg2 파라미터 바인딩용 이스케이프: LIKE의 %를 %%로
                     query = query.replace('%%', '%')
                     query = query.replace('%', '%%').replace('%%s', '%s')
@@ -2445,6 +2469,8 @@ def category_spec_detail(request):
         query_template = target_rule.get('query', '')
         if query_template:
             query = query_template.replace('{table}', table_name).replace('{date_col}', date_col)
+            if not _validate_select_query(query):
+                return JsonResponse({'status': 'error', 'message': '허용되지 않은 쿼리 유형'})
             # psycopg2 파라미터 바인딩용 이스케이프: LIKE의 %를 %%로
             query = query.replace('%%', '%')
             query = query.replace('%', '%%').replace('%%s', '%s')
@@ -2486,19 +2512,21 @@ def category_spec_detail(request):
             if pairs:
                 placeholders = ' OR '.join(['(item = %s AND account_name = %s)'] * len(pairs))
                 params = [v for p in pairs for v in p]
-                cursor.execute(f"SELECT id, item, account_name, is_product FROM {mst_table} WHERE {placeholders}", params)
+                cursor.execute(f"SELECT id, item, account_name, is_product, is_checked FROM {mst_table} WHERE {placeholders}", params)
                 mst_map = {}
                 for row in cursor.fetchall():
-                    mst_map[(row[1], row[2])] = {'mst_id': row[0], 'is_product': row[3]}
+                    mst_map[(row[1], row[2])] = {'mst_id': row[0], 'is_product': row[3], 'is_checked': row[4]}
                 for a in anomalies:
                     key = (a.get('item', ''), a.get('account_name', ''))
                     mst = mst_map.get(key)
                     if mst:
                         a['mst_id'] = mst['mst_id']
                         a['is_product'] = mst['is_product']
+                        a['is_checked'] = mst['is_checked']
                     else:
                         a['mst_id'] = None
                         a['is_product'] = None
+                        a['is_checked'] = None
 
         cursor.close()
         conn.close()
@@ -3020,6 +3048,9 @@ def field_missing_detail_by_field(request):
         if c['column_name'] == field and c['related_columns']:
             related_columns = [col.strip() for col in c['related_columns'].split('|') if col.strip()]
             break
+
+    if field not in display_fields:
+        return JsonResponse({'status': 'error', 'message': '허용되지 않은 필드'})
 
     try:
         conn = get_dx_connection()

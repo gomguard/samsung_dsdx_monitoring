@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+
+{% block title %}변경 이력 — DX 데이터 관리{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 레이아웃: 사이드바 + 콘텐츠 */
+    .data-layout {
+        display: flex;
+        min-height: calc(100vh - 64px);
+        margin: -32px -24px;
+    }
+
+    /* 좌측 사이드바 */
+    .data-sidebar {
+        width: 220px;
+        min-width: 220px;
+        background: var(--bg-secondary);
+        border-right: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+    }
+    .sidebar-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .sidebar-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    .sidebar-menu {
+        padding: 12px;
+        flex: 1;
+    }
+    .sidebar-item {
+        padding: 12px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+    }
+    .sidebar-item:hover {
+        background: rgba(13, 148, 136, 0.08);
+        color: var(--text-primary);
+    }
+    .sidebar-item.active {
+        background: rgba(13, 148, 136, 0.15);
+        color: #0d9488;
+        font-weight: 600;
+    }
+    .sidebar-item svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+    }
+
+    /* 우측 콘텐츠 */
+    .data-content {
+        flex: 1;
+        padding: 14px 28px 10px;
+    }
+
+    .page-header {
+        margin-bottom: 8px;
+    }
+    .page-header h1 {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0 0 2px 0;
+    }
+    .page-header p {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin: 0;
+    }
+
+    /* 탭 */
+    .tab-group {
+        display: flex;
+        gap: 0;
+        margin-bottom: 8px;
+        border-bottom: 2px solid var(--border-color);
+    }
+    .tab-btn {
+        padding: 10px 24px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .tab-btn:hover { color: var(--text-primary); }
+    .tab-btn.active {
+        color: #0d9488;
+        border-bottom-color: #0d9488;
+    }
+
+    /* item 복사 바 */
+    .copy-bar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+    .copy-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 12px;
+        background: white;
+        cursor: pointer;
+        color: var(--text-secondary);
+        transition: all 0.15s;
+    }
+    .copy-chip:hover { border-color: #0d9488; color: #0d9488; }
+    .copy-chip svg { width: 13px; height: 13px; flex-shrink: 0; }
+    .copy-chip .chip-label { font-weight: 600; }
+    .copy-chip .chip-count { color: var(--text-secondary); }
+
+    /* 테이블 */
+    .data-table-wrap {
+        height: 70vh;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+    }
+    #paginationContainer .pagination {
+        margin-top: 10px;
+        border-top: none;
+    }
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+    .data-table thead {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+    .data-table th {
+        padding: 10px 12px;
+        background: #f1f5f9;
+        color: #475569;
+        font-weight: 600;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        white-space: nowrap;
+        font-size: 12px;
+    }
+    .data-table td {
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--border-color);
+        background: #ffffff;
+        color: var(--text-primary);
+        vertical-align: middle;
+    }
+    .data-table tbody tr:hover td { background: #f0fdfa; }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+
+    .field-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+    .field-badge.is_product { background: #ede9fe; color: #7c3aed; }
+    .field-badge.is_checked { background: #d1fae5; color: #059669; }
+
+    .value-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+    .value-badge.true-val { background: #d1fae5; color: #059669; }
+    .value-badge.false-val { background: #fee2e2; color: #dc2626; }
+
+    .loading-overlay {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 60px 0;
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+    .spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--border-color);
+        border-top-color: #0d9488;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 0;
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="data-layout">
+    <!-- 좌측 사이드바 -->
+    <aside class="data-sidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-title">데이터 관리</span>
+        </div>
+        <div class="sidebar-menu">
+            <a href="/dx/data/item-master/" class="sidebar-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                </svg>
+                아이템 마스터
+            </a>
+            <a href="/dx/data/history/" class="sidebar-item active">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                </svg>
+                변경 이력
+            </a>
+        </div>
+    </aside>
+
+    <!-- 우측 콘텐츠 -->
+    <div class="data-content">
+        <div class="page-header">
+            <h1>변경 이력</h1>
+            <p>아이템 마스터 변경 내역을 날짜별로 조회합니다</p>
+        </div>
+
+        <!-- 탭 -->
+        <div class="tab-group">
+            <button class="tab-btn active" data-table="tv" onclick="switchTab('tv')">TV</button>
+            <button class="tab-btn" data-table="hhp" onclick="switchTab('hhp')">HHP</button>
+        </div>
+
+        <!-- 필터 -->
+        {% include 'components/search_box.html' with fields=None show_status=False input_type="date" input_id="filterDate" input_placeholder="" extra_filters=extra_filters on_search="loadData(1)" on_reset="resetFilter()" %}
+
+        <!-- item 복사 영역 -->
+        <div id="copyBar"></div>
+
+        <!-- 테이블 -->
+        <div class="data-table-wrap">
+            <div id="tableContainer">
+                <div class="loading-overlay"><div class="spinner"></div> 로딩 중...</div>
+            </div>
+        </div>
+
+        <!-- 페이지네이션 -->
+        <div id="paginationContainer"></div>
+    </div>
+</div>
+
+<script>
+let currentTable = 'tv';
+let currentPage = 1;
+const PAGE_SIZE = 50;
+let pager = null;
+
+const FIELD_LABELS = {
+    'is_product': '제품여부',
+    'is_checked': '확인완료'
+};
+
+function formatValue(field, val) {
+    if (field === 'is_product') {
+        return val === 'True' ? '<span class="value-badge true-val">제품</span>' : '<span class="value-badge false-val">비제품</span>';
+    }
+    if (field === 'is_checked') {
+        return val === 'True' ? '<span class="value-badge true-val">확인완료</span>' : '<span class="value-badge false-val">미확인</span>';
+    }
+    return esc(val) || '-';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 날짜 기본값: 오늘
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('filterDate').value = `${yyyy}-${mm}-${dd}`;
+
+    pager = new Pagination('#paginationContainer', {
+        pageSize: PAGE_SIZE,
+        maxVisible: 7,
+        showInfo: true,
+        onPageChange: function(page) { loadData(page); }
+    });
+    loadData(1);
+});
+
+function switchTab(table) {
+    currentTable = table;
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.table === table);
+    });
+    loadData(1);
+}
+
+async function loadData(page) {
+    if (!page) page = currentPage;
+    currentPage = page;
+
+    const container = document.getElementById('tableContainer');
+    container.innerHTML = '<div class="loading-overlay"><div class="spinner"></div> 로딩 중...</div>';
+
+    const date = document.getElementById('filterDate').value;
+    const field = document.getElementById('filterField').value;
+    const account = document.getElementById('filterAccount').value;
+
+    const params = new URLSearchParams({
+        table: currentTable,
+        page: page,
+        page_size: PAGE_SIZE,
+    });
+    if (date) params.append('date', date);
+    if (field) params.append('field', field);
+    if (account) params.append('account_name', account);
+
+    try {
+        const res = await fetch(`/dx/data/api/item-master/history/?${params}`);
+        const data = await res.json();
+
+        if (data.error) {
+            container.innerHTML = `<div class="empty-state">${esc(data.error)}</div>`;
+            return;
+        }
+
+        // item 복사 바 렌더
+        renderCopyBar(data.unique_items || {});
+
+        if (data.items.length === 0) {
+            container.innerHTML = '<div class="empty-state">변경 이력이 없습니다</div>';
+            pager.render(0, 1);
+            return;
+        }
+
+        let html = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:50px;">No.</th>
+                        <th>item</th>
+                        <th>리테일러</th>
+                        <th>변경 필드</th>
+                        <th>이전 값</th>
+                        <th>변경 값</th>
+                        <th>수정자</th>
+                        <th>수정일시</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        const startNo = (page - 1) * PAGE_SIZE;
+        data.items.forEach((item, idx) => {
+            const fieldLabel = FIELD_LABELS[item.field_name] || item.field_name;
+            const fieldClass = item.field_name;
+            html += `
+                <tr>
+                    <td style="text-align:center;color:var(--text-secondary);font-size:12px;">${startNo + idx + 1}</td>
+                    <td>${esc(item.item || '-')}</td>
+                    <td>${esc(item.account_name || '-')}</td>
+                    <td><span class="field-badge ${esc(fieldClass)}">${esc(fieldLabel)}</span></td>
+                    <td>${formatValue(item.field_name, item.old_value)}</td>
+                    <td>${formatValue(item.field_name, item.new_value)}</td>
+                    <td>${esc(item.changed_id || '-')}</td>
+                    <td style="white-space:nowrap;font-size:12px;color:var(--text-secondary);">${esc(item.changed_at)}</td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+        pager.render(data.total, page);
+
+    } catch (e) {
+        container.innerHTML = `<div class="empty-state">데이터 로드 실패: ${esc(e.message)}</div>`;
+    }
+}
+
+let cachedUniqueItems = {};
+
+function renderCopyBar(uniqueItems) {
+    cachedUniqueItems = uniqueItems;
+    const bar = document.getElementById('copyBar');
+    const retailers = Object.keys(uniqueItems).sort();
+
+    if (retailers.length === 0) {
+        bar.innerHTML = '';
+        return;
+    }
+
+    const allItems = retailers.flatMap(r => uniqueItems[r]);
+    const copyIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+
+    let html = '<div class="copy-bar">';
+    html += `<button class="copy-chip" onclick="copyItems('all')">
+        ${copyIcon} <span class="chip-label">전체</span> <span class="chip-count">(${allItems.length})</span>
+    </button>`;
+    retailers.forEach(r => {
+        const count = uniqueItems[r].length;
+        html += `<button class="copy-chip" onclick="copyItems('${r.replace(/'/g, "\\'")}')">
+            ${copyIcon} <span class="chip-label">${esc(r)}</span> <span class="chip-count">(${count})</span>
+        </button>`;
+    });
+    html += '</div>';
+    bar.innerHTML = html;
+}
+
+function copyItems(retailer) {
+    let items;
+    if (retailer === 'all') {
+        items = Object.keys(cachedUniqueItems).sort().flatMap(r => cachedUniqueItems[r]);
+    } else {
+        items = cachedUniqueItems[retailer] || [];
+    }
+    const text = items.join(', ');
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => showToast(`${items.length}개 item 복사 완료`, 'success'));
+    } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast(`${items.length}개 item 복사 완료`, 'success');
+    }
+}
+
+function resetFilter() {
+    document.getElementById('filterDate').value = '';
+    document.getElementById('filterField').value = '';
+    document.getElementById('filterAccount').value = '';
+    loadData(1);
+}
+</script>
+{% endblock %}
