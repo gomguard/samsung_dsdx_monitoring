@@ -70,15 +70,41 @@ function formatLocalDate(date) {
 // 초기화
 document.addEventListener('DOMContentLoaded', function() {
     const dateInput = document.getElementById('target-date');
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    dateInput.value = formatLocalDate(yesterday);
+    const saved = localStorage.getItem('monitoringSelectedDate');
+    if (saved) {
+        dateInput.value = saved;
+    } else {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        dateInput.value = formatLocalDate(yesterday);
+    }
 
-    // 날짜 변경 시 요일 업데이트
-    dateInput.addEventListener('change', updateWeekday);
+    // 날짜 변경 시 요일 업데이트 + localStorage 저장
+    dateInput.addEventListener('change', function() {
+        updateWeekday();
+        localStorage.setItem('monitoringSelectedDate', dateInput.value);
+    });
     updateWeekday();
+    checkBackupStatus();
     loadData();
 });
+
+async function checkBackupStatus() {
+    const date = document.getElementById('target-date').value;
+    if (!date) return;
+    try {
+        const res = await fetch(`/dx/layer1/api/backup-status/?date=${date}`);
+        const data = await res.json();
+        if (!data.success || data.pending_count === 0) return;
+
+        if (!data.has_backup) {
+            const goBackup = await showConfirm(`${date} 미백업 ${data.pending_count}건 (TV: ${data.tv_count}, HHP: ${data.hhp_count})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
+            if (goBackup) window.location.href = '/dx/layer1/';
+        } else {
+            showToast(`추가 수집 데이터 ${data.pending_count}건 미백업 (TV: ${data.tv_count}, HHP: ${data.hhp_count})`, 'warning', 5000);
+        }
+    } catch (e) { /* 백업 상태 조회 실패 시 무시 */ }
+}
 
 // 다음날(조회 날짜 기준 +1일) 설정 후 조회
 function setNextDay() {
@@ -86,6 +112,7 @@ function setNextDay() {
     const current = new Date(dateInput.value);
     current.setDate(current.getDate() + 1);
     dateInput.value = formatLocalDate(current);
+    localStorage.setItem('monitoringSelectedDate', dateInput.value);
     updateWeekday();
     loadData();
 }
@@ -96,6 +123,7 @@ function setPrevDay() {
     const current = new Date(dateInput.value);
     current.setDate(current.getDate() - 1);
     dateInput.value = formatLocalDate(current);
+    localStorage.setItem('monitoringSelectedDate', dateInput.value);
     updateWeekday();
     loadData();
 }
@@ -109,6 +137,7 @@ const SECTION_CATEGORY_MAP = {
 
 // 데이터 로드
 async function loadData() {
+    checkBackupStatus();
     const date = document.getElementById('target-date').value;
     const section = (window.LAYER3 && window.LAYER3.section) || 'dashboard';
 
@@ -3072,15 +3101,6 @@ function getValidationRules(checkName) {
     };
 
     return rulesData[checkName] || [];
-}
-
-// 백업 확인 팝업
-function confirmBackup() {
-    document.getElementById('backupOverlay').classList.add('hidden');
-}
-
-function goToLayer1() {
-    window.location.href = '/dx/layer1/';
 }
 
 // =============================================

@@ -1714,7 +1714,7 @@ def ds_document_categories_toggle(request, category_id):
 
 
 # ============================================================
-# 관리자 페이지 - DX 카테고리 검증 규칙 (monitoring_category_rules)
+# 관리자 페이지 - DX 검증 규칙 (monitoring_validation_rules)
 # ============================================================
 
 @login_required

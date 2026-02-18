@@ -3323,6 +3323,17 @@ def market_promotion_raw_data(request):
     return JsonResponse(results)
 
 
+def backup_status(request):
+    """백업 상태 확인 API — Layer 2/3 진입 시 호출"""
+    from apps.common.backup import get_backup_status
+
+    target_date = request.GET.get('date', '').strip()
+    if not target_date:
+        return JsonResponse({'success': True, 'pending_count': 0, 'has_backup': True})
+
+    return JsonResponse(get_backup_status(target_date))
+
+
 def backup_retail_data(request):
     """TV/HHP retail 데이터 백업 API
     GET: 백업 대상 건수 조회
@@ -3330,9 +3341,12 @@ def backup_retail_data(request):
     """
     from apps.common.backup import backup_all_retail, get_backup_count
 
+    target_date = request.GET.get('date') or request.POST.get('date') or ''
+    target_date = target_date.strip() or None
+
     if request.method == 'GET':
         # 건수만 조회
-        result = get_backup_count()
+        result = get_backup_count(target_date)
         if result['success']:
             return JsonResponse({
                 'success': True,
@@ -3345,7 +3359,8 @@ def backup_retail_data(request):
 
     elif request.method == 'POST':
         # 백업 실행
-        result = backup_all_retail()
+        username = request.user.username if request.user.is_authenticated else ''
+        result = backup_all_retail(username, target_date)
 
         if result['success']:
             tv_count = result['tv']['count']

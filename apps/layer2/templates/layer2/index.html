@@ -1086,76 +1086,10 @@
         to { transform: rotate(360deg); }
     }
 
-    /* 백업 확인 팝업 */
-    .backup-overlay {
-        display: flex;
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 10000;
-        justify-content: center;
-        align-items: center;
-    }
-    .backup-overlay.hidden { display: none; }
-    .backup-box {
-        background: #fff;
-        border-radius: 12px;
-        padding: 32px;
-        min-width: 340px;
-        max-width: 440px;
-        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-        text-align: center;
-    }
-    .backup-box .backup-icon {
-        margin-bottom: 16px;
-    }
-    .backup-box .backup-msg {
-        font-size: 16px;
-        font-weight: 600;
-        color: #1a1a1a;
-        margin-bottom: 24px;
-    }
-    .backup-box .backup-btns {
-        display: flex;
-        gap: 12px;
-        justify-content: center;
-    }
-    .backup-box .backup-btn {
-        padding: 10px 28px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        border: none;
-        cursor: pointer;
-    }
-    .backup-box .btn-confirm {
-        background: {{ layer.color }};
-        color: #fff;
-    }
-    .backup-box .btn-close {
-        background: #f3f4f6;
-        color: #1a1a1a;
-    }
-
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- 백업 확인 팝업 -->
-<div class="backup-overlay" id="backupOverlay">
-    <div class="backup-box">
-        <div class="backup-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="{{ layer.color }}" stroke-width="2" width="48" height="48">
-                <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
-            </svg>
-        </div>
-        <div class="backup-msg">백업을 진행하셨습니까?</div>
-        <div class="backup-btns">
-            <button class="backup-btn btn-confirm" onclick="confirmBackup()">확인</button>
-            <button class="backup-btn btn-close" onclick="goToLayer1()">닫기</button>
-        </div>
-    </div>
-</div>
 <div class="layer-header">
     <div class="layer-header-content">
         <div class="layer-badge">{{ layer.number }}</div>
@@ -1248,8 +1182,26 @@
 
     document.addEventListener('DOMContentLoaded', function() {
         initDatePicker();
+        checkBackupStatus();
         fetchDXStats();
     });
+
+    async function checkBackupStatus() {
+        const date = getSelectedDate();
+        if (!date) return;
+        try {
+            const res = await fetch(`/dx/layer1/api/backup-status/?date=${date}`);
+            const data = await res.json();
+            if (!data.success || data.pending_count === 0) return;
+
+            if (!data.has_backup) {
+                const goBackup = await showConfirm(`${date} 미백업 ${data.pending_count}건 (TV: ${data.tv_count}, HHP: ${data.hhp_count})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
+                if (goBackup) window.location.href = '/dx/layer1/';
+            } else {
+                showToast(`추가 수집 데이터 ${data.pending_count}건 미백업 (TV: ${data.tv_count}, HHP: ${data.hhp_count})`, 'warning', 5000);
+            }
+        } catch (e) { /* 백업 상태 조회 실패 시 무시 */ }
+    }
 
     // 요일 표시 업데이트
     function updateWeekday() {
@@ -1277,20 +1229,27 @@
         const dateInput = document.getElementById('target-date');
         const urlParams = new URLSearchParams(window.location.search);
         const urlDate = urlParams.get('date');
+        const saved = localStorage.getItem('monitoringSelectedDate');
 
         if (urlDate) {
             dateInput.value = urlDate;
+        } else if (saved) {
+            dateInput.value = saved;
         } else {
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
             dateInput.value = formatLocalDate(yesterday);
         }
+        localStorage.setItem('monitoringSelectedDate', dateInput.value);
 
         const today = new Date();
         dateInput.max = formatLocalDate(today);
 
-        // 날짜 변경 시 요일 업데이트
-        dateInput.addEventListener('change', updateWeekday);
+        // 날짜 변경 시 요일 업데이트 + localStorage 저장
+        dateInput.addEventListener('change', function() {
+            updateWeekday();
+            localStorage.setItem('monitoringSelectedDate', dateInput.value);
+        });
         updateWeekday();
     }
 
@@ -1299,6 +1258,7 @@
         const current = new Date(dateInput.value);
         current.setDate(current.getDate() + 1);
         dateInput.value = formatLocalDate(current);
+        localStorage.setItem('monitoringSelectedDate', dateInput.value);
         updateWeekday();
         handleSearch();
     }
@@ -1308,11 +1268,13 @@
         const current = new Date(dateInput.value);
         current.setDate(current.getDate() - 1);
         dateInput.value = formatLocalDate(current);
+        localStorage.setItem('monitoringSelectedDate', dateInput.value);
         updateWeekday();
         handleSearch();
     }
 
     function handleSearch() {
+        checkBackupStatus();
         dxData = null;
         document.getElementById('dx-validation-container').innerHTML = `
             <div class="loading">
@@ -2640,13 +2602,5 @@ WHERE id IN (${idInClause});`;
         });
     }
 
-// 백업 확인 팝업
-function confirmBackup() {
-    document.getElementById('backupOverlay').classList.add('hidden');
-}
-
-function goToLayer1() {
-    window.location.href = '/dx/layer1/';
-}
 </script>
 {% endblock %}

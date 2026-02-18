@@ -2246,19 +2246,27 @@ function formatLocalDate(date) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
-// 날짜 초기화 (기본값: 전일자)
+// 날짜 초기화 (localStorage 우선 → 전일자 기본값)
 function initDate() {
     const dateInput = document.getElementById('target-date');
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    dateInput.value = formatLocalDate(yesterday);
+    const saved = localStorage.getItem('monitoringSelectedDate');
+    if (saved) {
+        dateInput.value = saved;
+    } else {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        dateInput.value = formatLocalDate(yesterday);
+    }
 
     // 최대 날짜를 오늘로 제한
     const today = new Date();
     dateInput.max = formatLocalDate(today);
 
-    // 날짜 변경 시 요일 업데이트
-    dateInput.addEventListener('change', updateWeekday);
+    // 날짜 변경 시 요일 업데이트 + localStorage 저장
+    dateInput.addEventListener('change', function() {
+        updateWeekday();
+        localStorage.setItem('monitoringSelectedDate', dateInput.value);
+    });
     updateWeekday();
 }
 
@@ -2268,6 +2276,7 @@ function setNextDay() {
     const current = new Date(dateInput.value);
     current.setDate(current.getDate() + 1);
     dateInput.value = formatLocalDate(current);
+    localStorage.setItem('monitoringSelectedDate', dateInput.value);
     updateWeekday();
     loadAllData();
 }
@@ -2278,6 +2287,7 @@ function setPrevDay() {
     const current = new Date(dateInput.value);
     current.setDate(current.getDate() - 1);
     dateInput.value = formatLocalDate(current);
+    localStorage.setItem('monitoringSelectedDate', dateInput.value);
     updateWeekday();
     loadAllData();
 }
@@ -5665,11 +5675,12 @@ function resetMarketPromotionSort() {
 // 백업 실행
 function runBackup() {
     var btn = document.getElementById('btn-backup');
+    var targetDate = document.getElementById('target-date').value;
     btn.disabled = true;
     btn.textContent = '확인 중...';
 
     // 1. 먼저 백업 대상 건수 조회 (GET)
-    fetch('/layer1/api/backup/')
+    fetch('/layer1/api/backup/?date=' + targetDate)
         .then(function(r) { return r.json(); })
         .then(function(res) {
             btn.disabled = false;
@@ -5681,7 +5692,7 @@ function runBackup() {
             }
 
             // 2. 건수 표시 및 확인 팝업
-            var msg = 'TV: ' + res.tv_count + '건, HHP: ' + res.hhp_count + '건\n백업을 진행하시겠습니까?';
+            var msg = targetDate + ' 수집 데이터 백업\nTV: ' + res.tv_count + '건, HHP: ' + res.hhp_count + '건\n백업을 진행하시겠습니까?';
             showConfirm(msg).then(function(confirmed) {
                 if (!confirmed) return;
 
@@ -5689,7 +5700,7 @@ function runBackup() {
                 btn.disabled = true;
                 btn.textContent = '백업 중...';
 
-                fetch('/layer1/api/backup/', {
+                fetch('/layer1/api/backup/?date=' + targetDate, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

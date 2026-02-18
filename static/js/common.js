@@ -302,8 +302,9 @@ function showToast(message, type = 'info', duration = 3000) {
 
 // 커스텀 확인 다이얼로그
 // type: 'warning'(경고, 빨간색) | 'info'(안내, 파란색)
-function showConfirm(msg, type) {
+function showConfirm(msg, type, options) {
     if (!type) type = 'info';
+    if (!options) options = {};
 
     var icons = {
         success: '<svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" width="40" height="40"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>',
@@ -331,8 +332,8 @@ function showConfirm(msg, type) {
                 '<div style="margin-bottom:12px;">' + icons[type] + '</div>' +
                 '<div id="confirmMsg" style="font-size:15px; font-weight:500; color:#1a1a1a; line-height:1.5; margin-bottom:24px; white-space:pre-line;"></div>' +
                 '<div style="display:flex; gap:10px; justify-content:center;">' +
-                    '<button id="confirmOk" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:' + colors[type] + '; color:#fff; transition:opacity 0.15s;">확인</button>' +
-                    '<button id="confirmCancel" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:#f3f4f6; color:#1a1a1a; transition:opacity 0.15s;">취소</button>' +
+                    '<button id="confirmOk" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:' + colors[type] + '; color:#fff; transition:opacity 0.15s;">' + (options.okText || '확인') + '</button>' +
+                    (options.hideCancel ? '' : '<button id="confirmCancel" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:#f3f4f6; color:#1a1a1a; transition:opacity 0.15s;">' + (options.cancelText || '취소') + '</button>') +
                 '</div>' +
             '</div>';
         document.body.appendChild(overlay);
@@ -345,14 +346,14 @@ function showConfirm(msg, type) {
         function cleanup() {
             overlay.remove();
             ok.removeEventListener('click', onOk);
-            cancel.removeEventListener('click', onCancel);
+            if (cancel) cancel.removeEventListener('click', onCancel);
             overlay.removeEventListener('click', onBg);
         }
         function onOk() { cleanup(); resolve(true); }
         function onCancel() { cleanup(); resolve(false); }
         function onBg(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
         ok.addEventListener('click', onOk);
-        cancel.addEventListener('click', onCancel);
+        if (cancel) cancel.addEventListener('click', onCancel);
         overlay.addEventListener('click', onBg);
     });
 }

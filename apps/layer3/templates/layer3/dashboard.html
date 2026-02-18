@@ -4,22 +4,6 @@
 {% block page_title %}대시보드{% endblock %}
 
 {% block layer3_content %}
-<!-- 백업 확인 팝업 -->
-<div class="backup-overlay" id="backupOverlay">
-    <div class="backup-box">
-        <div class="backup-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="{{ layer.color }}" stroke-width="2" width="48" height="48">
-                <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
-            </svg>
-        </div>
-        <div class="backup-msg">백업을 진행하셨습니까?</div>
-        <div class="backup-btns">
-            <button class="backup-btn btn-confirm" onclick="confirmBackup()">확인</button>
-            <button class="backup-btn btn-close" onclick="goToLayer1()">닫기</button>
-        </div>
-    </div>
-</div>
-
 <!-- Summary Cards -->
 <div class="stats-grid" id="summary-cards">
     <div class="stat-card">
