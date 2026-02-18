@@ -727,65 +727,7 @@
     color: var(--text-secondary);
 }
 
-/* Modal */
-.modal-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    justify-content: center;
-    align-items: center;
-}
-
-.modal-overlay.show {
-    display: flex;
-}
-
-.modal-content {
-    background: white;
-    border-radius: 12px;
-    max-width: 1400px;
-    width: 95%;
-    max-height: 85vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.modal-header {
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.modal-header h3 {
-    font-size: 18px;
-    font-weight: 600;
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    color: var(--text-secondary);
-}
-
-.modal-body {
-    padding: 24px;
-    overflow-y: auto;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    max-height: calc(85vh - 80px);
-}
+/* 모달 스타일 → modal.css (AppModal 공통 컴포넌트) */
 
 .detail-table {
     width: 100%;
@@ -1137,7 +1079,6 @@
 .table-scroll-container .detail-table th {
     position: sticky;
     top: 0;
-    background: var(--bg-primary);
     z-index: 1;
 }
 

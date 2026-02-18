@@ -12,7 +12,7 @@ const ViewStack = {
         this.stack.push({
             html: container.innerHTML,
             scrollTop: window.scrollY,
-            title: document.getElementById('modal-title')?.textContent || ''
+            title: AppModal.getTitle('detail')
         });
         container.innerHTML = html;
         window.scrollTo(0, 0);
@@ -415,9 +415,9 @@ async function showDetail(category, checkName) {
     }
 
     if (!apiUrl) {
-        document.getElementById('modal-title').textContent = title;
-        document.getElementById('modal-body').innerHTML = '<p>상세 조회 API가 구현되지 않았습니다.</p>';
-        document.getElementById('detail-modal').classList.add('show');
+        AppModal.setTitle('detail', title);
+        AppModal.setBody('detail', '<p>상세 조회 API가 구현되지 않았습니다.</p>');
+        AppModal.open('detail');
         return;
     }
 
@@ -426,15 +426,15 @@ async function showDetail(category, checkName) {
         renderDetailModal(title, category, data);
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('modal-title').textContent = title;
-        document.getElementById('modal-body').innerHTML = '<p>데이터 로드 실패</p>';
-        document.getElementById('detail-modal').classList.add('show');
+        AppModal.setTitle('detail', title);
+        AppModal.setBody('detail', '<p>데이터 로드 실패</p>');
+        AppModal.open('detail');
     }
 }
 
 // 상세 모달 렌더링
 function renderDetailModal(title, category, data) {
-    document.getElementById('modal-title').textContent = title + ` (${data.total_anomalies || data.total_changes || data.total_duplicates || 0}건)`;
+    AppModal.setTitle('detail', title + ` (${data.total_anomalies || data.total_changes || data.total_duplicates || 0}건)`);
 
     let html = '';
 
@@ -494,7 +494,7 @@ ORDER BY item, ${dateColumn} ASC;`;
                 </div>`;
             }
 
-            html += '<table class="detail-table"><thead><tr>';
+            html += '<div class="table-scroll-container"><table class="detail-table"><thead><tr>';
             html += '<th>No.</th><th>Item</th><th>Retailer</th><th>제품명</th><th>수집 시점</th>';
             if (isPriceCheck) {
                 html += '<th>이전 가격</th><th>현재 가격</th><th>변동률</th><th>URL</th>';
@@ -540,7 +540,7 @@ ORDER BY item, ${dateColumn} ASC;`;
                 html += '</tr>';
             });
 
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
         }
     } else if (category === '크로스 필드 검증') {
         // Sentiment 검증인 경우 기존 방식 유지
@@ -586,8 +586,8 @@ ORDER BY item, ${dateColumn} ASC;`;
         html = '<p>상세 데이터를 표시할 수 없습니다.</p>';
     }
 
-    document.getElementById('modal-body').innerHTML = html;
-    document.getElementById('detail-modal').classList.add('show');
+    AppModal.setBody('detail', html);
+    AppModal.open('detail');
 }
 
 // 크로스필드 요약 렌더링 (모달 / 인라인 공용)
@@ -656,9 +656,9 @@ function renderCrossfieldSummaryContent(title, _category, data) {
         if (titleEl) titleEl.textContent = titleText;
         if (bodyEl) bodyEl.innerHTML = html;
     } else {
-        document.getElementById('modal-title').textContent = titleText;
-        document.getElementById('modal-body').innerHTML = html;
-        document.getElementById('detail-modal').classList.add('show');
+        AppModal.setTitle('detail', titleText);
+        AppModal.setBody('detail', html);
+        AppModal.open('detail');
     }
 }
 
@@ -707,15 +707,15 @@ function renderCatSpecSummaryContent(title, data) {
         if (titleEl) titleEl.textContent = titleText;
         if (bodyEl) bodyEl.innerHTML = html;
     } else {
-        document.getElementById('modal-title').textContent = titleText;
-        document.getElementById('modal-body').innerHTML = html;
-        document.getElementById('detail-modal').classList.add('show');
+        AppModal.setTitle('detail', titleText);
+        AppModal.setBody('detail', html);
+        AppModal.open('detail');
     }
 }
 
 // 모달 닫기
 function closeModal() {
-    document.getElementById('detail-modal')?.classList.remove('show');
+    AppModal.close('detail');
 }
 
 // 크로스필드 쿼리 플레이스홀더 치환
@@ -740,7 +740,7 @@ function toggleCrossfieldQuery(queryId) {
 // 크로스필드 데이터 날짜 변경 시 재로드
 async function reloadCrossfieldData(date, productLine, title) {
     const inline = isCrossFieldInline();
-    const bodyEl = inline ? document.querySelector('.inline-detail-body') : document.getElementById('modal-body');
+    const bodyEl = inline ? document.querySelector('.inline-detail-body') : AppModal.getBody('detail');
     if (bodyEl) bodyEl.innerHTML = '<p style="text-align:center;">데이터를 불러오는 중...</p>';
 
     try {
@@ -773,8 +773,8 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             </div>
         `);
     } else {
-        document.getElementById('modal-title').textContent = ruleName;
-        document.getElementById('modal-body').innerHTML = '<p style="text-align:center;">데이터를 불러오는 중...</p>';
+        AppModal.setTitle('detail', ruleName);
+        AppModal.setBody('detail', '<p style="text-align:center;">데이터를 불러오는 중...</p>');
     }
 
     try {
@@ -786,7 +786,7 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
                 const body = document.querySelector('.inline-detail-body');
                 if (body) body.innerHTML = errHtml;
             } else {
-                document.getElementById('modal-body').innerHTML = errHtml;
+                AppModal.setBody('detail', errHtml);
             }
             return;
         }
@@ -846,8 +846,8 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             if (titleEl) titleEl.textContent = titleText;
             if (bodyEl) bodyEl.innerHTML = html;
         } else {
-            document.getElementById('modal-title').textContent = titleText;
-            document.getElementById('modal-body').innerHTML = html;
+            AppModal.setTitle('detail', titleText);
+            AppModal.setBody('detail', html);
         }
 
     } catch (error) {
@@ -857,7 +857,7 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             const body = document.querySelector('.inline-detail-body');
             if (body) body.innerHTML = errHtml;
         } else {
-            document.getElementById('modal-body').innerHTML = errHtml;
+            AppModal.setBody('detail', errHtml);
         }
     }
 }
@@ -978,7 +978,7 @@ function backToCrossfieldSummary() {
         return;
     }
     if (window.crossfieldSummaryData && window.crossfieldTitle) {
-        document.getElementById('modal-title').textContent = window.crossfieldTitle + ` (${window.crossfieldSummaryData.total_anomalies}건)`;
+        AppModal.setTitle('detail', window.crossfieldTitle + ` (${window.crossfieldSummaryData.total_anomalies}건)`);
         renderDetailModal(window.crossfieldTitle, '크로스 필드 검증', window.crossfieldSummaryData);
     }
 }
@@ -986,7 +986,7 @@ function backToCrossfieldSummary() {
 // 카테고리별 특성 데이터 날짜 변경 시 재로드
 async function reloadCategorySpecData(date, displayName, title) {
     const inline = isCatSpecInline();
-    const bodyEl = inline ? document.querySelector('.inline-detail-body') : document.getElementById('modal-body');
+    const bodyEl = inline ? document.querySelector('.inline-detail-body') : AppModal.getBody('detail');
     if (bodyEl) bodyEl.innerHTML = '<p style="text-align:center;">데이터를 불러오는 중...</p>';
 
     try {
@@ -1029,15 +1029,15 @@ async function loadCategorySpecRuleDetail(displayName, ruleId, date, ruleName) {
             </div>
         `);
     } else {
-        document.getElementById('modal-title').textContent = ruleName;
-        document.getElementById('modal-body').innerHTML = '<p style="text-align:center;">데이터를 불러오는 중...</p>';
+        AppModal.setTitle('detail', ruleName);
+        AppModal.setBody('detail', '<p style="text-align:center;">데이터를 불러오는 중...</p>');
     }
 
     try {
         const data = await fetchAPI(`/layer3/api/category-spec-detail/?date=${date}&display_name=${encodeURIComponent(displayName)}&rule_id=${ruleId}`);
 
         if (data.error) {
-            const errTarget = inline ? document.querySelector('.inline-detail-body') : document.getElementById('modal-body');
+            const errTarget = inline ? document.querySelector('.inline-detail-body') : AppModal.getBody('detail');
             if (errTarget) errTarget.innerHTML = `<p style="color: red;">오류: ${esc(data.error)}</p>`;
             return;
         }
@@ -1048,7 +1048,7 @@ async function loadCategorySpecRuleDetail(displayName, ruleId, date, ruleName) {
 
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('modal-body').innerHTML = '<p style="color: red;">데이터 로드 실패</p>';
+        AppModal.setBody('detail', '<p style="color: red;">데이터 로드 실패</p>');
     }
 }
 
@@ -1177,20 +1177,20 @@ WHERE item IN (${inClauseWithQuotes})${retailerCondition}
 ORDER BY account_name, item;`;
 
         html += `
-        <div class="query-section" style="display: flex; gap: 16px; margin-bottom: 16px;">
-            <div class="item-list-box" style="flex: 0 0 300px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px;">
-                <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 13px; font-weight: 600; color: #dc2626;">Item 목록 (${items.length}개)</span>
-                    <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('spec-item-list'))" style="padding: 4px 10px; font-size: 11px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+        <div class="query-section">
+            <div class="item-list-box">
+                <div class="query-box-header">
+                    <span class="query-box-title">Item 목록 (${items.length}개)</span>
+                    <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('spec-item-list'))">복사</button>
                 </div>
-                <div id="spec-item-list" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${esc(itemListDisplay)}</div>
+                <div id="spec-item-list" class="item-list-content">${esc(itemListDisplay)}</div>
             </div>
-            <div class="query-box" style="flex: 1; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px;">
-                <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 13px; font-weight: 600; color: #374151;">조회 쿼리</span>
-                    <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('spec-query-box'))" style="padding: 4px 10px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+            <div class="query-box">
+                <div class="query-box-header">
+                    <span class="query-box-title">조회 쿼리</span>
+                    <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('spec-query-box'))">복사</button>
                 </div>
-                <pre id="spec-query-box" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #1e40af; background: #dbeafe; padding: 10px; border-radius: 6px; margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto;">${esc(query)}</pre>
+                <pre id="spec-query-box" class="query-content">${esc(query)}</pre>
             </div>
         </div>`;
     }
@@ -1326,8 +1326,8 @@ ORDER BY account_name, item;`;
         if (titleEl) titleEl.textContent = titleText;
         if (bodyEl) bodyEl.innerHTML = html;
     } else {
-        document.getElementById('modal-title').textContent = titleText;
-        document.getElementById('modal-body').innerHTML = html;
+        AppModal.setTitle('detail', titleText);
+        AppModal.setBody('detail', html);
     }
 
     // 페이지네이션 바인딩
@@ -1373,7 +1373,7 @@ function toggleSpecField(mstId, field, value, tableKey) {
         renderCategorySpecDetail(masterTableDetailState.data, masterTableDetailState.ruleName, masterTableDetailState.currentRetailer);
         window.scrollTo(0, scrollY);
     } else {
-        const modalBody = document.getElementById('modal-body');
+        const modalBody = AppModal.getBody('detail');
         const scrollTop = modalBody.scrollTop;
         renderCategorySpecDetail(masterTableDetailState.data, masterTableDetailState.ruleName, masterTableDetailState.currentRetailer);
         modalBody.scrollTop = scrollTop;
@@ -1482,7 +1482,7 @@ function backToCategorySpecSummary() {
         return;
     }
     if (window.categorySpecSummaryData && window.categorySpecTitle) {
-        document.getElementById('modal-title').textContent = window.categorySpecTitle + ` (${window.categorySpecSummaryData.total_anomalies}건)`;
+        AppModal.setTitle('detail', window.categorySpecTitle + ` (${window.categorySpecSummaryData.total_anomalies}건)`);
         renderDetailModal(window.categorySpecTitle, '카테고리별 특성', window.categorySpecSummaryData);
     }
 }
@@ -1574,23 +1574,23 @@ AND DATE(${dateCol}::timestamp) >= DATE('${date}') - INTERVAL '2 days'
 AND DATE(${dateCol}::timestamp) <= DATE('${date}')
 ORDER BY item, ${dateCol};`;
 
-    // 필드누락 상세보기와 동일한 레이아웃 (Item 목록 + 3일치 조회 쿼리 나란히)
+    // Item 목록 + 3일치 조회 쿼리 (CSS 클래스 사용)
     const retailerSafe = retailer.replace(/[^a-zA-Z0-9]/g, '');
     html += `
-        <div class="query-section" style="display: flex; gap: 16px; margin-bottom: 16px;">
-            <div class="item-list-box" style="flex: 0 0 300px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px;">
-                <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 13px; font-weight: 600; color: #dc2626;">${esc(retailer)} - Item 목록 (${items.length}개)</span>
-                    <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('item-list-${retailerSafe}'))" style="padding: 4px 10px; font-size: 11px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+        <div class="query-section">
+            <div class="item-list-box">
+                <div class="query-box-header">
+                    <span class="query-box-title">${esc(retailer)} - Item 목록 (${items.length}개)</span>
+                    <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('item-list-${retailerSafe}'))">복사</button>
                 </div>
-                <div id="item-list-${retailerSafe}" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${esc(itemListDisplay)}</div>
+                <div id="item-list-${retailerSafe}" class="item-list-content">${esc(itemListDisplay)}</div>
             </div>
-            <div class="query-box" style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
-                <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 13px; font-weight: 600; color: #374151;">3일치 조회 쿼리</span>
-                    <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('query-box-${retailerSafe}'))" style="padding: 4px 10px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+            <div class="query-box">
+                <div class="query-box-header">
+                    <span class="query-box-title">3일치 조회 쿼리</span>
+                    <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('query-box-${retailerSafe}'))">복사</button>
                 </div>
-                <pre id="query-box-${retailerSafe}" style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto; margin: 0;">${esc(query)}</pre>
+                <pre id="query-box-${retailerSafe}" class="query-content">${esc(query)}</pre>
             </div>
         </div>`;
 
@@ -1656,9 +1656,9 @@ ORDER BY item, ${dateCol};`;
         `);
     } else {
         // 현재 모달 제목 저장 (뒤로가기용)
-        window.crossfieldCurrentTitle = document.getElementById('modal-title').textContent;
-        document.getElementById('modal-title').textContent = titleText;
-        document.getElementById('modal-body').innerHTML = html;
+        window.crossfieldCurrentTitle = AppModal.getTitle('detail');
+        AppModal.setTitle('detail', titleText);
+        AppModal.setBody('detail', html);
     }
 }
 
@@ -1687,33 +1687,23 @@ function backToRetailerList() {
         });
         html += '</div>';
 
-        document.getElementById('modal-title').textContent = window.crossfieldCurrentTitle;
-        document.getElementById('modal-body').innerHTML = html;
+        AppModal.setTitle('detail', window.crossfieldCurrentTitle);
+        AppModal.setBody('detail', html);
     }
-}
-
-// 모달 외부 클릭 시 닫기
-const detailModal = document.getElementById('detail-modal');
-if (detailModal) {
-    detailModal.addEventListener('click', function(e) {
-        if (e.target === this) {
-            closeModal();
-        }
-    });
 }
 
 // ESC 키로 모달 닫기
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        closeModal();
+        AppModal.close('detail');
     }
 });
 
 // 검증 규칙 모달 표시 (CSV 기반 API 호출)
 async function showRulesModal(checkName) {
-    document.getElementById('modal-title').textContent = checkName + ' - 검증 규칙';
-    document.getElementById('modal-body').innerHTML = '<p style="text-align:center;">로딩 중...</p>';
-    document.getElementById('detail-modal').classList.add('show');
+    AppModal.setTitle('detail', checkName + ' - 검증 규칙');
+    AppModal.setBody('detail', '<p style="text-align:center;">로딩 중...</p>');
+    AppModal.open('detail');
 
     // 크로스필드 규칙 체크 (Sentiment, 논리적 일관성)
     const crossfieldChecks = ['TV 논리적 일관성', 'HHP 논리적 일관성', 'TV Sentiment↔리뷰 일관성', 'HHP Sentiment↔리뷰 일관성'];
@@ -1779,7 +1769,7 @@ async function showRulesModal(checkName) {
                 }
             });
             html += '</ul>';
-            document.getElementById('modal-body').innerHTML = html;
+            AppModal.setBody('detail', html);
         } else {
             // API 실패 시 기존 하드코딩 데이터 사용 (fallback)
             const rules = getValidationRules(checkName);
@@ -1797,7 +1787,7 @@ async function showRulesModal(checkName) {
                 `;
             });
             html += '</ul>';
-            document.getElementById('modal-body').innerHTML = html;
+            AppModal.setBody('detail', html);
         }
     } catch (error) {
         console.error('Failed to fetch rules:', error);
@@ -1817,7 +1807,7 @@ async function showRulesModal(checkName) {
             `;
         });
         html += '</ul>';
-        document.getElementById('modal-body').innerHTML = html;
+        AppModal.setBody('detail', html);
     }
 }
 
@@ -1968,8 +1958,8 @@ function viewMissingSummary(retailer, dateOverride = null) {
     missingSummaryState.productLine = currentFieldMissingPL;
     missingSummaryState.date = dateOverride || document.getElementById('target-date').value;
 
-    document.getElementById('modal-title').textContent = `${currentFieldMissingPL.toUpperCase()} - ${retailer} 필드별 누락 요약`;
-    document.getElementById('detail-modal').classList.add('show');
+    AppModal.setTitle('detail', `${currentFieldMissingPL.toUpperCase()} - ${retailer} 필드별 누락 요약`);
+    AppModal.open('detail');
 
     // 날짜가 변경된 경우 API 재호출
     if (dateOverride) {
@@ -1985,7 +1975,7 @@ function renderMissingSummaryFromCache(retailer) {
     const cached = retailerMissingCache[cacheKey];
 
     if (!cached) {
-        document.getElementById('modal-body').innerHTML = '<p style="text-align: center; padding: 40px;">데이터를 먼저 로드해주세요.</p>';
+        AppModal.setBody('detail', '<p style="text-align: center; padding: 40px;">데이터를 먼저 로드해주세요.</p>');
         return;
     }
 
@@ -1994,7 +1984,7 @@ function renderMissingSummaryFromCache(retailer) {
 
 // API로 요약 데이터 로드
 async function loadMissingSummaryData(retailer, date) {
-    document.getElementById('modal-body').innerHTML = '<p style="text-align: center; padding: 40px;">데이터를 불러오는 중...</p>';
+    AppModal.setBody('detail', '<p style="text-align: center; padding: 40px;">데이터를 불러오는 중...</p>');
 
     try {
         const data = await fetchAPI(`/layer3/api/field-missing/?date=${date}&type=${currentFieldMissingPL}&retailer=${retailer}`);
@@ -2006,7 +1996,7 @@ async function loadMissingSummaryData(retailer, date) {
         renderMissingSummary(missingFields, summary, date, prevDates, retailer);
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('modal-body').innerHTML = '<p style="text-align: center; padding: 40px;">데이터 로드 실패</p>';
+        AppModal.setBody('detail', '<p style="text-align: center; padding: 40px;">데이터 로드 실패</p>');
     }
 }
 
@@ -2016,12 +2006,12 @@ function renderMissingSummary(missingFields, summary, date, prevDates, retailer)
     const periodEnd = date;
 
     if (missingFields.length === 0) {
-        document.getElementById('modal-body').innerHTML = `
+        AppModal.setBody('detail', `
             <div style="padding: 40px; text-align: center;">
                 <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
                 <div style="font-size: 16px; font-weight: 600; color: #059669;">누락된 필드가 없습니다</div>
                 <div style="font-size: 13px; margin-top: 8px; color: var(--text-secondary);">기간: ${periodStart} ~ ${periodEnd}</div>
-            </div>`;
+            </div>`);
         return;
     }
 
@@ -2078,7 +2068,7 @@ function renderMissingSummary(missingFields, summary, date, prevDates, retailer)
     html += '</div>';
     html += '<p style="margin-top: 12px; font-size: 12px; color: #6b7280;">* 필드명을 클릭하면 해당 필드의 누락 item 3일치 데이터를 볼 수 있습니다.</p>';
 
-    document.getElementById('modal-body').innerHTML = html;
+    AppModal.setBody('detail', html);
 }
 
 // 요약 날짜 변경
@@ -2092,8 +2082,8 @@ function changeSummaryDate(retailer) {
 
 // 필드별 누락 상세 보기 (3일치 데이터)
 async function viewFieldMissingDetail(retailer, field, date) {
-    document.getElementById('modal-title').textContent = `${currentFieldMissingPL.toUpperCase()} - ${retailer} - ${field} 누락 상세`;
-    document.getElementById('modal-body').innerHTML = '<p style="text-align: center; padding: 40px;">데이터를 불러오는 중...</p>';
+    AppModal.setTitle('detail', `${currentFieldMissingPL.toUpperCase()} - ${retailer} - ${field} 누락 상세`);
+    AppModal.setBody('detail', '<p style="text-align: center; padding: 40px;">데이터를 불러오는 중...</p>');
 
     try {
         const params = new URLSearchParams({
@@ -2108,11 +2098,11 @@ async function viewFieldMissingDetail(retailer, field, date) {
         if (data.status === 'success') {
             renderFieldMissingDetail(data, retailer, field);
         } else {
-            document.getElementById('modal-body').innerHTML = `<p style="text-align: center; padding: 40px;">오류: ${esc(data.message || '데이터 로드 실패')}</p>`;
+            AppModal.setBody('detail', `<p style="text-align: center; padding: 40px;">오류: ${esc(data.message || '데이터 로드 실패')}</p>`);
         }
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('modal-body').innerHTML = '<p style="text-align: center; padding: 40px;">데이터 로드 실패</p>';
+        AppModal.setBody('detail', '<p style="text-align: center; padding: 40px;">데이터 로드 실패</p>');
     }
 }
 
@@ -2158,27 +2148,27 @@ WHERE account_name = '${retailer}'
 ORDER BY item, ${dateColumn} ASC;`;
 
         html += `
-        <div class="query-section" style="display: flex; gap: 16px; margin-bottom: 16px;">
-            <div class="item-list-box" style="flex: 0 0 300px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px;">
-                <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 13px; font-weight: 600; color: #dc2626;">누락 Item 목록 (${uniqueItems.length}개)</span>
-                    <button class="btn-copy" onclick="copyQueryToClipboard(this.parentElement.nextElementSibling)" style="padding: 4px 10px; font-size: 11px; background: #dc2626; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+        <div class="query-section">
+            <div class="item-list-box">
+                <div class="query-box-header">
+                    <span class="query-box-title">누락 Item 목록 (${uniqueItems.length}개)</span>
+                    <button class="btn-copy" onclick="copyQueryToClipboard(this.parentElement.nextElementSibling)">복사</button>
                 </div>
-                <div style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; word-break: break-all; max-height: 120px; overflow-y: auto;">${esc(itemListDisplay)}</div>
+                <div class="item-list-content">${esc(itemListDisplay)}</div>
             </div>
-            <div class="query-box" style="flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
-                <div class="query-box-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span style="font-size: 13px; font-weight: 600; color: #374151;">3일치 조회 쿼리</span>
-                    <button class="btn-copy" onclick="copyQueryToClipboard(this.parentElement.nextElementSibling)" style="padding: 4px 10px; font-size: 11px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">복사</button>
+            <div class="query-box">
+                <div class="query-box-header">
+                    <span class="query-box-title">3일치 조회 쿼리</span>
+                    <button class="btn-copy" onclick="copyQueryToClipboard(this.parentElement.nextElementSibling)">복사</button>
                 </div>
-                <pre style="font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto; margin: 0;">${esc(query)}</pre>
+                <pre class="query-content">${esc(query)}</pre>
             </div>
         </div>`;
     }
 
     if (items.length === 0) {
         html += '<p style="text-align: center; padding: 40px; color: var(--text-secondary);">누락 데이터가 없습니다.</p>';
-        document.getElementById('modal-body').innerHTML = html;
+        AppModal.setBody('detail', html);
         return;
     }
 
@@ -2261,7 +2251,7 @@ ORDER BY item, ${dateColumn} ASC;`;
     });
     html += '</tbody></table></div>';
 
-    document.getElementById('modal-body').innerHTML = html;
+    AppModal.setBody('detail', html);
 }
 
 // 누락분 보기 - 상태 관리
@@ -2296,9 +2286,9 @@ async function viewMissingItems(retailer) {
         fields: []
     };
 
-    document.getElementById('modal-title').textContent = `${currentFieldMissingPL.toUpperCase()} - ${retailer} 필드 누락 항목`;
-    document.getElementById('modal-body').innerHTML = '<p>데이터를 불러오는 중...</p>';
-    document.getElementById('detail-modal').classList.add('show');
+    AppModal.setTitle('detail', `${currentFieldMissingPL.toUpperCase()} - ${retailer} 필드 누락 항목`);
+    AppModal.setBody('detail', '<p>데이터를 불러오는 중...</p>');
+    AppModal.open('detail');
 
     // 첫 데이터 로드
     await loadMissingItems(true);
@@ -2338,13 +2328,13 @@ async function loadMissingItems(isInitial = false) {
             updateMissingItemsLoadStatus();
         } else {
             if (isInitial) {
-                document.getElementById('modal-body').innerHTML = `<p>오류: ${esc(data.message || '데이터 로드 실패')}</p>`;
+                AppModal.setBody('detail', `<p>오류: ${esc(data.message || '데이터 로드 실패')}</p>`);
             }
         }
     } catch (error) {
         console.error('Error:', error);
         if (isInitial) {
-            document.getElementById('modal-body').innerHTML = '<p>데이터 로드 실패</p>';
+            AppModal.setBody('detail', '<p>데이터 로드 실패</p>');
         }
     } finally {
         missingItemsState.isLoading = false;
@@ -2367,12 +2357,12 @@ function renderMissingItemsModalInitial(data) {
     const items = data.data || [];
 
     if (items.length === 0 && missingItemsState.totalCount === 0) {
-        document.getElementById('modal-body').innerHTML = `
+        AppModal.setBody('detail', `
             <div style="padding: 40px; text-align: center;">
                 <div style="font-size: 48px; margin-bottom: 16px;">✅</div>
                 <div style="font-size: 16px; font-weight: 600; color: #059669;">누락된 필드가 없습니다</div>
                 <div style="font-size: 13px; margin-top: 8px; color: var(--text-secondary);">직전 2일과 비교하여 오늘 누락된 항목이 없습니다.</div>
-            </div>`;
+            </div>`);
         return;
     }
 
@@ -2398,7 +2388,7 @@ function renderMissingItemsModalInitial(data) {
         <span>데이터 로딩 중...</span>
     </div>`;
 
-    document.getElementById('modal-body').innerHTML = html;
+    AppModal.setBody('detail', html);
 
     // 스크롤 이벤트 리스너
     const scrollContainer = document.getElementById('missing-items-scroll-container');
@@ -2480,9 +2470,9 @@ async function view3DaysData(retailer) {
         loadedCount: 0
     };
 
-    document.getElementById('modal-title').textContent = `${currentFieldMissingPL.toUpperCase()} - ${retailer} 3일치 데이터`;
-    document.getElementById('modal-body').innerHTML = '<p>데이터를 불러오는 중...</p>';
-    document.getElementById('detail-modal').classList.add('show');
+    AppModal.setTitle('detail', `${currentFieldMissingPL.toUpperCase()} - ${retailer} 3일치 데이터`);
+    AppModal.setBody('detail', '<p>데이터를 불러오는 중...</p>');
+    AppModal.open('detail');
 
     // 첫 데이터 로드
     await load3DaysData(true);
@@ -2523,13 +2513,13 @@ async function load3DaysData(isInitial = false) {
             updateLoadStatus();
         } else {
             if (isInitial) {
-                document.getElementById('modal-body').innerHTML = `<p>오류: ${esc(data.message || '데이터 로드 실패')}</p>`;
+                AppModal.setBody('detail', `<p>오류: ${esc(data.message || '데이터 로드 실패')}</p>`);
             }
         }
     } catch (error) {
         console.error('Error:', error);
         if (isInitial) {
-            document.getElementById('modal-body').innerHTML = '<p>데이터 로드 실패</p>';
+            AppModal.setBody('detail', '<p>데이터 로드 실패</p>');
         }
     }
 
@@ -2546,7 +2536,7 @@ async function change3DaysDate() {
     threeDaysState.hasMore = true;
     threeDaysState.loadedCount = 0;
 
-    document.getElementById('modal-body').innerHTML = '<p>데이터를 불러오는 중...</p>';
+    AppModal.setBody('detail', '<p>데이터를 불러오는 중...</p>');
     await load3DaysData(true);
 }
 
@@ -2557,7 +2547,7 @@ function render3DaysModalInitial(data) {
     const displayFields = data.display_fields || [];
 
     if (items.length === 0 && threeDaysState.totalCount === 0) {
-        document.getElementById('modal-body').innerHTML = '<p style="text-align: center; padding: 40px; color: var(--text-secondary);">데이터가 없습니다.</p>';
+        AppModal.setBody('detail', '<p style="text-align: center; padding: 40px; color: var(--text-secondary);">데이터가 없습니다.</p>');
         return;
     }
 
@@ -2617,7 +2607,7 @@ function render3DaysModalInitial(data) {
 
     html += '</div>';
 
-    document.getElementById('modal-body').innerHTML = html;
+    AppModal.setBody('detail', html);
 
     // 스크롤 이벤트 및 동기화 설정
     setTimeout(() => {
@@ -2796,16 +2786,16 @@ async function showFieldMissing3Days() {
         return;
     }
 
-    document.getElementById('modal-title').textContent = `${field} - 3일치 전체 데이터 (${retailer})`;
-    document.getElementById('modal-body').innerHTML = '<p>데이터를 불러오는 중...</p>';
-    document.getElementById('detail-modal').classList.add('show');
+    AppModal.setTitle('detail', `${field} - 3일치 전체 데이터 (${retailer})`);
+    AppModal.setBody('detail', '<p>데이터를 불러오는 중...</p>');
+    AppModal.open('detail');
 
     try {
         const data = await fetchAPI(`/layer3/api/field-missing-detail-all/?date=${date}&type=${productLine}&retailer=${retailer}&column=${field}`);
         renderFieldMissing3Days(data, field);
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('modal-body').innerHTML = '<p>데이터 로드 실패</p>';
+        AppModal.setBody('detail', '<p>데이터 로드 실패</p>');
     }
 }
 
@@ -2813,7 +2803,7 @@ async function showFieldMissing3Days() {
 function renderFieldMissing3Days(data, fieldName) {
     const items = data.data || [];
     if (items.length === 0) {
-        document.getElementById('modal-body').innerHTML = '<p>데이터가 없습니다.</p>';
+        AppModal.setBody('detail', '<p>데이터가 없습니다.</p>');
         return;
     }
 
@@ -2838,7 +2828,7 @@ function renderFieldMissing3Days(data, fieldName) {
     });
 
     html += '</tbody></table>';
-    document.getElementById('modal-body').innerHTML = html;
+    AppModal.setBody('detail', html);
 }
 
 // 필드 누락 탐지 데이터 로드
@@ -2919,16 +2909,16 @@ async function showFieldMissingDetailAll(retailer, fieldName) {
     const date = document.getElementById('target-date').value;
     const productLine = currentFieldMissingPL || 'tv';
 
-    document.getElementById('modal-title').textContent = `${fieldName} - 전체 데이터 (${retailer})`;
-    document.getElementById('modal-body').innerHTML = '<p>데이터를 불러오는 중...</p>';
-    document.getElementById('detail-modal').classList.add('show');
+    AppModal.setTitle('detail', `${fieldName} - 전체 데이터 (${retailer})`);
+    AppModal.setBody('detail', '<p>데이터를 불러오는 중...</p>');
+    AppModal.open('detail');
 
     try {
         const data = await fetchAPI(`/layer3/api/field-missing-detail-all/?date=${date}&type=${productLine}&retailer=${retailer}&field=${fieldName}`);
         renderFieldMissingDetailAll(data, fieldName);
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('modal-body').innerHTML = '<p>데이터 로드 실패</p>';
+        AppModal.setBody('detail', '<p>데이터 로드 실패</p>');
     }
 }
 
@@ -2937,16 +2927,16 @@ async function showFieldMissingDetailProblem(retailer, fieldName) {
     const date = document.getElementById('target-date').value;
     const productLine = currentFieldMissingPL || 'tv';
 
-    document.getElementById('modal-title').textContent = `${fieldName} - 문제 데이터 (${retailer})`;
-    document.getElementById('modal-body').innerHTML = '<p>데이터를 불러오는 중...</p>';
-    document.getElementById('detail-modal').classList.add('show');
+    AppModal.setTitle('detail', `${fieldName} - 문제 데이터 (${retailer})`);
+    AppModal.setBody('detail', '<p>데이터를 불러오는 중...</p>');
+    AppModal.open('detail');
 
     try {
         const data = await fetchAPI(`/layer3/api/field-missing-detail-problem/?date=${date}&type=${productLine}&retailer=${retailer}&field=${fieldName}`);
         renderFieldMissingDetailProblem(data, fieldName);
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('modal-body').innerHTML = '<p>데이터 로드 실패</p>';
+        AppModal.setBody('detail', '<p>데이터 로드 실패</p>');
     }
 }
 
@@ -2959,7 +2949,7 @@ function showFieldMissingDetail(retailer, fieldName) {
 function renderFieldMissingDetailAll(data, fieldName) {
     const items = data.items || [];
     if (items.length === 0) {
-        document.getElementById('modal-body').innerHTML = '<p>데이터가 없습니다.</p>';
+        AppModal.setBody('detail', '<p>데이터가 없습니다.</p>');
         return;
     }
 
@@ -2983,14 +2973,14 @@ function renderFieldMissingDetailAll(data, fieldName) {
     });
 
     html += '</tbody></table>';
-    document.getElementById('modal-body').innerHTML = html;
+    AppModal.setBody('detail', html);
 }
 
 // 문제 데이터 모달 렌더링
 function renderFieldMissingDetailProblem(data, fieldName) {
     const items = data.items || [];
     if (items.length === 0) {
-        document.getElementById('modal-body').innerHTML = '<p>문제 데이터가 없습니다.</p>';
+        AppModal.setBody('detail', '<p>문제 데이터가 없습니다.</p>');
         return;
     }
 
@@ -3009,7 +2999,7 @@ function renderFieldMissingDetailProblem(data, fieldName) {
     });
 
     html += '</tbody></table>';
-    document.getElementById('modal-body').innerHTML = html;
+    AppModal.setBody('detail', html);
 }
 
 // 검증 규칙 데이터

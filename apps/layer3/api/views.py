@@ -12,7 +12,6 @@ from django.http import JsonResponse
 from django.conf import settings
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
-from apps.common.retail_columns import get_timeseries_rules
 from apps.common.response import safe_error, log_error
 
 
@@ -83,8 +82,42 @@ def _validate_exclude_condition(condition):
 
 
 # ============================================================
-# CSV 기반 크로스필드 검증 규칙 로드
+# DB 기반 검증 규칙 로드 (monitoring_validation_rules)
 # ============================================================
+def load_timeseries_rules():
+    """DB에서 시계열 이상치 검증 규칙 로드 (monitoring_validation_rules 테이블)"""
+    rules = []
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, detail_code, detail_name, section_code, section_name,
+                   table_name, date_column, product_line,
+                   check_column, check_type, comparison_type,
+                   threshold_pct, threshold_min,
+                   error_message, query, sort_order
+            FROM monitoring_validation_rules
+            WHERE rule_type = 'timeseries' AND is_active = true
+            ORDER BY sort_order, id
+        """)
+        columns = [
+            'rule_id', 'detail_code', 'detail_name', 'section_code', 'section_name',
+            'table_name', 'date_column', 'product_line',
+            'check_column', 'check_type', 'comparison_type',
+            'threshold_pct', 'threshold_min',
+            'error_message', 'query', 'sort_order'
+        ]
+        for row in cursor.fetchall():
+            rules.append(dict(zip(columns, row)))
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        log_error(e)
+
+    return rules
+
+
+
 def load_crossfield_rules():
     """DB에서 크로스필드 검증 규칙 로드 (monitoring_validation_rules 테이블)"""
     rules = []
@@ -98,7 +131,7 @@ def load_crossfield_rules():
                    error_message, select_fields, query, sort_order
             FROM monitoring_validation_rules
             WHERE rule_type = 'crossfield' AND is_active = true
-            ORDER BY section_code, sort_order, id
+            ORDER BY sort_order, id
         """)
         columns = [
             'rule_id', 'detail_code', 'detail_name', 'section_code', 'section_name',
@@ -773,9 +806,9 @@ def layer_stats(request):
         run_market = section in ('', 'category_spec', 'cross_field')
 
         # ============================================================
-        # 1. 시계열 이상치 탐지 (CSV 기반 - 전일 대비 급격한 변화)
+        # 1. 시계열 이상치 탐지 (DB 기반 - 전일 대비 급격한 변화)
         # ============================================================
-        timeseries_rules = get_timeseries_rules() if run_timeseries else []
+        timeseries_rules = load_timeseries_rules() if run_timeseries else []
 
         # 제품라인별로 필터링
         if product_line != 'all':
@@ -792,10 +825,7 @@ def layer_stats(request):
             table_name = rule['table_name']
             _validate_table_name(table_name)
             date_column = rule['date_column']
-            check_column = rule['check_column']
             check_type = rule['check_type']
-            threshold_pct = rule['threshold_percent'] / 100.0
-            threshold_min = rule['threshold_min_value']
             pl = rule['product_line']
 
             # HHP는 별도 커넥션 사용
@@ -821,105 +851,13 @@ def layer_stats(request):
 
             table_total = table_totals[table_name]
 
-            # 시계열 이상치 쿼리 실행
+            # DB 저장 쿼리 실행
             anomaly_count = 0
             try:
-                if check_type == 'price':
-                    # 가격 변동 체크
-                    query = f"""
-                        WITH today_am AS (
-                            SELECT item, account_name,
-                                   CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE({check_column}, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as val
-                            FROM {table_name}
-                            WHERE DATE({date_column}::timestamp) = %s
-                            AND EXTRACT(HOUR FROM {date_column}::timestamp) < 12
-                            AND {check_column} IS NOT NULL
-                            AND {check_column} LIKE '$%%'
-                        ),
-                        today_pm AS (
-                            SELECT item, account_name,
-                                   CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE({check_column}, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as val
-                            FROM {table_name}
-                            WHERE DATE({date_column}::timestamp) = %s
-                            AND EXTRACT(HOUR FROM {date_column}::timestamp) >= 12
-                            AND {check_column} IS NOT NULL
-                            AND {check_column} LIKE '$%%'
-                        ),
-                        yesterday_pm AS (
-                            SELECT item, account_name,
-                                   CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE({check_column}, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as val
-                            FROM {table_name}
-                            WHERE DATE({date_column}::timestamp) = %s
-                            AND EXTRACT(HOUR FROM {date_column}::timestamp) >= 12
-                            AND {check_column} IS NOT NULL
-                            AND {check_column} LIKE '$%%'
-                        ),
-                        am_changes AS (
-                            SELECT t.item FROM today_am t
-                            JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
-                            WHERE t.val > 0 AND y.val > 0
-                            AND ABS(t.val - y.val) / NULLIF(y.val, 0) > {threshold_pct}
-                        ),
-                        pm_changes AS (
-                            SELECT t.item FROM today_pm t
-                            JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-                            WHERE t.val > 0 AND a.val > 0
-                            AND ABS(t.val - a.val) / NULLIF(a.val, 0) > {threshold_pct}
-                        )
-                        SELECT (SELECT COUNT(*) FROM am_changes) + (SELECT COUNT(*) FROM pm_changes)
-                    """
-                    curr_cursor.execute(query, (target_date, target_date, prev_date))
+                stored_query = rule.get('query', '')
+                if stored_query:
+                    curr_cursor.execute(stored_query, (target_date, target_date, prev_date))
                     anomaly_count = curr_cursor.fetchone()[0] or 0
-
-                elif check_type == 'review':
-                    # 리뷰 수 변동 체크
-                    query = f"""
-                        WITH today_am AS (
-                            SELECT item, account_name,
-                                   CAST(REPLACE({check_column}, ',', '') AS INTEGER) as val
-                            FROM {table_name}
-                            WHERE DATE({date_column}::timestamp) = %s
-                            AND EXTRACT(HOUR FROM {date_column}::timestamp) < 12
-                            AND {check_column} IS NOT NULL
-                            AND {check_column} ~ '^[0-9,]+$'
-                        ),
-                        today_pm AS (
-                            SELECT item, account_name,
-                                   CAST(REPLACE({check_column}, ',', '') AS INTEGER) as val
-                            FROM {table_name}
-                            WHERE DATE({date_column}::timestamp) = %s
-                            AND EXTRACT(HOUR FROM {date_column}::timestamp) >= 12
-                            AND {check_column} IS NOT NULL
-                            AND {check_column} ~ '^[0-9,]+$'
-                        ),
-                        yesterday_pm AS (
-                            SELECT item, account_name,
-                                   CAST(REPLACE({check_column}, ',', '') AS INTEGER) as val
-                            FROM {table_name}
-                            WHERE DATE({date_column}::timestamp) = %s
-                            AND EXTRACT(HOUR FROM {date_column}::timestamp) >= 12
-                            AND {check_column} IS NOT NULL
-                            AND {check_column} ~ '^[0-9,]+$'
-                        ),
-                        am_changes AS (
-                            SELECT t.item FROM today_am t
-                            JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
-                            WHERE y.val > 0
-                            AND (t.val - y.val)::float / y.val > {threshold_pct}
-                            AND (t.val - y.val) >= {threshold_min}
-                        ),
-                        pm_changes AS (
-                            SELECT t.item FROM today_pm t
-                            JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-                            WHERE a.val > 0
-                            AND (t.val - a.val)::float / a.val > {threshold_pct}
-                            AND (t.val - a.val) >= {threshold_min}
-                        )
-                        SELECT (SELECT COUNT(*) FROM am_changes) + (SELECT COUNT(*) FROM pm_changes)
-                    """
-                    curr_cursor.execute(query, (target_date, target_date, prev_date))
-                    anomaly_count = curr_cursor.fetchone()[0] or 0
-
             except Exception as e:
                 log_error(e)
 
@@ -928,14 +866,14 @@ def layer_stats(request):
 
             # 임계값 표시 문자열
             if check_type == 'price':
-                threshold_str = f">{int(rule['threshold_percent'])}%"
+                threshold_str = f">{int(rule['threshold_pct'])}%"
             else:
-                threshold_str = f"+{int(rule['threshold_percent'])}%"
+                threshold_str = f"+{int(rule['threshold_pct'])}%"
 
             results['checks'].append({
                 'category': '시계열 이상치',
-                'name': rule['display_name'],
-                'description': rule['description'],
+                'name': rule['detail_name'],
+                'description': rule['error_message'],
                 'checked': table_total,
                 'passed': table_total - anomaly_count,
                 'failed': anomaly_count,
@@ -2004,7 +1942,7 @@ def review_change_detail(request):
             # TV 리뷰 수 - 오전/오후 구분 비교
             cursor.execute("""
                 WITH today_am AS (
-                    SELECT item, account_name, product_name,
+                    SELECT item, account_name, retailer_sku_name as product_name,
                            CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count,
                            product_url, 'AM' as period
                     FROM tv_retail_com
@@ -2014,7 +1952,7 @@ def review_change_detail(request):
                     AND count_of_star_ratings ~ '^[0-9,]+$'
                 ),
                 today_pm AS (
-                    SELECT item, account_name, product_name,
+                    SELECT item, account_name, retailer_sku_name as product_name,
                            CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count,
                            product_url, 'PM' as period
                     FROM tv_retail_com
@@ -2068,7 +2006,7 @@ def review_change_detail(request):
             # HHP 리뷰 수 - 오전/오후 구분 비교
             cursor.execute("""
                 WITH today_am AS (
-                    SELECT item, account_name, item as product_name,
+                    SELECT item, account_name, retailer_sku_name as product_name,
                            CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count,
                            product_url, 'AM' as period
                     FROM hhp_retail_com
@@ -2078,7 +2016,7 @@ def review_change_detail(request):
                     AND count_of_star_ratings ~ '^[0-9,]+$'
                 ),
                 today_pm AS (
-                    SELECT item, account_name, item as product_name,
+                    SELECT item, account_name, retailer_sku_name as product_name,
                            CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count,
                            product_url, 'PM' as period
                     FROM hhp_retail_com

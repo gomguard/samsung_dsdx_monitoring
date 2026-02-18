@@ -4,6 +4,7 @@
 {% block title %}Layer 3: {{ layer.name }} - {% block page_title %}대시보드{% endblock %}{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/modal.css' %}?v=1">
 <link rel="stylesheet" href="{% static 'css/layer3.css' %}?v=1">
 <style>
     :root { --layer-color: {{ layer.color|escapejs }}; }
@@ -38,20 +39,10 @@
     </div>
 </div>
 
-<!-- Detail Modal (검증 규칙 등 참조용) -->
-<div class="modal-overlay" id="detail-modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 id="modal-title">상세 정보</h3>
-            <button class="modal-close" onclick="closeModal()">&times;</button>
-        </div>
-        <div class="modal-body" id="modal-body">
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/modal.js' %}?v=1"></script>
 <script>
     window.LAYER3 = {
         color: '{{ layer.color|escapejs }}',
@@ -59,6 +50,7 @@
         targetDate: '{{ target_date|default:""|escapejs }}',
         username: '{{ request.user.username|default:""|escapejs }}'
     };
+    AppModal.create('detail', { style: 'wide' });
 </script>
 {% block layer3_js %}{% endblock %}
 {% endblock %}
