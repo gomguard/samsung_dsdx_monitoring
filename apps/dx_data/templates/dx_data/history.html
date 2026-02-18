@@ -260,7 +260,19 @@
         </div>
 
         <!-- 필터 -->
-        {% include 'components/search_box.html' with fields=None show_status=False input_type="date" input_id="filterDate" input_placeholder="" extra_filters=extra_filters on_search="loadData(1)" on_reset="resetFilter()" %}
+        <div class="search-box">
+            <input type="date" class="search-box-input" id="filterDate" onchange="loadData(1)">
+            <input type="text" class="search-box-input" id="filterItem" placeholder="item 검색..." onkeypress="if(event.key==='Enter') loadData(1)">
+            {% for filter in extra_filters %}
+            <select class="search-box-select" id="{{ filter.id }}">
+                {% for option in filter.options %}
+                <option value="{{ option.value }}">{{ option.label }}</option>
+                {% endfor %}
+            </select>
+            {% endfor %}
+            <button class="search-box-btn search-box-btn-search" onclick="loadData(1)">조회</button>
+            <button class="search-box-btn search-box-btn-reset" onclick="resetFilter()">해제</button>
+        </div>
 
         <!-- item 복사 영역 -->
         <div id="copyBar"></div>
@@ -331,6 +343,7 @@ async function loadData(page) {
     container.innerHTML = '<div class="loading-overlay"><div class="spinner"></div> 로딩 중...</div>';
 
     const date = document.getElementById('filterDate').value;
+    const item = document.getElementById('filterItem').value.trim();
     const field = document.getElementById('filterField').value;
     const account = document.getElementById('filterAccount').value;
 
@@ -340,6 +353,7 @@ async function loadData(page) {
         page_size: PAGE_SIZE,
     });
     if (date) params.append('date', date);
+    if (item) params.append('item', item);
     if (field) params.append('field', field);
     if (account) params.append('account_name', account);
 
@@ -459,6 +473,7 @@ function copyItems(retailer) {
 
 function resetFilter() {
     document.getElementById('filterDate').value = '';
+    document.getElementById('filterItem').value = '';
     document.getElementById('filterField').value = '';
     document.getElementById('filterAccount').value = '';
     loadData(1);

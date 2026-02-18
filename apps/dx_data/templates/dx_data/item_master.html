@@ -240,6 +240,10 @@
     .product-label.yes { color: #0d9488; }
     .product-label.no { color: #f97316; }
 
+    .checked-label { font-size: 11px; font-weight: 600; margin-left: 6px; }
+    .checked-label.yes { color: #2563eb; }
+    .checked-label.no { color: #9ca3af; }
+
     .url-link {
         color: #3b82f6;
         text-decoration: none;
@@ -363,9 +367,9 @@ const PAGE_SIZE = 50;
 const currentUserId = '{{ user.username|escapejs }}';
 let pager = null;
 
-// 변경 추적: { id: { is_product: bool } }
+// 변경 추적: { id: { is_product?: bool, is_checked?: bool } }
 const pendingChanges = new Map();
-// 원본 값 저장: { id: bool }
+// 원본 값 저장: { id: { is_product: bool, is_checked: bool } }
 const originalValues = new Map();
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -406,6 +410,7 @@ function getFilterParams(page) {
     const field = document.getElementById('filterField')?.value || 'item';
     const input = document.getElementById('filterInput')?.value || '';
     const isProduct = document.getElementById('filterProduct')?.value || '';
+    const isChecked = document.getElementById('filterChecked')?.value || '';
     const account = document.getElementById('filterAccount')?.value || '';
 
     const params = new URLSearchParams({
@@ -416,6 +421,7 @@ function getFilterParams(page) {
     });
     if (input) params.append('search', input);
     if (isProduct) params.append('is_product', isProduct);
+    if (isChecked) params.append('is_checked', isChecked);
     if (account) params.append('account_name', account);
 
     return params.toString();
@@ -440,6 +446,7 @@ async function loadData(page) {
         document.getElementById('statTotal').textContent = data.stats.total.toLocaleString();
         document.getElementById('statProduct').textContent = data.stats.product.toLocaleString();
         document.getElementById('statNonProduct').textContent = data.stats.non_product.toLocaleString();
+        document.getElementById('statChecked').textContent = data.stats.checked.toLocaleString();
 
         if (data.items.length === 0) {
             container.innerHTML = '<div class="empty-state">데이터가 없습니다</div>';
@@ -459,6 +466,7 @@ async function loadData(page) {
                         <th>SKU</th>
                         <th>${extraColLabel}</th>
                         <th style="width:110px;">제품여부</th>
+                        <th style="width:120px;">확인완료</th>
                         <th>URL</th>
                     </tr>
                 </thead>
@@ -468,34 +476,47 @@ async function loadData(page) {
         const startNo = (page - 1) * PAGE_SIZE;
         data.items.forEach((item, idx) => {
             // pending 변경이 있으면 그 값 사용, 없으면 원본
-            const hasPending = pendingChanges.has(item.id);
-            const isProduct = hasPending ? pendingChanges.get(item.id).is_product : item.is_product;
-            const checked = isProduct ? 'checked' : '';
-            const labelClass = isProduct ? 'yes' : 'no';
-            const labelText = isProduct ? '제품' : '비제품';
+            const pending = pendingChanges.get(item.id);
+            const hasPending = !!pending;
+            const isProduct = pending && 'is_product' in pending ? pending.is_product : item.is_product;
+            const isChecked = pending && 'is_checked' in pending ? pending.is_checked : item.is_checked;
+            const prodChecked = isProduct ? 'checked' : '';
+            const chkChecked = isChecked ? 'checked' : '';
+            const prodClass = isProduct ? 'yes' : 'no';
+            const prodText = isProduct ? '제품' : '비제품';
+            const chkClass = isChecked ? 'yes' : 'no';
+            const chkText = isChecked ? '확인' : '미확인';
             const changedClass = hasPending ? ' changed' : '';
-            const urlHtml = item.product_url
-                ? `<a href="${item.product_url}" target="_blank" class="url-link" title="${item.product_url}">링크</a><button class="copy-btn" onclick="copyUrl('${item.product_url.replace(/'/g, "\\'")}')" title="URL 복사"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>`
+            const safeHref = safeUrl(item.product_url);
+            const urlHtml = safeHref
+                ? `<a href="${esc(safeHref)}" target="_blank" class="url-link" title="${esc(safeHref)}">링크</a><button class="copy-btn" onclick="copyUrl('${escJs(safeHref)}')" title="URL 복사"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>`
                 : '-';
 
             // 원본 값 저장
             if (!originalValues.has(item.id)) {
-                originalValues.set(item.id, item.is_product);
+                originalValues.set(item.id, { is_product: item.is_product, is_checked: item.is_checked });
             }
 
             html += `
                 <tr data-id="${item.id}" class="${changedClass}">
                     <td style="text-align:center;color:var(--text-secondary);font-size:12px;">${startNo + idx + 1}</td>
-                    <td><span class="item-name" title="${(item.item || '').replace(/"/g, '&quot;')}">${item.item || '-'}</span></td>
-                    <td>${item.account_name || '-'}</td>
-                    <td>${item.sku || '-'}</td>
-                    <td>${item.extra_col || '-'}</td>
+                    <td><span class="item-name" title="${esc(item.item || '')}">${esc(item.item || '-')}</span></td>
+                    <td>${esc(item.account_name || '-')}</td>
+                    <td>${esc(item.sku || '-')}</td>
+                    <td>${esc(item.extra_col || '-')}</td>
                     <td>
                         <label class="toggle-switch">
-                            <input type="checkbox" ${checked} onchange="toggleProduct(${item.id}, this.checked)">
+                            <input type="checkbox" ${prodChecked} onchange="toggleField(${item.id}, 'is_product', this.checked)">
                             <span class="toggle-slider"></span>
                         </label>
-                        <span class="product-label ${labelClass}" id="label_${item.id}">${labelText}</span>
+                        <span class="product-label ${prodClass}" id="label_product_${item.id}">${prodText}</span>
+                    </td>
+                    <td>
+                        <label class="toggle-switch">
+                            <input type="checkbox" ${chkChecked} onchange="toggleField(${item.id}, 'is_checked', this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="checked-label ${chkClass}" id="label_checked_${item.id}">${chkText}</span>
                     </td>
                     <td>${urlHtml}</td>
                 </tr>
@@ -515,33 +536,67 @@ async function loadData(page) {
 function resetFilter() {
     const input = document.getElementById('filterInput');
     const product = document.getElementById('filterProduct');
+    const checked = document.getElementById('filterChecked');
     const account = document.getElementById('filterAccount');
     const field = document.getElementById('filterField');
 
     if (input) input.value = '';
     if (product) product.value = '';
+    if (checked) checked.value = '';
     if (account) account.value = '';
     if (field) field.value = 'item';
 
     loadData(1);
 }
 
-function toggleProduct(id, isProduct) {
+function toggleField(id, field, value) {
     const original = originalValues.get(id);
+    if (!original) return;
 
-    if (original === isProduct) {
-        // 원래 값으로 되돌림 → pending에서 제거
+    // 현재 pending 상태 가져오기
+    const pending = pendingChanges.get(id) || {};
+    pending[field] = value;
+
+    // is_product 변경 시 is_checked 자동 연동
+    if (field === 'is_product') {
+        if (value !== original.is_product) {
+            // 원본과 다르게 변경 → 확인완료로
+            pending.is_checked = true;
+        } else {
+            // 원본으로 되돌림 → 확인완료도 원본으로
+            pending.is_checked = original.is_checked;
+        }
+        // is_checked 토글 UI도 동기화
+        const chkInput = document.querySelector(`tr[data-id="${id}"] td:nth-child(7) input[type="checkbox"]`);
+        if (chkInput) chkInput.checked = pending.is_checked;
+        const chkLabel = document.getElementById(`label_checked_${id}`);
+        if (chkLabel) {
+            chkLabel.textContent = pending.is_checked ? '확인' : '미확인';
+            chkLabel.className = `checked-label ${pending.is_checked ? 'yes' : 'no'}`;
+        }
+    }
+
+    // 모든 필드가 원본과 동일하면 pending에서 제거
+    const allSame = Object.keys(pending).every(k => pending[k] === original[k]);
+    if (allSame) {
         pendingChanges.delete(id);
     } else {
-        // 변경 → pending에 추가
-        pendingChanges.set(id, { is_product: isProduct });
+        pendingChanges.set(id, pending);
     }
 
     // 라벨 업데이트
-    const label = document.getElementById(`label_${id}`);
-    if (label) {
-        label.textContent = isProduct ? '제품' : '비제품';
-        label.className = `product-label ${isProduct ? 'yes' : 'no'}`;
+    if (field === 'is_product') {
+        const label = document.getElementById(`label_product_${id}`);
+        if (label) {
+            label.textContent = value ? '제품' : '비제품';
+            label.className = `product-label ${value ? 'yes' : 'no'}`;
+        }
+    } else if (field === 'is_checked') {
+        const label = document.getElementById(`label_checked_${id}`);
+        if (label) {
+            label.textContent = value ? '확인' : '미확인';
+            label.className = `checked-label ${value ? 'yes' : 'no'}`;
+        }
     }
 
     // 행 변경 표시
@@ -577,7 +632,10 @@ async function saveChanges() {
 
     const changes = [];
     pendingChanges.forEach((val, id) => {
-        changes.push({ id: id, is_product: val.is_product });
+        const change = { id: id };
+        if ('is_product' in val) change.is_product = val.is_product;
+        if ('is_checked' in val) change.is_checked = val.is_checked;
+        changes.push(change);
     });
 
     const btn = document.getElementById('saveBtn');

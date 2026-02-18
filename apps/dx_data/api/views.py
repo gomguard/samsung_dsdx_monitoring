@@ -32,6 +32,7 @@ def item_master_list(request):
         return JsonResponse({'error': '잘못된 테이블'}, status=400)
 
     is_product = request.GET.get('is_product', '')
+    is_checked = request.GET.get('is_checked', '')
     account_name = request.GET.get('account_name', '')
     search = request.GET.get('search', '')
     search_field = request.GET.get('search_field', 'item')
@@ -58,6 +59,11 @@ def item_master_list(request):
             conditions.append('is_product = true')
         elif is_product == 'false':
             conditions.append('is_product = false')
+
+        if is_checked == 'true':
+            conditions.append('is_checked = true')
+        elif is_checked == 'false':
+            conditions.append('is_checked = false')
 
         if account_name:
             conditions.append('account_name = %s')
@@ -91,6 +97,9 @@ def item_master_list(request):
 
         total_non_product = total_all - total_product
 
+        cursor.execute(f'SELECT COUNT(*) FROM {table_name} WHERE is_checked = true')
+        total_checked = cursor.fetchone()[0]
+
         # 필터된 총 건수
         cursor.execute(f'SELECT COUNT(*) FROM {table_name} {where_clause}', params)
         total_filtered = cursor.fetchone()[0]
@@ -101,14 +110,14 @@ def item_master_list(request):
         # 데이터 조회
         offset = (page - 1) * page_size
         cursor.execute(f"""
-            SELECT id, item, account_name, sku, {extra_col}, is_product, product_url
+            SELECT id, item, account_name, sku, {extra_col}, is_product, is_checked, product_url
             FROM {table_name}
             {where_clause}
             ORDER BY account_name, item
             LIMIT %s OFFSET %s
         """, params + [page_size, offset])
 
-        columns = ['id', 'item', 'account_name', 'sku', 'extra_col', 'is_product', 'product_url']
+        columns = ['id', 'item', 'account_name', 'sku', 'extra_col', 'is_product', 'is_checked', 'product_url']
         items = []
         for row in cursor.fetchall():
             items.append(dict(zip(columns, row)))
@@ -125,6 +134,7 @@ def item_master_list(request):
                 'total': total_all,
                 'product': total_product,
                 'non_product': total_non_product,
+                'checked': total_checked,
             },
             'extra_col_name': extra_col,
         })
@@ -204,6 +214,7 @@ def item_master_history(request):
     date = request.GET.get('date', '')
     field = request.GET.get('field', '')
     account_name = request.GET.get('account_name', '')
+    item_search = request.GET.get('item', '')
     try:
         page = max(1, int(request.GET.get('page', 1)))
         page_size = min(int(request.GET.get('page_size', 50)), 200)
@@ -230,6 +241,10 @@ def item_master_history(request):
         if account_name:
             conditions.append('m.account_name = %s')
             params.append(account_name)
+
+        if item_search:
+            conditions.append('m.item ILIKE %s')
+            params.append(f'%{item_search}%')
 
         where = ' AND '.join(conditions)
 

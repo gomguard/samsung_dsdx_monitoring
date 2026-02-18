@@ -30,6 +30,14 @@ def item_master(request):
                 ],
             },
             {
+                'id': 'filterChecked',
+                'options': [
+                    {'value': '', 'label': '확인완료 (전체)'},
+                    {'value': 'true', 'label': '확인완료'},
+                    {'value': 'false', 'label': '미확인'},
+                ],
+            },
+            {
                 'id': 'filterAccount',
                 'options': [
                     {'value': '', 'label': '리테일러 (전체)'},
@@ -43,6 +51,7 @@ def item_master(request):
             {'id': 'statTotal', 'label': '전체', 'value': 0},
             {'id': 'statProduct', 'label': '제품', 'value': 0},
             {'id': 'statNonProduct', 'label': '비제품', 'value': 0},
+            {'id': 'statChecked', 'label': '확인완료', 'value': 0},
         ],
     }
     return render(request, 'dx_data/item_master.html', context)
