@@ -16,7 +16,41 @@ from apps.common.retail_columns import get_timeseries_rules
 from apps.common.response import safe_error, log_error
 
 
+import re
+
 _DANGEROUS_SQL = {'DROP', 'DELETE', 'TRUNCATE', 'UPDATE', 'INSERT', 'ALTER', 'GRANT', 'REVOKE'}
+
+# 허용 테이블 화이트리스트
+_ALLOWED_TABLES = {
+    'tv_retail_com', 'hhp_retail_com',
+    'tv_item_mst', 'hhp_item_mst',
+    'tv_sentiment_com', 'hhp_sentiment_com',
+    'comp_product',
+    'openai_forecast_results',
+}
+
+# exclude_condition 허용 패턴 (개별 조건 단위)
+# ex) "field LIKE 'value%'", "field = 'value'", "field IS NULL"
+_EXCLUDE_PATTERN = re.compile(
+    r"""^\s*\w+\s+(?:
+        LIKE\s+'[^']*'          |
+        NOT\s+LIKE\s+'[^']*'    |
+        =\s*'[^']*'             |
+        !=\s*'[^']*'            |
+        <>\s*'[^']*'            |
+        IS\s+NULL               |
+        IS\s+NOT\s+NULL         |
+        IN\s*\([^)]+\)
+    )\s*$""",
+    re.IGNORECASE | re.VERBOSE
+)
+
+
+def _validate_table_name(table_name):
+    """테이블명 화이트리스트 검증"""
+    if table_name not in _ALLOWED_TABLES:
+        raise ValueError(f"허용되지 않은 테이블: {table_name}")
+    return table_name
 
 
 def _validate_select_query(query):
@@ -25,20 +59,26 @@ def _validate_select_query(query):
     if not upper.startswith('SELECT'):
         return False
     for keyword in _DANGEROUS_SQL:
-        if keyword in upper:
+        # 단어 경계 체크 (UPDATED 같은 컬럼명 오탐 방지)
+        if re.search(r'\b' + keyword + r'\b', upper):
             return False
+    if ';' in query:
+        return False
     return True
 
 
 def _validate_exclude_condition(condition):
-    """exclude_condition SQL 조각 검증 — 위험한 키워드 차단"""
-    upper = condition.upper().strip()
-    for keyword in _DANGEROUS_SQL:
-        if keyword in upper:
-            return False
-    # 세미콜론 차단 (다중 문 실행 방지)
-    if ';' in condition:
+    """exclude_condition SQL 조각 검증 — 화이트리스트 패턴만 허용"""
+    if not condition or not condition.strip():
         return False
+    # 세미콜론/주석 차단
+    if ';' in condition or '--' in condition or '/*' in condition:
+        return False
+    # OR로 분리된 각 조건을 개별 검증
+    parts = re.split(r'\bOR\b', condition, flags=re.IGNORECASE)
+    for part in parts:
+        if not _EXCLUDE_PATTERN.match(part.strip()):
+            return False
     return True
 
 
@@ -46,20 +86,30 @@ def _validate_exclude_condition(condition):
 # CSV 기반 크로스필드 검증 규칙 로드
 # ============================================================
 def load_crossfield_rules():
-    """dx_crossfield_rules.csv 파일에서 검증 규칙 로드"""
+    """DB에서 크로스필드 검증 규칙 로드 (monitoring_validation_rules 테이블)"""
     rules = []
-    csv_path = os.path.join(settings.BASE_DIR, 'config', 'csv', 'dx_crossfield_rules.csv')
-
     try:
-        with open(csv_path, 'r', encoding='utf-8', newline='') as f:
-            reader = csv.DictReader(f, quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            for row in reader:
-                # 디버깅: 쿼리가 제대로 파싱되었는지 확인
-                rule_id = row.get('rule_id', '')
-                query = row.get('query', '')
-                if query and not query.strip().upper().startswith('SELECT'):
-                    print(f"[DEBUG] Rule {rule_id} query parsing issue: {query[:100]}...")
-                rules.append(row)
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, detail_code, detail_name, section_code, section_name,
+                   table_name, date_column, product_line, retailer,
+                   field1, field2, validation_type,
+                   error_message, select_fields, query, sort_order
+            FROM monitoring_validation_rules
+            WHERE rule_type = 'crossfield' AND is_active = true
+            ORDER BY section_code, sort_order, id
+        """)
+        columns = [
+            'rule_id', 'detail_code', 'detail_name', 'section_code', 'section_name',
+            'table_name', 'date_column', 'product_line', 'retailer',
+            'field1', 'field2', 'validation_type',
+            'error_message', 'select_fields', 'query', 'sort_order'
+        ]
+        for row in cursor.fetchall():
+            rules.append(dict(zip(columns, row)))
+        cursor.close()
+        conn.close()
     except Exception as e:
         log_error(e)
 
@@ -102,7 +152,7 @@ def _get_non_product_set(cursor, table_name, product_line, pairs):
     if not pairs or 'retail_com' not in table_name:
         return set()
     pl = (product_line or '').lower()
-    mst = 'hhp_item_mst' if 'hhp' in pl or 'hhp' in table_name else 'tv_item_mst'
+    mst = _validate_table_name('hhp_item_mst' if 'hhp' in pl or 'hhp' in table_name else 'tv_item_mst')
     ph = ' OR '.join(['(item = %s AND account_name = %s)'] * len(pairs))
     params = [v for p in pairs for v in p]
     cursor.execute(f"SELECT item, account_name FROM {mst} WHERE (is_product = false OR is_checked = true) AND ({ph})", params)
@@ -278,6 +328,7 @@ def validate_all_category_specs(target_date):
             has_date_filter = bool(date_col)
 
             try:
+                _validate_table_name(table_name)
                 # 전체 건수 쿼리 (date_column 기반)
                 if has_date_filter:
                     total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE({date_col}) = %s"
@@ -332,8 +383,6 @@ def validate_all_category_specs(target_date):
             except Exception as e:
                 conn.rollback()
                 log_error(e)
-                import traceback
-                traceback.print_exc()
 
         # 섹션별 결과 추가
         results.append({
@@ -360,12 +409,12 @@ def execute_crossfield_query(rule, table_name, date_col, target_date, product_li
     rule_id = str(rule.get('rule_id', ''))
 
     if not query_template:
-        print(f"[DEBUG] Rule {rule_id}: query_template is empty")
         return 0, []
 
     if not query_template.strip().upper().startswith('SELECT'):
-        print(f"[DEBUG] Rule {rule_id}: query does not start with SELECT: {query_template[:50]}...")
         return 0, []
+
+    _validate_table_name(table_name)
 
     # 쿼리 템플릿 변수 치환
     query = query_template.replace('{table}', table_name)
@@ -402,19 +451,16 @@ def execute_crossfield_query(rule, table_name, date_col, target_date, product_li
 
         return len(results), results
     except Exception as e:
-        import traceback
         log_error(e)
-        print(f"[DEBUG] Query: {query[:500]}...")
-        print(f"[DEBUG] Traceback: {traceback.format_exc()}")
         return 0, []
 
 
-def validate_crossfield_by_csv(target_date, category='tv_retail'):
-    """CSV 기반 크로스필드 검증 실행
+def validate_crossfield(target_date, section='tv_retail'):
+    """DB 기반 크로스필드 검증 실행
 
     Args:
         target_date: 검증 대상 날짜
-        category: 카테고리 (tv_retail, hhp_retail, tv_sentiment, hhp_sentiment, comp_product)
+        section: 섹션 코드 (tv_retail, hhp_retail, tv_sentiment, hhp_sentiment, comp_product)
     """
     rules = load_crossfield_rules()
     results = {
@@ -422,39 +468,32 @@ def validate_crossfield_by_csv(target_date, category='tv_retail'):
         'rule_results': []
     }
 
-    # 카테고리별 테이블 및 날짜 컬럼 설정
-    category_config = {
-        'tv_retail': {'table_name': 'tv_retail_com', 'date_col': 'crawl_datetime'},
-        'hhp_retail': {'table_name': 'hhp_retail_com', 'date_col': 'crawl_strdatetime'},
-        'tv_sentiment': {'table_name': 'tv_retail_sentiment', 'date_col': 'crawl_datetime'},
-        'hhp_sentiment': {'table_name': 'hhp_retail_sentiment', 'date_col': 'crawl_strdatetime'},
-        'comp_product': {'table_name': 'market_comp_product', 'date_col': 'created_at'},
-    }
-
-    config = category_config.get(category, category_config['tv_retail'])
-    table_name = config['table_name']
-    date_col = config['date_col']
+    table_name = ''
+    date_col = ''
 
     for rule in rules:
-        # 해당 category에 적용되는 규칙인지 확인
-        rule_category = rule.get('category', '').lower()
-        if rule_category != category:
+        # 해당 section에 적용되는 규칙인지 확인
+        if rule.get('section_code', '').lower() != section:
             continue
+
+        # 규칙별 테이블/날짜컬럼 사용 (DB에 저장된 값)
+        table_name = rule.get('table_name', '')
+        date_col = rule.get('date_column', '')
+        _validate_table_name(table_name)
 
         # 쿼리 실행
         error_count, error_details = execute_crossfield_query(
-            rule, table_name, date_col, target_date, category
+            rule, table_name, date_col, target_date, section
         )
 
         results['total_errors'] += error_count
         results['rule_results'].append({
             'rule_id': rule.get('rule_id'),
-            'rule_name': rule.get('rule_name'),
-            'display_name': rule.get('display_name'),
+            'detail_code': rule.get('detail_code'),
+            'detail_name': rule.get('detail_name'),
             'field1': rule.get('field1'),
             'field2': rule.get('field2'),
             'validation_type': rule.get('validation_type'),
-            'condition': rule.get('condition'),
             'error_message': rule.get('error_message'),
             'error_count': error_count,
             'error_details': error_details,
@@ -690,7 +729,6 @@ def layer_stats(request):
     product_line = request.GET.get('type', 'all')
     section = request.GET.get('section', '')  # 섹션 필터: time_series, cross_field, category_spec, field_missing
 
-    print(f"[DEBUG] layer_stats called - date: {date_str}, product_line: {product_line}, section: {section}")
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -732,7 +770,7 @@ def layer_stats(request):
         run_timeseries = section in ('', 'time_series')
         run_crossfield = section in ('', 'cross_field')
         run_catspec = section in ('', 'category_spec')
-        run_market = section in ('', 'category_spec')
+        run_market = section in ('', 'category_spec', 'cross_field')
 
         # ============================================================
         # 1. 시계열 이상치 탐지 (CSV 기반 - 전일 대비 급격한 변화)
@@ -752,6 +790,7 @@ def layer_stats(request):
 
         for rule in timeseries_rules:
             table_name = rule['table_name']
+            _validate_table_name(table_name)
             date_column = rule['date_column']
             check_column = rule['check_column']
             check_type = rule['check_type']
@@ -777,7 +816,7 @@ def layer_stats(request):
                     """, (target_date,))
                     table_totals[table_name] = curr_cursor.fetchone()[0] or 0
                 except Exception as e:
-                    print(f"{table_name} total count error: {e}")
+                    log_error(e)
                     table_totals[table_name] = 0
 
             table_total = table_totals[table_name]
@@ -882,7 +921,7 @@ def layer_stats(request):
                     anomaly_count = curr_cursor.fetchone()[0] or 0
 
             except Exception as e:
-                print(f"Timeseries rule {rule['rule_name']} error: {e}")
+                log_error(e)
 
             total_checked += table_total
             total_anomalies += anomaly_count
@@ -937,18 +976,16 @@ def layer_stats(request):
                     pass
 
         # ============================================================
-        # 2. 크로스 필드 논리 검증 (CSV 기반)
+        # 2. 크로스 필드 논리 검증 (DB 기반)
         # ============================================================
         if run_crossfield and product_line in ['tv', 'all']:
-            # TV Retail 크로스 필드 검증 - CSV 기반 쿼리 실행
+            # TV Retail 크로스 필드 검증 - DB 기반 쿼리 실행
             tv_cross_total = tv_total
             try:
-                tv_crossfield_result = validate_crossfield_by_csv(target_date, 'tv_retail')
+                tv_crossfield_result = validate_crossfield(target_date, 'tv_retail')
                 tv_cross_errors = tv_crossfield_result['total_errors']
             except Exception as e:
-                print(f"TV cross-field validation error: {e}")
-                import traceback
-                traceback.print_exc()
+                log_error(e)
                 tv_cross_errors = 0
 
             total_checked += tv_cross_total
@@ -965,15 +1002,13 @@ def layer_stats(request):
             })
 
         if run_crossfield and product_line in ['hhp', 'all']:
-            # HHP Retail 크로스 필드 검증 - CSV 기반 쿼리 실행
+            # HHP Retail 크로스 필드 검증 - DB 기반 쿼리 실행
             hhp_cross_total = hhp_total
             try:
-                hhp_crossfield_result = validate_crossfield_by_csv(target_date, 'hhp_retail')
+                hhp_crossfield_result = validate_crossfield(target_date, 'hhp_retail')
                 hhp_cross_errors = hhp_crossfield_result['total_errors']
             except Exception as e:
-                print(f"HHP cross field validation error: {e}")
-                import traceback
-                traceback.print_exc()
+                log_error(e)
                 hhp_cross_errors = 0
 
             total_checked += hhp_cross_total
@@ -1032,7 +1067,7 @@ def layer_stats(request):
                 sent_cursor.close()
                 sent_conn.close()
             except Exception as e:
-                print(f"TV Sentiment cross field error: {e}")
+                log_error(e)
 
             total_checked += tv_sentiment_cross_total
             total_anomalies += tv_sentiment_cross_anomaly
@@ -1087,9 +1122,7 @@ def layer_stats(request):
                 sent_cursor.close()
                 sent_conn.close()
             except Exception as e:
-                print(f"HHP Sentiment cross field error: {e}")
-                import traceback
-                traceback.print_exc()
+                log_error(e)
 
             total_checked += hhp_sentiment_cross_total
             total_anomalies += hhp_sentiment_cross_anomaly
@@ -1136,9 +1169,7 @@ def layer_stats(request):
                         'status': get_status(cat_anomaly, cat_total)
                     })
             except Exception as e:
-                print(f"Category spec validation error: {e}")
-                import traceback
-                traceback.print_exc()
+                log_error(e)
 
         # ============================================================
         # 4. Market 검증 (market 타입 또는 all인 경우)
@@ -1191,7 +1222,7 @@ def layer_stats(request):
                     """, (comp_product_batch_id,))
                     comp_product_cross_anomaly = market_cursor.fetchone()[0] or 0
             except Exception as e:
-                print(f"Market comp product cross field error: {e}")
+                log_error(e)
 
             total_anomalies += comp_product_cross_anomaly
 
@@ -1240,7 +1271,7 @@ def layer_stats(request):
 
 
 def cross_field_detail(request):
-    """크로스 필드 논리 검증 상세 API (CSV 기반) - 검증 유형별 요약"""
+    """크로스 필드 논리 검증 상세 API (DB 기반) - 검증 유형별 요약"""
     date_str = request.GET.get('date')
     product_line = request.GET.get('type', 'tv')
     rule_id = request.GET.get('rule_id')  # 특정 규칙 상세 조회 시
@@ -1250,13 +1281,13 @@ def cross_field_detail(request):
     else:
         target_date = (datetime.now() - timedelta(days=1)).date()
 
-    # product_line을 category로 변환
-    category_map = {'tv': 'tv_retail', 'hhp': 'hhp_retail'}
-    category = category_map.get(product_line, f'{product_line}_retail')
+    # product_line을 section으로 변환
+    section_map = {'tv': 'tv_retail', 'hhp': 'hhp_retail'}
+    section = section_map.get(product_line, f'{product_line}_retail')
 
     try:
-        # CSV 기반 크로스필드 검증 실행
-        crossfield_result = validate_crossfield_by_csv(target_date, category)
+        # DB 기반 크로스필드 검증 실행
+        crossfield_result = validate_crossfield(target_date, section)
 
         # 특정 규칙 상세 조회
         if rule_id:
@@ -1297,7 +1328,7 @@ def cross_field_detail(request):
                         'date': str(target_date),
                         'product_line': product_line.upper(),
                         'rule_id': rule_result['rule_id'],
-                        'rule_name': rule_result['rule_name'],
+                        'detail_code': rule_result['detail_code'],
                         'field1': rule_result['field1'],
                         'field2': rule_result.get('field2'),
                         'validation_type': validation_type,
@@ -1315,11 +1346,10 @@ def cross_field_detail(request):
         for r in crossfield_result['rule_results']:
             rule_summary.append({
                 'rule_id': r['rule_id'],
-                'rule_name': r['rule_name'],
+                'detail_code': r['detail_code'],
                 'field1': r['field1'],
                 'field2': r.get('field2'),
                 'validation_type': r.get('validation_type', ''),
-                'condition': r.get('condition'),
                 'error_message': r['error_message'],
                 'error_count': r['error_count'],
                 'query': r.get('query', ''),
@@ -1342,8 +1372,7 @@ def cross_field_detail(request):
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log_error(e)
         return safe_error(e)
 
 
@@ -1456,8 +1485,7 @@ def sentiment_cross_detail(request):
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log_error(e)
         return safe_error(e, anomalies=[])
 
 
@@ -1535,8 +1563,7 @@ def comp_product_cross_detail(request):
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log_error(e)
         return safe_error(e, anomalies=[])
 
 
@@ -1809,7 +1836,6 @@ def time_series_detail(request):
                 """, (target_date, target_date, compare_date))
 
         rows = cursor.fetchall()
-        print(f"[DEBUG] time_series_detail - product_line: {product_line}, check_type: {check_type}, rows: {len(rows)}")
         changes = []
 
         if check_type == 'price':
@@ -1854,8 +1880,7 @@ def time_series_detail(request):
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log_error(e)
         return safe_error(e, changes=[])
 
 
@@ -2368,6 +2393,7 @@ def category_spec_detail(request):
                 detail_code = rule.get('detail_code')
                 detail_name = rule.get('detail_name')
                 table_name = rule.get('table_name', '')
+                _validate_table_name(table_name)
                 field1 = rule.get('field1')
                 threshold = rule.get('threshold')
                 error_message = rule.get('error_message')
@@ -2432,8 +2458,6 @@ def category_spec_detail(request):
                 except Exception as e:
                     conn.rollback()
                     log_error(e)
-                    import traceback
-                    traceback.print_exc()
 
             cursor.close()
             conn.close()
@@ -2474,6 +2498,7 @@ def category_spec_detail(request):
 
         # 테이블과 날짜 컬럼 설정
         table_name = target_rule.get('table_name', 'tv_retail_com')
+        _validate_table_name(table_name)
         date_col = (target_rule.get('date_column') or '').strip()
         has_date_filter = bool(date_col)
 
@@ -2519,7 +2544,7 @@ def category_spec_detail(request):
         # item_mst에서 mst_id, is_product 병합 (retail_com 테이블인 경우)
         if 'retail_com' in table_name and anomalies:
             product_line_val = (target_rule.get('product_line') or '').lower()
-            mst_table = 'hhp_item_mst' if 'hhp' in product_line_val or 'hhp' in table_name else 'tv_item_mst'
+            mst_table = _validate_table_name('hhp_item_mst' if 'hhp' in product_line_val or 'hhp' in table_name else 'tv_item_mst')
             pairs = list({(r.get('item', ''), r.get('account_name', '')) for r in anomalies})
             if pairs:
                 placeholders = ' OR '.join(['(item = %s AND account_name = %s)'] * len(pairs))
@@ -2580,8 +2605,7 @@ def category_spec_detail(request):
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log_error(e)
         return safe_error(e, anomalies=[])
 
 
@@ -2670,7 +2694,6 @@ def field_missing_detection(request):
                     # psycopg2에서 %를 %%로 이스케이프 (LIKE 패턴 등)
                     exclude_parts = " OR ".join([f"({c.replace('%', '%%')})" for c in exclude_conds])
                     exclude_sql = f" AND NOT ({exclude_parts})"
-                    print(f"[DEBUG] exclude applied: {ret}/{col} -> {exclude_sql}")
 
                 case_today.append(f"MAX(CASE WHEN DATE({date_column}) = '{target_date}' AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = ''){exclude_sql} THEN 1 ELSE 0 END) as today_{col.replace(' ', '_')}")
 
@@ -2751,8 +2774,7 @@ def field_missing_detection(request):
         return JsonResponse(results)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        log_error(e)
         return safe_error(e)
 
 
@@ -2878,8 +2900,6 @@ def field_missing_detail_all(request):
         return JsonResponse(response_data)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         log_error(e)
         return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 
@@ -3032,8 +3052,6 @@ def field_missing_detail_problem(request):
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         log_error(e)
         return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 
@@ -3223,53 +3241,48 @@ def field_missing_detail_by_field(request):
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         log_error(e)
         return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 
 
 def crossfield_rules(request):
-    """크로스필드 검증 규칙 목록 API (CSV 기반)"""
-    category = request.GET.get('category', request.GET.get('type', 'all'))
+    """크로스필드 검증 규칙 목록 API (DB 기반)"""
+    section = request.GET.get('section', request.GET.get('category', request.GET.get('type', 'all')))
 
     # 이전 호환성: tv → tv_retail, hhp → hhp_retail
-    category_map = {'tv': 'tv_retail', 'hhp': 'hhp_retail'}
-    category = category_map.get(category, category)
+    section_map = {'tv': 'tv_retail', 'hhp': 'hhp_retail'}
+    section = section_map.get(section, section)
 
     try:
         rules = load_crossfield_rules()
 
-        # category별 필터링
+        # section별 필터링
         filtered_rules = []
         for rule in rules:
-            rule_category = rule.get('category', '').lower()
+            rule_section = rule.get('section_code', '').lower()
 
-            # all이면 전체, 아니면 해당 category만 포함
-            if category == 'all' or rule_category == category:
+            # all이면 전체, 아니면 해당 section만 포함
+            if section == 'all' or rule_section == section:
                 filtered_rules.append({
                     'rule_id': rule.get('rule_id'),
-                    'rule_name': rule.get('rule_name'),
-                    'display_name': rule.get('display_name'),
-                    'category': rule.get('category'),
+                    'detail_code': rule.get('detail_code'),
+                    'detail_name': rule.get('detail_name'),
+                    'section_code': rule.get('section_code'),
                     'field1': rule.get('field1'),
                     'field2': rule.get('field2'),
-                    'condition': rule.get('condition'),
                     'error_message': rule.get('error_message'),
                     'retailer': rule.get('retailer'),
-                    'threshold': rule.get('threshold')
+                    'validation_type': rule.get('validation_type')
                 })
 
         return JsonResponse({
             'status': 'success',
-            'category': category,
+            'section': section,
             'total_rules': len(filtered_rules),
             'rules': filtered_rules
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         log_error(e)
         return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 
@@ -3326,8 +3339,6 @@ def category_rules(request):
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         log_error(e)
         return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 

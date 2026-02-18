@@ -13,7 +13,11 @@
                 </a>
                 <button class="sidebar-toggle" type="button">▶</button>
             </div>
-            <div class="sidebar-subitems" id="sub-time-series"></div>
+            <div class="sidebar-subitems" id="sub-time-series">
+                {% for name in sidebar_items.time_series %}
+                <a class="sidebar-subitem" data-check="{{ name }}" onclick="onSubitemClick('time_series', '{{ name|escapejs }}')">{{ name }}</a>
+                {% endfor %}
+            </div>
         </div>
         <div class="sidebar-group {% if section == 'cross_field' %}expanded{% endif %}">
             <div class="sidebar-item-row {% if section == 'cross_field' %}active{% endif %}">
@@ -22,7 +26,11 @@
                 </a>
                 <button class="sidebar-toggle" type="button">▶</button>
             </div>
-            <div class="sidebar-subitems" id="sub-cross-field"></div>
+            <div class="sidebar-subitems" id="sub-cross-field">
+                {% for name in sidebar_items.cross_field %}
+                <a class="sidebar-subitem" data-check="{{ name }}" onclick="onSubitemClick('cross_field', '{{ name|escapejs }}')">{{ name }}</a>
+                {% endfor %}
+            </div>
         </div>
         <div class="sidebar-group {% if section == 'category_spec' %}expanded{% endif %}">
             <div class="sidebar-item-row {% if section == 'category_spec' %}active{% endif %}">
@@ -31,7 +39,11 @@
                 </a>
                 <button class="sidebar-toggle" type="button">▶</button>
             </div>
-            <div class="sidebar-subitems" id="sub-category-spec"></div>
+            <div class="sidebar-subitems" id="sub-category-spec">
+                {% for name in sidebar_items.category_spec %}
+                <a class="sidebar-subitem" data-check="{{ name }}" onclick="onSubitemClick('category_spec', '{{ name|escapejs }}')">{{ name }}</a>
+                {% endfor %}
+            </div>
         </div>
         <div class="sidebar-group {% if section == 'field_missing' %}expanded{% endif %}">
             <div class="sidebar-item-row {% if section == 'field_missing' %}active{% endif %}">
@@ -40,7 +52,11 @@
                 </a>
                 <button class="sidebar-toggle" type="button">▶</button>
             </div>
-            <div class="sidebar-subitems" id="sub-field-missing"></div>
+            <div class="sidebar-subitems" id="sub-field-missing">
+                {% for name in sidebar_items.field_missing %}
+                <a class="sidebar-subitem" data-check="{{ name }}" onclick="onSubitemClick('field_missing', '{{ name|escapejs }}')">{{ name }}</a>
+                {% endfor %}
+            </div>
         </div>
     </nav>
 </div>

@@ -40,6 +40,11 @@ function isCatSpecInline() {
     return (window.LAYER3 && window.LAYER3.section) === 'category_spec';
 }
 
+// 크로스 필드 검증 인라인 모드 판별
+function isCrossFieldInline() {
+    return (window.LAYER3 && window.LAYER3.section) === 'cross_field';
+}
+
 // 요일 표시 업데이트
 function updateWeekday() {
     const dateInput = document.getElementById('target-date');
@@ -122,8 +127,7 @@ async function loadData() {
 
     try {
         const sectionParam = section !== 'dashboard' ? `&section=${section}` : '';
-        const response = await fetch(`/layer3/api/stats/?date=${date}&type=all${sectionParam}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/stats/?date=${date}&type=all${sectionParam}`);
         currentData = data;
         renderData(data);
         updateCurrentInfo(date);
@@ -173,7 +177,7 @@ function updateCurrentInfo(date) {
         const diffDays = Math.floor((new Date(today) - new Date(date)) / 86400000);
         badgeText = `D-${diffDays}`;
     }
-    document.getElementById('current-info').innerHTML = `<strong>${date}</strong> 검증 현황 <span class="date-badge ${badgeClass}">${badgeText}</span>`;
+    document.getElementById('current-info').innerHTML = `<strong>${esc(date)}</strong> 검증 현황 <span class="date-badge ${badgeClass}">${esc(badgeText)}</span>`;
 }
 
 // 데이터 렌더링
@@ -314,8 +318,6 @@ function renderData(data) {
         }
     }
 
-    // 사이드바 하위 항목을 실제 데이터 기반으로 업데이트
-    updateSidebarFromData(data);
 }
 
 // 카테고리 토글
@@ -367,6 +369,26 @@ async function showDetail(category, checkName) {
             const type = checkName.includes('TV') ? 'tv' : 'hhp';
             apiUrl = `/layer3/api/cross-field-detail/?date=${date}&type=${type}`;
         }
+
+        // 크로스 필드 섹션 페이지 → 인라인 표시
+        if (isCrossFieldInline() && apiUrl) {
+            ViewStack.push(`
+                <div class="inline-detail">
+                    <button class="btn-back" onclick="ViewStack.pop()">← 목록으로</button>
+                    <div class="inline-detail-title">${title}</div>
+                    <div class="inline-detail-body"><p style="text-align:center;">데이터를 불러오는 중...</p></div>
+                </div>
+            `);
+            try {
+                const data = await fetchAPI(apiUrl);
+                renderCrossfieldSummaryContent(title, category, data);
+            } catch (error) {
+                console.error('Error:', error);
+                const body = document.querySelector('.inline-detail-body');
+                if (body) body.innerHTML = '<p>데이터 로드 실패</p>';
+            }
+            return;
+        }
     } else if (category === '카테고리별 특성') {
         // display_name을 그대로 전달하여 동적 처리
         apiUrl = `/layer3/api/category-spec-detail/?date=${date}&display_name=${encodeURIComponent(checkName)}&mode=summary`;
@@ -381,8 +403,7 @@ async function showDetail(category, checkName) {
                 </div>
             `);
             try {
-                const response = await fetch(apiUrl);
-                const data = await response.json();
+                const data = await fetchAPI(apiUrl);
                 renderCatSpecSummaryContent(title, data);
             } catch (error) {
                 console.error('Error:', error);
@@ -401,8 +422,7 @@ async function showDetail(category, checkName) {
     }
 
     try {
-        const response = await fetch(apiUrl);
-        const data = await response.json();
+        const data = await fetchAPI(apiUrl);
         renderDetailModal(title, category, data);
     } catch (error) {
         console.error('Error:', error);
@@ -554,58 +574,9 @@ ORDER BY item, ${dateColumn} ASC;`;
                 html += '</tbody></table></div>';
             }
         } else {
-            // TV/HHP 논리적 일관성 - 검증 유형별 요약 표시
-            const ruleSummary = data.rule_summary || [];
-
-            // 현재 상태 저장 (뒤로가기용)
-            window.crossfieldSummaryData = data;
-            window.crossfieldTitle = title;
-            window.crossfieldProductLine = data.product_line;
-
-            // 날짜 선택 UI
-            html = `<div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
-                <label style="font-weight: 500;">조회 날짜:</label>
-                <input type="date" id="crossfield-date-picker" value="${data.date}"
-                    style="padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;"
-                    onchange="reloadCrossfieldData(this.value, '${escJs(data.product_line)}', '${escJs(title)}')">
-            </div>`;
-
-            if (ruleSummary.length === 0) {
-                html += '<p>논리 오류 데이터가 없습니다.</p>';
-            } else {
-                // 플레이스홀더 치환용 정보
-                const tableName = data.table_name || '';
-                const dateCol = data.date_col || '';
-                const noReviewTexts = data.no_review_texts || '';
-                const targetDate = data.date || '';
-
-                html += '<div class="rule-summary-container">';
-                ruleSummary.forEach((rule, idx) => {
-                    const fieldDisplay = rule.field2 ? `${rule.field1} ↔ ${rule.field2}` : rule.field1;
-                    const queryId = `crossfield-query-${idx}`;
-                    const displayQuery = replaceCrossfieldQueryPlaceholders(rule.query, tableName, dateCol, noReviewTexts, targetDate);
-                    const detailTitle = `${fieldDisplay} (${rule.error_message})`;
-                    html += `
-                        <div class="rule-summary-card-wrapper">
-                            <div class="rule-summary-card" onclick="loadCrossfieldRuleDetail('${escJs(data.product_line.toLowerCase())}', '${escJs(rule.rule_id)}', '${escJs(data.date)}', '${escJs(detailTitle)}')">
-                                <div class="rule-info">
-                                    <div class="rule-name">
-                                        ${esc(fieldDisplay)}
-                                        <button class="btn-show-query" onclick="event.stopPropagation(); toggleCrossfieldQuery('${escJs(queryId)}')" title="검증 쿼리 보기">SQL</button>
-                                    </div>
-                                    <div class="rule-desc">${esc(rule.error_message)}</div>
-                                </div>
-                                <div class="rule-count${rule.error_count === 0 ? ' zero' : ''}">${rule.error_count}건</div>
-                            </div>
-                            <div id="${queryId}" class="crossfield-query-box" style="display: none;">
-                                <pre>${esc(displayQuery)}</pre>
-                                <button class="btn-copy-query" onclick="copyQueryToClipboard(this.previousElementSibling)">복사</button>
-                            </div>
-                        </div>
-                    `;
-                });
-                html += '</div>';
-            }
+            // TV/HHP 논리적 일관성 - 공통 함수로 위임 (모달/인라인 모두 처리)
+            renderCrossfieldSummaryContent(title, category, data);
+            return;
         }
     } else if (category === '카테고리별 특성') {
         // 공통 함수로 위임 (모달/인라인 모두 처리)
@@ -617,6 +588,78 @@ ORDER BY item, ${dateColumn} ASC;`;
 
     document.getElementById('modal-body').innerHTML = html;
     document.getElementById('detail-modal').classList.add('show');
+}
+
+// 크로스필드 요약 렌더링 (모달 / 인라인 공용)
+function renderCrossfieldSummaryContent(title, _category, data) {
+    const inline = isCrossFieldInline();
+    const ruleSummary = data.rule_summary || [];
+
+    // 현재 상태 저장 (뒤로가기용)
+    window.crossfieldSummaryData = data;
+    window.crossfieldTitle = title;
+    window.crossfieldProductLine = data.product_line;
+
+    const titleText = title + ` (${data.total_anomalies || 0}건)`;
+
+    // 날짜 선택 UI (인라인은 상단 필터바 사용)
+    let html = '';
+    if (!inline) {
+        html += `<div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+            <label style="font-weight: 500;">조회 날짜:</label>
+            <input type="date" id="crossfield-date-picker" value="${data.date}"
+                style="padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 14px;"
+                onchange="reloadCrossfieldData(this.value, '${escJs(data.product_line)}', '${escJs(title)}')">
+        </div>`;
+    }
+
+    if (ruleSummary.length === 0) {
+        html += '<p>논리 오류 데이터가 없습니다.</p>';
+    } else {
+        // 플레이스홀더 치환용 정보
+        const tableName = data.table_name || '';
+        const dateCol = data.date_col || '';
+        const noReviewTexts = data.no_review_texts || '';
+        const targetDate = data.date || '';
+
+        html += '<div class="rule-summary-container">';
+        ruleSummary.forEach((rule, idx) => {
+            const fieldDisplay = rule.field2 ? `${rule.field1} ↔ ${rule.field2}` : rule.field1;
+            const queryId = `crossfield-query-${idx}`;
+            const displayQuery = replaceCrossfieldQueryPlaceholders(rule.query, tableName, dateCol, noReviewTexts, targetDate);
+            const detailTitle = `${fieldDisplay} (${rule.error_message})`;
+            html += `
+                <div class="rule-summary-card-wrapper">
+                    <div class="rule-summary-card" onclick="loadCrossfieldRuleDetail('${escJs(data.product_line.toLowerCase())}', '${escJs(rule.rule_id)}', '${escJs(data.date)}', '${escJs(detailTitle)}')">
+                        <div class="rule-info">
+                            <div class="rule-name">
+                                ${esc(fieldDisplay)}
+                                <button class="btn-show-query" onclick="event.stopPropagation(); toggleCrossfieldQuery('${escJs(queryId)}')" title="검증 쿼리 보기">SQL</button>
+                            </div>
+                            <div class="rule-desc">${esc(rule.error_message)}</div>
+                        </div>
+                        <div class="rule-count${rule.error_count === 0 ? ' zero' : ''}">${rule.error_count}건</div>
+                    </div>
+                    <div id="${queryId}" class="crossfield-query-box" style="display: none;">
+                        <pre>${esc(displayQuery)}</pre>
+                        <button class="btn-copy-query" onclick="copyQueryToClipboard(this.previousElementSibling)">복사</button>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+    }
+
+    if (inline) {
+        const titleEl = document.querySelector('.inline-detail-title');
+        const bodyEl = document.querySelector('.inline-detail-body');
+        if (titleEl) titleEl.textContent = titleText;
+        if (bodyEl) bodyEl.innerHTML = html;
+    } else {
+        document.getElementById('modal-title').textContent = titleText;
+        document.getElementById('modal-body').innerHTML = html;
+        document.getElementById('detail-modal').classList.add('show');
+    }
 }
 
 // 카테고리별 특성 요약 렌더링 (모달 / 인라인 공용)
@@ -672,7 +715,7 @@ function renderCatSpecSummaryContent(title, data) {
 
 // 모달 닫기
 function closeModal() {
-    document.getElementById('detail-modal').classList.remove('show');
+    document.getElementById('detail-modal')?.classList.remove('show');
 }
 
 // 크로스필드 쿼리 플레이스홀더 치환
@@ -696,47 +739,64 @@ function toggleCrossfieldQuery(queryId) {
 
 // 크로스필드 데이터 날짜 변경 시 재로드
 async function reloadCrossfieldData(date, productLine, title) {
-    document.getElementById('modal-body').innerHTML = '<p style="text-align:center;">데이터를 불러오는 중...</p>';
+    const inline = isCrossFieldInline();
+    const bodyEl = inline ? document.querySelector('.inline-detail-body') : document.getElementById('modal-body');
+    if (bodyEl) bodyEl.innerHTML = '<p style="text-align:center;">데이터를 불러오는 중...</p>';
 
     try {
-        const response = await fetch(`/layer3/api/cross-field-detail/?date=${date}&type=${productLine.toLowerCase()}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/cross-field-detail/?date=${date}&type=${productLine.toLowerCase()}`);
 
         if (data.error) {
-            document.getElementById('modal-body').innerHTML = `<p style="color: red;">오류: ${esc(data.error)}</p>`;
+            if (bodyEl) bodyEl.innerHTML = `<p style="color: red;">오류: ${esc(data.error)}</p>`;
             return;
         }
 
-        // 제목 업데이트
-        document.getElementById('modal-title').textContent = `${title} (${data.total_anomalies}건)`;
-
-        // renderDetailModal 호출
-        renderDetailModal(title, '크로스 필드 검증', data);
+        // 공통 렌더링 (모달/인라인 모두 처리)
+        renderCrossfieldSummaryContent(title, '크로스 필드 검증', data);
 
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('modal-body').innerHTML = '<p style="color: red;">데이터 로드 실패</p>';
+        if (bodyEl) bodyEl.innerHTML = '<p style="color: red;">데이터 로드 실패</p>';
     }
 }
 
 // 크로스필드 검증 유형별 상세 데이터 로드
 async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
-    document.getElementById('modal-title').textContent = ruleName;
-    document.getElementById('modal-body').innerHTML = '<p style="text-align:center;">데이터를 불러오는 중...</p>';
+    const inline = isCrossFieldInline();
+
+    if (inline) {
+        ViewStack.push(`
+            <div class="inline-detail">
+                <button class="btn-back" onclick="ViewStack.pop()">← 뒤로가기</button>
+                <div class="inline-detail-title">${ruleName}</div>
+                <div class="inline-detail-body"><p style="text-align:center;">데이터를 불러오는 중...</p></div>
+            </div>
+        `);
+    } else {
+        document.getElementById('modal-title').textContent = ruleName;
+        document.getElementById('modal-body').innerHTML = '<p style="text-align:center;">데이터를 불러오는 중...</p>';
+    }
 
     try {
-        const response = await fetch(`/layer3/api/cross-field-detail/?date=${date}&type=${productLine}&rule_id=${ruleId}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/cross-field-detail/?date=${date}&type=${productLine}&rule_id=${ruleId}`);
 
         if (data.error) {
-            document.getElementById('modal-body').innerHTML = `<p style="color: red;">오류: ${esc(data.error)}</p>`;
+            const errHtml = `<p style="color: red;">오류: ${esc(data.error)}</p>`;
+            if (inline) {
+                const body = document.querySelector('.inline-detail-body');
+                if (body) body.innerHTML = errHtml;
+            } else {
+                document.getElementById('modal-body').innerHTML = errHtml;
+            }
             return;
         }
 
         let html = '';
 
-        // 뒤로가기 버튼
-        html += `<button class="btn-back" onclick="backToCrossfieldSummary()">← 뒤로가기</button>`;
+        // 뒤로가기 버튼 (모달에서만, 인라인은 상위 컨테이너에 있음)
+        if (!inline) {
+            html += `<button class="btn-back" onclick="backToCrossfieldSummary()">← 뒤로가기</button>`;
+        }
 
         const anomalies = data.anomalies || [];
         if (anomalies.length === 0) {
@@ -760,9 +820,9 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             window.crossfieldAnomalies = anomalies;
             window.crossfieldProductLine = productLine;
             window.crossfieldDate = date;
-            window.crossfieldRuleName = ruleName;  // 검증 항목 이름 저장
-            window.crossfieldSelectFields = data.select_fields || '';  // 조회쿼리용 필드 목록
-            window.crossfieldValidationType = data.validation_type || '';  // 검증 타입 저장
+            window.crossfieldRuleName = ruleName;
+            window.crossfieldSelectFields = data.select_fields || '';
+            window.crossfieldValidationType = data.validation_type || '';
 
             // 리테일러 목록만 표시
             html += '<div class="retailer-list-container">';
@@ -779,12 +839,26 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             html += '</div>';
         }
 
-        document.getElementById('modal-title').textContent = `${ruleName} (${data.total_anomalies}건)`;
-        document.getElementById('modal-body').innerHTML = html;
+        const titleText = `${ruleName} (${data.total_anomalies}건)`;
+        if (inline) {
+            const titleEl = document.querySelector('.inline-detail-title');
+            const bodyEl = document.querySelector('.inline-detail-body');
+            if (titleEl) titleEl.textContent = titleText;
+            if (bodyEl) bodyEl.innerHTML = html;
+        } else {
+            document.getElementById('modal-title').textContent = titleText;
+            document.getElementById('modal-body').innerHTML = html;
+        }
 
     } catch (error) {
         console.error('Error:', error);
-        document.getElementById('modal-body').innerHTML = '<p style="color: red;">데이터 로드 실패</p>';
+        const errHtml = '<p style="color: red;">데이터 로드 실패</p>';
+        if (inline) {
+            const body = document.querySelector('.inline-detail-body');
+            if (body) body.innerHTML = errHtml;
+        } else {
+            document.getElementById('modal-body').innerHTML = errHtml;
+        }
     }
 }
 
@@ -899,6 +973,10 @@ function copyUrlToClipboard(text, btn) {
 
 // 크로스필드 검증 유형 목록으로 돌아가기
 function backToCrossfieldSummary() {
+    if (isCrossFieldInline()) {
+        ViewStack.pop();
+        return;
+    }
     if (window.crossfieldSummaryData && window.crossfieldTitle) {
         document.getElementById('modal-title').textContent = window.crossfieldTitle + ` (${window.crossfieldSummaryData.total_anomalies}건)`;
         renderDetailModal(window.crossfieldTitle, '크로스 필드 검증', window.crossfieldSummaryData);
@@ -912,8 +990,7 @@ async function reloadCategorySpecData(date, displayName, title) {
     if (bodyEl) bodyEl.innerHTML = '<p style="text-align:center;">데이터를 불러오는 중...</p>';
 
     try {
-        const response = await fetch(`/layer3/api/category-spec-detail/?date=${date}&display_name=${encodeURIComponent(displayName)}&mode=summary`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/category-spec-detail/?date=${date}&display_name=${encodeURIComponent(displayName)}&mode=summary`);
 
         if (data.error) {
             if (bodyEl) bodyEl.innerHTML = `<p style="color: red;">오류: ${esc(data.error)}</p>`;
@@ -957,8 +1034,7 @@ async function loadCategorySpecRuleDetail(displayName, ruleId, date, ruleName) {
     }
 
     try {
-        const response = await fetch(`/layer3/api/category-spec-detail/?date=${date}&display_name=${encodeURIComponent(displayName)}&rule_id=${ruleId}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/category-spec-detail/?date=${date}&display_name=${encodeURIComponent(displayName)}&rule_id=${ruleId}`);
 
         if (data.error) {
             const errTarget = inline ? document.querySelector('.inline-detail-body') : document.getElementById('modal-body');
@@ -1413,6 +1489,7 @@ function backToCategorySpecSummary() {
 
 // 리테일러 상세 데이터 표시
 function showRetailerDetail(retailer) {
+    const inline = isCrossFieldInline();
     const retailerData = window.crossfieldRetailerData;
     if (!retailerData || !retailerData[retailer]) return;
 
@@ -1421,7 +1498,10 @@ function showRetailerDetail(retailer) {
     const items = data.items;
 
     let html = '';
-    html += `<button class="btn-back" onclick="backToRetailerList()">← 뒤로가기</button>`;
+    // 뒤로가기 버튼 (모달에서만, 인라인은 ViewStack으로 처리)
+    if (!inline) {
+        html += `<button class="btn-back" onclick="backToRetailerList()">← 뒤로가기</button>`;
+    }
 
     // 3일치 조회 쿼리 생성
     const productLine = window.crossfieldProductLine || 'HHP';
@@ -1538,21 +1618,8 @@ ORDER BY item, ${dateCol};`;
     }
     html += '</tr></thead><tbody>';
 
-    // product_url별 색상 매핑 (회색/흰색 교대)
-    const urlColorMap = {};
-    let colorIndex = 0;
-    rows.forEach(row => {
-        const url = row.product_url || '-';
-        if (!(url in urlColorMap)) {
-            urlColorMap[url] = colorIndex % 2 === 0 ? '#f5f5f5' : '#ffffff';
-            colorIndex++;
-        }
-    });
-
     rows.forEach((row, idx) => {
-        const url = row.product_url || '-';
-        const bgColor = urlColorMap[url];
-        html += `<tr style="background-color: ${bgColor};">`;
+        html += `<tr>`;
         html += `<td>${idx + 1}</td>`;
         html += `<td>${esc(String(row.id || '-'))}</td>`;
         html += `<td>${esc(row.item || '-')}</td>`;
@@ -1574,18 +1641,33 @@ ORDER BY item, ${dateCol};`;
 
     html += '</tbody></table></div>';
 
-    // 현재 모달 제목 저장
-    window.crossfieldCurrentTitle = document.getElementById('modal-title').textContent;
-
     // 타이틀: 검증항목 : productLine retailer (건수)
     const productLineDisplay = (window.crossfieldProductLine || 'HHP').toUpperCase();
     const ruleNameDisplay = window.crossfieldRuleName || '';
-    document.getElementById('modal-title').textContent = `${ruleNameDisplay} : ${productLineDisplay} ${retailer} (${rows.length}건)`;
-    document.getElementById('modal-body').innerHTML = html;
+    const titleText = `${ruleNameDisplay} : ${productLineDisplay} ${retailer} (${rows.length}건)`;
+
+    if (inline) {
+        ViewStack.push(`
+            <div class="inline-detail">
+                <button class="btn-back" onclick="ViewStack.pop()">← 뒤로가기</button>
+                <div class="inline-detail-title">${titleText}</div>
+                <div class="inline-detail-body">${html}</div>
+            </div>
+        `);
+    } else {
+        // 현재 모달 제목 저장 (뒤로가기용)
+        window.crossfieldCurrentTitle = document.getElementById('modal-title').textContent;
+        document.getElementById('modal-title').textContent = titleText;
+        document.getElementById('modal-body').innerHTML = html;
+    }
 }
 
 // 리테일러 목록으로 돌아가기
 function backToRetailerList() {
+    if (isCrossFieldInline()) {
+        ViewStack.pop();
+        return;
+    }
     if (window.crossfieldRetailerData && window.crossfieldCurrentTitle) {
         const retailerData = window.crossfieldRetailerData;
 
@@ -1652,7 +1734,7 @@ async function showRulesModal(checkName) {
         } else if (checkName.includes('HHP')) {
             category = 'hhp_retail';
         }
-        apiUrl = `/layer3/api/crossfield-rules/?category=${category}`;
+        apiUrl = `/layer3/api/crossfield-rules/?section=${category}`;
     } else {
         // 카테고리별 특성 규칙 (display_name으로 매핑)
         // 먼저 category-rules API에서 모든 규칙을 가져와서 display_name으로 매칭
@@ -1663,8 +1745,7 @@ async function showRulesModal(checkName) {
     const isCategorySpec = !isCrossfield;
 
     try {
-        const response = await fetch(apiUrl);
-        const data = await response.json();
+        const data = await fetchAPI(apiUrl);
 
         if (data.status === 'success' && data.rules.length > 0) {
             let html = '<ul class="rules-list">';
@@ -1692,7 +1773,6 @@ async function showRulesModal(checkName) {
                             <div class="rule-content">
                                 <div class="rule-title">${esc(rule.field1)}${rule.field2 ? ' ↔ ' + esc(rule.field2) : ''}${esc(retailerInfo)}</div>
                                 <div class="rule-desc">${esc(rule.error_message)}</div>
-                                <div class="rule-example">조건: ${esc(rule.condition || rule.error_message)}</div>
                             </div>
                         </li>
                     `;
@@ -1814,8 +1894,7 @@ async function loadAllRetailersMissing() {
 
     for (const retailer of retailers) {
         try {
-            const response = await fetch(`/layer3/api/field-missing/?date=${date}&type=${currentFieldMissingPL}&retailer=${retailer}`);
-            const data = await response.json();
+            const data = await fetchAPI(`/layer3/api/field-missing/?date=${date}&type=${currentFieldMissingPL}&retailer=${retailer}`);
 
             const missingCount = data.summary?.total_missing_cases || 0;
             const fieldsCount = data.summary?.fields_with_issues || 0;
@@ -1918,8 +1997,7 @@ async function loadMissingSummaryData(retailer, date) {
     document.getElementById('modal-body').innerHTML = '<p style="text-align: center; padding: 40px;">데이터를 불러오는 중...</p>';
 
     try {
-        const response = await fetch(`/layer3/api/field-missing/?date=${date}&type=${currentFieldMissingPL}&retailer=${retailer}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/field-missing/?date=${date}&type=${currentFieldMissingPL}&retailer=${retailer}`);
 
         const missingFields = data.missing_fields || [];
         const summary = data.summary || {};
@@ -2025,8 +2103,7 @@ async function viewFieldMissingDetail(retailer, field, date) {
             field: field
         });
 
-        const response = await fetch(`/layer3/api/field-missing-detail-by-field/?${params}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/field-missing-detail-by-field/?${params}`);
 
         if (data.status === 'success') {
             renderFieldMissingDetail(data, retailer, field);
@@ -2163,7 +2240,8 @@ ORDER BY item, ${dateColumn} ASC;`;
                     val = 'NULL';
                 }
             } else if (col === 'product_url') {
-                val = `<a href="${val}" target="_blank" style="color: #2563eb; text-decoration: none;">링크</a>`;
+                const safe = safeUrl(String(val));
+                val = safe ? `<a href="${esc(safe)}" target="_blank" style="color: #2563eb; text-decoration: none;">링크</a>` : esc(val);
             } else if (col === 'id') {
                 style += ' color: #6b7280; font-size: 12px;';
             } else if (typeof val === 'string' && val.length > 80) {
@@ -2241,8 +2319,7 @@ async function loadMissingItems(isInitial = false) {
             limit: missingItemsState.limit
         });
 
-        const response = await fetch(`/layer3/api/field-missing-detail-problem/?${params}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/field-missing-detail-problem/?${params}`);
 
         if (data.status === 'success') {
             if (isInitial) {
@@ -2362,9 +2439,9 @@ function onMissingItemsScroll(e) {
             const loadingEl = document.getElementById('missing-items-loading');
             if (loadingEl) loadingEl.style.display = 'block';
 
-            loadMissingItems(false).then(() => {
-                if (loadingEl) loadingEl.style.display = 'none';
-            });
+            loadMissingItems(false)
+                .then(() => { if (loadingEl) loadingEl.style.display = 'none'; })
+                .catch(() => { if (loadingEl) loadingEl.style.display = 'none'; });
         }
     }
 }
@@ -2426,8 +2503,7 @@ async function load3DaysData(isInitial = false) {
             limit: threeDaysState.limit
         });
 
-        const response = await fetch(`/layer3/api/field-missing-detail-all/?${params}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/field-missing-detail-all/?${params}`);
 
         if (data.status === 'success') {
             if (isInitial) {
@@ -2725,8 +2801,7 @@ async function showFieldMissing3Days() {
     document.getElementById('detail-modal').classList.add('show');
 
     try {
-        const response = await fetch(`/layer3/api/field-missing-detail-all/?date=${date}&type=${productLine}&retailer=${retailer}&column=${field}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/field-missing-detail-all/?date=${date}&type=${productLine}&retailer=${retailer}&column=${field}`);
         renderFieldMissing3Days(data, field);
     } catch (error) {
         console.error('Error:', error);
@@ -2775,8 +2850,7 @@ async function loadFieldMissing() {
     document.getElementById('field-missing-list').innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">데이터를 불러오는 중...</div>';
 
     try {
-        const response = await fetch(`/layer3/api/field-missing/?date=${date}&type=${productLine}&retailer=${retailer}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/field-missing/?date=${date}&type=${productLine}&retailer=${retailer}`);
         renderFieldMissing(data);
     } catch (error) {
         console.error('Error:', error);
@@ -2850,8 +2924,7 @@ async function showFieldMissingDetailAll(retailer, fieldName) {
     document.getElementById('detail-modal').classList.add('show');
 
     try {
-        const response = await fetch(`/layer3/api/field-missing-detail-all/?date=${date}&type=${productLine}&retailer=${retailer}&field=${fieldName}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/field-missing-detail-all/?date=${date}&type=${productLine}&retailer=${retailer}&field=${fieldName}`);
         renderFieldMissingDetailAll(data, fieldName);
     } catch (error) {
         console.error('Error:', error);
@@ -2869,8 +2942,7 @@ async function showFieldMissingDetailProblem(retailer, fieldName) {
     document.getElementById('detail-modal').classList.add('show');
 
     try {
-        const response = await fetch(`/layer3/api/field-missing-detail-problem/?date=${date}&type=${productLine}&retailer=${retailer}&field=${fieldName}`);
-        const data = await response.json();
+        const data = await fetchAPI(`/layer3/api/field-missing-detail-problem/?date=${date}&type=${productLine}&retailer=${retailer}&field=${fieldName}`);
         renderFieldMissingDetailProblem(data, fieldName);
     } catch (error) {
         console.error('Error:', error);
@@ -3033,114 +3105,34 @@ function initSidebar() {
             if (group) group.classList.toggle('expanded');
         });
     });
-
-    // 현재 섹션의 하위 항목 로드
-    loadSidebarSubitems();
 }
 
-// 사이드바 하위 항목 — API 데이터에서 동적 생성
-// 카테고리명 → 사이드바 컨테이너 ID 매핑
-const CATEGORY_SIDEBAR_MAP = {
-    '시계열 이상치': 'sub-time-series',
-    '크로스 필드 검증': 'sub-cross-field',
-    '카테고리별 특성': 'sub-category-spec'
-};
+// 사이드바 하위 항목은 서버 사이드 렌더링 (_sidebar.html)
 
-// 카테고리명 → 섹션명 매핑
-const CATEGORY_SECTION_MAP = {
-    '시계열 이상치': 'time_series',
-    '크로스 필드 검증': 'cross_field',
-    '카테고리별 특성': 'category_spec'
-};
-
-function loadSidebarSubitems() {
-    // 필드 누락은 정적 (API 데이터와 별개)
-    const fieldMissingItems = [
-        { label: 'TV', check: 'tv' },
-        { label: 'HHP', check: 'hhp' }
-    ];
-    renderSubitems('sub-field-missing', fieldMissingItems, 'field_missing');
-}
-
-// API 데이터 로드 후 사이드바 하위 항목 업데이트
-function updateSidebarFromData(data) {
-    const categories = {};
-    (data.checks || []).forEach(check => {
-        const cat = check.category || '기타';
-        if (!categories[cat]) categories[cat] = [];
-        categories[cat].push(check);
-    });
-
-    Object.entries(categories).forEach(([catName, checks]) => {
-        const containerId = CATEGORY_SIDEBAR_MAP[catName];
-        const sectionName = CATEGORY_SECTION_MAP[catName];
-        if (!containerId || !sectionName) return;
-
-        const items = checks.map(c => ({ label: c.name, check: c.name }));
-        renderSubitems(containerId, items, sectionName);
-    });
-}
-
-// 하위 항목 렌더링
-function renderSubitems(containerId, items, parentSection) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    let html = '';
-    items.forEach(item => {
-        html += `<a class="sidebar-subitem" data-check="${esc(item.check)}" onclick="onSubitemClick('${escJs(parentSection)}', '${escJs(item.check)}')">${esc(item.label)}</a>`;
-    });
-    container.innerHTML = html;
-}
-
-// 하위 항목 클릭 시 해당 항목으로 이동
+// 하위 항목 클릭 시 해당 항목으로 이동 (전 섹션 공통)
 function onSubitemClick(parentSection, checkName) {
     const section = (window.LAYER3 && window.LAYER3.section) || 'dashboard';
     const date = document.getElementById('target-date') ? document.getElementById('target-date').value : '';
     const dateParam = date ? `?date=${date}` : '';
 
-    // 다른 섹션에 있으면 해당 페이지로 이동
-    if (section !== parentSection && section !== 'dashboard') {
+    // 해당 섹션 페이지가 아니면 이동
+    if (section !== parentSection) {
         const sep = dateParam ? '&' : '?';
         window.location.href = `/dx/layer3/${parentSection.replace('_', '-')}/${dateParam}${sep}focus=${encodeURIComponent(checkName)}`;
         return;
     }
 
-    // 카테고리별 특성: 바로 상세보기 진입
-    if (parentSection === 'category_spec') {
-        const categoryName = SECTION_CATEGORY_MAP['category_spec'];
-        if (section === 'category_spec') {
-            showDetail(categoryName, checkName);
-        } else {
-            window.location.href = `/dx/layer3/category-spec/${dateParam}${dateParam ? '&' : '?'}focus=${encodeURIComponent(checkName)}`;
-        }
+    // 필드 누락: 탭 전환
+    if (parentSection === 'field_missing') {
+        switchFieldMissingTab(checkName.toLowerCase());
         return;
     }
 
-    // 같은 페이지에서 해당 항목 하이라이트 + 스크롤
-    const checkItems = document.querySelectorAll('.check-item');
-    for (const item of checkItems) {
-        const nameEl = item.querySelector('.check-name');
-        if (nameEl && nameEl.textContent.includes(checkName)) {
-            const catSection = item.closest('.category-section');
-            if (catSection) {
-                const content = catSection.querySelector('.category-content');
-                const toggle = catSection.querySelector('.toggle-icon');
-                if (content && !content.classList.contains('show')) {
-                    content.classList.add('show');
-                    if (toggle) toggle.classList.add('expanded');
-                }
-            }
-            item.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            item.style.background = '#fef3c7';
-            setTimeout(() => item.style.background = '', 2000);
-            return;
-        }
-    }
-
-    // 필드 누락: 탭 전환
-    if (parentSection === 'field_missing' && (checkName === 'tv' || checkName === 'hhp')) {
-        switchFieldMissingTab(checkName);
+    // 인라인 상세보기 (시계열/크로스필드/카테고리별 특성 공통)
+    const categoryName = SECTION_CATEGORY_MAP[parentSection];
+    if (categoryName) {
+        showDetail(categoryName, checkName);
+        return;
     }
 }
 
