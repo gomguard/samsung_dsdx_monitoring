@@ -18,15 +18,15 @@ import boto3
 from botocore.exceptions import ClientError
 
 
-def cleanup_orphan_files(cursor, object_document_id, content):
-    """content에 없는 파일을 soft delete + S3 삭제"""
+def cleanup_orphan_files(cursor, object_document_id, content, username):
+    """content에 없는 에디터 이미지를 soft delete + S3 삭제"""
     if not object_document_id:
         return
 
-    # DB에서 이 문서의 활성 파일 목록 조회
+    # DB에서 이 문서의 에디터 이미지(upload_type=1)만 조회
     cursor.execute("""
         SELECT file_id, file_name, file_path FROM monitoring_files
-        WHERE object_document_id = %s AND is_del = false
+        WHERE object_document_id = %s AND is_del = false AND upload_type = 1
     """, (object_document_id,))
     files = cursor.fetchall()
 
@@ -40,11 +40,12 @@ def cleanup_orphan_files(cursor, object_document_id, content):
         return
 
     # DB soft delete
+    now = datetime.now()
     orphan_ids = [f[0] for f in orphans]
     cursor.execute("""
-        UPDATE monitoring_files SET is_del = true
+        UPDATE monitoring_files SET is_del = true, updated_id = %s, updated_at = %s
         WHERE file_id = ANY(%s)
-    """, (orphan_ids,))
+    """, (username, now, orphan_ids,))
 
     # S3 삭제
     try:
@@ -654,12 +655,12 @@ def dx_document_create(request):
         """, (category_id, title, content, object_document_id or None,
               request.user.username, now, request.user.username, now))
         result = cursor.fetchone()
-        # 카테고리 타입 조회 (2=파일저장 모드면 고아 파일 정리 건너뜀)
+        # 카테고리 타입 조회 (2=파일저장 전용이면 고아 파일 정리 건너뜀)
         cursor.execute("SELECT category_type FROM monitoring_document_categories WHERE category_id = %s", (category_id,))
         cat_row = cursor.fetchone()
         category_type = cat_row[0] if cat_row else 1
         if category_type != 2:
-            cleanup_orphan_files(cursor, object_document_id, content)
+            cleanup_orphan_files(cursor, object_document_id, content, request.user.username)
         conn.commit()
         cursor.close()
         conn.close()
@@ -705,9 +706,9 @@ def dx_document_update(request, document_id):
             SET title = %s, content = %s, updated_id = %s, updated_at = %s
             WHERE document_id = %s AND is_del = false
         """, (title, content, request.user.username, now, document_id))
-        # 카테고리 타입 2(파일저장)면 고아 파일 정리 건너뜀
+        # 카테고리 타입 2(파일저장 전용)면 고아 파일 정리 건너뜀
         if category_type != 2:
-            cleanup_orphan_files(cursor, obj_doc_id, content)
+            cleanup_orphan_files(cursor, obj_doc_id, content, request.user.username)
         conn.commit()
         cursor.close()
         conn.close()
@@ -752,9 +753,9 @@ def dx_document_delete(request, document_id):
 
             # DB soft delete
             cursor.execute("""
-                UPDATE monitoring_files SET is_del = true
+                UPDATE monitoring_files SET is_del = true, updated_id = %s, updated_at = %s
                 WHERE object_document_id = %s AND is_del = false
-            """, (obj_doc_id,))
+            """, (request.user.username, now, obj_doc_id))
 
             # S3 삭제
             if files:
@@ -783,10 +784,14 @@ def dx_document_delete(request, document_id):
 @login_required
 @require_POST
 def dx_document_upload(request):
-    """문서 이미지 업로드 API (S3)"""
+    """문서 파일 업로드 API (S3)"""
     try:
         file = request.FILES.get('file')
         object_document_id = request.POST.get('object_document_id', '').strip()
+        try:
+            upload_type = int(request.POST.get('upload_type', 1))
+        except (ValueError, TypeError):
+            upload_type = 1
 
         if not file:
             return JsonResponse({'success': False, 'error': '파일이 없습니다.'})
@@ -825,11 +830,11 @@ def dx_document_upload(request):
         cursor.execute("""
             INSERT INTO monitoring_files
                 (object_document_id, original_file_name, file_name, file_path,
-                 file_size, file_type, created_at, created_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                 file_size, file_type, upload_type, created_at, created_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING file_id
         """, (object_document_id, file.name, s3_file_name, s3_path,
-              file.size, file.content_type, now, request.user.username))
+              file.size, file.content_type, upload_type, now, request.user.username))
         file_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
@@ -906,7 +911,11 @@ def dx_document_file_delete(request, file_id):
             return JsonResponse({'success': False, 'error': '파일을 찾을 수 없습니다.'})
 
         # DB soft delete
-        cursor.execute("UPDATE monitoring_files SET is_del = true WHERE file_id = %s", (file_id,))
+        now = datetime.now()
+        cursor.execute("""
+            UPDATE monitoring_files SET is_del = true, updated_id = %s, updated_at = %s
+            WHERE file_id = %s
+        """, (request.user.username, now, file_id))
         conn.commit()
         cursor.close()
         conn.close()
@@ -944,7 +953,7 @@ def dx_document_files(request):
             SELECT file_id, original_file_name, file_name, file_size, file_type,
                    TO_CHAR(created_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD HH24:MI') as created_at
             FROM monitoring_files
-            WHERE object_document_id = %s AND is_del = false
+            WHERE object_document_id = %s AND is_del = false AND upload_type = 2
             ORDER BY created_at
         """, (object_document_id,))
         columns = [desc[0] for desc in cursor.description]

@@ -279,6 +279,7 @@
                 <select class="form-input" id="formCategoryType" style="width: 160px;">
                     <option value="1" {% if not category or category.category_type == 1 %}selected{% endif %}>에디터</option>
                     <option value="2" {% if category and category.category_type == 2 %}selected{% endif %}>파일저장</option>
+                    <option value="3" {% if category and category.category_type == 3 %}selected{% endif %}>에디터+파일저장</option>
                 </select>
                 <div class="form-checkbox" style="margin-left: 20px;">
                     <input type="checkbox" id="formActive" {% if is_new or category.is_active %}checked{% endif %}>

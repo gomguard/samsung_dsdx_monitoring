@@ -1389,9 +1389,9 @@ def document_categories_delete(request, category_id):
             files = cursor.fetchall()
 
             cursor.execute("""
-                UPDATE monitoring_files SET is_del = true
+                UPDATE monitoring_files SET is_del = true, updated_id = %s, updated_at = %s
                 WHERE object_document_id = %s AND is_del = false
-            """, (obj_doc_id,))
+            """, (request.user.username, datetime.now(), obj_doc_id))
 
             if files:
                 try:

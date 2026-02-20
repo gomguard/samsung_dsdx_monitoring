@@ -377,7 +377,7 @@
             </div>
         </div>
 
-        <!-- 에디터 모드 (category_type=1) -->
+        <!-- 에디터 모드 (category_type=1,3) -->
         <div class="form-section editor-section" id="editorSection">
             <div class="editor-header">
                 <label class="form-label">내용</label>
@@ -386,7 +386,7 @@
             <div id="editor"></div>
         </div>
 
-        <!-- 파일저장 모드 (category_type=2) -->
+        <!-- 파일저장 모드 (category_type=2,3) -->
         <div class="form-section file-upload-section" id="fileSection" style="display:none;">
             <div class="file-section-label">파일 첨부</div>
             <div class="file-dropzone" id="fileDropzone">
@@ -401,8 +401,10 @@
             </div>
             <div class="file-list" id="fileList"></div>
 
-            <div class="file-section-label" style="margin-top: 20px;">내용 (메모)</div>
-            <textarea class="file-content-textarea" id="fileContent" placeholder="파일에 대한 설명이나 메모를 입력하세요"></textarea>
+            <div id="fileMemoSection">
+                <div class="file-section-label" style="margin-top: 20px;">내용 (메모)</div>
+                <textarea class="file-content-textarea" id="fileContent" placeholder="파일에 대한 설명이나 메모를 입력하세요"></textarea>
+            </div>
         </div>
     </div>
 </div>
@@ -438,6 +440,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 모드별 UI 초기화
     if (categoryType === 2) {
+        document.getElementById('editorSection').style.display = 'none';
+        initFileMode();
+    } else if (categoryType === 3) {
+        initEditorMode();
         initFileMode();
     } else {
         initEditorMode();
@@ -467,7 +473,10 @@ function updateBackLink() {
 // 에디터 모드 초기화
 function initEditorMode() {
     document.getElementById('editorSection').style.display = '';
-    document.getElementById('fileSection').style.display = 'none';
+    if (categoryType !== 3) {
+        document.getElementById('fileSection').style.display = 'none';
+    }
+    if (editor) return;
 
     // 미리보기 버튼
     AppButton('#editorPreviewBtnArea', '미리보기', 'openDocPreview', { icon: 'search', style: 'outline', size: 'sm' });
@@ -494,8 +503,11 @@ function openDocPreview() {
 
 // 파일저장 모드 초기화
 function initFileMode() {
-    document.getElementById('editorSection').style.display = 'none';
+    if (categoryType !== 3) {
+        document.getElementById('editorSection').style.display = 'none';
+    }
     document.getElementById('fileSection').style.display = '';
+    document.getElementById('fileMemoSection').style.display = (categoryType === 3) ? 'none' : '';
 
     const dropzone = document.getElementById('fileDropzone');
     const fileInput = document.getElementById('fileInput');
@@ -623,14 +635,17 @@ function loadDocument(id) {
                     }
                     document.getElementById('editorSection').style.display = 'none';
                     document.getElementById('fileSection').style.display = '';
-                    // 텍스트 메모 로드
                     if (doc.content) {
                         document.getElementById('fileContent').value = doc.content;
                     }
-                    // 기존 첨부파일 로드
+                    loadExistingFiles();
+                } else if (categoryType === 3) {
+                    initEditorMode();
+                    initFileMode();
+                    if (doc.content) setEditorHTML(editor, doc.content);
                     loadExistingFiles();
                 } else {
-                    // 에디터가 이미 초기화되어 있으면 데이터만 설정
+                    document.getElementById('fileSection').style.display = 'none';
                     if (doc.content) setEditorHTML(editor, doc.content);
                 }
             } else {
@@ -659,12 +674,13 @@ function loadExistingFiles() {
         });
 }
 
-// 파일 일괄 업로드 (저장 시 호출)
+// 파일 일괄 업로드 (저장 시 호출, upload_type=2 첨부파일)
 function uploadPendingFiles() {
     const promises = pendingFiles.map(f => {
         const formData = new FormData();
         formData.append('file', f.fileObj, f.name);
         formData.append('object_document_id', objectDocumentId);
+        formData.append('upload_type', '2');
         return fetch('{% url "main:api_dx_document_upload" %}', {
             method: 'POST',
             headers: { 'X-CSRFToken': getCsrfToken() },
@@ -695,6 +711,8 @@ function saveDocument() {
     let content;
     if (categoryType === 2) {
         content = document.getElementById('fileContent').value.trim();
+    } else if (categoryType === 3) {
+        content = getEditorHTML(editor);
     } else {
         content = getEditorHTML(editor);
     }
@@ -709,8 +727,8 @@ function saveDocument() {
         return;
     }
 
-    // 파일 모드: 업로드/삭제 먼저 처리 후 문서 저장
-    if (categoryType === 2 && (pendingFiles.length > 0 || pendingDeletes.length > 0)) {
+    // 파일 모드(type 2, 3): 업로드/삭제 먼저 처리 후 문서 저장
+    if ((categoryType === 2 || categoryType === 3) && (pendingFiles.length > 0 || pendingDeletes.length > 0)) {
         Promise.all([uploadPendingFiles(), deletePendingFiles()])
             .then(function(results) {
                 const uploadResults = results[0];
