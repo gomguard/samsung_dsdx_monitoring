@@ -203,3 +203,68 @@ def get_report_targets():
         report_targets.append((table_name, retailer_display, country, mall_name))
 
     return report_targets
+
+
+def load_ec2_instances():
+    """
+    EC2 인스턴스별 리테일러 그룹핑
+
+    Returns:
+        dict: { key: { 'instance_id': str, 'region': str, 'retailers': [str, ...], 'is_aws': bool } }
+        key는 리테일러명 기반 (instance_id 미노출)
+    """
+    # instance_id 기준으로 먼저 그룹핑
+    by_instance = {}
+
+    try:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        query = """
+            SELECT instance_id, instance_region, retailer, region
+            FROM ssd_crawl_db.ds_monitoring_targets
+            WHERE is_active = 1 AND is_del = 0
+            ORDER BY sort_order
+        """
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        for row in rows:
+            instance_id = row[0]
+            instance_region = row[1]
+            retailer = row[2]
+            region_name = row[3]
+
+            if instance_id:
+                if instance_id not in by_instance:
+                    by_instance[instance_id] = {
+                        'instance_id': instance_id,
+                        'region': instance_region,
+                        'region_name': region_name,
+                        'retailers': [],
+                        'is_aws': True,
+                    }
+                by_instance[instance_id]['retailers'].append(retailer)
+            else:
+                placeholder = f'_noaws_{retailer}'
+                by_instance[placeholder] = {
+                    'instance_id': None,
+                    'region': None,
+                    'region_name': region_name,
+                    'retailers': [retailer],
+                    'is_aws': False,
+                }
+
+        cursor.close()
+        conn.close()
+
+    except Exception as e:
+        print(f"Error loading EC2 instances from DB: {e}")
+
+    # 리테일러명 기반 키로 변환 (instance_id 노출 방지)
+    instances = {}
+    for info in by_instance.values():
+        key = '_'.join(info['retailers'])
+        instances[key] = info
+
+    return instances

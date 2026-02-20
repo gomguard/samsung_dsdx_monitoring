@@ -31,6 +31,8 @@ INSTALLED_APPS = [
     # Custom apps - Main
     'apps.main',
     'apps.accounts',
+    # 인프라 모니터링
+    'apps.ds_infra',
     # DX (TV/HHP Retail) Layer apps
     'apps.layer1',
     'apps.layer2',

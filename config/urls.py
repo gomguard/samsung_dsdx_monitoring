@@ -21,6 +21,9 @@ urlpatterns = [
     # DX 데이터 관리
     path('dx/data/', include('apps.dx_data.urls', namespace='dx_data')),
 
+    # 인프라 모니터링
+    path('ds/infra/', include('apps.ds_infra.urls', namespace='ds_infra')),
+
     # DS (Global Price Tracking) Layer URLs
     path('ds/layer1/', include('apps.ds_layer1.urls')),
     path('ds/layer2/', include('apps.ds_layer2.urls')),
