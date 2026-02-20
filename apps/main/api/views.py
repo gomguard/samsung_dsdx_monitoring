@@ -792,6 +792,8 @@ def dx_document_upload(request):
             upload_type = int(request.POST.get('upload_type', 1))
         except (ValueError, TypeError):
             upload_type = 1
+        if upload_type not in (1, 2):
+            upload_type = 1
 
         if not file:
             return JsonResponse({'success': False, 'error': '파일이 없습니다.'})
@@ -1099,6 +1101,8 @@ def ds_document_upload(request):
         try:
             upload_type = int(request.POST.get('upload_type', 1))
         except (ValueError, TypeError):
+            upload_type = 1
+        if upload_type not in (1, 2):
             upload_type = 1
         result = ds_upload_file(file, object_document_id, request.user.username, upload_type=upload_type)
 
