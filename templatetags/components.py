@@ -4,7 +4,7 @@
 사용법:
 {% load components %}
 {% search_box fields="id:ID,name:카테고리명" show_status=True %}
-{% stat_chips stats="total:전체,active:활성" %}
+{% stat_chips stats="statTotal:전체,statActive:활성" %}
 {% pagination id="pagination" %}
 """
 import re
@@ -89,8 +89,7 @@ def stat_chips(stats=""):
     통계 칩 컴포넌트
 
     Args:
-        stats: "id:label:value,id:label:value" 형식 (예: "statTotal:전체:100,statActive:활성:50")
-               value는 생략 가능 (JS에서 동적으로 설정)
+        stats: "id:label,id:label" 형식 (예: "statTotal:전체,statActive:활성")
     """
     html = '<div class="stat-chips">'
 
@@ -99,8 +98,7 @@ def stat_chips(stats=""):
             parts = stat.strip().split(':')
             stat_id = parts[0]
             label = parts[1] if len(parts) > 1 else parts[0]
-            value = parts[2] if len(parts) > 2 else '0'
-            html += f'<span class="stat-chip">{label}<strong id="{stat_id}">{value}</strong></span>'
+            html += f'<span class="stat-chip">{label}<strong id="{stat_id}">0</strong></span>'
 
     html += '</div>'
     return mark_safe(html)

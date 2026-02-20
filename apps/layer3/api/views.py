@@ -55,7 +55,7 @@ def _validate_table_name(table_name):
 def _validate_select_query(query):
     """SELECT 전용 쿼리인지 검증. 위험 키워드 포함 시 False 반환."""
     upper = query.strip().upper()
-    if not upper.startswith('SELECT'):
+    if not upper.startswith('SELECT') and not upper.startswith('WITH'):
         return False
     for keyword in _DANGEROUS_SQL:
         # 단어 경계 체크 (UPDATED 같은 컬럼명 오탐 방지)
@@ -2474,9 +2474,9 @@ def category_spec_detail(request):
 
         # account_name, item, crawl_strdatetime 순 정렬
         anomalies.sort(key=lambda r: (
-            r.get('account_name', ''),
-            r.get('item', ''),
-            r.get('crawl_strdatetime', '') or r.get('crawl_datetime', '') or ''
+            r.get('account_name') or '',
+            r.get('item') or '',
+            r.get('crawl_strdatetime') or r.get('crawl_datetime') or ''
         ))
 
         # item_mst에서 mst_id, is_product 병합 (retail_com 테이블인 경우)
