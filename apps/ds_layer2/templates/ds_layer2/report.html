@@ -1485,7 +1485,7 @@ function setNextDay() {
     loadReportList();
 }
 
-// formatLocalDate는 common.js에서 로드
+// formatLocalDate는 format.js에서 로드
 
 async function loadReportList() {
     let date = document.getElementById('targetDate').value;
@@ -2493,7 +2493,7 @@ function cancelClose() {
     overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
 }
 
-// showToast는 common.js에서 로드
+// showToast는 ui.js에서 로드
 
 // 보고서 출력 모달 열기
 async function openReportOutput() {
@@ -3018,7 +3018,7 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// showConfirm은 common.js에서 로드
+// showConfirm은 ui.js에서 로드
 
 // CSRF 토큰 가져오기
 function getCsrfToken() {

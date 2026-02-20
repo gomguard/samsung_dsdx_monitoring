@@ -1664,7 +1664,7 @@ async function closeReport() {
     }
 }
 
-// formatLocalDate, showToast는 common.js에서 로드
+// formatLocalDate는 format.js, showToast는 ui.js에서 로드
 
 function setPrevDay() {
     const dateInput = document.getElementById('targetDate');
@@ -2163,7 +2163,7 @@ function fallbackCopy(text, onSuccess, onError) {
     document.body.removeChild(textArea);
 }
 
-// showToast는 common.js에서 로드
+// showToast는 ui.js에서 로드
 
 // 행 데이터를 보고서 형식으로 변환
 function formatRowForReport(item) {
