@@ -1,0 +1,17 @@
+{% extends 'layer2/base_layer2.html' %}
+{% load static %}
+
+{% block page_title %}중복 검증{% endblock %}
+
+{% block layer2_content %}
+<div id="dx-validation-container">
+    <div class="loading">
+        <div class="loading-spinner"></div>
+        <p>데이터 로딩 중...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block layer2_js %}
+<script src="{% static 'js/layer2/layer2-all.js' %}?v=1"></script>
+{% endblock %}

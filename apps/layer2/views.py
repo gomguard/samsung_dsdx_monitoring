@@ -6,16 +6,63 @@ Layer 2: 형식/NULL 검수 (Formatting & Null Validation)
 """
 
 from django.shortcuts import render
+from apps.common.retail_columns import get_all_categories
 
 
-def index(request):
-    """Layer 2 대시보드"""
-    context = {
-        'layer': {
-            'number': 2,
-            'name': '형식/NULL 검수',
-            'name_en': 'Formatting & Null Validation',
-            'color': '#0d9488',
-        }
+LAYER_CONTEXT = {
+    'number': 2,
+    'name': '형식/NULL 검수',
+    'name_en': 'Formatting & Null Validation',
+    'color': '#0d9488',
+}
+
+SECTION_TITLES = {
+    'dashboard': '대시보드',
+    'null_validation': 'NULL 검증',
+    'format_validation': '형식 검증',
+    'anomaly_validation': '중복 검증',
+}
+
+CATEGORY_NAMES = {
+    'tv_retail': 'TV Retail',
+    'hhp_retail': 'HHP Retail',
+    'youtube': 'YouTube',
+    'market': 'Market',
+}
+
+
+def _get_sidebar_items():
+    """사이드바 하위항목 — 카테고리 목록에서 추출 (데이터 조회 없음)"""
+    categories = get_all_categories()
+    items = [{'key': c, 'name': CATEGORY_NAMES.get(c, c)} for c in categories]
+    return {'null': items, 'format': items, 'anomaly': items}
+
+
+def _build_context(section, request):
+    return {
+        'layer': LAYER_CONTEXT,
+        'section': section,
+        'section_title': SECTION_TITLES.get(section, ''),
+        'target_date': request.GET.get('date', ''),
+        'sidebar_items': _get_sidebar_items(),
     }
-    return render(request, 'layer2/index.html', context)
+
+
+def dashboard(request):
+    """Layer 2 대시보드"""
+    return render(request, 'layer2/dashboard.html', _build_context('dashboard', request))
+
+
+def null_validation(request):
+    """NULL 검증"""
+    return render(request, 'layer2/null_validation.html', _build_context('null_validation', request))
+
+
+def format_validation(request):
+    """형식 검증"""
+    return render(request, 'layer2/format_validation.html', _build_context('format_validation', request))
+
+
+def anomaly_validation(request):
+    """중복 검증"""
+    return render(request, 'layer2/anomaly_validation.html', _build_context('anomaly_validation', request))

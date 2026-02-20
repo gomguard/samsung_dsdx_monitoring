@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
 from apps.common.response import safe_error, log_error
+from apps.common.params import parse_date
 from apps.common.retail_columns import (
     get_null_check_query_parts, get_null_detail_query_parts, get_null_check_columns,
     validate_field, get_duplicate_key_columns, get_duplicate_check_query,
@@ -17,6 +18,13 @@ from apps.common.retail_columns import (
     get_check_name_by_table, get_check_names_by_table, get_null_check_columns_for_category,
     get_all_categories, get_check_names_by_category, get_category_config
 )
+
+
+# table 파라미터 화이트리스트
+VALID_TABLES_FORMAT = {'tv_retail', 'hhp_retail', 'youtube_logs', 'youtube_videos', 'youtube_comments', 'youtube', 'market'}
+VALID_TABLES_ANOMALY = {'tv_retail', 'hhp_retail', 'youtube_videos', 'youtube_logs', 'market_trend', 'market_product', 'market_event'}
+VALID_TABLES_RETAILER = {'TV Retail', 'HHP Retail'}
+VALID_TABLES_RULES = {'tv_retail_com', 'hhp_retail_com', 'youtube_videos', 'market_trend', 'market_comp_product', 'market_comp_event', 'openai_forecast_results'}
 
 
 # 상태 기준: 0건 = OK, 1~10건 = WARNING, 10건 초과 = CRITICAL
@@ -41,12 +49,9 @@ def validate_hhp_field(field_name, value, account_name='Amazon'):
 
 def layer_stats(request):
     """Layer 2 통계 API - 검증유형별, 테이블별 구조화"""
-    date_str = request.GET.get('date')
-
-    if date_str:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    else:
-        target_date = (datetime.now() - timedelta(days=1)).date()
+    target_date = parse_date(request.GET.get('date'))
+    if target_date is None:
+        return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
 
     next_date = target_date + timedelta(days=1)
 
@@ -65,6 +70,8 @@ def layer_stats(request):
         }
     }
 
+    conn = None
+    cursor = None
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
@@ -182,8 +189,8 @@ def layer_stats(request):
                             })
                             cat_total_records += total
                             cat_total_issues += total_null_count
-                    except Exception:
-                        # 개별 check_name 오류 시 무시하고 계속
+                    except Exception as e:
+                        print(f'[WARN] layer_stats check_name={check_name}: {e}')
                         pass
 
                 null_validation['tables'].append({
@@ -196,8 +203,8 @@ def layer_stats(request):
                     'fields': all_cat_fields
                 })
                 total_null_issues += cat_total_issues
-            except Exception:
-                # category 처리 오류 시 무시하고 계속
+            except Exception as e:
+                print(f'[WARN] layer_stats category={category}: {e}')
                 pass
 
         null_validation['total_issues'] = total_null_issues
@@ -220,27 +227,11 @@ def layer_stats(request):
         cursor.execute("SELECT DISTINCT item FROM tv_item_mst")
         tv_valid_items = set(row[0] for row in cursor.fetchall())
 
-        # TV Retail 형식 검증 - 리테일러별 전체 필드 검증
-        cursor.execute("""
-            SELECT
-                account_name, id, item, page_type, product_url,
-                main_rank, bsr_rank, final_sku_price, original_sku_price,
-                count_of_reviews, star_rating, count_of_star_ratings,
-                detailed_review_content,
-                number_of_units_purchased_past_month, available_quantity_for_purchase,
-                sku_popularity, retailer_membership_discounts,
-                rank_1, rank_2, summarized_review_content,
-                savings, offer, retailer_sku_name_similar, recommendation_intent,
-                number_of_ppl_purchased_yesterday, number_of_ppl_added_to_carts, discount_type
-            FROM tv_retail_com
-            WHERE DATE(crawl_datetime::timestamp) = %s
-            LIMIT 10000
-        """, (target_date,))
-
-        tv_format_rows = cursor.fetchall()
+        # TV Retail 형식 검증 - 리테일러별 전체 필드 검증 (청크 단위 전수검사)
         tv_format_errors = []
         tv_format_by_retailer = {'Amazon': 0, 'Bestbuy': 0, 'Walmart': 0}
         tv_format_total_by_retailer = {'Amazon': 0, 'Bestbuy': 0, 'Walmart': 0}
+        tv_format_rows_count = 0
 
         # 전체 필드 목록
         all_fields = [
@@ -255,44 +246,72 @@ def layer_stats(request):
             'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts', 'discount_type'
         ]
 
-        for row in tv_format_rows:
-            account_name = row[0] or 'Unknown'
-            item_value = row[2]
-            errors = []
+        CHUNK_SIZE = 5000
+        tv_offset = 0
+        while True:
+            cursor.execute("""
+                SELECT
+                    account_name, id, item, page_type, product_url,
+                    main_rank, bsr_rank, final_sku_price, original_sku_price,
+                    count_of_reviews, star_rating, count_of_star_ratings,
+                    detailed_review_content,
+                    number_of_units_purchased_past_month, available_quantity_for_purchase,
+                    sku_popularity, retailer_membership_discounts,
+                    rank_1, rank_2, summarized_review_content,
+                    savings, offer, retailer_sku_name_similar, recommendation_intent,
+                    number_of_ppl_purchased_yesterday, number_of_ppl_added_to_carts, discount_type
+                FROM tv_retail_com
+                WHERE DATE(crawl_datetime::timestamp) = %s
+                ORDER BY id
+                LIMIT %s OFFSET %s
+            """, (target_date, CHUNK_SIZE, tv_offset))
 
-            # 리테일러별 총 레코드 수 카운트
-            if account_name in tv_format_total_by_retailer:
-                tv_format_total_by_retailer[account_name] += 1
-            else:
-                tv_format_total_by_retailer[account_name] = 1
+            chunk = cursor.fetchall()
+            if not chunk:
+                break
+            tv_format_rows_count += len(chunk)
 
-            # row[2]부터 시작 (row[0]=account_name, row[1]=id)
-            values = list(row[2:])
+            for row in chunk:
+                account_name = row[0] or 'Unknown'
+                item_value = row[2]
+                errors = []
 
-            for field, value in zip(all_fields, values):
-                error = validate_tv_field(field, value, account_name)
-                if error:
-                    errors.append({'field': field, 'value': str(value)[:30] if value else '', 'error': error})
-
-            # 참조 무결성 검증: item이 tv_item_mst에 존재하는지
-            if item_value and item_value not in tv_valid_items:
-                errors.append({
-                    'field': 'item (참조 무결성)',
-                    'value': str(item_value)[:30],
-                    'error': f'tv_item_mst에 등록되지 않은 item: {item_value}'
-                })
-
-            if errors:
-                tv_format_errors.append({
-                    'id': row[1],
-                    'account_name': account_name,
-                    'item': row[2],
-                    'errors': errors[:5]
-                })
-                if account_name in tv_format_by_retailer:
-                    tv_format_by_retailer[account_name] += len(errors)
+                # 리테일러별 총 레코드 수 카운트
+                if account_name in tv_format_total_by_retailer:
+                    tv_format_total_by_retailer[account_name] += 1
                 else:
-                    tv_format_by_retailer[account_name] = len(errors)
+                    tv_format_total_by_retailer[account_name] = 1
+
+                # row[2]부터 시작 (row[0]=account_name, row[1]=id)
+                values = list(row[2:])
+
+                for field, value in zip(all_fields, values):
+                    error = validate_tv_field(field, value, account_name)
+                    if error:
+                        errors.append({'field': field, 'value': str(value)[:30] if value else '', 'error': error})
+
+                # 참조 무결성 검증: item이 tv_item_mst에 존재하는지
+                if item_value and item_value not in tv_valid_items:
+                    errors.append({
+                        'field': 'item (참조 무결성)',
+                        'value': str(item_value)[:30],
+                        'error': '마스터 테이블에 등록되지 않은 item'
+                    })
+
+                if errors:
+                    if len(tv_format_errors) < 30:
+                        tv_format_errors.append({
+                            'id': row[1],
+                            'account_name': account_name,
+                            'item': row[2],
+                            'errors': errors[:5]
+                        })
+                    if account_name in tv_format_by_retailer:
+                        tv_format_by_retailer[account_name] += len(errors)
+                    else:
+                        tv_format_by_retailer[account_name] = len(errors)
+
+            tv_offset += CHUNK_SIZE
 
         tv_format_retailers = []
         tv_format_issue_total = 0
@@ -308,11 +327,11 @@ def layer_stats(request):
         format_validation['tables'].append({
             'table': 'tv_retail',
             'table_name': 'TV Retail',
-            'total_checked': len(tv_format_rows),
+            'total_checked': tv_format_rows_count,
             'total_issues': tv_format_issue_total,
             'status': get_status(tv_format_issue_total),
             'retailers': tv_format_retailers,
-            'sample_errors': tv_format_errors[:30]
+            'sample_errors': tv_format_errors
         })
         total_format_issues += tv_format_issue_total
 
@@ -320,27 +339,11 @@ def layer_stats(request):
         cursor.execute("SELECT DISTINCT item FROM hhp_item_mst")
         hhp_valid_items = set(row[0] for row in cursor.fetchall())
 
-        # HHP Retail 형식 검증 - 리테일러별 전체 필드 검증 (HHP 전용 필드 포함)
-        cursor.execute("""
-            SELECT
-                account_name, id, item, page_type, product_url,
-                main_rank, bsr_rank, trend_rank, final_sku_price, original_sku_price,
-                count_of_reviews, star_rating, count_of_star_ratings,
-                detailed_review_content, trade_in, sku_status,
-                number_of_units_purchased_past_month, available_quantity_for_purchase,
-                sku_popularity, retailer_membership_discounts,
-                rank_1, rank_2, summarized_review_content,
-                savings, offer, retailer_sku_name_similar, recommendation_intent,
-                number_of_ppl_purchased_yesterday, number_of_ppl_added_to_carts, discount_type
-            FROM hhp_retail_com
-            WHERE DATE(crawl_strdatetime::timestamp) = %s
-            LIMIT 10000
-        """, (target_date,))
-
-        hhp_format_rows = cursor.fetchall()
+        # HHP Retail 형식 검증 - 리테일러별 전체 필드 검증 (청크 단위 전수검사)
         hhp_format_errors = []
         hhp_format_by_retailer = {'Amazon': 0, 'Bestbuy': 0, 'Walmart': 0}
         hhp_format_total_by_retailer = {'Amazon': 0, 'Bestbuy': 0, 'Walmart': 0}
+        hhp_format_rows_count = 0
 
         # HHP 전용 필드 목록 (trend_rank, trade_in, sku_status 포함 - 쿼리 순서와 일치)
         hhp_fields = [
@@ -355,44 +358,71 @@ def layer_stats(request):
             'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts', 'discount_type'
         ]
 
-        for row in hhp_format_rows:
-            account_name = row[0] or 'Unknown'
-            item_value = row[2]
-            errors = []
+        hhp_offset = 0
+        while True:
+            cursor.execute("""
+                SELECT
+                    account_name, id, item, page_type, product_url,
+                    main_rank, bsr_rank, trend_rank, final_sku_price, original_sku_price,
+                    count_of_reviews, star_rating, count_of_star_ratings,
+                    detailed_review_content, trade_in, sku_status,
+                    number_of_units_purchased_past_month, available_quantity_for_purchase,
+                    sku_popularity, retailer_membership_discounts,
+                    rank_1, rank_2, summarized_review_content,
+                    savings, offer, retailer_sku_name_similar, recommendation_intent,
+                    number_of_ppl_purchased_yesterday, number_of_ppl_added_to_carts, discount_type
+                FROM hhp_retail_com
+                WHERE DATE(crawl_strdatetime::timestamp) = %s
+                ORDER BY id
+                LIMIT %s OFFSET %s
+            """, (target_date, CHUNK_SIZE, hhp_offset))
 
-            # 리테일러별 총 레코드 수 카운트
-            if account_name in hhp_format_total_by_retailer:
-                hhp_format_total_by_retailer[account_name] += 1
-            else:
-                hhp_format_total_by_retailer[account_name] = 1
+            chunk = cursor.fetchall()
+            if not chunk:
+                break
+            hhp_format_rows_count += len(chunk)
 
-            # row[2]부터 시작 (row[0]=account_name, row[1]=id)
-            values = list(row[2:])
+            for row in chunk:
+                account_name = row[0] or 'Unknown'
+                item_value = row[2]
+                errors = []
 
-            for field, value in zip(hhp_fields, values):
-                error = validate_hhp_field(field, value, account_name)
-                if error:
-                    errors.append({'field': field, 'value': str(value)[:30] if value else '', 'error': error})
-
-            # 참조 무결성 검증: item이 hhp_item_mst에 존재하는지
-            if item_value and item_value not in hhp_valid_items:
-                errors.append({
-                    'field': 'item (참조 무결성)',
-                    'value': str(item_value)[:30],
-                    'error': f'hhp_item_mst에 등록되지 않은 item: {item_value}'
-                })
-
-            if errors:
-                hhp_format_errors.append({
-                    'id': row[1],
-                    'account_name': account_name,
-                    'item': row[2],
-                    'errors': errors[:5]
-                })
-                if account_name in hhp_format_by_retailer:
-                    hhp_format_by_retailer[account_name] += len(errors)
+                # 리테일러별 총 레코드 수 카운트
+                if account_name in hhp_format_total_by_retailer:
+                    hhp_format_total_by_retailer[account_name] += 1
                 else:
-                    hhp_format_by_retailer[account_name] = len(errors)
+                    hhp_format_total_by_retailer[account_name] = 1
+
+                # row[2]부터 시작 (row[0]=account_name, row[1]=id)
+                values = list(row[2:])
+
+                for field, value in zip(hhp_fields, values):
+                    error = validate_hhp_field(field, value, account_name)
+                    if error:
+                        errors.append({'field': field, 'value': str(value)[:30] if value else '', 'error': error})
+
+                # 참조 무결성 검증: item이 hhp_item_mst에 존재하는지
+                if item_value and item_value not in hhp_valid_items:
+                    errors.append({
+                        'field': 'item (참조 무결성)',
+                        'value': str(item_value)[:30],
+                        'error': '마스터 테이블에 등록되지 않은 item'
+                    })
+
+                if errors:
+                    if len(hhp_format_errors) < 30:
+                        hhp_format_errors.append({
+                            'id': row[1],
+                            'account_name': account_name,
+                            'item': row[2],
+                            'errors': errors[:5]
+                        })
+                    if account_name in hhp_format_by_retailer:
+                        hhp_format_by_retailer[account_name] += len(errors)
+                    else:
+                        hhp_format_by_retailer[account_name] = len(errors)
+
+            hhp_offset += CHUNK_SIZE
 
         hhp_format_retailers = []
         hhp_format_issue_total = 0
@@ -408,11 +438,11 @@ def layer_stats(request):
         format_validation['tables'].append({
             'table': 'hhp_retail',
             'table_name': 'HHP Retail',
-            'total_checked': len(hhp_format_rows),
+            'total_checked': hhp_format_rows_count,
             'total_issues': hhp_format_issue_total,
             'status': get_status(hhp_format_issue_total),
             'retailers': hhp_format_retailers,
-            'sample_errors': hhp_format_errors[:30]
+            'sample_errors': hhp_format_errors
         })
         total_format_issues += hhp_format_issue_total
 
@@ -675,7 +705,7 @@ def layer_stats(request):
             })
             total_format_issues += market_total_format_issues
         except Exception as e:
-            pass  # Market 테이블이 없거나 컬럼이 다른 경우 무시
+            print(f'[WARN] layer_stats market_format: {e}')
 
         format_validation['total_issues'] = total_format_issues
         format_validation['status'] = get_status(total_format_issues)
@@ -938,9 +968,6 @@ def layer_stats(request):
         anomaly_validation['status'] = get_status(total_anomaly_issues)
         results['validation_types'].append(anomaly_validation)
 
-        cursor.close()
-        conn.close()
-
         # Summary 계산
         total_issues = total_null_issues + total_format_issues + total_anomaly_issues
         results['summary'] = {
@@ -954,20 +981,24 @@ def layer_stats(request):
     except Exception as e:
         results['error'] = log_error(e)
         results['summary']['overall_status'] = 'ERROR'
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
     return JsonResponse(results)
 
 
 def null_detail(request):
     """NULL 필드 상세 조회 API - category 기반 동적 처리"""
-    date_str = request.GET.get('date')
-    category = request.GET.get('table', 'tv_retail')  # table 파라미터가 category
+    target_date = parse_date(request.GET.get('date'))
+    if target_date is None:
+        return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
+    category = request.GET.get('table', 'tv_retail')
+    if category not in get_all_categories():
+        return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
     retailer = request.GET.get('retailer')
-
-    if date_str:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    else:
-        target_date = (datetime.now() - timedelta(days=1)).date()
 
     next_date = target_date + timedelta(days=1)
 
@@ -1023,9 +1054,6 @@ def null_detail(request):
         actual_table = category_config['table_name']
         date_col = category_config.get('date_column', 'created_at')
         all_null_check_cols = list(category_config['columns'].keys())
-        print(f"[DEBUG] check_name={check_name}, actual_table={actual_table}, date_col={date_col}")
-        print(f"[DEBUG] all_null_check_cols={all_null_check_cols}")
-        print(f"[DEBUG] category_config columns={category_config['columns']}")
 
         # WHERE 조건 생성
         where_conditions = []
@@ -1069,11 +1097,8 @@ def null_detail(request):
             """
             params = [target_date]
 
-        print(f"[DEBUG] query={query}")
-        print(f"[DEBUG] params={params}")
         cursor.execute(query, params)
         rows = cursor.fetchall()
-        print(f"[DEBUG] rows count={len(rows)}")
 
         # 컬럼 인덱스 매핑
         col_index = {col: idx for idx, col in enumerate(select_cols)}
@@ -1111,10 +1136,6 @@ def null_detail(request):
             record_data['null_fields'] = null_fields
             results.append(record_data)
 
-        print(f"[DEBUG] results count={len(results)}")
-        if results:
-            print(f"[DEBUG] first result={results[0]}")
-
         # display_config, query_config 생성
         display_config = {}
         query_config = {}
@@ -1142,14 +1163,13 @@ def null_detail(request):
 
 def format_detail(request):
     """형식 오류 상세 조회 API"""
-    date_str = request.GET.get('date')
+    target_date = parse_date(request.GET.get('date'))
+    if target_date is None:
+        return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
     table = request.GET.get('table', 'tv_retail')
+    if table not in VALID_TABLES_FORMAT:
+        return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
     retailer = request.GET.get('retailer')
-
-    if date_str:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    else:
-        target_date = (datetime.now() - timedelta(days=1)).date()
 
     try:
         conn = get_dx_connection()
@@ -1299,7 +1319,7 @@ def format_detail(request):
                         'field': 'item (참조 무결성)',
                         'value': str(item)[:50] if item else '',
                         'rule': '참조 무결성',
-                        'reason': f'hhp_item_mst에 등록되지 않은 item'
+                        'reason': '마스터 테이블에 등록되지 않은 item'
                     })
 
                 if errors:
@@ -1885,8 +1905,12 @@ def format_detail(request):
 
 def anomaly_detail(request):
     """중복 검증 상세 조회 API - 리테일러별, 시간대별 중복 상세"""
-    date_str = request.GET.get('date')
+    target_date = parse_date(request.GET.get('date'))
+    if target_date is None:
+        return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
     table = request.GET.get('table', 'tv_retail')
+    if table not in VALID_TABLES_ANOMALY:
+        return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
     retailer = request.GET.get('retailer', '')
     try:
         page = max(1, int(request.GET.get('page', 1)))
@@ -1894,18 +1918,30 @@ def anomaly_detail(request):
     except (ValueError, TypeError):
         return JsonResponse({'error': '잘못된 페이지 파라미터'}, status=400)
 
-    if date_str:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    else:
-        target_date = (datetime.now() - timedelta(days=1)).date()
+    offset = (page - 1) * page_size
 
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
 
         duplicates = []
+        total_groups = 0
 
         if table == 'tv_retail':
+            # 전체 그룹 수
+            cursor.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT item, account_name,
+                           CASE WHEN EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12 THEN '오전' ELSE '오후' END as period
+                    FROM tv_retail_com
+                    WHERE DATE(crawl_datetime::timestamp) = %s
+                      AND (%s = '' OR account_name = %s)
+                    GROUP BY item, account_name, period
+                    HAVING COUNT(*) > 1
+                ) sub
+            """, (target_date, retailer, retailer))
+            total_groups = cursor.fetchone()[0]
+
             # 중복 그룹 찾기: item + 시간대 (오전/오후 각각 1건만 있어야 정상)
             # page_type은 무시 - main과 bsr에서 같은 item이 수집되는 건 정상
             cursor.execute("""
@@ -1918,6 +1954,8 @@ def anomaly_detail(request):
                       AND (%s = '' OR account_name = %s)
                     GROUP BY item, account_name, period
                     HAVING COUNT(*) > 1
+                    ORDER BY COUNT(*) DESC, item, period
+                    LIMIT %s OFFSET %s
                 )
                 SELECT d.item, d.account_name, d.period, d.dup_count,
                        t.id, t.product_url, t.crawl_datetime, t.page_type, t.main_rank, t.bsr_rank
@@ -1927,8 +1965,7 @@ def anomaly_detail(request):
                     AND DATE(t.crawl_datetime::timestamp) = %s
                     AND CASE WHEN EXTRACT(HOUR FROM t.crawl_datetime::timestamp) < 12 THEN '오전' ELSE '오후' END = d.period
                 ORDER BY d.dup_count DESC, d.item, d.period, t.crawl_datetime
-                LIMIT 200
-            """, (target_date, retailer, retailer, target_date))
+            """, (target_date, retailer, retailer, page_size, offset, target_date))
 
             rows = cursor.fetchall()
 
@@ -1957,6 +1994,19 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'hhp_retail':
+            cursor.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT item, account_name,
+                           CASE WHEN EXTRACT(HOUR FROM crawl_strdatetime::timestamp) < 12 THEN '오전' ELSE '오후' END as period
+                    FROM hhp_retail_com
+                    WHERE DATE(crawl_strdatetime::timestamp) = %s
+                      AND (%s = '' OR account_name = %s)
+                    GROUP BY item, account_name, period
+                    HAVING COUNT(*) > 1
+                ) sub
+            """, (target_date, retailer, retailer))
+            total_groups = cursor.fetchone()[0]
+
             # 중복 그룹 찾기: item + 시간대 (오전/오후 각각 1건만 있어야 정상)
             # trend_rank는 Bestbuy만 있음
             cursor.execute("""
@@ -1969,6 +2019,8 @@ def anomaly_detail(request):
                       AND (%s = '' OR account_name = %s)
                     GROUP BY item, account_name, period
                     HAVING COUNT(*) > 1
+                    ORDER BY COUNT(*) DESC, item, period
+                    LIMIT %s OFFSET %s
                 )
                 SELECT d.item, d.account_name, d.period, d.dup_count,
                        h.id, h.product_url, h.crawl_strdatetime, h.page_type, h.main_rank, h.bsr_rank, h.trend_rank
@@ -1978,8 +2030,7 @@ def anomaly_detail(request):
                     AND DATE(h.crawl_strdatetime::timestamp) = %s
                     AND CASE WHEN EXTRACT(HOUR FROM h.crawl_strdatetime::timestamp) < 12 THEN '오전' ELSE '오후' END = d.period
                 ORDER BY d.dup_count DESC, d.item, d.period, h.crawl_strdatetime
-                LIMIT 200
-            """, (target_date, retailer, retailer, target_date))
+            """, (target_date, retailer, retailer, page_size, offset, target_date))
 
             rows = cursor.fetchall()
 
@@ -2016,6 +2067,17 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'youtube_videos':
+            cursor.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT video_id, keyword
+                    FROM youtube_videos
+                    WHERE DATE(created_at) = %s
+                    GROUP BY video_id, keyword
+                    HAVING COUNT(*) > 1
+                ) sub
+            """, (target_date,))
+            total_groups = cursor.fetchone()[0]
+
             # YouTube Videos 중복 그룹 찾기: video_id + keyword
             cursor.execute("""
                 WITH duplicate_groups AS (
@@ -2024,6 +2086,8 @@ def anomaly_detail(request):
                     WHERE DATE(created_at) = %s
                     GROUP BY video_id, keyword
                     HAVING COUNT(*) > 1
+                    ORDER BY COUNT(*) DESC, video_id, keyword
+                    LIMIT %s OFFSET %s
                 )
                 SELECT d.video_id, d.keyword, d.dup_count,
                        y.id, y.title, y.created_at
@@ -2032,7 +2096,7 @@ def anomaly_detail(request):
                     AND y.keyword = d.keyword
                     AND DATE(y.created_at) = %s
                 ORDER BY d.dup_count DESC, d.video_id, d.keyword, y.created_at
-            """, (target_date, target_date))
+            """, (target_date, page_size, offset, target_date))
 
             rows = cursor.fetchall()
 
@@ -2058,6 +2122,18 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'youtube_logs':
+            cursor.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT k.keyword, k.category
+                    FROM youtube_collection_logs l
+                    JOIN youtube_keywords k ON l.keyword_id = k.id
+                    WHERE DATE(l.started_at) = %s
+                    GROUP BY k.keyword, k.category
+                    HAVING COUNT(*) > 1
+                ) sub
+            """, (target_date,))
+            total_groups = cursor.fetchone()[0]
+
             # YouTube Logs 중복 그룹 찾기: keyword + category (조인 필요)
             cursor.execute("""
                 WITH duplicate_groups AS (
@@ -2067,6 +2143,8 @@ def anomaly_detail(request):
                     WHERE DATE(l.started_at) = %s
                     GROUP BY k.keyword, k.category
                     HAVING COUNT(*) > 1
+                    ORDER BY COUNT(*) DESC, k.keyword, k.category
+                    LIMIT %s OFFSET %s
                 )
                 SELECT d.keyword, d.category, d.dup_count,
                        l.id, l.started_at
@@ -2075,7 +2153,7 @@ def anomaly_detail(request):
                 JOIN youtube_collection_logs l ON l.keyword_id = k.id
                     AND DATE(l.started_at) = %s
                 ORDER BY d.dup_count DESC, d.keyword, d.category, l.started_at
-            """, (target_date, target_date))
+            """, (target_date, page_size, offset, target_date))
 
             rows = cursor.fetchall()
 
@@ -2098,6 +2176,17 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'market_trend':
+            cursor.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT keyword
+                    FROM market_trend
+                    WHERE DATE(crawl_at_local_time) = %s
+                    GROUP BY keyword
+                    HAVING COUNT(*) > 1
+                ) sub
+            """, (target_date,))
+            total_groups = cursor.fetchone()[0]
+
             # Market Trend 중복: 같은 날짜에 keyword 중복
             cursor.execute("""
                 WITH duplicate_groups AS (
@@ -2106,6 +2195,8 @@ def anomaly_detail(request):
                     WHERE DATE(crawl_at_local_time) = %s
                     GROUP BY keyword
                     HAVING COUNT(*) > 1
+                    ORDER BY COUNT(*) DESC, keyword
+                    LIMIT %s OFFSET %s
                 )
                 SELECT d.keyword, d.dup_count,
                        m.id, m.total_article_number, m.crawl_at_local_time
@@ -2113,7 +2204,7 @@ def anomaly_detail(request):
                 JOIN market_trend m ON m.keyword = d.keyword
                     AND DATE(m.crawl_at_local_time) = %s
                 ORDER BY d.dup_count DESC, d.keyword, m.crawl_at_local_time
-            """, (target_date, target_date))
+            """, (target_date, page_size, offset, target_date))
 
             rows = cursor.fetchall()
 
@@ -2136,6 +2227,17 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'market_product':
+            cursor.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT batch_id, samsung_series_name, comp_brand, comp_series_name
+                    FROM market_comp_product
+                    WHERE DATE(created_at) = %s
+                    GROUP BY batch_id, samsung_series_name, comp_brand, comp_series_name
+                    HAVING COUNT(*) > 1
+                ) sub
+            """, (target_date,))
+            total_groups = cursor.fetchone()[0]
+
             # Market Product 중복: batch_id + samsung_series_name + comp_brand + comp_series_name
             cursor.execute("""
                 WITH duplicate_groups AS (
@@ -2144,6 +2246,8 @@ def anomaly_detail(request):
                     WHERE DATE(created_at) = %s
                     GROUP BY batch_id, samsung_series_name, comp_brand, comp_series_name
                     HAVING COUNT(*) > 1
+                    ORDER BY COUNT(*) DESC, batch_id, samsung_series_name
+                    LIMIT %s OFFSET %s
                 )
                 SELECT d.batch_id, d.samsung_series_name, d.comp_brand, d.comp_series_name, d.dup_count,
                        m.id, m.created_at
@@ -2154,8 +2258,7 @@ def anomaly_detail(request):
                     AND m.comp_series_name = d.comp_series_name
                     AND DATE(m.created_at) = %s
                 ORDER BY d.dup_count DESC, d.batch_id, d.samsung_series_name, m.created_at
-                LIMIT 500
-            """, (target_date, target_date))
+            """, (target_date, page_size, offset, target_date))
 
             rows = cursor.fetchall()
 
@@ -2180,6 +2283,17 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'market_event':
+            cursor.execute("""
+                SELECT COUNT(*) FROM (
+                    SELECT batch_id, comp_brand, comp_sku_name
+                    FROM market_comp_event
+                    WHERE DATE(created_at) = %s
+                    GROUP BY batch_id, comp_brand, comp_sku_name
+                    HAVING COUNT(*) > 1
+                ) sub
+            """, (target_date,))
+            total_groups = cursor.fetchone()[0]
+
             # Market Event 중복: batch_id + comp_brand + comp_sku_name
             cursor.execute("""
                 WITH duplicate_groups AS (
@@ -2188,6 +2302,8 @@ def anomaly_detail(request):
                     WHERE DATE(created_at) = %s
                     GROUP BY batch_id, comp_brand, comp_sku_name
                     HAVING COUNT(*) > 1
+                    ORDER BY COUNT(*) DESC, batch_id, comp_brand
+                    LIMIT %s OFFSET %s
                 )
                 SELECT d.batch_id, d.comp_brand, d.comp_sku_name, d.dup_count,
                        m.id, m.created_at
@@ -2197,8 +2313,7 @@ def anomaly_detail(request):
                     AND m.comp_sku_name = d.comp_sku_name
                     AND DATE(m.created_at) = %s
                 ORDER BY d.dup_count DESC, d.batch_id, d.comp_brand, m.created_at
-                LIMIT 500
-            """, (target_date, target_date))
+            """, (target_date, page_size, offset, target_date))
 
             rows = cursor.fetchall()
 
@@ -2224,11 +2339,19 @@ def anomaly_detail(request):
         cursor.close()
         conn.close()
 
+        total_pages = (total_groups + page_size - 1) // page_size if total_groups > 0 else 0
+
         return JsonResponse({
             'date': str(target_date),
             'table': table,
             'retailer': retailer,
-            'results': {'duplicates': duplicates}
+            'results': {
+                'duplicates': duplicates,
+                'total_groups': total_groups,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': total_pages
+            }
         })
 
     except Exception as e:
@@ -2265,12 +2388,9 @@ def ds_layer_stats(request):
     """DS Layer 2 통계 API - NULL/형식/수집률 검증"""
     from apps.common.db import get_ds_connection
 
-    date_str = request.GET.get('date')
-
-    if date_str:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    else:
-        target_date = (datetime.now() - timedelta(days=1)).date()
+    target_date = parse_date(request.GET.get('date'))
+    if target_date is None:
+        return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
 
     date_str_compact = target_date.strftime('%Y%m%d')
     next_date_compact = (target_date + timedelta(days=1)).strftime('%Y%m%d')
@@ -2292,6 +2412,8 @@ def ds_layer_stats(request):
         }
     }
 
+    conn = None
+    cursor = None
     try:
         conn = get_ds_connection()
         cursor = conn.cursor()
@@ -2601,9 +2723,6 @@ def ds_layer_stats(request):
         collection_validation['status'] = get_status(total_collection_issues)
         results['validation_types'].append(collection_validation)
 
-        cursor.close()
-        conn.close()
-
         # Summary 계산
         total_issues = total_null_issues + total_format_issues + total_collection_issues
         results['summary'] = {
@@ -2617,21 +2736,25 @@ def ds_layer_stats(request):
     except Exception as e:
         results['error'] = log_error(e)
         results['summary']['overall_status'] = 'ERROR'
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
     return JsonResponse(results)
 
 
 def retailer_detail(request):
     """리테일러별 상세 오류 데이터 조회 API"""
-    validation_type = request.GET.get('type', 'null')  # null, format, anomaly
-    table_name = request.GET.get('table', '')  # TV Retail, HHP Retail
+    validation_type = request.GET.get('type', 'null')
+    table_name = request.GET.get('table', '')
+    if table_name not in VALID_TABLES_RETAILER:
+        return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
     retailer = request.GET.get('retailer', '')
-    date_str = request.GET.get('date')
-
-    if date_str:
-        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    else:
-        target_date = (datetime.now() - timedelta(days=1)).date()
+    target_date = parse_date(request.GET.get('date'))
+    if target_date is None:
+        return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
 
     results = {
         'type': validation_type,
@@ -2647,18 +2770,18 @@ def retailer_detail(request):
         cursor = conn.cursor()
 
         # 테이블명 및 날짜 필드 결정
-        if 'TV' in table_name:
+        if table_name == 'TV Retail':
             db_table = 'tv_retail_com'
             date_field = 'crawl_datetime'
             null_fields = ['item', 'screen_size', 'final_sku_price', 'retailer_sku_name',
                           'count_of_reviews', 'star_rating', 'count_of_star_ratings']
-        elif 'HHP' in table_name:
+        elif table_name == 'HHP Retail':
             db_table = 'hhp_retail_com'
             date_field = 'crawl_strdatetime'
             null_fields = ['item', 'final_sku_price', 'retailer_sku_name',
                           'count_of_reviews', 'star_rating', 'count_of_star_ratings']
         else:
-            return JsonResponse({'error': 'Invalid table name'}, status=400)
+            return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
 
         if validation_type == 'null':
             # NULL 검증 상세 - 필수값 NULL인 레코드 조회
@@ -2709,7 +2832,7 @@ def retailer_detail(request):
 
         elif validation_type == 'format':
             # 형식 검증 상세 - TV와 HHP에 맞는 형식 오류 조회
-            if 'TV' in table_name:
+            if table_name == 'TV Retail':
                 format_errors = get_tv_format_errors(cursor, db_table, date_field, target_date, retailer)
             else:
                 format_errors = get_hhp_format_errors(cursor, db_table, date_field, target_date, retailer)
@@ -2867,6 +2990,8 @@ def get_hhp_format_errors(cursor, table_name, date_field, target_date, retailer)
 def format_rules(request):
     """형식검증 규칙 조회 API - CSV 기반"""
     table_name = request.GET.get('table', 'tv_retail_com')
+    if table_name not in VALID_TABLES_RULES:
+        return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
     retailer = request.GET.get('retailer', 'Amazon')
 
     # 테이블명 → product_line 매핑

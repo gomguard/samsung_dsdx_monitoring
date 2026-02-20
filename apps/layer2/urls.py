@@ -5,7 +5,10 @@ from .api import views as api_views
 app_name = 'layer2'
 
 urlpatterns = [
-    path('', views.index, name='index'),
+    path('', views.dashboard, name='dashboard'),
+    path('null/', views.null_validation, name='null_validation'),
+    path('format/', views.format_validation, name='format_validation'),
+    path('anomaly/', views.anomaly_validation, name='anomaly_validation'),
     # DX APIs
     path('api/stats/', api_views.layer_stats, name='api_stats'),
     path('api/detail/', api_views.retailer_detail, name='api_detail'),

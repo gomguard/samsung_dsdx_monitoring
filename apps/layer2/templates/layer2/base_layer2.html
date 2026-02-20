@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Layer 2: {{ layer.name }} - {% block page_title %}대시보드{% endblock %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/layer2.css' %}?v=1">
+<style>
+    :root { --layer-color: {{ layer.color|escapejs }}; }
+</style>
+{% block layer2_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="l2-layout">
+    <!-- 사이드바 -->
+    {% include 'layer2/includes/_sidebar.html' %}
+
+    <!-- 콘텐츠 영역 -->
+    <div class="l2-content">
+        {% if section == 'dashboard' %}
+        <!-- Layer 헤더 (대시보드만) -->
+        <div class="layer-header">
+            <div class="layer-header-content">
+                <div class="layer-badge">{{ layer.number }}</div>
+                <div class="layer-info">
+                    <h1>{{ layer.name }}</h1>
+                    <p>{{ layer.name_en }} - DX 데이터 품질 모니터링</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 필터 영역 -->
+        {% include 'layer2/includes/_filter_bar.html' %}
+
+        {% block layer2_content %}{% endblock %}
+    </div>
+</div>
+
+<!-- 상세 데이터 모달 -->
+<div class="modal-overlay" id="detail-modal" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="modal-title">리테일러 상세</div>
+                <div class="modal-subtitle" id="modal-subtitle">NULL 검증 오류 데이터</div>
+            </div>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body">
+            <div class="modal-loading">데이터 로딩 중...</div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="rule-modal" onclick="closeRuleModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="rule-modal-title">형식 검증 규칙</div>
+                <div class="modal-subtitle" id="rule-modal-subtitle">필드별 검증 규칙</div>
+            </div>
+            <button class="modal-close" onclick="closeRuleModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="rule-modal-body">
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.LAYER2 = {
+        color: '{{ layer.color|escapejs }}',
+        section: '{{ section|escapejs }}',
+        targetDate: '{{ target_date|default:""|escapejs }}',
+        username: '{{ request.user.username|default:""|escapejs }}'
+    };
+</script>
+{% block layer2_js %}{% endblock %}
+{% endblock %}
