@@ -1,0 +1,157 @@
+/**
+ * 테이블 공통 스타일
+ *
+ * JS: static/js/table.js
+ *
+ * ============================================================
+ * 구성
+ * ============================================================
+ *
+ * [enablePagination 스타일]
+ * - table.js의 enablePagination() 함수용 페이지네이션
+ *
+ * [enableColumnResize 스타일]
+ * - 컬럼 리사이즈 핸들
+ *
+ * [CommonTable 베이스 (.ct)]
+ * - 모든 CommonTable의 공통 스타일
+ *
+ * [Variant: detail (.ct-detail)]
+ * - 모달 상세 테이블 (sticky header, 썸네일, 정렬)
+ *
+ * [Variant: admin (.ct-admin)]
+ * - 관리자 CRUD 테이블
+ *
+ * ============================================================
+ */
+
+/* ============================================================
+   enablePagination 스타일
+   ============================================================ */
+.pagination-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pagination-dots {
+    padding: 0 4px;
+    color: var(--text-secondary);
+}
+
+/* ============================================================
+   enableColumnResize 스타일
+   ============================================================ */
+.col-resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    user-select: none;
+    z-index: 1;
+}
+
+.col-resize-handle:hover,
+.col-resize-handle.active {
+    background: rgba(139, 92, 246, 0.3);
+}
+
+/* ============================================================
+   CommonTable 베이스 (.ct)
+   ============================================================ */
+.ct {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.ct th,
+.ct td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.ct th {
+    background: #f8fafc;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    text-transform: none;      /* common.css의 th { text-transform: uppercase } 오버라이드 */
+    letter-spacing: normal;    /* common.css의 th { letter-spacing: 0.5px } 오버라이드 */
+}
+
+.ct td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 정렬 가능 헤더 */
+.ct th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.ct th.sortable:hover {
+    background: #e2e8f0;
+}
+
+.ct th.sortable::after {
+    content: '⇅';
+    margin-left: 6px;
+    color: #94a3b8;
+    font-size: 11px;
+}
+
+.ct th.sortable.asc::after {
+    content: '▲';
+    color: #4338ca;
+}
+
+.ct th.sortable.desc::after {
+    content: '▼';
+    color: #4338ca;
+}
+
+/* ============================================================
+   Variant: detail (모달 상세 테이블)
+   ============================================================ */
+.ct-detail th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.ct-detail thead tr {
+    background: #f8fafc;
+}
+
+.ct-detail img.thumb {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.ct-detail a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.ct-detail a:hover {
+    text-decoration: underline;
+}
+
+/* ============================================================
+   Variant: admin (관리자 CRUD 테이블)
+   ============================================================ */
+.ct-admin th {
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}

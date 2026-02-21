@@ -119,30 +119,6 @@
         gap: 10px;
     }
 
-    .btn-new-doc {
-        padding: 10px 20px;
-        background: #7c3aed;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        transition: all 0.2s;
-        text-decoration: none;
-    }
-
-    .btn-new-doc:hover {
-        background: #6d28d9;
-    }
-
-    .btn-new-doc svg {
-        width: 16px;
-        height: 16px;
-    }
 
     /* 문서 리스트 테이블 */
     .documents-table-wrapper {
@@ -202,22 +178,6 @@
         font-size: 13px;
     }
 
-    .btn-edit {
-        padding: 6px 14px;
-        background: #f5f3ff;
-        color: #6d28d9;
-        border: none;
-        border-radius: 6px;
-        font-size: 13px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-        white-space: nowrap;
-    }
-
-    .btn-edit:hover {
-        background: #ede9fe;
-    }
 
     /* 문서 없을 때 */
     .no-documents {
@@ -238,12 +198,6 @@
         margin-bottom: 20px;
     }
 
-    /* 테이블 상단 툴바 */
-    .table-toolbar {
-        display: flex;
-        justify-content: flex-end;
-        margin-bottom: 10px;
-    }
 
     /* 체크박스 */
     .doc-checkbox {
@@ -310,29 +264,6 @@
         gap: 8px;
     }
 
-    .report-popup-actions button {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 6px 12px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        background: #fff;
-        cursor: pointer;
-        font-size: 13px;
-        color: var(--text-secondary);
-        transition: all 0.2s;
-    }
-
-    .report-popup-actions button:hover {
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-    }
-
-    .report-popup-actions button svg {
-        width: 14px;
-        height: 14px;
-    }
 
     .report-popup-body {
         flex: 1;
@@ -473,17 +404,6 @@
     .share-status-dot.active { background: #22c55e; }
     .share-status-dot.revoked, .share-status-dot.expired { background: #ef4444; }
     .share-mgmt-table td.actions { white-space: nowrap; }
-    .btn-share-icon {
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 4px;
-        border-radius: 4px;
-        color: var(--text-secondary);
-        transition: all 0.15s;
-    }
-    .btn-share-icon:hover { background: var(--bg-secondary); }
-    .btn-share-icon svg { width: 16px; height: 16px; vertical-align: middle; }
     .share-mgmt-empty {
         text-align: center;
         padding: 32px;
@@ -554,26 +474,6 @@
         justify-content: flex-end;
         margin-top: 16px;
     }
-    .share-memo-actions button {
-        padding: 8px 20px;
-        border-radius: 6px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .share-memo-cancel {
-        background: #fff;
-        border: 1px solid var(--border-color);
-        color: var(--text-secondary);
-    }
-    .share-memo-cancel:hover { background: var(--bg-secondary); }
-    .share-memo-submit {
-        background: #7c3aed;
-        border: none;
-        color: #fff;
-    }
-    .share-memo-submit:hover { background: #6d28d9; }
 
     /* 확인 팝업 */
     .confirm-overlay {
@@ -619,26 +519,6 @@
         gap: 8px;
         justify-content: center;
     }
-    .confirm-actions button {
-        padding: 8px 24px;
-        border-radius: 6px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .confirm-cancel {
-        background: #fff;
-        border: 1px solid var(--border-color);
-        color: var(--text-secondary);
-    }
-    .confirm-cancel:hover { background: var(--bg-secondary); }
-    .confirm-ok {
-        background: #dc2626;
-        border: none;
-        color: #fff;
-    }
-    .confirm-ok:hover { background: #b91c1c; }
 
 </style>
 {% endblock %}
@@ -672,8 +552,8 @@
         <div class="content-header">
             <span class="content-title" id="contentTitle">{% if categories %}{{ categories.0.category_name }}{% else %}문서{% endif %}</span>
             <div class="content-actions" id="contentActions">
-                <a id="btnNewDoc" href="{% url 'main:ds_document_new' %}" class="btn-new-doc">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <a id="btnNewDoc" href="{% url 'main:ds_document_new' %}" class="app-btn app-btn-md app-btn-save">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                         <line x1="12" y1="5" x2="12" y2="19"/>
                         <line x1="5" y1="12" x2="19" y2="12"/>
                     </svg>
@@ -682,7 +562,7 @@
             </div>
         </div>
         <div class="documents-table-wrapper">
-            <div class="table-toolbar" id="tableToolbar"></div>
+            <div id="docFilterBar"></div>
             <div class="documents-table-box">
                 <table class="documents-table">
                     <thead>
@@ -692,7 +572,7 @@
                             <th style="width: 160px;">문서번호</th>
                             <th>제목</th>
                             <th style="width: 120px;">작성자</th>
-                            <th style="width: 150px;">수정일</th>
+                            <th style="width: 150px;">생성일</th>
                             <th style="width: 80px;">관리</th>
                         </tr>
                     </thead>
@@ -711,27 +591,27 @@
         <div class="report-popup-header">
             <span class="report-popup-title" id="reportPopupTitle">문서 보기</span>
             <div class="report-popup-actions">
-                <button onclick="printReportContent()" title="인쇄">
+                <button class="app-btn app-btn-sm app-btn-cancel" onclick="printReportContent()" title="인쇄">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                     인쇄
                 </button>
-                <button onclick="copyReportContent()" title="내용 복사">
+                <button class="app-btn app-btn-sm app-btn-cancel" onclick="copyReportContent()" title="내용 복사">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                     복사
                 </button>
-                <button onclick="copyShareLink()" title="공유 링크 복사">
+                <button class="app-btn app-btn-sm app-btn-cancel" onclick="copyShareLink()" title="공유 링크 복사">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                     공유
                 </button>
-                <button onclick="openShareMgmt()" title="공유 관리">
+                <button class="app-btn app-btn-sm app-btn-cancel" onclick="openShareMgmt()" title="공유 관리">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     공유 관리
                 </button>
-                <button onclick="toggleFullscreen()" title="전체화면">
+                <button class="app-btn app-btn-sm app-btn-cancel" onclick="toggleFullscreen()" title="전체화면">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
                     전체화면
                 </button>
-                <button onclick="closeReportPopup()" title="닫기">
+                <button class="app-btn app-btn-sm app-btn-cancel" onclick="closeReportPopup()" title="닫기">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     닫기
                 </button>
@@ -754,8 +634,8 @@
         <div class="share-memo-label">공유 대상 메모</div>
         <input type="text" class="share-memo-input" id="shareMemoInput" placeholder="예: 김과장, 마케팅팀" maxlength="100">
         <div class="share-memo-actions">
-            <button class="share-memo-cancel" onclick="closeShareMemo()">취소</button>
-            <button class="share-memo-submit" onclick="submitShareMemo()">링크 생성</button>
+            <button class="app-btn app-btn-md app-btn-cancel" onclick="closeShareMemo()">취소</button>
+            <button class="app-btn app-btn-md app-btn-save" id="shareMemoSubmitBtn" onclick="submitShareMemo()">링크 생성</button>
         </div>
     </div>
 </div>
@@ -771,8 +651,8 @@
         <div class="confirm-title" id="confirmTitle">확인</div>
         <div class="confirm-message" id="confirmMessage"></div>
         <div class="confirm-actions">
-            <button class="confirm-cancel" onclick="closeConfirm()">취소</button>
-            <button class="confirm-ok" id="confirmOkBtn">차단</button>
+            <button class="app-btn app-btn-md app-btn-cancel" onclick="closeConfirm()">취소</button>
+            <button class="app-btn app-btn-md app-btn-delete" id="confirmOkBtn">차단</button>
         </div>
     </div>
 </div>
@@ -798,6 +678,7 @@
 let currentCategoryId = '{% if categories %}{{ categories.0.category_id|escapejs }}{% endif %}';
 let currentCategoryType = {% if categories %}{{ categories.0.category_type|default:1 }}{% else %}1{% endif %};
 const newDocBaseUrl = '{% url "main:ds_document_new" %}';
+let docFilterBar;
 
 // URL 파라미터에서 카테고리 복원
 (function() {
@@ -818,15 +699,31 @@ const newDocBaseUrl = '{% url "main:ds_document_new" %}';
 
 // 출력 버튼 표시/숨김 (에디터 포함 타입=1,3 일 때만 표시)
 function updateToolbar() {
-    const toolbar = document.getElementById('tableToolbar');
-    toolbar.innerHTML = '';
-    if (currentCategoryType === 1 || currentCategoryType === 3) {
-        AppButton('#tableToolbar', '출력', 'openReportPopup', { icon: 'print', style: 'outline' });
-    }
+    const btn = document.getElementById('btnPrint');
+    if (btn) btn.style.display = (currentCategoryType === 1 || currentCategoryType === 3) ? '' : 'none';
 }
 
 // 페이지 로드
 document.addEventListener('DOMContentLoaded', function() {
+    docFilterBar = new FilterBar('#docFilterBar', {
+        sticky: false,
+        padding: '12px 20px',
+        controls: [
+            { type: 'date', key: 'dateFrom', label: '생성일', max: new Date().toISOString().slice(0, 10) },
+            { type: 'select', key: 'searchField', options: [
+                { value: 'title', label: '제목' },
+                { value: 'document_id', label: '문서번호' },
+                { value: 'created_id', label: '작성자' }
+            ]},
+            { type: 'input', key: 'searchText', placeholder: '검색어 입력', onEnter: () => searchDocuments() },
+            { type: 'button', label: '조회', style: 'primary', onClick: () => searchDocuments() },
+            { type: 'button', label: '해제', style: 'cancel', onClick: () => clearSearch() },
+        ],
+        right: [
+            { type: 'button', id: 'btnPrint', label: '출력', icon: 'print', style: 'outline', onClick: () => openReportPopup() },
+        ]
+    }).render();
+
     updateToolbar();
 
     if (currentCategoryId) {
@@ -858,12 +755,37 @@ function selectCategory(categoryId, element) {
     renderDocuments(categoryId);
 }
 
+// 검색
+function searchDocuments() {
+    const df = docFilterBar.getValue('dateFrom');
+    if (df && df > new Date().toISOString().slice(0, 10)) {
+        showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning');
+        return;
+    }
+    if (currentCategoryId) renderDocuments(currentCategoryId);
+}
+
+function clearSearch() {
+    docFilterBar.setValue('searchText', '');
+    docFilterBar.setValue('dateFrom', '');
+    if (currentCategoryId) renderDocuments(currentCategoryId);
+}
+
 // 문서 목록 렌더링
 function renderDocuments(categoryId) {
     const tbody = document.getElementById('documentsBody');
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary);">불러오는 중...</td></tr>';
 
-    fetch('{% url "main:api_ds_documents_list" %}?category_id=' + encodeURIComponent(categoryId))
+    let url = '{% url "main:api_ds_documents_list" %}?category_id=' + encodeURIComponent(categoryId);
+    if (docFilterBar) {
+        const sf = docFilterBar.getValue('searchField');
+        const st = docFilterBar.getValue('searchText');
+        const df = docFilterBar.getValue('dateFrom');
+        if (st) url += '&search_field=' + encodeURIComponent(sf) + '&search_text=' + encodeURIComponent(st);
+        if (df) url += '&date_from=' + encodeURIComponent(df);
+    }
+
+    fetch(url)
         .then(r => r.json())
         .then(res => {
             // 카운트 업데이트
@@ -891,8 +813,8 @@ function renderDocuments(categoryId) {
                     <td class="doc-meta">${escapeHtml(doc.document_id)}</td>
                     <td class="doc-title">${escapeHtml(doc.title)}</td>
                     <td class="doc-meta">${escapeHtml(doc.created_id || '-')}</td>
-                    <td class="doc-meta">${doc.updated_at || '-'}</td>
-                    <td><button class="btn-edit" onclick="event.stopPropagation();goToEdit('${doc.document_id}')">편집</button></td>
+                    <td class="doc-meta">${doc.created_at || '-'}</td>
+                    <td style="text-align:center;">${AppButton.iconHtml('edit', "event.stopPropagation();goToEdit('" + doc.document_id + "')", { color: 'purple' })}</td>
                 </tr>
             `).join('');
         });
@@ -1119,7 +1041,7 @@ function submitShareMemo() {
         document.getElementById('shareMemoInput').focus();
         return;
     }
-    const submitBtn = document.querySelector('.share-memo-submit');
+    const submitBtn = document.getElementById('shareMemoSubmitBtn');
     submitBtn.disabled = true;
     submitBtn.textContent = '생성 중...';
 
@@ -1192,8 +1114,8 @@ function loadShareList() {
                 html += '<td><span class="share-status-dot ' + s.status + '" title="' + (statusTitle[s.status] || s.status) + '"></span></td>';
                 html += '<td class="actions">';
                 if (s.status === 'active') {
-                    html += '<button class="btn-share-icon" title="링크 복사" onclick="copyExistingShareLink(\'' + escapeHtml(s.token) + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
-                    html += '<button class="btn-share-icon" title="차단" onclick="revokeShareToken(\'' + escapeHtml(s.id) + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>';
+                    html += '<button class="app-icon-btn-ghost" title="링크 복사" onclick="copyExistingShareLink(\'' + escapeHtml(s.token) + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
+                    html += '<button class="app-icon-btn-ghost" title="차단" onclick="revokeShareToken(\'' + escapeHtml(s.id) + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>';
                 }
                 html += '</td>';
                 html += '</tr>';

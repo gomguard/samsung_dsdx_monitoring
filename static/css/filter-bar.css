@@ -1,0 +1,142 @@
+/**
+ * FilterBar 공통 스타일
+ *
+ * JS: static/js/filter-bar.js
+ *
+ * ============================================================
+ * 구성
+ * ============================================================
+ *
+ * [베이스 (.fb)]
+ * - 필터바 컨테이너 (border, shadow, flex)
+ * - .fb-sticky: sticky 포지션 적용
+ *
+ * [컨트롤]
+ * - .fb-left / .fb-right: 좌우 영역
+ * - .fb-date: 날짜 입력 (label + input)
+ * - 버튼: buttons.css의 .app-btn 공통 사용
+ * - .fb-select: 드롭다운 (label + select)
+ * - .fb-toggle: 토글 버튼 그룹 레이아웃 (.app-btn 공통 사용)
+ *
+ * ============================================================
+ */
+
+/* ============================================================
+   베이스
+   ============================================================ */
+.fb {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.fb-sticky {
+    position: sticky;
+    top: 64px;
+    z-index: 99;
+}
+
+.fb-fit {
+    width: fit-content;
+}
+
+.fb-left,
+.fb-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+@media (max-width: 768px) {
+    .fb {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+}
+
+/* ============================================================
+   날짜 입력
+   ============================================================ */
+.fb-date {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-right: 4px;
+}
+
+.fb-date label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.fb-date input[type="date"] {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+/* ============================================================
+   드롭다운
+   ============================================================ */
+.fb-select {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.fb-select label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.fb-select select {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+/* ============================================================
+   텍스트 입력
+   ============================================================ */
+.fb-input {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.fb-input label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.fb-input input[type="text"] {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 14px;
+    min-width: 200px;
+}
+
+/* ============================================================
+   토글 버튼 그룹 (버튼 스타일은 .app-btn 공통 사용)
+   ============================================================ */
+.fb-toggle {
+    display: flex;
+    gap: 10px;
+}

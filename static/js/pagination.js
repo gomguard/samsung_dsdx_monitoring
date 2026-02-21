@@ -8,6 +8,7 @@
  * 사용법
  * ============================================================
  *
+ * // 번호형 (기본)
  * const pager = new Pagination('#container', {
  *     pageSize: 20,
  *     maxVisible: 5,
@@ -16,6 +17,15 @@
  * });
  * pager.render(totalItems, currentPage);
  *
+ * // 단순형 (이전/다음)
+ * const simplePager = new Pagination('#container', {
+ *     variant: 'simple',
+ *     pageSize: 50,
+ *     showInfo: true,
+ *     onPageChange: (page) => { loadData(page); }
+ * });
+ * simplePager.render(totalItems, currentPage);
+ *
  * ============================================================
  */
 
@@ -23,6 +33,7 @@ class Pagination {
     constructor(container, options = {}) {
         this.container = typeof container === 'string' ? document.querySelector(container) : container;
         this.options = {
+            variant: 'numbered',    // 'numbered' | 'simple'
             pageSize: 20,
             maxVisible: 5,
             showInfo: true,
@@ -35,6 +46,10 @@ class Pagination {
     }
 
     render(totalItems, currentPage = 1) {
+        if (this.options.variant === 'simple') {
+            return this._renderSimple(totalItems, currentPage);
+        }
+
         this.totalItems = totalItems;
         this.currentPage = currentPage;
 
@@ -95,6 +110,36 @@ class Pagination {
         this.container.innerHTML = html;
 
         // 이벤트 바인딩
+        this.container.querySelectorAll('.pagination-btn[data-page]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const page = parseInt(btn.dataset.page);
+                if (page >= 1 && page <= totalPages && page !== currentPage) {
+                    this.goToPage(page);
+                }
+            });
+        });
+    }
+
+    _renderSimple(totalItems, currentPage = 1) {
+        this.totalItems = totalItems;
+        this.currentPage = currentPage;
+
+        const totalPages = Math.ceil(totalItems / this.options.pageSize) || 1;
+
+        let html = '<div class="pagination pagination-simple">';
+
+        if (this.options.showInfo) {
+            html += `<span class="pagination-info">총 ${totalItems.toLocaleString()}건</span>`;
+        }
+
+        html += '<div class="pagination-nav">';
+        html += `<button class="pagination-btn" data-page="${currentPage - 1}" ${currentPage <= 1 ? 'disabled' : ''}>이전</button>`;
+        html += `<span class="pagination-current">${currentPage} / ${totalPages}</span>`;
+        html += `<button class="pagination-btn" data-page="${currentPage + 1}" ${currentPage >= totalPages ? 'disabled' : ''}>다음</button>`;
+        html += '</div></div>';
+
+        this.container.innerHTML = html;
+
         this.container.querySelectorAll('.pagination-btn[data-page]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const page = parseInt(btn.dataset.page);

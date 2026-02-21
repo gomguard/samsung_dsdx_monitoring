@@ -5,6 +5,7 @@
  * - showError(container, message)             : 에러 메시지 표시
  * - showToast(message, type, duration)        : 토스트 알림 (success, error, warning, info)
  * - showConfirm(msg, type, options)           : 커스텀 확인 다이얼로그 (Promise 반환)
+ * - copyText(text)                            : 클립보드 복사 (HTTPS/HTTP 모두 지원, Promise 반환)
  */
 
 function showLoading(container) {
@@ -84,6 +85,35 @@ function showToast(message, type = 'info', duration = 3000) {
         toast.style.transform = 'translate(-50%, -50%) scale(0.9)';
         setTimeout(() => toast.remove(), 300);
     }, duration);
+}
+
+// 클립보드 복사 (HTTPS/HTTP 모두 지원)
+function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text).catch(function () {
+            return _fallbackCopy(text);
+        });
+    }
+    return _fallbackCopy(text);
+}
+
+function _fallbackCopy(text) {
+    return new Promise(function (resolve, reject) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try {
+            document.execCommand('copy');
+            resolve();
+        } catch (err) {
+            reject(err);
+        }
+        document.body.removeChild(ta);
+    });
 }
 
 function showConfirm(msg, type, options) {

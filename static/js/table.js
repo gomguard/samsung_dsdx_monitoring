@@ -1,9 +1,24 @@
 /**
  * 5단계 방어 체계 모니터링 시스템 - 테이블 공통 JavaScript
  *
+ * CSS: static/css/table.css
+ *
  * ============================================================
- * 함수 목록
+ * 함수 / 클래스 목록
  * ============================================================
+ *
+ * [CommonTable 클래스]
+ * - new CommonTable(container, options)
+ *     : 공통 테이블 생성 (variant 기반 스타일)
+ *     옵션:
+ *       - variant: 'detail' | 'admin' | 'report'
+ *       - columns: [{ key, label, width, sortable, align }]
+ *       - resize: true/false (기본 true)
+ *       - onSort: (key, order) => {}
+ *     메서드:
+ *       - render(): thead 생성 + 리사이즈 적용
+ *       - renderBody(rows, renderRow): tbody 업데이트
+ *       - getTable(): table 엘리먼트 반환
  *
  * [페이지네이션]
  * - enablePagination(tbodySelector, options)
@@ -22,6 +37,7 @@
  * [컬럼 리사이즈]
  * - enableColumnResize(tableOrSelector)
  *     : 테이블 헤더 드래그로 열 너비 조정 기능 추가
+ *     : 드래그 시 테이블 전체 너비도 함께 확장 (다른 열 영향 없음)
  *
  * [자동 적용]
  * - .auto-resize 클래스가 있는 테이블 → 컬럼 리사이즈 자동 적용
@@ -36,6 +52,132 @@
 
 // 자동 적용된 pager 인스턴스 저장소
 const _tablePagers = new Map();
+
+// ============================================================
+// CommonTable 클래스
+// ============================================================
+
+class CommonTable {
+    constructor(container, options = {}) {
+        this.container = typeof container === 'string'
+            ? document.querySelector(container) : container;
+        this.options = {
+            variant: 'detail',
+            columns: [],
+            resize: true,
+            onSort: null,
+            ...options
+        };
+        this.sortKey = null;
+        this.sortOrder = null;
+        this.tableEl = null;
+    }
+
+    /**
+     * thead 생성 + 리사이즈 적용
+     * tbody는 빈 상태로 생성 → renderBody()로 채움
+     */
+    render() {
+        const { variant, columns, resize } = this.options;
+
+        const table = document.createElement('table');
+        table.className = `ct ct-${variant}`;
+
+        // colgroup — 열 너비 제어 (table-layout: fixed에서 width 지정된 열은 고정, 미지정 열은 나머지 공간 분배)
+        const colgroup = document.createElement('colgroup');
+        columns.forEach(col => {
+            const colEl = document.createElement('col');
+            if (col.width) colEl.style.width = col.width + 'px';
+            colgroup.appendChild(colEl);
+        });
+        table.appendChild(colgroup);
+
+        // thead
+        const thead = document.createElement('thead');
+        const tr = document.createElement('tr');
+
+        columns.forEach((col, idx) => {
+            const th = document.createElement('th');
+            th.textContent = col.label;
+            if (col.align) th.style.textAlign = col.align;
+            if (col.sortable) {
+                th.className = 'sortable';
+                th.dataset.sortKey = col.key;
+                th.addEventListener('click', () => this._handleSort(col.key, th));
+            }
+            th.dataset.colIdx = idx;
+            tr.appendChild(th);
+        });
+
+        thead.appendChild(tr);
+        table.appendChild(thead);
+
+        // tbody (빈 상태)
+        table.appendChild(document.createElement('tbody'));
+
+        this.container.innerHTML = '';
+        this.container.appendChild(table);
+        this.tableEl = table;
+
+        if (resize) enableColumnResize(table);
+
+        return this;
+    }
+
+    /**
+     * tbody 업데이트
+     * @param {Array} rows - 데이터 배열
+     * @param {Function} renderRow - (item, index) => HTML문자열 또는 tr 엘리먼트
+     */
+    renderBody(rows, renderRow) {
+        const tbody = this.tableEl.querySelector('tbody');
+        tbody.innerHTML = '';
+        rows.forEach((row, i) => {
+            const tr = renderRow(row, i);
+            if (typeof tr === 'string') {
+                tbody.insertAdjacentHTML('beforeend', tr);
+            } else {
+                tbody.appendChild(tr);
+            }
+        });
+    }
+
+    /**
+     * 정렬 상태 외부에서 설정 (API 재호출 후 thead 갱신 없이 상태 반영)
+     */
+    setSort(key, order) {
+        this.sortKey = key;
+        this.sortOrder = order;
+        this._updateSortUI();
+    }
+
+    _handleSort(key, thEl) {
+        if (this.sortKey === key) {
+            this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortKey = key;
+            this.sortOrder = 'asc';
+        }
+        this._updateSortUI();
+        if (this.options.onSort) {
+            this.options.onSort(this.sortKey, this.sortOrder);
+        }
+    }
+
+    _updateSortUI() {
+        const ths = this.tableEl.querySelectorAll('th.sortable');
+        ths.forEach(th => {
+            th.classList.remove('asc', 'desc');
+            if (th.dataset.sortKey === this.sortKey) {
+                th.classList.add(this.sortOrder);
+            }
+        });
+    }
+
+    getTable() {
+        return this.tableEl;
+    }
+}
 
 // ============================================================
 // 페이지네이션
@@ -168,21 +310,28 @@ function enableColumnResize(tableOrSelector) {
     const thead = table.querySelector('thead');
     const ths = thead.querySelectorAll('th');
 
-    ths.forEach(th => {
+    const cols = table.querySelector('colgroup')?.querySelectorAll('col');
+
+    ths.forEach((th, idx) => {
         // 리사이즈 핸들 생성
         const handle = document.createElement('div');
         handle.className = 'col-resize-handle';
         th.style.position = 'relative';
         th.appendChild(handle);
 
-        let startX, startWidth, thEl;
+        let startX, startWidth, startTableWidth;
 
         handle.addEventListener('mousedown', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            thEl = th;
             startX = e.pageX;
             startWidth = th.offsetWidth;
+            startTableWidth = table.offsetWidth;
+
+            // colgroup의 width 제한 해제 (리사이즈 시 자유롭게)
+            if (cols && cols[idx]) {
+                cols[idx].style.width = '';
+            }
 
             // 드래그 중 시각 표시
             handle.classList.add('active');
@@ -194,92 +343,26 @@ function enableColumnResize(tableOrSelector) {
         function onMouseMove(e) {
             const diff = e.pageX - startX;
             const newWidth = Math.max(40, startWidth + diff);
-            thEl.style.width = newWidth + 'px';
-            thEl.style.minWidth = newWidth + 'px';
+            const actualDiff = newWidth - startWidth;
+            th.style.width = newWidth + 'px';
+            th.style.minWidth = newWidth + 'px';
+            // 테이블 전체 너비도 열 변화량과 동일하게 조정 (다른 열 영향 없음)
+            table.style.width = (startTableWidth + actualDiff) + 'px';
         }
 
         function onMouseUp() {
             handle.classList.remove('active');
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
+
+            // mouseup 후 발생하는 click 이벤트가 sortable th의 정렬을 트리거하지 않도록 차단
+            th.addEventListener('click', function stopClick(e) {
+                e.stopImmediatePropagation();
+                th.removeEventListener('click', stopClick, true);
+            }, true);
         }
     });
 }
-
-// ============================================================
-// CSS 주입 (한 번만)
-// ============================================================
-
-(function () {
-    if (document.getElementById('table-utils-style')) return;
-    const style = document.createElement('style');
-    style.id = 'table-utils-style';
-    style.textContent = `
-        /* 페이지네이션 */
-        .pagination {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 0;
-            font-size: 13px;
-            color: var(--text-secondary);
-        }
-        .pagination-info {
-            font-size: 13px;
-        }
-        .pagination-buttons {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .pagination-btn {
-            min-width: 32px;
-            height: 32px;
-            padding: 0 8px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            background: var(--bg-primary);
-            color: var(--text-secondary);
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .pagination-btn:hover:not([disabled]) {
-            background: var(--bg-secondary);
-            color: var(--text-primary);
-        }
-        .pagination-btn.active {
-            background: #7c3aed;
-            color: white;
-            border-color: #7c3aed;
-        }
-        .pagination-btn[disabled] {
-            opacity: 0.4;
-            cursor: default;
-        }
-        .pagination-dots {
-            padding: 0 4px;
-            color: var(--text-secondary);
-        }
-
-        /* 컬럼 리사이즈 */
-        .col-resize-handle {
-            position: absolute;
-            right: 0;
-            top: 0;
-            bottom: 0;
-            width: 5px;
-            cursor: col-resize;
-            user-select: none;
-            z-index: 1;
-        }
-        .col-resize-handle:hover,
-        .col-resize-handle.active {
-            background: rgba(139, 92, 246, 0.3);
-        }
-    `;
-    document.head.appendChild(style);
-})();
 
 // ============================================================
 // 자동 적용된 pager 가져오기

@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}데이터 품질 모니터링{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'css/common.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'css/table.css' %}?v=1">
+    <link rel="stylesheet" href="{% static 'css/buttons.css' %}?v=1">
+    <link rel="stylesheet" href="{% static 'css/filter-bar.css' %}?v=1">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -96,7 +99,9 @@
     <script src="{% static 'js/session.js' %}?v=1"></script>
     <script src="{% static 'js/searchbox.js' %}?v=2"></script>
     <script src="{% static 'js/pagination.js' %}?v=1"></script>
+    <script src="{% static 'js/table.js' %}?v=2"></script>
     <script src="{% static 'js/buttons.js' %}?v=1"></script>
+    <script src="{% static 'js/filter-bar.js' %}?v=1"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

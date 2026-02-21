@@ -86,3 +86,14 @@ const AppModal = (() => {
 
     return { create: create, open: open, close: close, setTitle: setTitle, getTitle: getTitle, setBody: setBody, getBody: getBody };
 })();
+
+/**
+ * 레거시 모달 오버레이 클릭 시 닫기
+ * 사용: <div class="modal-overlay" onclick="closeModalOnOverlay(event)">
+ * 각 페이지에 closeModal() 함수가 정의되어 있어야 함
+ */
+function closeModalOnOverlay(event) {
+    if (event.target === event.currentTarget) {
+        closeModal();
+    }
+}

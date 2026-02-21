@@ -5,6 +5,8 @@
 
 {% block extra_css %}
 <style>
+    :root { --page-color: {{ layer.color }}; }
+
     .layer-header {
         background: linear-gradient(135deg, {{ layer.color }} 0%, #0f2647 100%);
         border-radius: 20px;
@@ -67,126 +69,6 @@
         background: rgba(255, 255, 255, 0.15);
         border-radius: 8px;
         font-size: 13px;
-    }
-
-    .controls-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 24px;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
-
-    .date-selector {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        background: white;
-        padding: 12px 20px;
-        border-radius: 12px;
-        border: 1px solid var(--border-color);
-    }
-
-    .date-selector label {
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text-secondary);
-    }
-
-    .date-selector input[type="date"] {
-        padding: 8px 12px;
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        font-size: 14px;
-    }
-
-    .btn {
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        border: none;
-        transition: all 0.2s;
-    }
-
-    .btn-primary {
-        background: {{ layer.color }};
-        color: white;
-    }
-
-    .btn-primary:hover {
-        opacity: 0.9;
-    }
-
-    .btn-secondary {
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-        border: 1px solid var(--border-color);
-    }
-
-    .btn-secondary:hover {
-        background: var(--bg-primary);
-        border-color: {{ layer.color }};
-    }
-
-    /* View Toggle Buttons */
-    .view-toggle {
-        display: flex;
-        gap: 8px;
-    }
-
-    .view-toggle button {
-        padding: 10px 24px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        border: 1px solid var(--border-color);
-        background: white;
-        color: var(--text-secondary);
-    }
-
-    .view-toggle button:hover {
-        background: #f1f5f9;
-    }
-
-    .view-toggle button.active {
-        background: {{ layer.color }};
-        color: white;
-        border-color: {{ layer.color }};
-    }
-
-    /* Fixed Date Bar - below menu bar (64px) */
-    .date-bar {
-        position: sticky;
-        top: 64px;
-        z-index: 99;
-        background: white;
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        padding: 16px 24px;
-        margin-bottom: 24px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-
-    .date-bar .date-selector {
-        border: none;
-        padding: 0;
-        background: transparent;
-    }
-
-    @media (max-width: 768px) {
-        .date-bar {
-            flex-direction: column;
-            gap: 12px;
-            align-items: flex-start;
-        }
     }
 
     .summary-grid {
@@ -288,7 +170,7 @@
     }
 
     .tab-btn.active {
-        background: {{ layer.color }};
+        background: var(--page-color);
         color: white;
     }
 
@@ -482,7 +364,7 @@
         width: 24px;
         height: 24px;
         border: 3px solid var(--border-color);
-        border-top-color: {{ layer.color }};
+        border-top-color: var(--page-color);
         border-radius: 50%;
         animation: spin 1s linear infinite;
         margin-right: 12px;
@@ -670,9 +552,9 @@
     }
 
     .error-type-selector button.active {
-        background: {{ layer.color }};
+        background: var(--page-color);
         color: white;
-        border-color: {{ layer.color }};
+        border-color: var(--page-color);
     }
 
     .detail-table {
@@ -742,6 +624,8 @@
         text-decoration: underline;
     }
 
+
+
     .detail-table img.thumb {
         width: 40px;
         height: 40px;
@@ -752,35 +636,6 @@
     .null-value {
         color: #dc2626;
         font-style: italic;
-    }
-
-    .pagination {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-    }
-
-    .pagination button {
-        padding: 8px 16px;
-        border: 1px solid var(--border-color);
-        background: white;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 13px;
-    }
-
-    .pagination button:hover:not(:disabled) {
-        background: var(--bg-secondary);
-    }
-
-    .pagination button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .pagination span {
-        font-size: 13px;
-        color: var(--text-secondary);
     }
 
     /* 체크박스 스타일 */
@@ -795,29 +650,6 @@
     .detail-table td:first-child {
         width: 40px;
         text-align: center;
-    }
-
-    .copy-all-btn {
-        padding: 8px 16px;
-        background: #4338ca;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .copy-all-btn:hover {
-        background: #3730a3;
-    }
-
-    .copy-all-btn.copied {
-        background: #059669;
     }
 
     .modal-footer-left {
@@ -843,110 +675,6 @@
         align-items: center;
         gap: 8px;
         margin-top: 12px;
-    }
-    .btn-bulk-save {
-        padding: 8px 20px;
-        background: #f97316;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-    .btn-bulk-save:hover { background: #ea580c; }
-    .btn-bulk-save:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    /* 저장/삭제/마감 버튼 */
-    .action-btn {
-        padding: 4px 10px;
-        border: none;
-        border-radius: 4px;
-        font-size: 11px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        margin-right: 4px;
-    }
-
-    .action-btn:last-child {
-        margin-right: 0;
-    }
-
-    .action-btn.save-btn {
-        background: #3b82f6;
-        color: white;
-    }
-
-    .action-btn.save-btn:hover {
-        background: #2563eb;
-    }
-
-    .action-btn.save-btn.saved {
-        background: #10b981;
-    }
-
-    .action-btn.delete-btn {
-        background: #f1f5f9;
-        color: #64748b;
-    }
-
-    .action-btn.delete-btn:hover {
-        background: #fef2f2;
-        color: #dc2626;
-    }
-
-    .action-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    .close-btn {
-        padding: 10px 24px;
-        background: #dc2626;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .close-btn:hover {
-        background: #b91c1c;
-    }
-
-    .close-btn:disabled {
-        background: #9ca3af;
-        cursor: not-allowed;
-    }
-
-    .close-btn.closed {
-        background: #10b981;
-    }
-
-    .report-manage-btn {
-        padding: 10px 24px;
-        background: #2563eb;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .report-manage-btn:hover {
-        background: #1d4ed8;
     }
 
     .saved-badge {
@@ -1058,31 +786,7 @@
     </div>
 </div>
 
-<div class="date-bar">
-    <div class="date-selector">
-        <label>조회 날짜</label>
-        <input type="date" id="targetDate">
-        <button class="btn btn-primary" onclick="loadData()">조회</button>
-        <button class="btn btn-secondary" onclick="setPrevDay()">전날</button>
-        <button class="btn btn-secondary" onclick="setNextDay()">다음날</button>
-    </div>
-    <div style="display: flex; gap: 16px; align-items: center;">
-        <div class="view-toggle">
-            <button class="active" onclick="setBatchView('final')">최종</button>
-            <button onclick="setBatchView('all')">전체</button>
-        </div>
-        <button class="report-manage-btn" onclick="goToReportManage()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            <span>보고서 관리</span>
-        </button>
-    </div>
-</div>
+<div id="layer2FilterBar"></div>
 
 <div class="closed-banner hidden" id="closedBanner">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1189,7 +893,7 @@
         <div class="modal-footer">
             <div class="modal-footer-left">
                 <span id="modalInfo"></span>
-                <button class="copy-all-btn" onclick="copyCheckedToReport()" id="copyAllBtn">
+                <button class="app-btn app-btn-sm" onclick="copyCheckedToReport()" id="copyAllBtn" style="background:#4338ca;color:#fff;border-color:#4338ca;" onmouseenter="this.style.opacity='0.85'" onmouseleave="this.style.opacity='1'">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -1197,11 +901,7 @@
                     <span id="copyBtnText">선택 복사 (0건)</span>
                 </button>
             </div>
-            <div class="pagination">
-                <button onclick="prevPage()" id="prevBtn" disabled>이전</button>
-                <span id="pageInfo">1 / 1</span>
-                <button onclick="nextPage()" id="nextBtn" disabled>다음</button>
-            </div>
+            <div id="modalPaginationContainer"></div>
         </div>
     </div>
 </div>
@@ -1230,7 +930,7 @@ let statsData = null;
 let currentTableName = '';
 let currentErrorType = 'title_null';
 let currentPage = 1;
-let totalPages = 1;
+let modalPager = null;
 let currentRetailerData = {};
 let currentStartTime = null;
 let currentEndTime = null;
@@ -1242,6 +942,24 @@ let currentRetailerName = ''; // 현재 리테일러 이름
 let currentCountry = ''; // 현재 국가
 let reportStatus = { is_closed: false, saved_retailers: {} }; // 보고서 상태
 const currentUserId = '{{ request.user.username|default:"anonymous"|escapejs }}'; // 로그인 사용자 ID
+
+// ── FilterBar 초기화 ──────────────────────────────
+const layer2Bar = new FilterBar('#layer2FilterBar', {
+    sticky: true,
+    controls: [
+        { type: 'date', key: 'targetDate', label: '조회 날짜' },
+        { type: 'button', label: '조회', style: 'primary', onClick: () => loadData() },
+        { type: 'button', label: '전날', style: 'cancel', color: '#1a365d', border: '1px solid #1a365d', onClick: () => setPrevDay() },
+        { type: 'button', label: '다음날', style: 'cancel', color: '#1a365d', border: '1px solid #1a365d', onClick: () => setNextDay() },
+    ],
+    right: [
+        { type: 'toggle', key: 'batchView', options: ['최종', '전체'], btnWidth: 80, onClick: (label, index) => {
+            currentBatchView = index === 0 ? 'final' : 'all';
+            loadData();
+        }},
+        { type: 'button', label: '보고서 관리', icon: 'document', bg: '#2563eb', btnWidth: 120, onClick: () => goToReportManage() },
+    ]
+}).render();
 
 document.addEventListener('DOMContentLoaded', function() {
     // 저장된 날짜 또는 어제 날짜로 초기화
@@ -1691,19 +1409,6 @@ function setNextDay() {
     loadData();
 }
 
-// 배치 뷰 전환 (최종/전체)
-function setBatchView(view) {
-    currentBatchView = view;
-
-    // 버튼 활성화 상태 변경
-    const buttons = document.querySelectorAll('.view-toggle button');
-    buttons.forEach(btn => {
-        btn.classList.toggle('active', btn.textContent === (view === 'final' ? '최종' : '전체'));
-    });
-
-    // 데이터 다시 로드
-    loadData();
-}
 
 async function loadData() {
     let date = document.getElementById('targetDate').value;
@@ -1771,7 +1476,7 @@ function renderNullTable(data) {
                     <th>지역</th>
                     <th>국가</th>
                     <th>예상</th>
-                    <th>전체</th>
+                    <th>수집</th>
                     <th>Title NULL</th>
                     <th>Image NULL</th>
                     <th>0원</th>
@@ -1815,13 +1520,9 @@ function renderNullTable(data) {
             actionButtons = '';
         } else {
             if (isSaved) {
-                actionButtons = `
-                    <button class="action-btn delete-btn" onclick="deleteRetailer('${item.retailer}', event)" title="취소">취소</button>
-                `;
+                actionButtons = AppButton.html('취소', `deleteRetailer('${item.retailer}', event)`, { size: 'sm', bg: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', padding: '3px 9px', radius: '4px', fontSize: '11px' });
             } else {
-                actionButtons = `
-                    <button class="action-btn save-btn" onclick="saveRetailer('${item.retailer}', event)" title="마감">마감</button>
-                `;
+                actionButtons = AppButton.html('마감', `saveRetailer('${item.retailer}', event)`, { size: 'sm', style: 'primary', padding: '3px 9px', radius: '4px', fontSize: '11px' });
             }
         }
 
@@ -1894,7 +1595,7 @@ function renderNullTable(data) {
         if (!reportStatus.is_closed && currentBatchView !== 'all') {
             bulkTop.innerHTML = `
                 <span id="bulkCount" style="font-size: 13px; color: var(--text-secondary);"></span>
-                <button class="btn-bulk-save" id="bulkSaveBtn" onclick="bulkSaveRetailers()" disabled>일괄 마감</button>
+                ${AppButton.html('일괄 마감', 'bulkSaveRetailers()', { bg: '#f97316', padding: '10px 20px', id: 'bulkSaveBtn', disabled: true })}
             `;
         } else {
             bulkTop.innerHTML = '';
@@ -1943,6 +1644,18 @@ function openNullDetail(tableName, retailerName, country, titleNull, imageurlNul
     document.getElementById('modalSubtitle').textContent = `테이블: ${tableName}`;
     document.getElementById('detailModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+
+    if (!modalPager) {
+        modalPager = new Pagination('#modalPaginationContainer', {
+            variant: 'simple',
+            pageSize: 50,
+            showInfo: false,
+            onPageChange: (page) => {
+                currentPage = page;
+                loadDetailData();
+            }
+        });
+    }
 
     renderNullErrorTypeSelector();
     loadDetailData();
@@ -1998,8 +1711,10 @@ async function loadDetailData() {
             document.getElementById('modalContent').innerHTML = `<div class="loading">${esc(data.error)}</div>`;
         } else {
             renderDetailTable(data);
-            totalPages = data.total_pages;
-            updatePagination(data);
+            // 에러 타입 정보 업데이트
+            const typeLabels = { title_null: 'Title NULL', imageurl_null: 'Image NULL', imageurl_invalid: 'Image 형식오류', price_zero: '0원', partial_null: '부분 NULL' };
+            document.getElementById('modalInfo').textContent = `${typeLabels[currentErrorType]}: ${data.total_count.toLocaleString()}건`;
+            modalPager.render(data.total_count, currentPage);
         }
     } catch (error) {
         console.error('Error loading detail:', error);
@@ -2056,7 +1771,7 @@ function renderDetailTable(data) {
                 <td>${shipsFrom || '<span class="null-value">NULL</span>'}</td>
                 <td>${soldBy || '<span class="null-value">NULL</span>'}</td>
                 <td style="max-width: 200px;">${imageurl ? `<a href="${imageurl}" target="_blank" title="${imageurl}">${imageurl.substring(0, 30)}...</a>` : '<span class="null-value">NULL</span>'}</td>
-                <td>${producturl ? `<a href="${producturl}" target="_blank">링크</a>` : '-'}</td>
+                <td>${producturl ? `<a href="${producturl}" target="_blank">링크</a><button class="app-icon-btn-ghost" onclick="event.stopPropagation(); copyProductUrl(${index}, this)" title="링크 복사"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>` : '-'}</td>
             </tr>
         `;
     });
@@ -2064,6 +1779,22 @@ function renderDetailTable(data) {
     html += '</tbody></table>';
     document.getElementById('modalContent').innerHTML = html;
     updateCheckCount();
+}
+
+function copyProductUrl(index, btn) {
+    const url = currentDetailData[index]?.producturl;
+    if (!url) return;
+    const textarea = document.createElement('textarea');
+    textarea.value = url;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1000);
+    showToast('링크가 복사되었습니다.', 'success');
 }
 
 function sortBy(column) {
@@ -2077,39 +1808,10 @@ function sortBy(column) {
     loadDetailData();
 }
 
-function updatePagination(data) {
-    const typeLabels = { title_null: 'Title NULL', imageurl_null: 'Image NULL', imageurl_invalid: 'Image 형식오류', price_zero: '0원', partial_null: '부분 NULL' };
-    document.getElementById('modalInfo').textContent = `${typeLabels[currentErrorType]}: ${data.total_count.toLocaleString()}건`;
-    document.getElementById('pageInfo').textContent = `${currentPage} / ${data.total_pages}`;
-    document.getElementById('prevBtn').disabled = currentPage <= 1;
-    document.getElementById('nextBtn').disabled = currentPage >= data.total_pages;
-}
-
-function prevPage() {
-    if (currentPage > 1) {
-        currentPage--;
-        loadDetailData();
-    }
-}
-
-function nextPage() {
-    if (currentPage < totalPages) {
-        currentPage++;
-        loadDetailData();
-    }
-}
-
 function closeModal() {
     document.getElementById('detailModal').classList.add('hidden');
     document.body.style.overflow = '';
 }
-
-function closeModalOnOverlay(event) {
-    if (event.target === event.currentTarget) {
-        closeModal();
-    }
-}
-
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeModal();
@@ -2238,7 +1940,8 @@ function copyCheckedToReport() {
                 </svg>
                 <span id="copyBtnText">복사 완료!</span>
             `;
-            btn.classList.add('copied');
+            btn.style.background = '#059669';
+            btn.style.borderColor = '#059669';
             setTimeout(() => {
                 btn.innerHTML = `
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2247,7 +1950,8 @@ function copyCheckedToReport() {
                     </svg>
                     <span id="copyBtnText">선택 복사 (${checkboxes.length}건)</span>
                 `;
-                btn.classList.remove('copied');
+                btn.style.background = '#4338ca';
+                btn.style.borderColor = '#4338ca';
             }, 2000);
         }
         showToast(`${rows.length}건 복사 완료`);

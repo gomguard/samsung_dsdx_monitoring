@@ -1165,19 +1165,32 @@ def ds_documents_list(request):
     from apps.common.response import safe_error
 
     category_id = request.GET.get('category_id', '')
+    search_field = request.GET.get('search_field', '')
+    search_text = request.GET.get('search_text', '')
+    date_from = request.GET.get('date_from', '')
     if not category_id:
         return JsonResponse({'success': False, 'error': '카테고리 ID가 필요합니다.'})
 
     try:
         conn = get_ds_connection()
         cursor = conn.cursor()
+
+        where = 'WHERE category_id = %s AND is_del = 0'
+        params = [category_id]
+        if search_text and search_field in ('document_id', 'title', 'created_id'):
+            where += ' AND ' + search_field + ' LIKE %s'
+            params.append('%' + search_text + '%')
+        if date_from:
+            where += ' AND DATE(created_at) = %s'
+            params.append(date_from)
+
         cursor.execute("""
             SELECT document_id, category_id, title, crawl_date, created_id,
-                   DATE_FORMAT(updated_at, '%%Y-%%m-%%d %%H:%%i') as updated_at
+                   DATE_FORMAT(created_at, '%%Y-%%m-%%d %%H:%%i') as created_at
             FROM ssd_crawl_db.ds_monitoring_documents
-            WHERE category_id = %s AND is_del = 0
+            """ + where + """
             ORDER BY created_at DESC
-        """, (category_id,))
+        """, params)
         columns = [desc[0] for desc in cursor.description]
         documents = [dict(zip(columns, row)) for row in cursor.fetchall()]
         cursor.close()

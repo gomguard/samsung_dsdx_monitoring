@@ -1,0 +1,130 @@
+/**
+ * 공통 버튼 스타일
+ *
+ * JS: static/js/buttons.js
+ *
+ * ============================================================
+ * 구성
+ * ============================================================
+ *
+ * [텍스트 버튼 (.app-btn)]
+ * - 크기: .app-btn-md, .app-btn-sm
+ * - 동적 색상 (--page-color): .app-btn-primary, .app-btn-outline
+ * - 고정 색상: .app-btn-save, .app-btn-cancel, .app-btn-delete,
+ *              .app-btn-danger, .app-btn-success, .app-btn-teal
+ *
+ * [아이콘 버튼 (.app-icon-btn)]
+ * - 색상: .app-icon-btn-blue, -yellow, -red, -green, -purple
+ * - ghost: .app-icon-btn-ghost (배경 없는 인라인 아이콘)
+ *
+ * ============================================================
+ */
+
+/* ============================================================
+   텍스트 버튼 (.app-btn)
+   ============================================================ */
+.app-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.app-btn svg { flex-shrink: 0; }
+
+/* 크기 */
+.app-btn-md { padding: 10px 20px; font-size: 14px; }
+.app-btn-sm { padding: 6px 12px; font-size: 12px; }
+.app-btn-sm svg { width: 12px; height: 12px; }
+
+/* 스타일 — 동적 색상 (--page-color 연동) */
+.app-btn-primary { background: var(--page-color); color: #fff; }
+.app-btn-primary:hover { opacity: 0.85; }
+
+.app-btn-outline { background: #fff; color: var(--page-color); border: 1px solid var(--page-color); }
+.app-btn-outline:hover { background: var(--page-color); color: #fff; }
+
+/* 스타일 — 고정 색상 (용도별) */
+.app-btn-save { background: #7c3aed; color: #fff; }
+.app-btn-save:hover { background: #6d28d9; }
+
+.app-btn-cancel { background: #fff; color: var(--text-secondary); border: 1px solid var(--border-color); }
+.app-btn-cancel:hover { background: #f1f5f9; }
+
+.app-btn-delete { background: #fee2e2; color: #dc2626; }
+.app-btn-delete:hover { background: #fecaca; }
+
+.app-btn-danger { background: #fee2e2; color: #dc2626; }
+.app-btn-danger:hover { background: #fecaca; }
+
+.app-btn-success { background: #d1fae5; color: #059669; }
+.app-btn-success:hover { background: #a7f3d0; }
+
+.app-btn-teal { background: #0d9488; color: #fff; }
+.app-btn-teal:hover { background: #0f766e; }
+
+/* 비활성 */
+.app-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ============================================================
+   아이콘 버튼 (.app-icon-btn)
+   ============================================================ */
+.app-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+}
+.app-icon-btn svg { width: 16px; height: 16px; }
+
+/* 크기 */
+.app-icon-btn-sm { width: 24px; height: 24px; border-radius: 4px; }
+.app-icon-btn-sm svg { width: 14px; height: 14px; }
+
+/* solid: 진한 배경 + 흰색 아이콘 (인라인 style로 배경색 지정) */
+.app-icon-btn-solid { background: #6b7280; color: #fff; }
+.app-icon-btn-solid:hover:not(:disabled) { opacity: 0.85; transform: scale(1.1); }
+.app-icon-btn-solid:disabled { opacity: 1; cursor: default; }
+.app-icon-btn-solid.loading svg { animation: icon-spin 1s linear infinite; }
+@keyframes icon-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.app-icon-btn-blue { background: #dbeafe; color: #2563eb; }
+.app-icon-btn-blue:hover { background: #bfdbfe; }
+
+.app-icon-btn-yellow { background: #fef9c3; color: #ca8a04; }
+.app-icon-btn-yellow:hover { background: #fef08a; }
+
+.app-icon-btn-red { background: #fee2e2; color: #dc2626; }
+.app-icon-btn-red:hover { background: #fecaca; }
+
+.app-icon-btn-green { background: #dcfce7; color: #16a34a; }
+.app-icon-btn-green:hover { background: #bbf7d0; }
+
+.app-icon-btn-purple { background: #ede9fe; color: #7c3aed; }
+.app-icon-btn-purple:hover { background: #ddd6fe; }
+
+/* ghost: 배경 없는 인라인 아이콘 (테이블 셀 내 복사 등) */
+.app-icon-btn-ghost {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: none; border: none; cursor: pointer;
+    padding: 2px 4px; margin-left: 4px;
+    color: var(--text-secondary); vertical-align: middle;
+    border-radius: 4px; transition: all 0.15s;
+    text-decoration: none;
+}
+.app-icon-btn-ghost svg { width: 13px; height: 13px; }
+.app-icon-btn-ghost:hover { color: #2563eb; background: #eff6ff; }
+.app-icon-btn-ghost.copied { color: #059669; background: #d1fae5; }
