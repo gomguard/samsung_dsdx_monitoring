@@ -669,9 +669,10 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-top: 20px;
-        padding: 16px 0;
+        margin-top: 12px;
+        padding: 12px 0;
         border-top: 1px solid var(--border-color);
+        flex-shrink: 0;
     }
 
     .pagination-info {
@@ -861,6 +862,7 @@
         overflow: auto;
         width: 100%;
         flex: 1;
+        min-height: 0;
     }
 
     /* item 목록 및 쿼리 복사 영역 - 좌우 배치 */
@@ -1648,7 +1650,7 @@
         } else if (type === 'format') {
             apiUrl = `/dx/layer2/api/format-detail/?table=${tableParam}&retailer=${encRetailer}&date=${date}`;
         } else if (type === 'duplicate') {
-            apiUrl = `/dx/layer2/api/anomaly-detail/?table=${tableParam}&retailer=${encRetailer}&date=${date}&page=${page}&page_size=50`;
+            apiUrl = `/dx/layer2/api/anomaly-detail/?table=${tableParam}&retailer=${encRetailer}&date=${date}&page=${page}&page_size=20`;
         } else {
             apiUrl = `/dx/layer2/api/detail/?type=${type}&table=${tableParam}&retailer=${encRetailer}&date=${date}`;
         }
