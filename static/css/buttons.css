@@ -10,7 +10,7 @@
  * [텍스트 버튼 (.app-btn)]
  * - 크기: .app-btn-md, .app-btn-sm
  * - 동적 색상 (--page-color): .app-btn-primary, .app-btn-outline
- * - 고정 색상: .app-btn-save, .app-btn-cancel, .app-btn-delete,
+ * - 고정 색상: .app-btn-back, .app-btn-save, .app-btn-cancel, .app-btn-delete,
  *              .app-btn-danger, .app-btn-success, .app-btn-teal
  *
  * [아이콘 버튼 (.app-icon-btn)]
@@ -52,6 +52,9 @@
 .app-btn-outline:hover { background: var(--page-color); color: #fff; }
 
 /* 스타일 — 고정 색상 (용도별) */
+.app-btn-back { background: #6b7280; color: #fff; }
+.app-btn-back:hover { background: #4b5563; }
+
 .app-btn-save { background: #7c3aed; color: #fff; }
 .app-btn-save:hover { background: #6d28d9; }
 
@@ -98,7 +101,7 @@
 .app-icon-btn-solid { background: #6b7280; color: #fff; }
 .app-icon-btn-solid:hover:not(:disabled) { opacity: 0.85; transform: scale(1.1); }
 .app-icon-btn-solid:disabled { opacity: 1; cursor: default; }
-.app-icon-btn-solid.loading svg { animation: icon-spin 1s linear infinite; }
+.app-icon-btn-solid.icon-loading svg { animation: icon-spin 1s linear infinite; }
 @keyframes icon-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 .app-icon-btn-blue { background: #dbeafe; color: #2563eb; }

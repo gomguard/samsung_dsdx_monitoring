@@ -319,7 +319,9 @@ class FilterBar {
         if (!input || !input.value) return this;
         const d = new Date(input.value);
         d.setDate(d.getDate() + 1);
-        input.value = d.toISOString().slice(0, 10);
+        const next = d.toISOString().slice(0, 10);
+        if (input.max && next > input.max) return this;
+        input.value = next;
         return this;
     }
 }

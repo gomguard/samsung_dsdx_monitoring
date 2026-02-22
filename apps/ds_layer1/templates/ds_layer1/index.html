@@ -815,9 +815,12 @@
 </div>
 
 <!-- Main Tabs -->
-<div class="main-tabs">
-    <button class="main-tab active" id="tabCollection" onclick="setMainTab('collection')">수집 현황</button>
-    <button class="main-tab" id="tabFileserver" onclick="setMainTab('fileserver')">파일 용량</button>
+<div style="display:flex; align-items:center; margin-bottom:24px;">
+    <div class="main-tabs" style="margin-bottom:0;">
+        <button class="main-tab active" id="tabCollection" onclick="setMainTab('collection')">수집 현황</button>
+        <button class="main-tab" id="tabFileserver" onclick="setMainTab('fileserver')">파일 용량</button>
+    </div>
+    <a id="fileserverLink" class="app-btn app-btn-md app-btn-outline" style="margin-left:auto;" onclick="goFileserver()">파일서버</a>
 </div>
 
 <!-- Collection Tab Content -->
@@ -1020,7 +1023,7 @@ const fileserverBar = new FilterBar('#fileserverFilterBar', {
         { type: 'button', label: '조회', style: 'primary', onClick: () => loadFileserverData() },
         { type: 'button', label: '전날', style: 'outline', onClick: () => setPrevDayFileserver() },
         { type: 'button', label: '다음날', style: 'outline', onClick: () => setNextDayFileserver() },
-    ]
+    ],
 }).render();
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -1043,6 +1046,11 @@ function setMainTab(tab) {
     if (tab === 'fileserver' && !fileserverData) {
         loadFileserverData();
     }
+}
+
+function goFileserver() {
+    const date = document.getElementById('fileserverDate').value;
+    location.href = `/ds/layer1/fileserver/?date=${date}`;
 }
 
 // Fileserver 데이터 로드

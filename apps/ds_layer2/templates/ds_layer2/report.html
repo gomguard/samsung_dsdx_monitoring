@@ -710,6 +710,14 @@
         to { transform: rotate(360deg); }
     }
 
+    /* 캡쳐 진행 스피너 */
+    .capture-spinner {
+        width: 40px;
+        height: 40px;
+        display: inline-block;
+        animation: spin 1.2s linear infinite;
+    }
+
     /* 스크린샷 모달 */
     .screenshot-modal {
         display: none;
@@ -905,7 +913,7 @@
 </div>
 
 <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
-    <a href="/ds/layer2/" class="app-btn app-btn-md" style="background:#6b7280;color:#fff;border-color:#6b7280;">
+    <a href="/ds/layer2/" class="app-btn app-btn-md app-btn-back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
         검수 페이지로
     </a>
@@ -2742,10 +2750,7 @@ function checkRunningCaptures(data) {
         if (report.capture_running && !report.all_screenshots_captured) {
             // 버튼을 로딩 상태로 변경
             const btn = document.querySelector(`button.app-icon-btn-solid[data-retailer="${report.retailer}"]`);
-            if (btn) {
-                btn.classList.add('loading');
-                btn.disabled = true;
-            }
+            AppButton.setLoading(btn);
             // 폴링 시작 (팝업 없이)
             startCapturePolling(report.retailer, date, true);
         }
@@ -2774,7 +2779,7 @@ function showCaptureProgress(retailer) {
     overlay.innerHTML =
         '<div style="background:#fff; border-radius:12px; padding:28px 32px 20px; min-width:340px; max-width:440px; box-shadow:0 12px 40px rgba(0,0,0,0.25); text-align:center;">' +
             '<div style="margin-bottom:16px;">' +
-                '<svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" width="40" height="40" style="animation: spin 2s linear infinite;">' +
+                '<svg class="capture-spinner" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">' +
                     '<circle cx="12" cy="12" r="10" stroke-dasharray="30" stroke-dashoffset="10"/>' +
                 '</svg>' +
             '</div>' +
@@ -2806,14 +2811,14 @@ function closeCaptureProgress(success, retailer, captured, total) {
     var box = overlay.querySelector('div > div');
     if (success) {
         overlay.querySelector('svg').outerHTML =
-            '<svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" width="40" height="40"><polyline points="20 6 9 17 4 12"/></svg>';
+            '<svg class="capture-spinner" style="animation:none" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>';
         overlay.querySelector('div > div:nth-child(2)').textContent = retailer + ' 캡쳐 완료';
         overlay.querySelector('div > div:nth-child(2)').style.color = '#22c55e';
         document.getElementById('captureProgressStatus').textContent = captured + ' / ' + total + ' 완료';
         document.getElementById('captureProgressStatus').style.color = '#22c55e';
     } else {
         overlay.querySelector('svg').outerHTML =
-            '<svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+            '<svg class="capture-spinner" style="animation:none" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
         overlay.querySelector('div > div:nth-child(2)').textContent = retailer + ' 캡쳐 시간 초과';
         overlay.querySelector('div > div:nth-child(2)').style.color = '#ef4444';
         document.getElementById('captureProgressStatus').textContent = captured + ' / ' + total + ' 완료';
@@ -2854,14 +2859,9 @@ function startCapturePolling(retailer, date, silent) {
                 }
                 // 버튼을 완료 상태로 변경
                 if (btn) {
-                    btn.classList.remove('loading');
                     btn.classList.add('completed');
-                    btn.style.background = 'transparent';
-                    btn.style.color = '#10b981';
-                    btn.disabled = true;
-                    btn.title = '캡쳐 완료';
                     btn.onclick = null;
-                    btn.innerHTML = AppButton.getIcon('check');
+                    AppButton.clearLoading(btn, 'check', { disabled: true, bg: 'transparent', color: '#10b981', title: '캡쳐 완료' });
                 }
                 // 목록 갱신
                 loadReportList();
@@ -2881,11 +2881,7 @@ function startCapturePolling(retailer, date, silent) {
         }
         // 버튼 복구
         if (btn) {
-            btn.classList.remove('loading');
-            btn.disabled = false;
-            btn.style.background = '#8b5cf6';
-            btn.style.color = '#fff';
-            btn.innerHTML = AppButton.getIcon('camera');
+            AppButton.clearLoading(btn, 'camera', { bg: '#8b5cf6', color: '#fff' });
         }
     }, 20 * 60 * 1000);
 
@@ -2905,10 +2901,7 @@ async function captureScreenshot(retailer) {
     // 버튼 찾기
     const btn = document.querySelector(`button.app-icon-btn-solid[data-retailer="${retailer}"]`);
 
-    if (btn) {
-        btn.classList.add('loading');
-        btn.disabled = true;
-    }
+    AppButton.setLoading(btn);
 
     try {
         const response = await fetch('/ds/layer2/api/screenshot-capture/', {
@@ -2931,21 +2924,13 @@ async function captureScreenshot(retailer) {
         } else {
             showToast('캡쳐 실패: ' + result.error, 'error');
             if (btn) {
-                btn.classList.remove('loading');
-                btn.disabled = false;
-                btn.style.background = '#8b5cf6';
-                btn.style.color = '#fff';
-                btn.innerHTML = AppButton.getIcon('camera');
+                AppButton.clearLoading(btn, 'camera', { bg: '#8b5cf6', color: '#fff' });
             }
         }
     } catch (error) {
         showToast('캡쳐 요청 실패: ' + error, 'error');
         if (btn) {
-            btn.classList.remove('loading');
-            btn.disabled = false;
-            btn.style.background = '#8b5cf6';
-            btn.style.color = '#fff';
-            btn.innerHTML = AppButton.getIcon('camera');
+            AppButton.clearLoading(btn, 'camera', { bg: '#8b5cf6', color: '#fff' });
         }
     }
 }
