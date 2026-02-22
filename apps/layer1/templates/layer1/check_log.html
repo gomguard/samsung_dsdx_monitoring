@@ -1,0 +1,411 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}검수 기록 - Layer {{ layer.number }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root { --page-color: #475569; }
+    .layer-header {
+        background: #475569;
+        color: white;
+        padding: 32px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+    }
+    .layer-info h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+    .layer-info p { opacity: 0.9; font-size: 14px; margin: 0; }
+
+    .toolbar {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+    .toolbar .app-btn-back { margin-top: 17px; }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        border: 1px solid var(--border-color);
+    }
+    .stat-card .label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+    }
+    .stat-card .value {
+        font-size: 28px;
+        font-weight: 700;
+    }
+
+    /* 탭 */
+    .log-tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 0;
+    }
+    .log-tab {
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: 600;
+        border: 1px solid var(--border-color);
+        border-bottom: none;
+        border-radius: 8px 8px 0 0;
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .log-tab:hover { color: var(--text-primary); }
+    .log-tab.active {
+        background: white;
+        color: var(--text-primary);
+        border-bottom: 1px solid white;
+        margin-bottom: -1px;
+        position: relative;
+        z-index: 1;
+    }
+    .log-tab .tab-count {
+        display: inline-block;
+        min-width: 20px;
+        padding: 1px 6px;
+        margin-left: 6px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        text-align: center;
+    }
+    .log-tab .tab-count.count-active { background: #d1fae5; color: #065f46; }
+    .log-tab .tab-count.count-deleted { background: #fee2e2; color: #991b1b; }
+    .log-tab .tab-count.count-zero { background: var(--bg-primary); color: var(--text-secondary); }
+
+    /* 테이블 영역 */
+    .checks-section {
+        background: white;
+        border-radius: 0 12px 12px 12px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .log-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .log-table th {
+        background: var(--bg-primary);
+        padding: 12px 20px;
+        text-align: left;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--border-color);
+    }
+    .log-table td {
+        padding: 14px 20px;
+        font-size: 14px;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+    .log-table tr:last-child td { border-bottom: none; }
+    .log-table td a:hover { color: var(--page-color); }
+
+    .badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    .badge-ok { background: #d1fae5; color: #065f46; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-critical { background: #fee2e2; color: #991b1b; }
+
+    .memo-text {
+        font-size: 12px;
+        color: #92400e;
+        background: #fef3c7;
+        padding: 3px 8px;
+        border-radius: 4px;
+        display: inline-block;
+        max-width: 240px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    .time-text { font-size: 13px; color: var(--text-secondary); }
+
+    .memo-cell {
+        cursor: pointer;
+        border-radius: 4px;
+        padding: 2px 4px;
+        margin: -2px -4px;
+        transition: background 0.15s;
+    }
+    .memo-cell:hover { background: #f1f5f9; }
+    .memo-empty {
+        color: var(--text-secondary);
+        opacity: 0.4;
+        font-size: 13px;
+    }
+    .memo-empty:hover { opacity: 0.7; }
+
+    .empty-state {
+        text-align: center;
+        padding: 48px;
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="layer-header">
+    <div class="layer-info">
+        <h1>검수 기록</h1>
+        <p>검수 확인 및 취소 이력 조회</p>
+    </div>
+</div>
+
+<div class="toolbar">
+    <a href="/dx/data/" class="app-btn app-btn-md app-btn-back">&larr; 뒤로가기</a>
+    <div id="checkLogFilterBar" style="flex:1;"></div>
+</div>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="label">확인된 섹션</div>
+        <div class="value" id="active-count">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">전체 이력</div>
+        <div class="value" id="total-logs" style="color: #475569;">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">취소 건수</div>
+        <div class="value" id="deleted-count" style="color: var(--text-secondary);">-</div>
+    </div>
+</div>
+
+<!-- Tabs + Table -->
+<div class="log-tabs">
+    <button class="log-tab active" id="tabActive" onclick="switchTab('active')">현재 상태 <span class="tab-count count-zero" id="tabActiveCount">0</span></button>
+    <button class="log-tab" id="tabDeleted" onclick="switchTab('deleted')">취소 이력 <span class="tab-count count-zero" id="tabDeletedCount">0</span></button>
+</div>
+<div class="checks-section">
+    <table class="log-table" id="tableActive">
+        <thead>
+            <tr>
+                <th>섹션</th>
+                <th>검수 상태</th>
+                <th>확인자</th>
+                <th>확인시간</th>
+                <th>메모</th>
+            </tr>
+        </thead>
+        <tbody id="tbody-active">
+            <tr><td colspan="5" class="empty-state">조회 날짜를 선택하세요.</td></tr>
+        </tbody>
+    </table>
+    <table class="log-table" id="tableDeleted" style="display:none;">
+        <thead>
+            <tr>
+                <th>섹션</th>
+                <th>검수 상태</th>
+                <th>확인자</th>
+                <th>확인시간</th>
+                <th>취소자</th>
+                <th>취소시간</th>
+                <th>취소 사유</th>
+            </tr>
+        </thead>
+        <tbody id="tbody-deleted">
+            <tr><td colspan="7" class="empty-state">취소 이력이 없습니다.</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var SECTION_NAMES = {
+    retail: 'Retail',
+    sentiment: '감성분석',
+    youtube: 'YouTube',
+    market_trend: 'Market Trend',
+    market_competitor: 'Market Competitor',
+    market_competitor_event: 'Competitor Event',
+    market_demand: '수요증감율',
+    market_promotion: 'Promotion',
+    retail_summary: '상세현황'
+};
+
+var filterBar;
+var currentTab = 'active';
+
+function initFilterBar() {
+    var yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    var defaultDate = yesterday.toISOString().split('T')[0];
+
+    filterBar = new FilterBar('#checkLogFilterBar', {
+        controls: [
+            { type: 'date', key: 'targetDate', label: '조회 날짜', value: defaultDate },
+            { type: 'button', label: '조회', style: 'primary', onClick: function() { loadLogData(); } },
+            { type: 'button', label: '전날', style: 'outline', onClick: function() { filterBar.prevDay(); loadLogData(); } },
+            { type: 'button', label: '다음날', style: 'outline', onClick: function() { filterBar.nextDay(); loadLogData(); } },
+        ]
+    }).render();
+}
+
+function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById('tabActive').classList.toggle('active', tab === 'active');
+    document.getElementById('tabDeleted').classList.toggle('active', tab === 'deleted');
+    document.getElementById('tableActive').style.display = tab === 'active' ? '' : 'none';
+    document.getElementById('tableDeleted').style.display = tab === 'deleted' ? '' : 'none';
+}
+
+async function loadLogData() {
+    var dateStr = filterBar.getDate();
+    if (!dateStr) return;
+
+    try {
+        var response = await fetch('/layer1/api/check/log/?date=' + dateStr + '&layer=1');
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var result = await response.json();
+
+        if (!result.success) {
+            showToast(result.error || '조회 실패', 'error');
+            return;
+        }
+
+        renderLogTable(dateStr, result.logs, result.active_count, result.total_sections);
+    } catch (e) {
+        showToast('시스템 오류가 발생했습니다.', 'error');
+    }
+}
+
+function fmtTime(isoStr) {
+    if (!isoStr) return '-';
+    var d = new Date(isoStr);
+    return d.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function renderLogTable(dateStr, logs, activeCount, totalSections) {
+    var activeLogs = logs.filter(function(l) { return l.is_del === 0; });
+    var deletedLogs = logs.filter(function(l) { return l.is_del === 1; });
+
+    // 요약 카드
+    document.getElementById('active-count').textContent = activeCount + ' / ' + totalSections;
+    document.getElementById('total-logs').textContent = logs.length;
+    document.getElementById('deleted-count').textContent = deletedLogs.length;
+
+    var acEl = document.getElementById('active-count');
+    acEl.style.color = activeCount === totalSections ? 'var(--color-ok)' : (activeCount > 0 ? '#d97706' : 'var(--text-secondary)');
+    document.getElementById('deleted-count').style.color = deletedLogs.length > 0 ? 'var(--color-critical)' : 'var(--text-secondary)';
+
+    // 탭 카운트
+    var acBadge = document.getElementById('tabActiveCount');
+    acBadge.textContent = activeLogs.length;
+    acBadge.className = 'tab-count ' + (activeLogs.length > 0 ? 'count-active' : 'count-zero');
+
+    var delBadge = document.getElementById('tabDeletedCount');
+    delBadge.textContent = deletedLogs.length;
+    delBadge.className = 'tab-count ' + (deletedLogs.length > 0 ? 'count-deleted' : 'count-zero');
+
+    // 현재 상태 테이블
+    var tbodyActive = document.getElementById('tbody-active');
+    if (activeLogs.length === 0) {
+        tbodyActive.innerHTML = '<tr><td colspan="5" class="empty-state">확인된 섹션이 없습니다.</td></tr>';
+    } else {
+        var rows = '';
+        for (var i = 0; i < activeLogs.length; i++) {
+            var log = activeLogs[i];
+            var name = SECTION_NAMES[log.section] || log.section;
+            var statusClass = log.status === 'CRITICAL' ? 'badge-critical' : (log.status === 'WARNING' ? 'badge-warning' : 'badge-ok');
+
+            var memoHtml = log.memo
+                ? '<span class="memo-cell memo-text" title="' + esc(log.memo) + '" onclick="editMemo(' + log.id + ', this)">' + esc(log.memo) + '</span>'
+                : '<span class="memo-cell memo-empty" onclick="editMemo(' + log.id + ', this)">+ 메모 추가</span>';
+
+            var detailUrl = '/dx/data/check-log/detail/?date=' + dateStr + '&section=' + log.section;
+
+            rows += '<tr>' +
+                '<td><a href="' + detailUrl + '" style="color:var(--text-primary); text-decoration:none; font-weight:500;">' + esc(name) + ' &rsaquo;</a></td>' +
+                '<td><span class="badge ' + statusClass + '">' + esc(log.status) + '</span></td>' +
+                '<td>' + esc(log.created_id) + '</td>' +
+                '<td><span class="time-text">' + fmtTime(log.created_at) + '</span></td>' +
+                '<td>' + memoHtml + '</td>' +
+            '</tr>';
+        }
+        tbodyActive.innerHTML = rows;
+    }
+
+    // 취소 이력 테이블
+    var tbodyDeleted = document.getElementById('tbody-deleted');
+    if (deletedLogs.length === 0) {
+        tbodyDeleted.innerHTML = '<tr><td colspan="7" class="empty-state">취소 이력이 없습니다.</td></tr>';
+    } else {
+        var drows = '';
+        for (var j = 0; j < deletedLogs.length; j++) {
+            var dl = deletedLogs[j];
+            var dname = SECTION_NAMES[dl.section] || dl.section;
+            var dstatusClass = dl.status === 'CRITICAL' ? 'badge-critical' : (dl.status === 'WARNING' ? 'badge-warning' : 'badge-ok');
+
+            drows += '<tr>' +
+                '<td>' + esc(dname) + '</td>' +
+                '<td><span class="badge ' + dstatusClass + '">' + esc(dl.status) + '</span></td>' +
+                '<td>' + esc(dl.created_id) + '</td>' +
+                '<td><span class="time-text">' + fmtTime(dl.created_at) + '</span></td>' +
+                '<td>' + esc(dl.updated_id || dl.created_id) + '</td>' +
+                '<td><span class="time-text">' + fmtTime(dl.updated_at) + '</span></td>' +
+                '<td>' + (dl.delete_memo ? '<span class="memo-text" title="' + esc(dl.delete_memo) + '">' + esc(dl.delete_memo) + '</span>' : '<span style="color:var(--text-secondary); opacity:0.4;">-</span>') + '</td>' +
+            '</tr>';
+        }
+        tbodyDeleted.innerHTML = drows;
+    }
+}
+
+async function editMemo(logId, el) {
+    var current = el.classList.contains('memo-empty') ? '' : el.textContent;
+    var result = await showConfirm('메모 수정', 'info', {
+        input: { placeholder: '메모를 입력하세요', value: current },
+        okText: '저장'
+    });
+    if (!result.confirmed) return;
+
+    try {
+        var response = await fetch('/layer1/api/check/memo/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ id: logId, memo: result.value })
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var data = await response.json();
+        if (data.success) {
+            showToast('메모 저장됨', 'success');
+            loadLogData();
+        }
+    } catch (e) {
+        showToast('시스템 오류가 발생했습니다.', 'error');
+    }
+}
+
+window.onload = function() {
+    initFilterBar();
+    loadLogData();
+};
+</script>
+{% endblock %}

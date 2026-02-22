@@ -1,0 +1,322 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}검수 상세{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root { --page-color: #475569; }
+    .layer-header {
+        background: #475569;
+        color: white;
+        padding: 32px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+    }
+    .layer-info h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+    .layer-info p { opacity: 0.9; font-size: 14px; margin: 0; }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .summary-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--border-color);
+    }
+    .summary-card .label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+    }
+    .summary-card .value {
+        font-size: 22px;
+        font-weight: 700;
+    }
+
+    .detail-section {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+    .detail-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .detail-table th {
+        background: var(--bg-primary);
+        padding: 12px 20px;
+        text-align: left;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--border-color);
+    }
+    .detail-table td {
+        padding: 12px 20px;
+        font-size: 14px;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+    .detail-table tr:last-child td { border-bottom: none; }
+
+    .badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    .badge-ok { background: #d1fae5; color: #065f46; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-critical { background: #fee2e2; color: #991b1b; }
+    .badge-null { background: #fee2e2; color: #991b1b; }
+
+    .empty-state {
+        text-align: center;
+        padding: 48px;
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+    .info-row {
+        display: flex;
+        gap: 24px;
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 24px;
+    }
+    .info-row span { display: flex; align-items: center; gap: 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="layer-header">
+    <div class="layer-info">
+        <h1 id="pageTitle">검수 상세</h1>
+        <p id="pageSubtitle"></p>
+    </div>
+</div>
+
+<div class="toolbar">
+    <a id="backLink" href="/dx/data/check-log/" class="app-btn app-btn-md app-btn-back">&larr; 검수 기록</a>
+    <div class="info-row" id="checkInfo" style="margin-bottom:0;"></div>
+</div>
+
+<div class="summary-grid" id="summaryGrid">
+    <div class="summary-card">
+        <div class="label" id="expectedLabel">예상 건수</div>
+        <div class="value" id="expectedCount">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="label" id="actualLabel">실제 건수</div>
+        <div class="value" id="actualCount">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="label" id="rateLabel">수집률</div>
+        <div class="value" id="rateValue">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">상태</div>
+        <div class="value" id="statusValue">-</div>
+    </div>
+</div>
+
+<div class="detail-section">
+    <table class="detail-table" id="detailTable">
+        <thead id="detailHead"></thead>
+        <tbody id="detailBody">
+            <tr><td class="empty-state">데이터를 불러오는 중...</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+var SECTION_NAMES = {
+    retail: 'Retail',
+    sentiment: '감성분석',
+    youtube: 'YouTube',
+    market_trend: 'Market Trend',
+    market_competitor: 'Market Competitor',
+    market_competitor_event: 'Competitor Event',
+    market_demand: '수요증감율',
+    market_promotion: 'Promotion',
+    retail_summary: '상세현황'
+};
+
+var DETAIL_COLUMNS = [
+    { key: 'category', label: '카테고리' },
+    { key: 'time_slot', label: '시간대' },
+    { key: 'retailer', label: '리테일러' },
+    { key: 'item_name', label: '항목' },
+    { key: 'expected_count', label: '예상', numeric: true },
+    { key: 'actual_count', label: '실제', numeric: true },
+    { key: 'rate', label: '비율', numeric: true },
+    { key: 'status', label: '상태' }
+];
+
+// 섹션별 컬럼 라벨 오버라이드
+var SECTION_LABELS = {
+    retail_summary: {
+        item_name: 'NULL 컬럼',
+        expected_count: '수집 항목 수',
+        actual_count: 'NULL 수'
+    }
+};
+
+function getParams() {
+    var params = new URLSearchParams(window.location.search);
+    return {
+        date: params.get('date') || '',
+        section: params.get('section') || ''
+    };
+}
+
+async function loadDetail() {
+    var p = getParams();
+    if (!p.date || !p.section) {
+        document.getElementById('detailBody').innerHTML = '<tr><td class="empty-state">날짜와 섹션 정보가 필요합니다.</td></tr>';
+        return;
+    }
+
+    var sectionName = SECTION_NAMES[p.section] || p.section;
+    document.getElementById('pageTitle').textContent = sectionName + ' 검수 상세';
+    document.getElementById('pageSubtitle').textContent = p.date;
+    document.getElementById('backLink').href = '/dx/data/check-log/?date=' + p.date;
+    document.title = sectionName + ' 검수 상세';
+
+    try {
+        var response = await fetch('/layer1/api/check/status/?date=' + p.date + '&layer=1&detail=1');
+        var result = await response.json();
+        if (!response.ok || !result.success) {
+            document.getElementById('detailBody').innerHTML = '<tr><td class="empty-state">' + esc(result.error || '조회 실패') + '</td></tr>';
+            return;
+        }
+
+        var sec = result.sections[p.section];
+        if (!sec) {
+            document.getElementById('detailBody').innerHTML = '<tr><td class="empty-state">해당 섹션의 검수 데이터가 없습니다.</td></tr>';
+            return;
+        }
+
+        renderSummary(sec);
+        renderDetailTable(sec.details || []);
+    } catch (e) {
+        document.getElementById('detailBody').innerHTML = '<tr><td class="empty-state">시스템 오류가 발생했습니다.</td></tr>';
+    }
+}
+
+function renderSummary(sec) {
+    var p = getParams();
+    var labels = SECTION_LABELS[p.section];
+    if (labels) {
+        if (labels.expected_count) document.getElementById('expectedLabel').textContent = labels.expected_count;
+        if (labels.actual_count) document.getElementById('actualLabel').textContent = labels.actual_count;
+    }
+
+    document.getElementById('expectedCount').textContent = (sec.expected_count || 0).toLocaleString();
+    document.getElementById('actualCount').textContent = (sec.actual_count || 0).toLocaleString();
+
+    var rateEl = document.getElementById('rateValue');
+    rateEl.textContent = (sec.rate || 0) + '%';
+    rateEl.style.color = sec.rate >= 100 ? 'var(--color-ok)' : (sec.rate >= 90 ? '#d97706' : 'var(--color-critical)');
+
+    var statusEl = document.getElementById('statusValue');
+    statusEl.textContent = sec.status || '-';
+    statusEl.style.color = sec.status === 'OK' ? 'var(--color-ok)' : (sec.status === 'WARNING' ? '#d97706' : 'var(--color-critical)');
+
+    // 확인자 / 시간 정보
+    var infoHtml = '';
+    if (sec.created_id) {
+        var timeStr = sec.updated_at
+            ? new Date(sec.updated_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+            : new Date(sec.created_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+        var who = sec.updated_id || sec.created_id;
+        infoHtml += '<span>확인자: <strong>' + esc(who) + '</strong></span>';
+        infoHtml += '<span>확인시간: <strong>' + timeStr + '</strong></span>';
+    }
+    if (sec.memo) {
+        infoHtml += '<span>메모: <strong>' + esc(sec.memo) + '</strong></span>';
+    }
+    document.getElementById('checkInfo').innerHTML = infoHtml;
+}
+
+function renderDetailTable(details) {
+    var headEl = document.getElementById('detailHead');
+    var bodyEl = document.getElementById('detailBody');
+    var p = getParams();
+    var labels = SECTION_LABELS[p.section] || {};
+
+    if (!details || details.length === 0) {
+        headEl.innerHTML = '';
+        bodyEl.innerHTML = '<tr><td class="empty-state">상세 데이터가 없습니다.</td></tr>';
+        return;
+    }
+
+    // 빈 컬럼 감지: 숫자 컬럼이거나, 라벨 오버라이드가 있거나, 데이터가 있으면 표시
+    var visibleCols = DETAIL_COLUMNS.filter(function(col) {
+        if (col.numeric) return true;
+        if (labels[col.key]) return true;
+        return details.some(function(d) { return d[col.key] && d[col.key] !== ''; });
+    });
+
+    // 섹션별 컬럼 순서 오버라이드
+    var SECTION_COL_ORDER = {
+        retail_summary: ['category', 'time_slot', 'retailer', 'expected_count', 'actual_count', 'item_name', 'rate', 'status']
+    };
+    var colOrder = SECTION_COL_ORDER[p.section];
+    if (colOrder) {
+        visibleCols.sort(function(a, b) {
+            return colOrder.indexOf(a.key) - colOrder.indexOf(b.key);
+        });
+    }
+
+    // 헤더 (섹션별 라벨 오버라이드 적용)
+    var headHtml = '<tr>';
+    visibleCols.forEach(function(col) {
+        var colLabel = labels[col.key] || col.label;
+        headHtml += '<th>' + colLabel + '</th>';
+    });
+    headHtml += '</tr>';
+    headEl.innerHTML = headHtml;
+
+    // 바디
+    var bodyHtml = '';
+    details.forEach(function(d) {
+        bodyHtml += '<tr>';
+        visibleCols.forEach(function(col) {
+            var val = d[col.key];
+            if (col.key === 'status') {
+                var cls = val === 'OK' ? 'badge-ok' : (val === 'WARNING' ? 'badge-warning' : (val === 'NULL' ? 'badge-null' : 'badge-critical'));
+                bodyHtml += '<td><span class="badge ' + cls + '">' + esc(val || '-') + '</span></td>';
+            } else if (col.key === 'rate') {
+                bodyHtml += '<td>' + (val || 0) + '%</td>';
+            } else if (col.numeric) {
+                bodyHtml += '<td>' + ((val || 0).toLocaleString ? (val || 0).toLocaleString() : val) + '</td>';
+            } else {
+                bodyHtml += '<td>' + esc(val || '-') + '</td>';
+            }
+        });
+        bodyHtml += '</tr>';
+    });
+    bodyEl.innerHTML = bodyHtml;
+}
+
+window.onload = function() {
+    loadDetail();
+};
+</script>
+{% endblock %}

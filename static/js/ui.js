@@ -140,10 +140,17 @@ function showConfirm(msg, type, options) {
         var overlay = document.createElement('div');
         overlay.id = 'confirmOverlay';
         overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:10002; display:flex; justify-content:center; align-items:center;';
+        var inputHtml = '';
+        if (options.input) {
+            var ph = options.input.placeholder || '';
+            inputHtml = '<textarea id="confirmInput" placeholder="' + ph + '" style="width:100%; min-height:60px; margin-bottom:16px; padding:10px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; resize:vertical; font-family:inherit;"></textarea>';
+        }
+
         overlay.innerHTML =
             '<div style="background:#fff; border-radius:12px; padding:28px 32px 20px; min-width:320px; max-width:440px; box-shadow:0 12px 40px rgba(0,0,0,0.25); text-align:center;">' +
                 '<div style="margin-bottom:12px;">' + icons[type] + '</div>' +
-                '<div id="confirmMsg" style="font-size:15px; font-weight:500; color:#1a1a1a; line-height:1.5; margin-bottom:24px; white-space:pre-line;"></div>' +
+                '<div id="confirmMsg" style="font-size:15px; font-weight:500; color:#1a1a1a; line-height:1.5; margin-bottom:' + (inputHtml ? '16' : '24') + 'px; white-space:pre-line;"></div>' +
+                inputHtml +
                 '<div style="display:flex; gap:10px; justify-content:center;">' +
                     '<button id="confirmOk" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:' + colors[type] + '; color:#fff; transition:opacity 0.15s;">' + (options.okText || '확인') + '</button>' +
                     (options.hideCancel ? '' : '<button id="confirmCancel" style="padding:9px 28px; border-radius:8px; font-size:14px; font-weight:600; border:none; cursor:pointer; background:#f3f4f6; color:#1a1a1a; transition:opacity 0.15s;">' + (options.cancelText || '취소') + '</button>') +
@@ -155,6 +162,10 @@ function showConfirm(msg, type, options) {
 
         var ok = document.getElementById('confirmOk');
         var cancel = document.getElementById('confirmCancel');
+        var inputEl = document.getElementById('confirmInput');
+        if (inputEl && options.input && options.input.value) {
+            inputEl.value = options.input.value;
+        }
 
         function cleanup() {
             overlay.remove();
@@ -162,11 +173,16 @@ function showConfirm(msg, type, options) {
             if (cancel) cancel.removeEventListener('click', onCancel);
             overlay.removeEventListener('click', onBg);
         }
-        function onOk() { cleanup(); resolve(true); }
-        function onCancel() { cleanup(); resolve(false); }
-        function onBg(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
+        function onOk() {
+            var val = inputEl ? inputEl.value.trim() : '';
+            cleanup();
+            resolve(options.input ? { confirmed: true, value: val } : true);
+        }
+        function onCancel() { cleanup(); resolve(options.input ? { confirmed: false, value: '' } : false); }
+        function onBg(e) { if (e.target === overlay) { cleanup(); resolve(options.input ? { confirmed: false, value: '' } : false); } }
         ok.addEventListener('click', onOk);
         if (cancel) cancel.addEventListener('click', onCancel);
         overlay.addEventListener('click', onBg);
+        if (inputEl) inputEl.focus();
     });
 }

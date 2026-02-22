@@ -44,7 +44,7 @@
 
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 16px;
         margin-bottom: 24px;
     }
@@ -459,6 +459,39 @@
         cursor: not-allowed;
     }
 
+    /* 섹션별 확인 버튼 (check-stats 영역 안에 인라인) */
+    .check-badge-inline {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: 12px;
+    }
+    .btn-check-confirm {
+        padding: 4px 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        transition: all 0.15s;
+        flex-shrink: 0;
+    }
+    .btn-check-confirm:hover {
+        border-color: #3b82f6;
+        color: #3b82f6;
+        background: #eff6ff;
+    }
+    .btn-check-confirm.checked {
+        background: #059669;
+        color: white;
+        border-color: #059669;
+    }
+    .btn-check-confirm.checked:hover {
+        background: #047857;
+        border-color: #047857;
+    }
     .date-info {
         font-size: 14px;
         color: var(--text-secondary);
@@ -1537,6 +1570,7 @@
 
     .summary-modal-tabs {
         display: flex;
+        align-items: center;
         gap: 8px;
         padding: 16px 24px;
         border-bottom: 1px solid var(--border-color);
@@ -1664,6 +1698,7 @@
         font-size: 12px;
     }
 
+
     .btn-close-summary {
         background: none;
         border: none;
@@ -1734,59 +1769,6 @@
     .layer-toast.error { background: #ef4444; }
 
     /* 공통 확인 모달 */
-    .confirm-overlay {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.45);
-        z-index: 10002;
-        justify-content: center;
-        align-items: center;
-    }
-    .confirm-overlay.show { display: flex; }
-    .confirm-box {
-        background: var(--bg-primary, #fff);
-        border-radius: 12px;
-        padding: 28px 32px 20px;
-        min-width: 320px;
-        max-width: 440px;
-        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-        text-align: center;
-    }
-    .confirm-box .confirm-icon {
-        margin-bottom: 12px;
-    }
-    .confirm-box .confirm-msg {
-        font-size: 15px;
-        font-weight: 500;
-        color: var(--text-primary, #1a1a1a);
-        line-height: 1.5;
-        margin-bottom: 24px;
-        white-space: pre-line;
-    }
-    .confirm-box .confirm-btns {
-        display: flex;
-        gap: 10px;
-        justify-content: center;
-    }
-    .confirm-box .confirm-btn {
-        padding: 9px 28px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        border: none;
-        cursor: pointer;
-        transition: opacity 0.15s;
-    }
-    .confirm-box .confirm-btn:hover { opacity: 0.85; }
-    .confirm-box .btn-ok {
-        background: #7c3aed;
-        color: #fff;
-    }
-    .confirm-box .btn-cancel {
-        background: var(--bg-secondary, #f3f4f6);
-        color: var(--text-primary, #1a1a1a);
-    }
 </style>
 {% endblock %}
 
@@ -1832,6 +1814,10 @@
     <div class="stat-card">
         <div class="label">실패</div>
         <div class="value" id="total-failed" style="color: var(--color-critical);">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">확인된 섹션</div>
+        <div class="value" id="total-confirmed">-</div>
     </div>
 </div>
 
@@ -1920,7 +1906,7 @@
             <div>
                 <div class="summary-modal-title" id="summaryModalTitle">상세 현황</div>
                 <div class="summary-modal-subtitle">
-                    <input type="date" id="summaryModalDate" onchange="onSummaryDateChange()" style="border: 1px solid var(--border-color); border-radius: 4px; padding: 4px 8px; font-size: 13px;">
+                    <input type="date" id="summaryModalDate" onchange="onSummaryDateChange()" max="" style="border: 1px solid var(--border-color); border-radius: 4px; padding: 4px 8px; font-size: 13px;">
                 </div>
             </div>
             <button class="btn-close-summary" onclick="closeSummaryModal()">&times;</button>
@@ -1928,6 +1914,7 @@
         <div class="summary-modal-tabs">
             <button class="summary-tab active" id="summaryTabTv" onclick="switchSummaryTab('tv')">TV</button>
             <button class="summary-tab" id="summaryTabHhp" onclick="switchSummaryTab('hhp')">HHP</button>
+            <span id="summaryCheckFooter" style="margin-left:auto; display:flex; align-items:center; gap:8px;"></span>
         </div>
         <div class="summary-modal-body" id="summaryModalBody">
             <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
@@ -2117,20 +2104,6 @@
 <div id="layerToast" class="layer-toast info"></div>
 
 <!-- 확인 모달 -->
-<div class="confirm-overlay" id="confirmOverlay">
-    <div class="confirm-box">
-        <div class="confirm-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" width="40" height="40">
-                <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
-            </svg>
-        </div>
-        <div class="confirm-msg" id="confirmMsg"></div>
-        <div class="confirm-btns">
-            <button class="confirm-btn btn-ok" id="confirmOk">확인</button>
-            <button class="confirm-btn btn-cancel" id="confirmCancel">취소</button>
-        </div>
-    </div>
-</div>
 
 {% endblock %}
 
@@ -2146,27 +2119,6 @@ function showToast(msg, type) {
     t._tid = setTimeout(function(){ t.classList.remove('show'); }, 2500);
 }
 
-function showConfirm(msg) {
-    return new Promise(function(resolve) {
-        var overlay = document.getElementById('confirmOverlay');
-        document.getElementById('confirmMsg').textContent = msg;
-        overlay.classList.add('show');
-        var ok = document.getElementById('confirmOk');
-        var cancel = document.getElementById('confirmCancel');
-        function cleanup() {
-            overlay.classList.remove('show');
-            ok.removeEventListener('click', onOk);
-            cancel.removeEventListener('click', onCancel);
-            overlay.removeEventListener('click', onBg);
-        }
-        function onOk() { cleanup(); resolve(true); }
-        function onCancel() { cleanup(); resolve(false); }
-        function onBg(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
-        ok.addEventListener('click', onOk);
-        cancel.addEventListener('click', onCancel);
-        overlay.addEventListener('click', onBg);
-    });
-}
 
 function getStatusBadge(status) {
     const statusMap = {
@@ -2179,6 +2131,287 @@ function getStatusBadge(status) {
     };
     const s = statusMap[status] || { class: 'ok', text: status };
     return `<span class="status-badge ${s.class}"><span class="status-dot"></span>${s.text}</span>`;
+}
+
+// ============================================================
+// 검수 확인 기록 (Check Log)
+// ============================================================
+let currentStatsData = null;    // 현재 로드된 API 데이터
+let currentCheckStatus = null;  // 현재 날짜의 체크 상태
+
+function flattenCheckToDetails(sectionType, check) {
+    const details = [];
+    switch (sectionType) {
+        case 'retail':
+            (check.categories || []).forEach(cat => {
+                (cat.time_slots || []).forEach(slot => {
+                    if (slot.status === 'PENDING') return;
+                    (slot.retailers || []).forEach(ret => {
+                        details.push({
+                            category: cat.name, time_slot: slot.name,
+                            retailer: ret.retailer, item_name: '',
+                            expected_count: ret.expected || 0,
+                            actual_count: ret.count || 0,
+                            rate: ret.expected > 0 ? Math.round((ret.count || 0) / ret.expected * 1000) / 10 : 0,
+                            status: ret.status
+                        });
+                    });
+                });
+            });
+            break;
+        case 'sentiment':
+            (check.categories || []).forEach(cat => {
+                (cat.time_slots || []).forEach(slot => {
+                    (slot.retailers || []).forEach(ret => {
+                        details.push({
+                            category: cat.name, time_slot: slot.time,
+                            retailer: ret.name, item_name: '',
+                            expected_count: ret.target || 0,
+                            actual_count: ret.analyzed || 0,
+                            rate: ret.rate || 0, status: ret.status
+                        });
+                    });
+                });
+            });
+            break;
+        case 'youtube':
+            (check.categories || []).forEach(cat => {
+                details.push({
+                    category: cat.name, time_slot: '', retailer: '',
+                    item_name: 'log_count',
+                    expected_count: cat.expected || 0, actual_count: cat.log_count || 0,
+                    rate: cat.rate || 0, status: cat.status
+                });
+                details.push({
+                    category: cat.name, time_slot: '', retailer: '',
+                    item_name: 'video_count',
+                    expected_count: cat.avg_7day || 0, actual_count: cat.video_count || 0,
+                    rate: cat.avg_7day > 0 ? Math.round(cat.video_count / cat.avg_7day * 1000) / 10 : 0,
+                    status: cat.status
+                });
+                details.push({
+                    category: cat.name, time_slot: '', retailer: '',
+                    item_name: 'comment_count',
+                    expected_count: 0, actual_count: cat.comment_count || 0,
+                    rate: 0, status: cat.status
+                });
+            });
+            break;
+        case 'market_trend':
+            (check.categories || []).forEach(cat => {
+                (cat.items || []).forEach(item => {
+                    details.push({
+                        category: cat.name, time_slot: '', retailer: '',
+                        item_name: item.name,
+                        expected_count: item.expected || 0, actual_count: item.collected || 0,
+                        rate: item.rate || 0, status: item.status
+                    });
+                });
+                if (cat.keyword_coverage) {
+                    const kc = cat.keyword_coverage;
+                    details.push({
+                        category: cat.name, time_slot: '', retailer: '',
+                        item_name: 'keyword_coverage',
+                        expected_count: kc.registered || 0, actual_count: kc.collected || 0,
+                        rate: kc.rate || 0, status: kc.status || cat.status
+                    });
+                }
+            });
+            break;
+        case 'market_competitor':
+        case 'market_competitor_event':
+            (check.categories || []).forEach(cat => {
+                details.push({
+                    category: cat.category, time_slot: '', retailer: '',
+                    item_name: 'collected',
+                    expected_count: cat.expected || 0, actual_count: cat.collected || 0,
+                    rate: cat.rate || 0, status: cat.status
+                });
+                if (cat.keyword_coverage) {
+                    const kc = cat.keyword_coverage;
+                    details.push({
+                        category: cat.category, time_slot: '', retailer: '',
+                        item_name: 'keyword_coverage',
+                        expected_count: kc.combo_expected || 0, actual_count: kc.combo_collected || 0,
+                        rate: kc.combo_rate || 0, status: cat.status
+                    });
+                }
+            });
+            break;
+        case 'market_demand':
+            (check.categories || []).forEach(cat => {
+                details.push({
+                    category: cat.category, time_slot: '', retailer: '',
+                    item_name: '',
+                    expected_count: cat.target || 0, actual_count: cat.collected || 0,
+                    rate: cat.rate || 0, status: cat.status
+                });
+            });
+            break;
+        case 'market_promotion':
+            (check.retailers || []).forEach(ret => {
+                details.push({
+                    category: '', time_slot: '', retailer: ret.retailer,
+                    item_name: '',
+                    expected_count: ret.expected || 0, actual_count: ret.collected || 0,
+                    rate: ret.rate || 0, status: ret.status
+                });
+            });
+            break;
+    }
+    return details;
+}
+
+async function loadCheckStatus(dateStr) {
+    const response = await fetch(`/layer1/api/check/status/?date=${dateStr}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+}
+
+async function saveCheck(sectionType) {
+    if (!currentStatsData || !currentStatsData.checks) return;
+
+    const check = currentStatsData.checks.find(c => c.check_type === sectionType);
+    if (!check) {
+        showToast('해당 섹션 데이터가 없습니다.', 'error');
+        return;
+    }
+
+    const result = await showConfirm(check.name + ' 검수를 확인 처리하시겠습니까?', 'info', {
+        input: { placeholder: '메모 (선택)' }
+    });
+    if (!result.confirmed) return;
+
+    const dateInput = document.getElementById('target-date');
+    try {
+        const response = await fetch('/layer1/api/check/save/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({
+                date: dateInput.value,
+                layer: 1,
+                sections: [{
+                    section: sectionType,
+                    expected_count: check.expected || check.expected_min || check.target || 0,
+                    actual_count: check.actual || 0,
+                    rate: check.rate || 0,
+                    status: check.status,
+                    details: flattenCheckToDetails(sectionType, check),
+                    memo: result.value || ''
+                }]
+            })
+        });
+        const saveData = await response.json();
+        if (!response.ok || !saveData.success) {
+            showToast(saveData.error || '저장 중 오류가 발생했습니다.', 'error');
+            return;
+        }
+        showToast('확인 완료', 'success');
+        loadAllData();
+    } catch (e) {
+        showToast('시스템 오류가 발생했습니다.', 'error');
+    }
+}
+
+async function deleteCheck(sectionType) {
+    const result = await showConfirm('확인을 취소하시겠습니까?', 'warning', {
+        input: { placeholder: '취소 사유를 입력하세요 (필수)' }
+    });
+    if (!result.confirmed) return;
+    if (!result.value) {
+        showToast('취소 사유를 입력해주세요.', 'warning');
+        return;
+    }
+
+    const dateInput = document.getElementById('target-date');
+    try {
+        const response = await fetch('/layer1/api/check/delete/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({
+                date: dateInput.value,
+                layer: 1,
+                section: sectionType,
+                delete_memo: result.value,
+            })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            showToast(data.error || '삭제 중 오류가 발생했습니다.', 'error');
+            return;
+        }
+        showToast('확인 취소됨', 'info');
+        loadAllData();
+    } catch (e) {
+        showToast('시스템 오류가 발생했습니다.', 'error');
+    }
+}
+
+function updateConfirmedCount() {
+    const el = document.getElementById('total-confirmed');
+    if (!el) return;
+
+    // 대상 섹션 수: is_target_date가 true인 섹션 + retail_summary (retail과 동일 조건)
+    let targetCount = 0;
+    let confirmedCount = 0;
+    if (currentStatsData && currentStatsData.checks) {
+        var targetChecks = currentStatsData.checks.filter(c => c.is_target_date !== false);
+        targetCount = targetChecks.length;
+        // retail이 대상이면 retail_summary도 대상
+        var retailCheck = targetChecks.find(c => c.check_type === 'retail');
+        if (retailCheck) targetCount++;
+
+        if (currentCheckStatus && currentCheckStatus.sections) {
+            targetChecks.forEach(c => {
+                if (currentCheckStatus.sections[c.check_type]) confirmedCount++;
+            });
+            if (retailCheck && currentCheckStatus.sections['retail_summary']) confirmedCount++;
+        }
+    }
+
+    el.textContent = targetCount > 0 ? `${confirmedCount} / ${targetCount}` : '-';
+    if (targetCount > 0 && confirmedCount === targetCount) {
+        el.style.color = 'var(--color-ok)';
+    } else if (confirmedCount > 0) {
+        el.style.color = '#f59e0b';
+    } else {
+        el.style.color = '';
+    }
+}
+
+function getCheckBadgeHtml(sectionType) {
+    if (!currentCheckStatus || !currentCheckStatus.sections) {
+        return `<button class="btn-check-confirm" onclick="event.stopPropagation(); saveCheck('${sectionType}')" title="확인">확인</button>`;
+    }
+    const sec = currentCheckStatus.sections[sectionType];
+    if (!sec) {
+        return `<button class="btn-check-confirm" onclick="event.stopPropagation(); saveCheck('${sectionType}')" title="확인">확인</button>`;
+    }
+    const timeStr = sec.updated_at
+        ? new Date(sec.updated_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})
+        : new Date(sec.created_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+    const who = sec.updated_id || sec.created_id || '';
+    return `<button class="btn-check-confirm checked" onclick="event.stopPropagation(); deleteCheck('${sectionType}')" title="${esc(who)} ${timeStr}">확인됨 ✓</button>`;
+}
+
+// DOM API로 체크 배지를 check-stats 영역에 삽입
+function addCheckBadges() {
+    document.querySelectorAll('.check-item[data-check-type]').forEach(function(item) {
+        const type = item.dataset.checkType;
+        const statsDiv = item.querySelector('.check-stats');
+        if (!statsDiv) return;
+
+        // 분석대상일이 아닌 섹션은 체크 배지 숨김
+        if (currentStatsData && currentStatsData.checks) {
+            const check = currentStatsData.checks.find(c => c.check_type === type);
+            if (check && check.is_target_date === false) return;
+        }
+
+        const badge = document.createElement('span');
+        badge.className = 'check-badge-inline';
+        badge.innerHTML = getCheckBadgeHtml(type);
+        statsDiv.appendChild(badge);
+    });
 }
 
 function getRetailerStatusClass(status) {
@@ -2297,12 +2530,24 @@ async function loadStats() {
         const dateInput = document.getElementById('target-date');
         const selectedDate = dateInput.value;
 
+        // 1. 체크 상태 먼저 조회
+        let checkData = null;
+        try {
+            checkData = await loadCheckStatus(selectedDate);
+            currentCheckStatus = checkData;
+        } catch (e) {
+            currentCheckStatus = null;
+        }
+
         const url = selectedDate
             ? `/layer1/api/stats/?date=${selectedDate}`
             : '/layer1/api/stats/';
 
         const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
+
+        currentStatsData = data;
 
         // 조회 날짜 정보 표시 + 오늘/전일 뱃지
         const dateInfo = document.getElementById('date-info');
@@ -2328,6 +2573,7 @@ async function loadStats() {
         document.getElementById('total-checked').textContent = data.summary.total_checked;
         document.getElementById('total-passed').textContent = data.summary.passed;
         document.getElementById('total-failed').textContent = data.summary.failed;
+        updateConfirmedCount();
 
         // Failed count badge
         const failedCountEl = document.getElementById('failed-count');
@@ -2343,44 +2589,49 @@ async function loadStats() {
 
         // 체크 렌더링 함수
         function renderCheck(check, checkIdx) {
+            let html;
             if (check.check_type === 'sentiment') {
-                return renderSentimentCheck(check, checkIdx);
-            }
-            if (check.check_type === 'youtube') {
-                return renderYouTubeCheck(check, checkIdx);
-            }
-            if (check.check_type === 'market_trend') {
-                return renderMarketTrendCheck(check, checkIdx);
-            }
-            if (check.check_type === 'market_competitor') {
-                return renderMarketCompetitorCheck(check, checkIdx);
-            }
-            if (check.check_type === 'market_competitor_event') {
-                return renderMarketCompetitorEventCheck(check, checkIdx);
-            }
-            if (check.check_type === 'market_demand') {
-                return renderMarketDemandCheck(check, checkIdx);
-            }
-            if (check.check_type === 'market_promotion') {
-                return renderMarketPromotionCheck(check, checkIdx);
-            }
-            if (check.check_type === 'retail') {
-                return renderRetailCheck(check, checkIdx);
-            }
-            // 기본 렌더링
-            return `
-                <div class="check-item">
-                    <div class="check-main">
-                        <div class="check-info">
-                            <div class="check-name">${esc(check.name)}</div>
-                            <div class="check-description">${esc(check.description || '')}</div>
-                        </div>
-                        <div class="check-stats">
-                            ${getStatusBadge(check.status)}
+                html = renderSentimentCheck(check, checkIdx);
+            } else if (check.check_type === 'youtube') {
+                html = renderYouTubeCheck(check, checkIdx);
+            } else if (check.check_type === 'market_trend') {
+                html = renderMarketTrendCheck(check, checkIdx);
+            } else if (check.check_type === 'market_competitor') {
+                html = renderMarketCompetitorCheck(check, checkIdx);
+            } else if (check.check_type === 'market_competitor_event') {
+                html = renderMarketCompetitorEventCheck(check, checkIdx);
+            } else if (check.check_type === 'market_demand') {
+                html = renderMarketDemandCheck(check, checkIdx);
+            } else if (check.check_type === 'market_promotion') {
+                html = renderMarketPromotionCheck(check, checkIdx);
+            } else if (check.check_type === 'retail') {
+                html = renderRetailCheck(check, checkIdx);
+            } else {
+                html = `
+                    <div class="check-item">
+                        <div class="check-main">
+                            <div class="check-info">
+                                <div class="check-name">${esc(check.name)}</div>
+                                <div class="check-description">${esc(check.description || '')}</div>
+                            </div>
+                            <div class="check-stats">
+                                ${getStatusBadge(check.status)}
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
+                `;
+            }
+
+            return html;
+        }
+
+        // check-item에 data-check-type 속성만 추가 (배지는 addCheckBadges()에서 DOM으로 삽입)
+        function wrapWithCheckBadge(checkHtml, checkType) {
+            if (!checkType) return checkHtml;
+            return checkHtml.replace(
+                '<div class="check-item">',
+                `<div class="check-item" data-check-type="${checkType}">`
+            );
         }
 
         // 데일리 체크 리스트
@@ -2389,7 +2640,7 @@ async function loadStats() {
         if (dailyChecks.length > 0) {
             dailyChecksList.innerHTML = dailyChecks.map((check, idx) => {
                 const checkIdx = data.checks.indexOf(check);
-                return renderCheck(check, checkIdx);
+                return wrapWithCheckBadge(renderCheck(check, checkIdx), check.check_type);
             }).join('');
         } else {
             dailyChecksList.innerHTML = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 없음</div></div></div></div>';
@@ -2401,11 +2652,14 @@ async function loadStats() {
         if (periodChecks.length > 0) {
             periodChecksList.innerHTML = periodChecks.map((check, idx) => {
                 const checkIdx = data.checks.indexOf(check);
-                return renderCheck(check, checkIdx);
+                return wrapWithCheckBadge(renderCheck(check, checkIdx), check.check_type);
             }).join('');
         } else {
             periodChecksList.innerHTML = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 없음</div></div></div></div>';
         }
+
+        // 체크 배지 삽입 (DOM API)
+        addCheckBadges();
 
         // Failed items table
         const tbody = document.getElementById('failed-table');
@@ -4412,7 +4666,9 @@ function openSummaryModal() {
     var currentDate = document.getElementById('target-date').value;
 
     document.getElementById('summaryModalTitle').textContent = 'Retail 상세 현황';
-    document.getElementById('summaryModalDate').value = currentDate;
+    var dateInput = document.getElementById('summaryModalDate');
+    dateInput.value = currentDate;
+    dateInput.max = new Date().toISOString().split('T')[0];
 
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -4425,6 +4681,7 @@ function openSummaryModal() {
     document.getElementById('summaryTabTv').classList.add('active');
     document.getElementById('summaryTabHhp').classList.remove('active');
 
+    renderSummaryCheckFooter();
     loadSummaryData('tv');
 }
 
@@ -4436,6 +4693,13 @@ function closeSummaryModal(event) {
 }
 
 function onSummaryDateChange() {
+    var dateInput = document.getElementById('summaryModalDate');
+    var today = new Date().toISOString().split('T')[0];
+    if (dateInput.value > today) {
+        showToast('오늘 이후 날짜는 조회할 수 없습니다.', 'warning');
+        dateInput.value = today;
+        return;
+    }
     // 날짜 변경 시 캐시 초기화 후 현재 탭 다시 로드
     summaryCache = {};
     loadSummaryData(currentSummaryTab);
@@ -4596,6 +4860,160 @@ function renderSummaryContent(data) {
     }
 
     bodyEl.innerHTML = html;
+    renderSummaryCheckFooter();
+}
+
+// 상세현황 통합 확인 footer 렌더링
+function renderSummaryCheckFooter() {
+    var footerEl = document.getElementById('summaryCheckFooter');
+    if (!footerEl) return;
+
+    var checkInfo = currentCheckStatus && currentCheckStatus.sections && currentCheckStatus.sections['retail_summary'];
+    var html = '';
+
+    if (checkInfo) {
+        var timeStr = checkInfo.updated_at
+            ? new Date(checkInfo.updated_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})
+            : new Date(checkInfo.created_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+        var who = checkInfo.updated_id || checkInfo.created_id || '';
+        html += '<button class="btn-check-confirm checked" onclick="deleteSummaryCheck()" title="' + esc(who) + ' ' + timeStr + '">확인됨 ✓</button>';
+    } else {
+        html += '<button class="btn-check-confirm" onclick="saveSummaryCheck()">확인</button>';
+    }
+
+    footerEl.innerHTML = html;
+}
+
+// 상세현황 체크 저장 (TV+HHP 통합)
+async function saveSummaryCheck() {
+    var result = await showConfirm('상세현황 (TV+HHP)을 확인 처리하시겠습니까?', 'info', {
+        input: { placeholder: '메모 (선택)' }
+    });
+    if (!result.confirmed) return;
+
+    var modalDate = document.getElementById('summaryModalDate');
+    var dateVal = (modalDate && modalDate.value) ? modalDate.value : document.getElementById('target-date').value;
+
+    // TV, HHP 데이터 모두 로드
+    for (var i = 0; i < 2; i++) {
+        var t = i === 0 ? 'tv' : 'hhp';
+        if (!summaryCache[t]) {
+            try {
+                var loadResp = await fetch('/layer1/api/retail-summary/?type=' + t + '&date=' + dateVal);
+                var loadData = await loadResp.json();
+                if (loadData.error) { showToast(t.toUpperCase() + ' 데이터 로드 실패', 'error'); return; }
+                summaryCache[t] = loadData;
+            } catch (e) { showToast(t.toUpperCase() + ' 데이터 로드 오류: ' + e.message, 'error'); return; }
+        }
+    }
+
+    // TV+HHP 합산
+    var totalExpected = 0;
+    var totalNull = 0;
+    var allDetails = [];
+
+    ['tv', 'hhp'].forEach(function(t) {
+        var data = summaryCache[t];
+        var stats = data.check_stats || { total_checks: 0, null_count: 0 };
+        totalExpected += stats.total_checks;
+        totalNull += stats.null_count;
+
+        (data.column_checks || []).forEach(function(ret) {
+            var checkColCount = (ret.check_columns || []).length;
+            ret.time_slots.forEach(function(slot) {
+                var nullCols = [];
+                (ret.check_columns || []).forEach(function(col) {
+                    if (!slot.counts || !slot.counts[col] || slot.counts[col] === 0) {
+                        nullCols.push(col);
+                    }
+                });
+                allDetails.push({
+                    category: data.product_line,
+                    time_slot: slot.time_slot,
+                    retailer: ret.retailer,
+                    item_name: nullCols.join(', '),
+                    expected_count: checkColCount,
+                    actual_count: nullCols.length,
+                    rate: checkColCount > 0 ? Math.round((checkColCount - nullCols.length) / checkColCount * 1000) / 10 : 100,
+                    status: nullCols.length > 0 ? 'NULL' : 'OK'
+                });
+            });
+        });
+    });
+
+    var totalActual = totalExpected - totalNull;
+    var rate = totalExpected > 0 ? Math.round(totalActual / totalExpected * 1000) / 10 : 100;
+    var status = totalNull > 0 ? 'NG' : 'OK';
+
+    try {
+        var response = await fetch('/layer1/api/check/save/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({
+                date: dateVal,
+                layer: 1,
+                sections: [{
+                    section: 'retail_summary',
+                    expected_count: totalExpected,
+                    actual_count: totalActual,
+                    rate: rate,
+                    status: status,
+                    details: allDetails,
+                    memo: result.value || ''
+                }]
+            })
+        });
+        var saveResult = await response.json();
+        if (!response.ok || !saveResult.success) {
+            showToast(saveResult.error || '저장 중 오류가 발생했습니다.', 'error');
+            return;
+        }
+        showToast('상세현황 확인 완료', 'success');
+        var selectedDate = document.getElementById('target-date').value;
+        currentCheckStatus = await loadCheckStatus(selectedDate);
+        renderSummaryCheckFooter();
+    } catch (e) {
+        showToast('시스템 오류가 발생했습니다.', 'error');
+    }
+}
+
+// 상세현황 체크 삭제 (취소)
+async function deleteSummaryCheck() {
+    var result = await showConfirm('상세현황 확인을 취소하시겠습니까?', 'warning', {
+        input: { placeholder: '취소 사유를 입력하세요 (필수)' }
+    });
+    if (!result.confirmed) return;
+    if (!result.value) {
+        showToast('취소 사유를 입력해주세요.', 'warning');
+        return;
+    }
+
+    var modalDate = document.getElementById('summaryModalDate');
+    var dateVal = (modalDate && modalDate.value) ? modalDate.value : document.getElementById('target-date').value;
+
+    try {
+        var response = await fetch('/layer1/api/check/delete/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({
+                date: dateVal,
+                layer: 1,
+                section: 'retail_summary',
+                delete_memo: result.value
+            })
+        });
+        var deleteResult = await response.json();
+        if (!response.ok || !deleteResult.success) {
+            showToast(deleteResult.error || '삭제 중 오류가 발생했습니다.', 'error');
+            return;
+        }
+        showToast('확인 취소됨', 'success');
+        var selectedDate = document.getElementById('target-date').value;
+        currentCheckStatus = await loadCheckStatus(selectedDate);
+        renderSummaryCheckFooter();
+    } catch (e) {
+        showToast('시스템 오류가 발생했습니다.', 'error');
+    }
 }
 
 // ============================================================

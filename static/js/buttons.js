@@ -78,6 +78,18 @@
  *   href   - 링크 URL (지정 시 <a> 태그로 생성)
  *
  * ============================================================
+ * 4. JS — 아이콘 버튼 로딩 상태 관리
+ * ============================================================
+ *
+ * 로딩 시작 (스피너 교체 + disabled):
+ *    AppButton.setLoading(btn)
+ *    AppButton.setLoading('button[data-retailer="amazon"]')
+ *
+ * 로딩 해제 (아이콘 복구 + enabled):
+ *    AppButton.clearLoading(btn, 'camera')
+ *    AppButton.clearLoading(btn, 'check', { disabled: true, bg: 'transparent', color: '#10b981' })
+ *
+ * ============================================================
  */
 
 var AppButton = (function() {
@@ -97,7 +109,8 @@ var AppButton = (function() {
         info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
         camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
         check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>',
-        minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+        minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+        spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: icon-spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke-dasharray="30" stroke-dashoffset="10"/></svg>'
     };
 
     // 텍스트 버튼 HTML
@@ -232,6 +245,30 @@ var AppButton = (function() {
 
     // 아이콘 SVG 접근 (외부에서 ICONS 참조용)
     appButton.getIcon = function(name) { return ICONS[name] || ''; };
+
+    // 아이콘 버튼 로딩 상태 설정
+    //   btn: DOM 요소 또는 selector
+    //   AppButton.setLoading(btn)          — 스피너로 교체 + disabled
+    //   AppButton.clearLoading(btn, icon)  — 원래 아이콘 복구 + enabled
+    //   AppButton.clearLoading(btn, icon, { disabled: true, bg: '...', color: '...' })
+    appButton.setLoading = function(btn) {
+        var el = typeof btn === 'string' ? document.querySelector(btn) : btn;
+        if (!el) return;
+        el._prevIcon = el.innerHTML;
+        el.innerHTML = ICONS.spinner;
+        el.disabled = true;
+    };
+
+    appButton.clearLoading = function(btn, iconName, opts) {
+        var el = typeof btn === 'string' ? document.querySelector(btn) : btn;
+        if (!el) return;
+        opts = opts || {};
+        el.innerHTML = iconName ? (ICONS[iconName] || iconName) : (el._prevIcon || '');
+        el.disabled = !!opts.disabled;
+        if (opts.bg) el.style.background = opts.bg;
+        if (opts.color) el.style.color = opts.color;
+        if (opts.title) el.title = opts.title;
+    };
 
     return appButton;
 })();

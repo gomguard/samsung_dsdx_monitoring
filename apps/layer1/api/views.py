@@ -6,7 +6,9 @@ Layer 1 API: 기본 통계 검수 (Foundational Integrity Check)
 """
 
 from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 from datetime import datetime, timedelta
+import json
 from apps.common.db import get_dx_connection
 from apps.common.retail_columns import get_retailer_columns, get_all_retailer_columns
 from apps.common.response import safe_error, log_error
@@ -2317,9 +2319,13 @@ def retail_summary(request):
         # 결과 데이터 구조
         summary_data = []
         null_columns_data = []
+        total_check_count = 0  # 전체 검사 컬럼 수
+        total_null_count = 0   # NULL 발생 컬럼 수
 
         # 리테일러별 컬럼 목록 - CSV에서 로드
         # NULL 검사는 is_null_check=Y인 컬럼만 대상으로 함
+
+        column_checks_data = []  # 리테일러별 컬럼별 카운트 (체크 저장용)
 
         for retailer in retailers:
             retailer_rows = []
@@ -2327,6 +2333,7 @@ def retail_summary(request):
             retailer_total = 0
             # NULL 검사 대상 컬럼 (CSV에서 Y 표시된 컬럼)
             check_columns = get_retailer_columns(product_line, retailer)
+            retailer_check_slots = []
 
             for slot in time_slots:
                 # 시간대별 페이지타입 카운트
@@ -2360,6 +2367,7 @@ def retail_summary(request):
 
                 # NULL 컬럼 체크 - Layer 2와 동일한 방식 (COUNT로 한번에 조회)
                 if total > 0 and check_columns:
+                    total_check_count += len(check_columns)
                     count_parts = [f"COUNT({col}) as {col}_cnt" for col in check_columns]
                     query = f"""
                         SELECT {', '.join(count_parts)}
@@ -2371,8 +2379,22 @@ def retail_summary(request):
                     cursor.execute(query, (slot['start'], slot['end'], retailer))
                     count_row = cursor.fetchone()
                     if count_row:
-                        # COUNT가 0인 컬럼 = 전체가 NULL인 컬럼
-                        null_cols = [col for col, cnt in zip(check_columns, count_row) if cnt == 0]
+                        # 컬럼별 카운트 저장
+                        col_counts = {}
+                        null_cols = []
+                        for col, cnt in zip(check_columns, count_row):
+                            col_counts[col] = cnt
+                            if cnt == 0:
+                                null_cols.append(col)
+
+                        total_null_count += len(null_cols)
+
+                        retailer_check_slots.append({
+                            'time_slot': slot['name'],
+                            'total': total,
+                            'counts': col_counts
+                        })
+
                         if null_cols:
                             retailer_null_cols.append({
                                 'time_slot': slot['name'],
@@ -2389,6 +2411,13 @@ def retail_summary(request):
                 null_columns_data.append({
                     'retailer': retailer,
                     'time_slots': retailer_null_cols
+                })
+
+            if retailer_check_slots:
+                column_checks_data.append({
+                    'retailer': retailer,
+                    'check_columns': check_columns,
+                    'time_slots': retailer_check_slots
                 })
 
         # 전체 합계 계산
@@ -2409,7 +2438,12 @@ def retail_summary(request):
                 'grand_total': grand_total,
                 'am_total': am_total,
                 'pm_total': pm_total
-            }
+            },
+            'check_stats': {
+                'total_checks': total_check_count,
+                'null_count': total_null_count
+            },
+            'column_checks': column_checks_data
         })
 
     except Exception as e:
@@ -3382,3 +3416,308 @@ def backup_retail_data(request):
                 'success': False,
                 'error': ', '.join(errors)
             })
+
+
+# ============================================================
+# 검수 확인 기록 API (Check Log)
+# ============================================================
+
+ALL_SECTIONS = [
+    'retail', 'sentiment', 'youtube', 'market_trend',
+    'market_competitor', 'market_competitor_event',
+    'market_demand', 'market_promotion',
+    'retail_summary',
+]
+
+
+def check_status(request):
+    """날짜별 검수 확인 상태 조회"""
+    date_str = request.GET.get('date')
+    layer = int(request.GET.get('layer', 1))
+    include_detail = request.GET.get('detail', '0') == '1'
+
+    if not date_str:
+        return JsonResponse({'success': False, 'error': '날짜를 지정하세요.'}, status=400)
+
+    conn = get_dx_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT id, section, expected_count, actual_count, rate, status, memo,
+                   created_id, created_at, updated_id, updated_at
+            FROM monitoring_check_log
+            WHERE crawl_date = %s AND layer = %s AND is_del = 0
+            ORDER BY id
+        """, (date_str, layer))
+
+        rows = cursor.fetchall()
+        sections = {}
+        check_log_ids = []
+        for row in rows:
+            check_log_ids.append(row[0])
+            sections[row[1]] = {
+                'id': row[0],
+                'expected_count': row[2],
+                'actual_count': row[3],
+                'rate': float(row[4]) if row[4] else 0,
+                'status': row[5],
+                'memo': row[6] or '',
+                'created_id': row[7],
+                'created_at': row[8].isoformat() if row[8] else None,
+                'updated_id': row[9],
+                'updated_at': row[10].isoformat() if row[10] else None,
+            }
+
+        if include_detail and check_log_ids:
+            placeholders = ','.join(['%s'] * len(check_log_ids))
+            cursor.execute(f"""
+                SELECT section, category, time_slot, retailer,
+                       item_name, expected_count, actual_count, rate, status
+                FROM monitoring_check_log_detail
+                WHERE check_log_id IN ({placeholders})
+                ORDER BY id
+            """, check_log_ids)
+            for dr in cursor.fetchall():
+                sec_key = dr[0]
+                if sec_key in sections:
+                    if 'details' not in sections[sec_key]:
+                        sections[sec_key]['details'] = []
+                    sections[sec_key]['details'].append({
+                        'category': dr[1], 'time_slot': dr[2],
+                        'retailer': dr[3], 'item_name': dr[4],
+                        'expected_count': dr[5], 'actual_count': dr[6],
+                        'rate': float(dr[7]) if dr[7] else 0, 'status': dr[8],
+                    })
+
+        target_count = _get_target_sections(date_str)
+        return JsonResponse({
+            'success': True,
+            'checked_all': len(sections) >= target_count,
+            'checked_count': len(sections),
+            'total_sections': target_count,
+            'sections': sections
+        })
+    except Exception as e:
+        return safe_error(e, 'db')
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@require_POST
+def check_save(request):
+    """검수 확인 저장 (INSERT ON CONFLICT UPDATE)"""
+    try:
+        data = json.loads(request.body)
+        date_str = data.get('date')
+        layer = data.get('layer', 1)
+        sections = data.get('sections', [])
+        username = request.user.username if request.user.is_authenticated else ''
+        now = datetime.now()
+
+        if not date_str or not sections:
+            return JsonResponse({'success': False, 'error': '필수 파라미터가 누락되었습니다.'}, status=400)
+
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        try:
+            for s in sections:
+                section = s.get('section', '')
+                if section not in ALL_SECTIONS:
+                    continue
+
+                # 1) 기존 활성 행이 있으면 soft delete
+                cursor.execute("""
+                    UPDATE monitoring_check_log
+                    SET is_del = 1, updated_id = %s, updated_at = %s
+                    WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
+                """, (username, now, date_str, layer, section))
+
+                # 2) 새 행 INSERT
+                cursor.execute("""
+                    INSERT INTO monitoring_check_log
+                        (crawl_date, layer, section, expected_count, actual_count,
+                         rate, status, memo, created_id, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """, (
+                    date_str, layer, section,
+                    s.get('expected_count', 0), s.get('actual_count', 0),
+                    s.get('rate', 0), s.get('status', 'OK'), s.get('memo', ''),
+                    username, now
+                ))
+                check_log_id = cursor.fetchone()[0]
+
+                # 3) detail 행 INSERT
+                details = s.get('details', [])
+                for d in details:
+                    cursor.execute("""
+                        INSERT INTO monitoring_check_log_detail
+                            (check_log_id, crawl_date, layer, section,
+                             category, time_slot, retailer, item_name,
+                             expected_count, actual_count, rate, status)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        check_log_id, date_str, layer, section,
+                        d.get('category', ''), d.get('time_slot', ''),
+                        d.get('retailer', ''), d.get('item_name', ''),
+                        d.get('expected_count', 0), d.get('actual_count', 0),
+                        d.get('rate', 0), d.get('status', 'OK')
+                    ))
+
+            conn.commit()
+            return JsonResponse({'success': True, 'saved_count': len(sections)})
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        return safe_error(e, 'save')
+
+
+@require_POST
+def check_delete(request):
+    """검수 확인 취소 (soft delete)"""
+    try:
+        data = json.loads(request.body)
+        date_str = data.get('date')
+        section = data.get('section')
+        layer = data.get('layer', 1)
+        delete_memo = data.get('delete_memo', '')
+        username = request.user.username if request.user.is_authenticated else ''
+        now = datetime.now()
+
+        if not date_str:
+            return JsonResponse({'success': False, 'error': '날짜를 지정하세요.'}, status=400)
+
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        try:
+            if section:
+                cursor.execute("""
+                    UPDATE monitoring_check_log
+                    SET is_del = 1, updated_id = %s, updated_at = %s, delete_memo = %s
+                    WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
+                """, (username, now, delete_memo, date_str, layer, section))
+            else:
+                cursor.execute("""
+                    UPDATE monitoring_check_log
+                    SET is_del = 1, updated_id = %s, updated_at = %s, delete_memo = %s
+                    WHERE crawl_date = %s AND layer = %s AND is_del = 0
+                """, (username, now, delete_memo, date_str, layer))
+
+            conn.commit()
+            return JsonResponse({'success': True, 'deleted': cursor.rowcount})
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        return safe_error(e, 'delete')
+
+
+@require_POST
+def check_memo_update(request):
+    """검수 기록 메모 수정"""
+    try:
+        data = json.loads(request.body)
+        log_id = data.get('id')
+        memo = data.get('memo', '')
+        username = request.user.username if request.user.is_authenticated else ''
+        now = datetime.now()
+
+        if not log_id:
+            return JsonResponse({'success': False, 'error': 'id가 누락되었습니다.'}, status=400)
+
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                UPDATE monitoring_check_log
+                SET memo = %s, updated_id = %s, updated_at = %s
+                WHERE id = %s AND is_del = 0
+            """, (memo, username, now, log_id))
+            conn.commit()
+            return JsonResponse({'success': True, 'updated': cursor.rowcount})
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        return safe_error(e, 'memo_update')
+
+
+def _get_target_sections(date_str):
+    """해당 날짜의 검증 대상 섹션 수 계산"""
+    from datetime import date as date_cls
+    target_date = date_cls.fromisoformat(date_str)
+
+    # 기본 대상: retail, sentiment, youtube, market_trend, market_demand, retail_summary (6개)
+    count = 6
+
+    # market_competitor: 분기 첫날
+    if target_date.day == 1 and target_date.month in [1, 4, 7, 10]:
+        count += 1
+
+    # market_competitor_event: 매월 첫 월요일
+    first_day = target_date.replace(day=1)
+    days_until_monday = (7 - first_day.weekday()) % 7
+    first_monday = first_day if first_day.weekday() == 0 else first_day + timedelta(days=days_until_monday)
+    if target_date == first_monday:
+        count += 1
+
+    # market_promotion: 월요일
+    if target_date.weekday() == 0:
+        count += 1
+
+    return count
+
+
+def check_log_list(request):
+    """단일 날짜 검수 이력 (활성 + 취소 포함)"""
+    date_str = request.GET.get('date')
+    layer = int(request.GET.get('layer', 1))
+
+    if not date_str:
+        return JsonResponse({'success': False, 'error': '날짜를 지정하세요.'}, status=400)
+
+    conn = get_dx_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT id, section, expected_count, actual_count, rate, status, memo,
+                   is_del, delete_memo, created_id, created_at, updated_id, updated_at
+            FROM monitoring_check_log
+            WHERE crawl_date = %s AND layer = %s
+            ORDER BY section, created_at DESC
+        """, (date_str, layer))
+
+        rows = cursor.fetchall()
+        logs = []
+        for row in rows:
+            logs.append({
+                'id': row[0],
+                'section': row[1],
+                'expected_count': row[2],
+                'actual_count': row[3],
+                'rate': float(row[4]) if row[4] else 0,
+                'status': row[5],
+                'memo': row[6] or '',
+                'is_del': row[7],
+                'delete_memo': row[8] or '',
+                'created_id': row[9] or '',
+                'created_at': row[10].isoformat() if row[10] else None,
+                'updated_id': row[11] or '',
+                'updated_at': row[12].isoformat() if row[12] else None,
+            })
+
+        active_count = sum(1 for l in logs if l['is_del'] == 0)
+
+        return JsonResponse({
+            'success': True,
+            'logs': logs,
+            'active_count': active_count,
+            'total_sections': _get_target_sections(date_str),
+        })
+    except Exception as e:
+        return safe_error(e, 'db')
+    finally:
+        cursor.close()
+        conn.close()

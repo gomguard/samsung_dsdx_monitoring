@@ -18,6 +18,7 @@
         data['error'] = log_error(e, 'db')           # 'DB 조회 중 오류가 발생했습니다.'
 """
 import inspect
+import traceback
 from django.http import JsonResponse
 
 
@@ -52,6 +53,7 @@ def safe_error(e, msg='default', status=500, **extra):
     """
     caller = inspect.stack()[1].function
     print(f'[ERROR] {caller}: {e}')
+    traceback.print_exc()
     message = ERR.get(msg, msg)
     return JsonResponse({'error': message, **extra}, status=status)
 
@@ -71,4 +73,5 @@ def log_error(e, msg='default'):
     """
     caller = inspect.stack()[1].function
     print(f'[ERROR] {caller}: {e}')
+    traceback.print_exc()
     return ERR.get(msg, msg)

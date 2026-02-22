@@ -57,6 +57,24 @@ def item_master(request):
     return render(request, 'dx_data/item_master.html', context)
 
 
+def check_log(request):
+    """검수 기록 페이지"""
+    context = {
+        'layer': {
+            'number': 1,
+            'name': '기본 통계 검수',
+            'name_en': 'Foundational Integrity Check',
+            'color': '#1a365d',
+        },
+    }
+    return render(request, 'layer1/check_log.html', context)
+
+
+def check_log_detail(request):
+    """검수 기록 상세 페이지"""
+    return render(request, 'layer1/check_log_detail.html')
+
+
 def history(request):
     """변경 이력 페이지"""
     context = {
