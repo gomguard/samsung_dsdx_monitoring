@@ -458,12 +458,13 @@ def share_token(request):
         now = datetime.now()
         expires_at = now + timedelta(seconds=SHARE_MAX_AGE)
         with dx_connection() as (conn, cursor):
+            from apps.common.dx.id_generator import generate_dx_token_id
+            token_id = generate_dx_token_id(cursor)
             cursor.execute(f"""
                 INSERT INTO {DX_SHARE_TOKEN_TABLE}
-                    (document_id, category_id, token, memo, created_id, created_at, expires_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, (document_id, category_id, token, memo, request.user.username, now, expires_at))
+                    (id, document_id, category_id, token, memo, created_id, created_at, expires_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (token_id, document_id, category_id, token, memo, request.user.username, now, expires_at))
             conn.commit()
 
         return JsonResponse({'success': True, 'token': token})
@@ -481,7 +482,7 @@ def share_list(request):
     try:
         with dx_connection() as (conn, cursor):
             cursor.execute(f"""
-                SELECT id, created_id, memo,
+                SELECT id, token, created_id, memo,
                        TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI') as created_at,
                        revoked_id,
                        TO_CHAR(revoked_at, 'YYYY-MM-DD HH24:MI') as revoked_at,
