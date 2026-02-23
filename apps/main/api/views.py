@@ -402,7 +402,7 @@ def dx_dashboard_stats(request):
 
 def ds_dashboard_stats(request):
     """DS 대시보드 통계 API - 글로벌 가격 추적 모니터링"""
-    from apps.ds_layer1.api.views import layer_stats as ds_layer1_stats
+    from apps.ds.ds_layer1.api.views import layer_stats as ds_layer1_stats
 
     date_str = request.GET.get('date')
 

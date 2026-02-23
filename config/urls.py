@@ -9,32 +9,28 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('apps.accounts.urls')),
-    path('', include('apps.ds_document.urls')),
-    path('', include('apps.dx_document.urls')),
+    path('', include('apps.ds.ds_document.urls')),
+    path('', include('apps.dx.dx_document.urls')),
     path('', include('apps.main.urls')),
 
-    # DX (TV/HHP Retail) Layer URLs
-    path('dx/layer1/', include('apps.layer1.urls', namespace='dx_layer1')),
-    path('dx/layer2/', include('apps.layer2.urls', namespace='dx_layer2')),
-    path('dx/layer3/', include('apps.layer3.urls', namespace='dx_layer3')),
-    path('dx/layer4/', include('apps.layer4.urls', namespace='dx_layer4')),
-    path('dx/layer5/', include('apps.layer5.urls', namespace='dx_layer5')),
+    # DS apps
+    path('ds/infra/', include('apps.ds.ds_infra.urls', namespace='ds_infra')),
+    path('ds/layer1/', include('apps.ds.ds_layer1.urls')),
+    path('ds/layer2/', include('apps.ds.ds_layer2.urls')),
+    path('ds/layer3/', include('apps.ds.ds_layer3.urls')),
 
-    # DX 데이터 관리
-    path('dx/data/', include('apps.dx_data.urls', namespace='dx_data')),
-
-    # 인프라 모니터링
-    path('ds/infra/', include('apps.ds_infra.urls', namespace='ds_infra')),
-
-    # DS (Global Price Tracking) Layer URLs
-    path('ds/layer1/', include('apps.ds_layer1.urls')),
-    path('ds/layer2/', include('apps.ds_layer2.urls')),
-    path('ds/layer3/', include('apps.ds_layer3.urls')),
+    # DX apps
+    path('dx/layer1/', include('apps.dx.dx_layer1.urls', namespace='dx_layer1')),
+    path('dx/layer2/', include('apps.dx.dx_layer2.urls', namespace='dx_layer2')),
+    path('dx/layer3/', include('apps.dx.dx_layer3.urls', namespace='dx_layer3')),
+    path('dx/layer4/', include('apps.dx.dx_layer4.urls', namespace='dx_layer4')),
+    path('dx/layer5/', include('apps.dx.dx_layer5.urls', namespace='dx_layer5')),
+    path('dx/data/', include('apps.dx.dx_data.urls', namespace='dx_data')),
 
     # 기존 URL (하위 호환)
-    path('layer1/', include('apps.layer1.urls')),
-    path('layer2/', include('apps.layer2.urls')),
-    path('layer3/', include('apps.layer3.urls')),
-    path('layer4/', include('apps.layer4.urls')),
-    path('layer5/', include('apps.layer5.urls')),
+    path('layer1/', include('apps.dx.dx_layer1.urls')),
+    path('layer2/', include('apps.dx.dx_layer2.urls')),
+    path('layer3/', include('apps.dx.dx_layer3.urls')),
+    path('layer4/', include('apps.dx.dx_layer4.urls')),
+    path('layer5/', include('apps.dx.dx_layer5.urls')),
 ]

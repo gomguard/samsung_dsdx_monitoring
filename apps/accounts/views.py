@@ -20,7 +20,7 @@ import json
 import boto3
 from datetime import datetime
 from config.config import S3_CONFIG
-from apps.dx_document.api.views import cleanup_orphan_files
+from apps.dx.dx_document.api.views import cleanup_orphan_files
 from apps.common.ds.id_generator import generate_ds_id
 from apps.common.response import safe_error, log_error
 

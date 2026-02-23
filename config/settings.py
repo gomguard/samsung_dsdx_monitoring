@@ -31,23 +31,20 @@ INSTALLED_APPS = [
     # Custom apps - Main
     'apps.main',
     'apps.accounts',
-    # 인프라 모니터링
-    'apps.ds_infra',
-    # DX (TV/HHP Retail) Layer apps
-    'apps.layer1',
-    'apps.layer2',
-    'apps.layer3',
-    'apps.layer4',
-    'apps.layer5',
-    # DX 데이터 관리
-    'apps.dx_data',
-    # DS (Global Price Tracking) apps
-    'apps.ds_document',
-    'apps.dx_document',
-    # DS Layer apps
-    'apps.ds_layer1',
-    'apps.ds_layer2',
-    'apps.ds_layer3',
+    # DS apps
+    'apps.ds.ds_infra',
+    'apps.ds.ds_document',
+    'apps.ds.ds_layer1',
+    'apps.ds.ds_layer2',
+    'apps.ds.ds_layer3',
+    # DX apps
+    'apps.dx.dx_document',
+    'apps.dx.dx_data',
+    'apps.dx.dx_layer1',
+    'apps.dx.dx_layer2',
+    'apps.dx.dx_layer3',
+    'apps.dx.dx_layer4',
+    'apps.dx.dx_layer5',
 ]
 
 MIDDLEWARE = [
