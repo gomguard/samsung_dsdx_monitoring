@@ -16,20 +16,24 @@ register = template.Library()
 
 # CKEditor HTML에서 위험한 태그만 제거하는 필터
 _DANGEROUS_TAGS = re.compile(
-    r'<\s*/?\s*(script|iframe|object|embed|form|meta|link|base|applet)'
+    r'<\s*/?\s*(script|iframe|object|embed|form|meta|link|base|applet|svg|math)'
     r'[^>]*>',
     re.IGNORECASE | re.DOTALL
 )
-_ON_EVENTS = re.compile(r'\s+on\w+\s*=\s*["\'][^"\']*["\']', re.IGNORECASE)
+_ON_EVENTS = re.compile(r'\s+on\w+\s*=\s*(?:["\'][^"\']*["\']|\S+)', re.IGNORECASE)
+_JS_URI = re.compile(r'(href|src|action)\s*=\s*["\']?\s*javascript:', re.IGNORECASE)
+_DATA_URI = re.compile(r'(href|src)\s*=\s*["\']?\s*data\s*:', re.IGNORECASE)
 
 
 @register.filter(name='sanitize_html')
 def sanitize_html(value):
-    """CKEditor HTML에서 script/iframe 등 위험한 태그와 on* 이벤트 속성 제거"""
+    """CKEditor HTML에서 script/iframe 등 위험한 태그와 on* 이벤트, javascript: URI 제거"""
     if not value:
         return ''
     cleaned = _DANGEROUS_TAGS.sub('', str(value))
     cleaned = _ON_EVENTS.sub('', cleaned)
+    cleaned = _JS_URI.sub(r'\1="', cleaned)
+    cleaned = _DATA_URI.sub(r'\1="', cleaned)
     return mark_safe(cleaned)
 
 

@@ -11,9 +11,11 @@
  * - new CommonTable(container, options)
  *     : 공통 테이블 생성 (variant 기반 스타일)
  *     옵션:
- *       - variant: 'detail' | 'admin' | 'report'
+ *       - variant: 'detail' | 'admin' | 'list'
  *       - columns: [{ key, label, width, sortable, align }]
  *       - resize: true/false (기본 true)
+ *       - rowHeight: 행 콘텐츠 높이 px (미지정 시 CSS 기본값)
+ *       - padding: 셀 패딩 문자열 (예: '8px 16px', 미지정 시 CSS 기본값)
  *       - onSort: (key, order) => {}
  *     메서드:
  *       - render(): thead 생성 + 리사이즈 적용
@@ -65,6 +67,8 @@ class CommonTable {
             variant: 'detail',
             columns: [],
             resize: true,
+            rowHeight: null,
+            padding: null,
             onSort: null,
             ...options
         };
@@ -78,10 +82,12 @@ class CommonTable {
      * tbody는 빈 상태로 생성 → renderBody()로 채움
      */
     render() {
-        const { variant, columns, resize } = this.options;
+        const { variant, columns, resize, rowHeight, padding } = this.options;
 
         const table = document.createElement('table');
         table.className = `ct ct-${variant}`;
+        if (rowHeight) table.style.setProperty('--ct-row-height', rowHeight + 'px');
+        if (padding) table.style.setProperty('--ct-padding', padding);
 
         // colgroup — 열 너비 제어 (table-layout: fixed에서 width 지정된 열은 고정, 미지정 열은 나머지 공간 분배)
         const colgroup = document.createElement('colgroup');

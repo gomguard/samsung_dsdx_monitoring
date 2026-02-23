@@ -1,0 +1,35 @@
+/**
+ * ButtonBar 공통 스타일
+ *
+ * JS: static/js/button-bar.js
+ *
+ * ============================================================
+ */
+
+.bb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bb-right {
+    justify-content: flex-end;
+}
+
+.bb-left {
+    justify-content: flex-start;
+}
+
+.bb-center {
+    justify-content: center;
+}
+
+.bb-between {
+    justify-content: space-between;
+}
+
+.bb-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}

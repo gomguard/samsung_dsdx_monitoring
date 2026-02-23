@@ -41,7 +41,9 @@ INSTALLED_APPS = [
     'apps.layer5',
     # DX 데이터 관리
     'apps.dx_data',
-    # DS (Global Price Tracking) Layer apps
+    # DS (Global Price Tracking) apps
+    'apps.ds_document',
+    # DS Layer apps
     'apps.ds_layer1',
     'apps.ds_layer2',
     'apps.ds_layer3',

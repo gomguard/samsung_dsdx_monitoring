@@ -12,13 +12,8 @@ urlpatterns = [
     path('dx/documents/new/', views.dx_document_edit, name='dx_document_new'),
     path('dx/documents/<str:document_id>/edit/', views.dx_document_edit, name='dx_document_edit'),
     path('ds/', views.ds_dashboard, name='ds_dashboard'),
-    path('ds/documents/', views.ds_documents, name='ds_documents'),
-    path('ds/documents/new/', views.ds_document_edit, name='ds_document_new'),
-    path('ds/documents/<str:document_id>/edit/', views.ds_document_edit, name='ds_document_edit'),
     path('dx-share/file/<path:token>/<str:file_name>', views.dx_document_share_file, name='dx_document_share_file'),
     path('dx-share/<path:token>/', views.dx_document_share, name='dx_document_share'),
-    path('ds-share/file/<path:token>/<str:file_name>', views.ds_document_share_file, name='ds_document_share_file'),
-    path('ds-share/<path:token>/', views.ds_document_share, name='ds_document_share'),
 
     # API
     path('api/dashboard/', api_views.dashboard_stats, name='api_dashboard'),
@@ -41,17 +36,4 @@ urlpatterns = [
     path('api/dx/documents/share-list/', api_views.dx_document_share_list, name='api_dx_document_share_list'),
     path('api/dx/documents/share-revoke/', api_views.dx_document_share_revoke, name='api_dx_document_share_revoke'),
 
-    # DS Document API
-    path('api/ds/documents/list/', api_views.ds_documents_list, name='api_ds_documents_list'),
-    path('api/ds/documents/detail/', api_views.ds_document_detail, name='api_ds_document_detail'),
-    path('api/ds/documents/create/', api_views.ds_document_create, name='api_ds_document_create'),
-    path('api/ds/documents/<str:document_id>/update/', api_views.ds_document_update, name='api_ds_document_update'),
-    path('api/ds/documents/<str:document_id>/delete/', api_views.ds_document_delete, name='api_ds_document_delete'),
-    path('api/ds/documents/upload/', api_views.ds_document_upload, name='api_ds_document_upload'),
-    path('api/ds/documents/files/', api_views.ds_document_files, name='api_ds_document_files'),
-    path('api/ds/documents/files/<str:file_id>/delete/', api_views.ds_document_file_delete, name='api_ds_document_file_delete'),
-    path('api/ds/documents/file/<str:file_name>', api_views.ds_document_file, name='api_ds_document_file'),
-    path('api/ds/documents/share-token/', api_views.ds_document_share_token, name='api_ds_document_share_token'),
-    path('api/ds/documents/share-list/', api_views.ds_document_share_list, name='api_ds_document_share_list'),
-    path('api/ds/documents/share-revoke/', api_views.ds_document_share_revoke, name='api_ds_document_share_revoke'),
 ]

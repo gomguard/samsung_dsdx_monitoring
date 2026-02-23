@@ -9,6 +9,7 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('apps.accounts.urls')),
+    path('', include('apps.ds_document.urls')),
     path('', include('apps.main.urls')),
 
     # DX (TV/HHP Retail) Layer URLs

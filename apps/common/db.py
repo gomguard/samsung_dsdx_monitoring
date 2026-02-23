@@ -3,6 +3,7 @@
 """
 
 import psycopg2
+from contextlib import contextmanager
 from django.conf import settings
 from config.config import DB_CONFIG, DB_CONFIG_V2
 
@@ -33,6 +34,36 @@ def get_ds_connection():
         database=DB_CONFIG_V2['database'],
         charset='utf8mb4'
     )
+
+
+@contextmanager
+def dx_connection():
+    """DX PostgreSQL 커넥션 컨텍스트 매니저 (에러 시 rollback, 자동 close)"""
+    conn = get_dx_connection()
+    cursor = conn.cursor()
+    try:
+        yield conn, cursor
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@contextmanager
+def ds_connection():
+    """DS MySQL 커넥션 컨텍스트 매니저 (에러 시 rollback, 자동 close)"""
+    conn = get_ds_connection()
+    cursor = conn.cursor()
+    try:
+        yield conn, cursor
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def execute_dx_query(query, params=None):
