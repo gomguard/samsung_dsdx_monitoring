@@ -5,6 +5,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if document %}{{ document.title }}{% else %}문서 공유{% endif %}</title>
+    {% if document %}
+    <meta property="og:title" content="{{ document.title }}">
+    <meta property="og:type" content="article">
+    {% endif %}
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
