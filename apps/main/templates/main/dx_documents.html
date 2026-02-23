@@ -818,11 +818,11 @@ const newDocBaseUrl = '{% url "main:dx_document_new" %}';
     }
 })();
 
-// 출력 버튼 표시/숨김 (에디터 타입=1 일 때만 표시)
+// 출력 버튼 표시/숨김 (에디터 포함 타입: 1=에디터, 3=에디터+파일)
 function updateToolbar() {
     const toolbar = document.getElementById('tableToolbar');
     toolbar.innerHTML = '';
-    if (currentCategoryType === 1) {
+    if (currentCategoryType === 1 || currentCategoryType === 3) {
         AppButton('#tableToolbar', '출력', 'openReportPopup', { icon: 'print', style: 'outline' });
     }
 }
