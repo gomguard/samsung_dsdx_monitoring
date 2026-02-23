@@ -190,3 +190,28 @@
 .ct-list tbody tr.selected {
     background: rgba(124, 58, 237, 0.1);
 }
+
+/* ============================================================
+   Modifier: grid (세로선 + 외곽선 + 둥근 모서리)
+   ============================================================ */
+.ct.ct-grid {
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ct.ct-grid th,
+.ct.ct-grid td {
+    border-right: 1px solid var(--border-color);
+}
+
+.ct.ct-grid th:last-child,
+.ct.ct-grid td:last-child {
+    border-right: none;
+}
+
+.ct.ct-grid tbody tr:last-child td {
+    border-bottom: none;
+}

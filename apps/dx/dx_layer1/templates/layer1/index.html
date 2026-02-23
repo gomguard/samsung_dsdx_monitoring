@@ -343,12 +343,12 @@
         transform: rotate(90deg);
     }
 
-    /* NULL 컬럼 카드 (시간대 카드 하단, 리테일러 카드와 동일 너비) */
+    /* NULL 컬럼 카드 */
     .null-summary {
         background: #fffbeb;
         border: 1px solid #fde68a;
         border-radius: 6px;
-        margin-top: 4px;
+        margin-top: 12px;
         overflow: hidden;
     }
 
@@ -744,108 +744,58 @@
     .sentiment-retailer-rate.pending { color: var(--color-pending); }
     .sentiment-retailer-rate.collecting { color: var(--color-collecting); }
 
-    /* Retail Retailer Item */
-    .retail-retailer-item {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 12px;
-        border-radius: 6px;
-        margin-bottom: 8px;
-        background: var(--bg-primary);
-        gap: 8px;
+    /* Retail Rank 테이블 (.ct.ct-grid 공통 기반 + 페이지 오버라이드) */
+    .retail-rank-wrap {
+        padding: 12px;
     }
 
-    .retail-retailer-item:last-child {
-        margin-bottom: 0;
+    .retail-rank-wrap .ct th,
+    .retail-rank-wrap .ct td {
+        padding: 9px 12px;
+        text-align: center;
     }
 
-    .retail-retailer-item.ok { border-left: 3px solid var(--color-ok); }
-    .retail-retailer-item.warning { border-left: 3px solid var(--color-warning); }
-    .retail-retailer-item.critical { border-left: 3px solid var(--color-critical); }
-    .retail-retailer-item.pending { border-left: 3px solid var(--color-pending); }
-    .retail-retailer-item.collecting { border-left: 3px solid var(--color-collecting); }
-
-    .retail-retailer-info {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        flex: 1;
-        min-width: 120px;
-    }
-
-    .retail-retailer-name {
-        font-weight: 500;
-        font-size: 13px;
-    }
-
-    .retail-retailer-expected {
-        font-size: 11px;
-        color: var(--text-secondary);
-    }
-
-    .retail-retailer-stats {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .retail-retailer-count {
-        font-weight: 700;
-        font-size: 14px;
-    }
-
-    .retail-retailer-item {
-        cursor: pointer;
-    }
-
-    .toggle-icon-mini {
-        font-size: 8px;
-        color: var(--text-secondary);
-        margin-right: 4px;
-        transition: transform 0.2s;
-        display: inline-block;
-    }
-
-    .toggle-icon-mini.expanded {
-        transform: rotate(90deg);
-    }
-
-    .retail-items-list {
-        display: none;
-        padding: 8px 12px;
-        margin: 0 12px 8px 12px;
-        background: white;
-        border-radius: 6px;
-        border: 1px solid var(--border-color);
-    }
-
-    .retail-items-list.show {
-        display: block;
-    }
-
-    .retail-item-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 6px 0;
-        border-bottom: 1px solid var(--border-color);
-    }
-
-    .retail-item-row:last-child {
-        border-bottom: none;
-    }
-
-    .retail-item-name {
-        font-size: 12px;
-        color: var(--text-secondary);
-    }
-
-    .retail-item-count {
-        font-size: 12px;
+    .retail-rank-wrap .ct td.rt-name {
+        text-align: left;
         font-weight: 600;
+        overflow: visible;
+    }
+
+    .retail-rank-wrap .ct td.rt-name a {
         color: var(--text-primary);
+        text-decoration: none;
+    }
+
+    .retail-rank-wrap .ct td.rt-name a:hover {
+        color: var(--page-color);
+        text-decoration: underline;
+    }
+
+    .retail-rank-wrap .ct td.rt-extra {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .retail-rank-wrap .ct td.rt-total {
+        font-weight: 700;
+    }
+
+    .retail-rank-wrap .ct td.rt-status {
+        overflow: visible;
+    }
+
+    .retail-rank-wrap .ct tr.rt-sum {
+        background: #f0fdf4;
+    }
+
+    .retail-rank-wrap .ct tr.rt-sum td {
+        color: var(--color-ok);
+        font-weight: 700;
+    }
+
+    .retail-rank-wrap .ct tr.rt-sum td:first-child {
+        color: var(--text-secondary);
+        font-weight: 600;
     }
 
     /* Status 색상 for check-stat value */
@@ -1078,6 +1028,7 @@
         width: 100%;
         height: 100%;
         overflow: auto;
+        padding: 16px 24px;
     }
 
     .raw-data-table {
@@ -1461,6 +1412,7 @@ function getStatusBadge(status) {
 let currentStatsData = null;    // 현재 로드된 API 데이터
 let currentCheckStatus = null;  // 현재 날짜의 체크 상태
 let currentNullData = null;     // TV/HHP NULL 컬럼 데이터
+let currentRetailSummary = null; // TV/HHP retail-summary API 전체 데이터
 
 function flattenCheckToDetails(sectionType, check) {
     const details = [];
@@ -1854,14 +1806,16 @@ async function loadStats() {
 
         currentStatsData = data;
 
-        // NULL 컬럼 데이터 로딩 (TV + HHP)
+        // Retail Summary 데이터 로딩 (TV + HHP: rank별 건수 + NULL 컬럼)
         try {
             var [tvSum, hhpSum] = await Promise.all([
                 fetch('/layer1/api/retail-summary/?type=tv&date=' + selectedDate).then(r => r.json()),
                 fetch('/layer1/api/retail-summary/?type=hhp&date=' + selectedDate).then(r => r.json())
             ]);
+            currentRetailSummary = { tv: tvSum, hhp: hhpSum };
             currentNullData = { tv: tvSum.null_columns || [], hhp: hhpSum.null_columns || [] };
         } catch (e) {
+            currentRetailSummary = null;
             currentNullData = null;
         }
 
@@ -2033,63 +1987,68 @@ function getSlotNullColumns(categoryName, slotName) {
     return result;
 }
 
-// Retail 슬롯 카드 (Sentiment와 동일한 2열 레이아웃용)
+// Retail 슬롯 — 테이블 렌더링 (오전/오후 각각)
 function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
-    const slotStatusClass = getStatusClass(slot.status);
-    const hasRetailers = slot.retailers && slot.retailers.length > 0;
-    const period = slot.name; // '오전' 또는 '오후'
+    var period = slot.name;
+    var key = categoryName.toLowerCase();
 
-    const retailersHtml = hasRetailers
-        ? slot.retailers.map((r, rIdx) => {
-            const rStatusClass = getRetailerStatusClass(r.status);
-            const itemsId = 'retail-items-' + checkIdx + '-' + catIdx + '-' + slotIdx + '-' + rIdx;
+    // retail-summary API에서 rank별 건수 가져오기
+    var summaryData = currentRetailSummary && currentRetailSummary[key];
+    var extraName = (summaryData && summaryData.extra_rank_name) || 'Extra';
+    var slotIdx2 = period === '오전' ? 0 : 1;
 
-            // 수집 항목 정보
-            const hasItems = r.items && r.items.length > 0;
-            const itemsHtml = hasItems
-                ? '<div class="retail-items-list" id="' + itemsId + '">' +
-                    r.items.map(item => {
-                        return '<div class="retail-item-row">' +
-                            '<span class="retail-item-name">' + item.name + '</span>' +
-                            '<span class="retail-item-count">' + (item.count || 0).toLocaleString() + '건</span>' +
-                        '</div>';
-                    }).join('') +
-                '</div>'
-                : '';
+    // 리테일러별 status 매핑 (slot.retailers에서 가져옴)
+    var statusMap = {};
+    if (slot.retailers) {
+        slot.retailers.forEach(function(r) { statusMap[r.retailer] = r.status; });
+    }
 
-            return '<div class="retail-retailer-item ' + rStatusClass + '" onclick="toggleRetailItems(this, \'' + itemsId + '\')">' +
-                '<div class="retail-retailer-info">' +
-                    '<span class="retail-retailer-name" onclick="event.stopPropagation(); openRawDataModal(\'' + categoryName + '\', \'' + r.retailer + '\', \'' + period + '\')" style="cursor: pointer; text-decoration: underline;">' +
-                        '<span class="toggle-icon-mini">▶</span>' +
-                        r.retailer +
-                    '</span>' +
-                    '<span class="retail-retailer-expected">정상: ' + (r.ok_threshold || 250) + '↑ / 기대: ' + r.expected + '</span>' +
-                '</div>' +
-                '<div class="retail-retailer-stats">' +
-                    '<span class="retail-retailer-count">' + r.count.toLocaleString() + '건</span>' +
-                    getStatusBadge(r.status) +
-                '</div>' +
-            '</div>' +
-            itemsHtml;
-        }).join('')
-        : '<div style="color: var(--text-secondary); padding: 8px;">데이터 없음</div>';
+    // 테이블 행 생성
+    var rowsHtml = '';
+    var totals = { main: 0, bsr: 0, extra: 0, total: 0 };
 
-    // 시간대별 NULL 테이블
+    if (summaryData && summaryData.summary) {
+        summaryData.summary.forEach(function(ret) {
+            var row = ret.rows && ret.rows[slotIdx2];
+            if (!row) return;
+            totals.main += row.main;
+            totals.bsr += row.bsr;
+            totals.extra += row.extra;
+            totals.total += row.total;
+            var rStatus = statusMap[ret.retailer] || 'PENDING';
+            rowsHtml += '<tr>' +
+                '<td class="rt-name"><a href="javascript:void(0)" onclick="openRawDataModal(\'' + escJs(categoryName) + '\', \'' + escJs(ret.retailer) + '\', \'' + escJs(period) + '\')">' + esc(ret.retailer) + '</a></td>' +
+                '<td>' + row.main.toLocaleString() + '</td>' +
+                '<td>' + row.bsr.toLocaleString() + '</td>' +
+                '<td class="rt-extra">' + row.extra.toLocaleString() + '</td>' +
+                '<td class="rt-total">' + row.total.toLocaleString() + '</td>' +
+                '<td class="rt-status ct-nc">' + getStatusBadge(rStatus) + '</td>' +
+            '</tr>';
+        });
+    }
+
+    // 합계 행
+    var totalRowHtml = '<tr class="rt-sum">' +
+        '<td>합계</td>' +
+        '<td>' + totals.main.toLocaleString() + '</td>' +
+        '<td>' + totals.bsr.toLocaleString() + '</td>' +
+        '<td>' + totals.extra.toLocaleString() + '</td>' +
+        '<td>' + totals.total.toLocaleString() + '</td>' +
+        '<td></td>' +
+    '</tr>';
+
+    // NULL 컬럼
     var nullItems = getSlotNullColumns(categoryName, period);
-    var nullTableHtml = '';
+    var nullHtml = '';
     if (nullItems.length > 0) {
-        nullTableHtml = '<div class="null-summary">' +
-            '<div class="null-summary-title">⚠ NULL 컬럼 현황</div>' +
+        nullHtml = '<div class="null-summary">' +
+            '<div class="null-summary-title">⚠ NULL 컬럼</div>' +
             '<div class="null-summary-table-wrap">' +
             '<table class="null-summary-table">' +
-                '<thead><tr><th>리테일러</th><th>시간대</th><th>NULL 컬럼</th></tr></thead>' +
+                '<thead><tr><th>리테일러</th><th>NULL 컬럼</th></tr></thead>' +
                 '<tbody>' +
                 nullItems.map(function(n) {
-                    return '<tr>' +
-                        '<td>' + esc(n.retailer) + '</td>' +
-                        '<td>' + esc(period) + '</td>' +
-                        '<td class="null-col-cell">' + esc(n.columns) + '</td>' +
-                    '</tr>';
+                    return '<tr><td>' + esc(n.retailer) + '</td><td class="null-col-cell">' + esc(n.columns) + '</td></tr>';
                 }).join('') +
                 '</tbody>' +
             '</table>' +
@@ -2099,26 +2058,35 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
 
     return '<div class="sentiment-column">' +
         '<div class="sentiment-column-header">' +
-            '<span class="sentiment-column-title">' + slot.name + '</span>' +
+            '<span class="sentiment-column-title">' + period + '</span>' +
             '<div class="sentiment-column-stats">' +
                 '<span class="sentiment-column-count">' + slot.total.toLocaleString() + '건</span>' +
                 getStatusBadge(slot.status) +
             '</div>' +
         '</div>' +
-        '<div class="sentiment-retailer-list">' + retailersHtml + nullTableHtml + '</div>' +
+        '<div class="retail-rank-wrap">' +
+            '<table class="ct ct-grid">' +
+                '<colgroup>' +
+                    '<col style="width:22%">' +
+                    '<col style="width:14%">' +
+                    '<col style="width:14%">' +
+                    '<col style="width:14%">' +
+                    '<col style="width:14%">' +
+                    '<col style="width:14%">' +
+                '</colgroup>' +
+                '<thead><tr>' +
+                    '<th style="text-align:left">리테일러</th>' +
+                    '<th>MAIN</th>' +
+                    '<th>BSR</th>' +
+                    '<th>' + esc(extraName) + '</th>' +
+                    '<th>총 건수</th>' +
+                    '<th></th>' +
+                '</tr></thead>' +
+                '<tbody>' + rowsHtml + totalRowHtml + '</tbody>' +
+            '</table>' +
+            nullHtml +
+        '</div>' +
     '</div>';
-}
-
-function toggleRetailItems(element, itemsId) {
-    const container = document.getElementById(itemsId);
-    const icon = element.querySelector('.toggle-icon-mini');
-
-    if (container) {
-        container.classList.toggle('show');
-        if (icon) {
-            icon.classList.toggle('expanded');
-        }
-    }
 }
 
 function renderRetailCheck(check, checkIdx) {
