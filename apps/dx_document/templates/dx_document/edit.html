@@ -329,7 +329,7 @@
     <!-- 헤더 -->
     <div class="edit-header">
         <div class="edit-header-left">
-            <a id="btnBackToList" href="{% url 'main:dx_documents' %}" class="btn-back">
+            <a id="btnBackToList" href="{% url 'dx_document:index' %}" class="btn-back">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M19 12H5M12 19l-7-7 7-7"/>
                 </svg>
@@ -466,7 +466,7 @@ function updateBackLink() {
         ? document.getElementById('categoryIdHidden').value
         : (document.getElementById('categoryId') ? document.getElementById('categoryId').value : '');
     if (catId) {
-        btn.href = '{% url "main:dx_documents" %}?category=' + encodeURIComponent(catId);
+        btn.href = '{% url "dx_document:index" %}?category=' + encodeURIComponent(catId);
     }
 }
 
@@ -605,7 +605,7 @@ function escapeHtml(str) {
 
 // 문서 로드
 function loadDocument(id) {
-    fetch('{% url "main:api_dx_document_detail" %}?document_id=' + encodeURIComponent(id))
+    fetch('{% url "dx_document:api_detail" %}?document_id=' + encodeURIComponent(id))
         .then(r => r.json())
         .then(res => {
             if (res.success) {
@@ -657,7 +657,7 @@ function loadDocument(id) {
 // 기존 첨부파일 로드 (파일저장 모드)
 function loadExistingFiles() {
     if (!objectDocumentId) return;
-    fetch('{% url "main:api_dx_document_files" %}?object_document_id=' + encodeURIComponent(objectDocumentId))
+    fetch('{% url "dx_document:api_files" %}?object_document_id=' + encodeURIComponent(objectDocumentId))
         .then(r => r.json())
         .then(res => {
             if (res.success && res.files) {
@@ -681,7 +681,7 @@ function uploadPendingFiles() {
         formData.append('file', f.fileObj, f.name);
         formData.append('object_document_id', objectDocumentId);
         formData.append('upload_type', '2');
-        return fetch('{% url "main:api_dx_document_upload" %}', {
+        return fetch('{% url "dx_document:api_upload" %}', {
             method: 'POST',
             headers: { 'X-CSRFToken': getCsrfToken() },
             body: formData
@@ -753,7 +753,7 @@ function saveDocument() {
 function doSaveDocument(categoryId, title, content) {
     let url, body;
     if (isNew) {
-        url = '{% url "main:api_dx_document_create" %}';
+        url = '{% url "dx_document:api_create" %}';
         body = { category_id: categoryId, title: title, content: content, object_document_id: objectDocumentId };
     } else {
         url = '/api/dx/documents/' + encodeURIComponent(documentId) + '/update/';
@@ -796,7 +796,7 @@ function deleteDocument() {
                 if (res.success) {
                     showToast(res.message, 'success');
                     setTimeout(() => {
-                        window.location.href = '{% url "main:dx_documents" %}';
+                        window.location.href = '{% url "dx_document:index" %}';
                     }, 1000);
                 } else {
                     showToast(res.error || '삭제에 실패했습니다.', 'error');

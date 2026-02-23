@@ -675,7 +675,7 @@
         <div class="content-header">
             <span class="content-title" id="contentTitle">{% if categories %}{{ categories.0.category_name }}{% else %}문서{% endif %}</span>
             <div class="content-actions" id="contentActions">
-                <a id="btnNewDoc" href="{% url 'main:dx_document_new' %}" class="btn-new-doc">
+                <a id="btnNewDoc" href="{% url 'dx_document:new' %}" class="btn-new-doc">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="5" x2="12" y2="19"/>
                         <line x1="5" y1="12" x2="19" y2="12"/>
@@ -797,7 +797,7 @@
 <script>
 let currentCategoryId = '{% if categories %}{{ categories.0.category_id|escapejs }}{% endif %}';
 let currentCategoryType = {% if categories %}{{ categories.0.category_type|default:1 }}{% else %}1{% endif %};
-const newDocBaseUrl = '{% url "main:dx_document_new" %}';
+const newDocBaseUrl = '{% url "dx_document:new" %}';
 
 // URL 파라미터에서 카테고리 복원
 (function() {
@@ -872,7 +872,7 @@ function renderDocuments(categoryId) {
     const tbody = document.getElementById('documentsBody');
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary);">불러오는 중...</td></tr>';
 
-    fetch('{% url "main:api_dx_documents_list" %}?category_id=' + encodeURIComponent(categoryId))
+    fetch('{% url "dx_document:api_list" %}?category_id=' + encodeURIComponent(categoryId))
         .then(r => r.json())
         .then(res => {
             // 카운트 업데이트
@@ -975,7 +975,7 @@ function openReportPopup() {
     document.getElementById('reportPopupOverlay').classList.add('active');
 
     // API 호출
-    fetch('{% url "main:api_dx_document_detail" %}?document_id=' + encodeURIComponent(documentId))
+    fetch('{% url "dx_document:api_detail" %}?document_id=' + encodeURIComponent(documentId))
         .then(r => r.json())
         .then(res => {
             if (res.success && res.document) {
@@ -1069,7 +1069,7 @@ function submitShareMemo() {
     submitBtn.disabled = true;
     submitBtn.textContent = '생성 중...';
 
-    fetch('{% url "main:api_dx_document_share_token" %}', {
+    fetch('{% url "dx_document:api_share_token" %}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -1119,7 +1119,7 @@ function loadShareList() {
     const body = document.getElementById('shareMgmtBody');
     body.innerHTML = '<div class="share-mgmt-empty">불러오는 중...</div>';
 
-    fetch('{% url "main:api_dx_document_share_list" %}?document_id=' + encodeURIComponent(currentReportDocId))
+    fetch('{% url "dx_document:api_share_list" %}?document_id=' + encodeURIComponent(currentReportDocId))
         .then(r => r.json())
         .then(res => {
             if (!res.success || !res.shares || res.shares.length === 0) {
@@ -1153,7 +1153,7 @@ function loadShareList() {
 
 function revokeShareToken(tokenId) {
     showConfirm('공유 링크 차단', '이 공유 링크를 차단하시겠습니까?\n차단된 링크는 더 이상 접근할 수 없습니다.', '차단', function() {
-        fetch('{% url "main:api_dx_document_share_revoke" %}', {
+        fetch('{% url "dx_document:api_share_revoke" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

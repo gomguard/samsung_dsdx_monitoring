@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'apps.dx_data',
     # DS (Global Price Tracking) apps
     'apps.ds_document',
+    'apps.dx_document',
     # DS Layer apps
     'apps.ds_layer1',
     'apps.ds_layer2',
