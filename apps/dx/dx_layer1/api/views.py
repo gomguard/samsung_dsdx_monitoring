@@ -3426,7 +3426,6 @@ ALL_SECTIONS = [
     'retail', 'sentiment', 'youtube', 'market_trend',
     'market_competitor', 'market_competitor_event',
     'market_demand', 'market_promotion',
-    'retail_summary',
 ]
 
 
@@ -3649,8 +3648,8 @@ def _get_target_sections(date_str):
     from datetime import date as date_cls
     target_date = date_cls.fromisoformat(date_str)
 
-    # 기본 대상: retail, sentiment, youtube, market_trend, market_demand, retail_summary (6개)
-    count = 6
+    # 기본 대상: retail, sentiment, youtube, market_trend, market_demand (5개)
+    count = 5
 
     # market_competitor: 분기 첫날
     if target_date.day == 1 and target_date.month in [1, 4, 7, 10]:

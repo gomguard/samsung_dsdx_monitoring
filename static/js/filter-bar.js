@@ -38,7 +38,7 @@
  * 컨트롤 타입
  * ============================================================
  *
- * date   : { type: 'date', key, label, value }
+ * date   : { type: 'date', key, label, value, showWeekday: true }
  * button : { type: 'button', label, style, size, bg, color, border, padding, onClick }
  * select : { type: 'select', key, label, options: [{value, label}], onChange }
  * input  : { type: 'input', key, label, placeholder, value, onEnter }
@@ -141,6 +141,27 @@ class FilterBar {
         wrapper.appendChild(input);
 
         if (ctrl.key) this.elements[ctrl.key] = input;
+
+        // 요일 표시 옵션
+        if (ctrl.showWeekday) {
+            const weekdayEl = document.createElement('span');
+            weekdayEl.className = 'fb-weekday';
+            wrapper.appendChild(weekdayEl);
+
+            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+            const self = this;
+            function updateWeekday() {
+                var val = input.value;
+                if (!val) { weekdayEl.textContent = ''; return; }
+                var d = new Date(val + 'T00:00:00');
+                var day = d.getDay();
+                weekdayEl.textContent = '(' + weekdays[day] + ')';
+                weekdayEl.className = 'fb-weekday' + (day === 0 || day === 6 ? ' fb-weekday-weekend' : '');
+            }
+            input.addEventListener('change', updateWeekday);
+            this._weekdayUpdater = updateWeekday;
+            updateWeekday();
+        }
 
         return wrapper;
     }
@@ -311,6 +332,7 @@ class FilterBar {
         const d = new Date(input.value);
         d.setDate(d.getDate() - 1);
         input.value = d.toISOString().slice(0, 10);
+        input.dispatchEvent(new Event('change'));
         return this;
     }
 
@@ -322,6 +344,7 @@ class FilterBar {
         const next = d.toISOString().slice(0, 10);
         if (input.max && next > input.max) return this;
         input.value = next;
+        input.dispatchEvent(new Event('change'));
         return this;
     }
 }

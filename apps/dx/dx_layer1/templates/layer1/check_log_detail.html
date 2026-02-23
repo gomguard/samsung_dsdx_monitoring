@@ -153,8 +153,7 @@ var SECTION_NAMES = {
     market_competitor: 'Market Competitor',
     market_competitor_event: 'Competitor Event',
     market_demand: '수요증감율',
-    market_promotion: 'Promotion',
-    retail_summary: '상세현황'
+    market_promotion: 'Promotion'
 };
 
 var DETAIL_COLUMNS = [
@@ -169,13 +168,7 @@ var DETAIL_COLUMNS = [
 ];
 
 // 섹션별 컬럼 라벨 오버라이드
-var SECTION_LABELS = {
-    retail_summary: {
-        item_name: 'NULL 컬럼',
-        expected_count: '수집 항목 수',
-        actual_count: 'NULL 수'
-    }
-};
+var SECTION_LABELS = {};
 
 function getParams() {
     var params = new URLSearchParams(window.location.search);
@@ -273,16 +266,6 @@ function renderDetailTable(details) {
         return details.some(function(d) { return d[col.key] && d[col.key] !== ''; });
     });
 
-    // 섹션별 컬럼 순서 오버라이드
-    var SECTION_COL_ORDER = {
-        retail_summary: ['category', 'time_slot', 'retailer', 'expected_count', 'actual_count', 'item_name', 'rate', 'status']
-    };
-    var colOrder = SECTION_COL_ORDER[p.section];
-    if (colOrder) {
-        visibleCols.sort(function(a, b) {
-            return colOrder.indexOf(a.key) - colOrder.indexOf(b.key);
-        });
-    }
 
     // 헤더 (섹션별 라벨 오버라이드 적용)
     var headHtml = '<tr>';

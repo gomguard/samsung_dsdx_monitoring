@@ -5,6 +5,8 @@
 
 {% block extra_css %}
 <style>
+    :root { --page-color: {{ layer.color }}; }
+
     .layer-header {
         background: {{ layer.color }};
         color: white;
@@ -341,122 +343,51 @@
         transform: rotate(90deg);
     }
 
-    /* Date Picker */
-    .date-picker-section {
-        background: white;
-        border-radius: 12px;
-        padding: 20px 24px;
-        border: 1px solid var(--border-color);
-        margin-bottom: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        position: sticky;
-        top: 64px;
-        z-index: 99;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    /* NULL 컬럼 카드 (시간대 카드 하단, 리테일러 카드와 동일 너비) */
+    .null-summary {
+        background: #fffbeb;
+        border: 1px solid #fde68a;
+        border-radius: 6px;
+        margin-top: 4px;
+        overflow: hidden;
     }
 
-    .date-badge {
-        display: inline-block;
-        padding: 4px 10px;
-        border-radius: 12px;
+    .null-summary-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #92400e;
+        padding: 10px 16px;
+    }
+
+    .null-summary-table-wrap {
+        padding: 0 16px 12px;
+    }
+
+    .null-summary-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    .null-summary-table th {
+        padding: 8px 16px;
+        background: #fef3c7;
+        border: 1px solid #fde68a;
+        font-weight: 600;
+        color: #92400e;
+        text-align: left;
+    }
+
+    .null-summary-table td {
+        padding: 8px 16px;
+        background: #fff;
+        border: 1px solid #fde68a;
+        color: #78350f;
+    }
+
+    .null-summary-table td.null-col-cell {
+        font-family: 'Consolas', 'Monaco', monospace;
         font-size: 12px;
-        font-weight: 600;
-        margin-left: 12px;
-    }
-    .date-badge.today {
-        background: #dcfce7;
-        color: #166534;
-    }
-    .date-badge.yesterday {
-        background: #dbeafe;
-        color: #1e40af;
-    }
-    .date-badge.past {
-        background: #f3f4f6;
-        color: #6b7280;
-    }
-
-    .date-picker-wrapper {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .date-picker-wrapper label {
-        font-weight: 600;
-        color: var(--text-secondary);
-        font-size: 14px;
-    }
-
-    .date-input {
-        padding: 8px 12px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        font-size: 14px;
-        color: var(--text-primary);
-        width: 140px;  /* 고정 너비로 OS 요일 표시 방지 */
-    }
-
-    .date-input:focus {
-        outline: none;
-        border-color: var(--color-layer1);
-    }
-
-    .btn-refresh {
-        padding: 8px 16px;
-        background: var(--color-layer1);
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background 0.2s;
-    }
-
-    .btn-refresh:hover {
-        background: #152c4d;
-    }
-
-    .btn-today {
-        padding: 8px 12px;
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .btn-today:hover {
-        background: var(--bg-primary);
-        border-color: var(--color-layer1);
-    }
-
-    .btn-backup {
-        padding: 8px 16px;
-        background: #7c3aed;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background 0.2s;
-        margin-left: 12px;
-    }
-
-    .btn-backup:hover {
-        background: #6d28d9;
-    }
-
-    .btn-backup:disabled {
-        background: #a78bfa;
-        cursor: not-allowed;
     }
 
     /* 섹션별 확인 버튼 (check-stats 영역 안에 인라인) */
@@ -479,29 +410,18 @@
         flex-shrink: 0;
     }
     .btn-check-confirm:hover {
-        border-color: #3b82f6;
-        color: #3b82f6;
-        background: #eff6ff;
+        border-color: var(--page-color);
+        color: var(--page-color);
+        background: var(--bg-primary);
     }
     .btn-check-confirm.checked {
-        background: #059669;
+        background: var(--page-color);
         color: white;
-        border-color: #059669;
+        border-color: var(--page-color);
     }
     .btn-check-confirm.checked:hover {
-        background: #047857;
-        border-color: #047857;
+        opacity: 0.85;
     }
-    .date-info {
-        font-size: 14px;
-        color: var(--text-secondary);
-    }
-
-    .date-info .current-date {
-        font-weight: 600;
-        color: var(--text-primary);
-    }
-
     /* Threshold Info */
     .threshold-info {
         background: white;
@@ -1117,56 +1037,22 @@
         color: var(--color-critical);
     }
 
-    /* Raw Data Popup Modal */
-    .raw-data-modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.6);
-        z-index: 1000;
-        display: none;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .raw-data-modal-overlay.show {
-        display: flex;
-    }
-
-    .raw-data-modal {
-        background: white;
-        border-radius: 12px;
-        width: 95vw;
-        max-width: 1600px;
-        height: 85vh;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    }
-
-    .raw-data-modal-header {
+    /* Raw Data 내부 스타일 (AppModal body 내부에서 사용) */
+    .raw-modal-header-sub {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 16px 24px;
+        padding: 12px 24px;
         border-bottom: 1px solid var(--border-color);
         flex-shrink: 0;
-    }
-
-    .raw-data-modal-title {
-        font-size: 18px;
-        font-weight: 700;
     }
 
     .raw-data-modal-subtitle {
         font-size: 13px;
         color: var(--text-secondary);
-        margin-top: 4px;
     }
 
-    .raw-data-modal-actions {
+    .raw-modal-actions {
         display: flex;
         align-items: center;
         gap: 12px;
@@ -1186,30 +1072,6 @@
     .btn-reset-sort:hover {
         background: var(--bg-primary);
         color: var(--text-primary);
-    }
-
-    .btn-close-modal {
-        width: 32px;
-        height: 32px;
-        border: none;
-        background: var(--bg-secondary);
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 18px;
-        color: var(--text-secondary);
-        transition: all 0.2s;
-    }
-
-    .btn-close-modal:hover {
-        background: var(--color-critical);
-        color: white;
-    }
-
-    .raw-data-modal-body {
-        flex: 1;
-        overflow: hidden;
-        padding: 0;
-        position: relative;
     }
 
     .raw-data-table-wrapper {
@@ -1342,49 +1204,7 @@
         color: var(--text-primary);
     }
 
-    /* Columns Info Modal */
-    .columns-modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.6);
-        z-index: 1000;
-        display: none;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .columns-modal-overlay.show {
-        display: flex;
-    }
-
-    .columns-modal {
-        background: var(--bg-primary);
-        border-radius: 12px;
-        width: 95%;
-        max-width: 1200px;
-        max-height: 90vh;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-    }
-
-    .columns-modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px 24px;
-        border-bottom: 1px solid var(--border-color);
-    }
-
-    .columns-modal-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
+    /* Columns 내부 스타일 (AppModal body 내부에서 사용) */
     .columns-modal-tabs {
         display: flex;
         gap: 8px;
@@ -1412,12 +1232,6 @@
         background: var(--color-layer1);
         color: white;
         border-color: var(--color-layer1);
-    }
-
-    .columns-modal-body {
-        flex: 1;
-        overflow: auto;
-        padding: 20px 24px;
     }
 
     .columns-table-wrapper {
@@ -1481,26 +1295,6 @@
         color: var(--text-muted);
     }
 
-    .btn-close-columns {
-        width: 32px;
-        height: 32px;
-        border: none;
-        background: var(--bg-secondary);
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 20px;
-        color: var(--text-secondary);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.15s;
-    }
-
-    .btn-close-columns:hover {
-        background: var(--bg-tertiary);
-        color: var(--text-primary);
-    }
-
     .btn-columns-info {
         padding: 6px 12px;
         border: 1px solid var(--border-color);
@@ -1515,201 +1309,6 @@
 
     .btn-columns-info:hover {
         background: var(--bg-primary);
-        color: var(--text-primary);
-    }
-
-    /* 상세 현황 모달 */
-    .summary-modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .summary-modal-overlay.show {
-        display: flex;
-    }
-
-    .summary-modal {
-        background: white;
-        border-radius: 12px;
-        width: 90%;
-        max-width: 900px;
-        max-height: 85vh;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-    }
-
-    .summary-modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 20px 24px;
-        border-bottom: 1px solid var(--border-color);
-        background: #fafafa;
-    }
-
-    .summary-modal-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
-    .summary-modal-subtitle {
-        font-size: 13px;
-        color: var(--text-secondary);
-        margin-top: 4px;
-    }
-
-    .summary-modal-tabs {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 16px 24px;
-        border-bottom: 1px solid var(--border-color);
-    }
-
-    .summary-tab {
-        padding: 8px 16px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        background: white;
-        cursor: pointer;
-        font-size: 13px;
-        color: var(--text-secondary);
-        transition: all 0.15s;
-    }
-
-    .summary-tab:hover {
-        background: var(--bg-primary);
-    }
-
-    .summary-tab.active {
-        background: var(--color-layer1);
-        color: white;
-        border-color: var(--color-layer1);
-    }
-
-    .summary-modal-body {
-        padding: 24px;
-        overflow-y: auto;
-        flex: 1;
-    }
-
-    .summary-section {
-        margin-bottom: 24px;
-    }
-
-    .summary-section:last-child {
-        margin-bottom: 0;
-    }
-
-    .summary-section-title {
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text-primary);
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .summary-section-icon {
-        font-size: 16px;
-    }
-
-    .summary-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-    }
-
-    .summary-table th,
-    .summary-table td {
-        padding: 10px 12px;
-        border: 1px solid var(--border-color);
-        text-align: center;
-    }
-
-    .summary-table th {
-        background: #f8f9fa;
-        font-weight: 600;
-        color: var(--text-secondary);
-    }
-
-    .summary-table td {
-        color: var(--text-primary);
-    }
-
-    .summary-table .retailer-cell {
-        text-align: left;
-        font-weight: 600;
-    }
-
-    .summary-table .subtotal-row {
-        background: #fff8e6;
-        font-weight: 600;
-    }
-
-    .summary-table .total-row {
-        background: #e8f4ea;
-        font-weight: 700;
-    }
-
-    .null-section {
-        background: #fff8e6;
-        border: 1px solid #f0d88a;
-        border-radius: 8px;
-        padding: 16px;
-    }
-
-    .null-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-    }
-
-    .null-table th,
-    .null-table td {
-        padding: 8px 12px;
-        border: 1px solid #f0d88a;
-        text-align: left;
-    }
-
-    .null-table th {
-        background: #fff3cd;
-        font-weight: 600;
-        color: #856404;
-    }
-
-    .null-table td {
-        color: #856404;
-    }
-
-    .null-columns {
-        font-family: monospace;
-        font-size: 12px;
-    }
-
-
-    .btn-close-summary {
-        background: none;
-        border: none;
-        font-size: 24px;
-        cursor: pointer;
-        color: var(--text-secondary);
-        padding: 0;
-        line-height: 1;
-    }
-
-    .btn-close-summary:hover {
         color: var(--text-primary);
     }
 
@@ -1742,32 +1341,6 @@
         border-color: #3b82f6;
     }
 
-    /* 토스트 알림 */
-    .layer-toast {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%) scale(0.9);
-        opacity: 0;
-        z-index: 10001;
-        min-width: 280px;
-        max-width: 420px;
-        padding: 18px 32px;
-        border-radius: 10px;
-        font-size: 15px;
-        font-weight: 600;
-        color: #fff;
-        text-align: center;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-        transition: transform 0.25s ease, opacity 0.25s ease;
-        pointer-events: none;
-    }
-    .layer-toast.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-    .layer-toast.info { background: #6366f1; }
-    .layer-toast.success { background: #22c55e; }
-    .layer-toast.warn { background: #f59e0b; color: #1a1a1a; }
-    .layer-toast.error { background: #ef4444; }
-
     /* 공통 확인 모달 */
 </style>
 {% endblock %}
@@ -1784,22 +1357,8 @@
     </div>
 </div>
 
-<!-- Date Picker -->
-<div class="date-picker-section">
-    <div class="date-picker-wrapper">
-        <label for="target-date">조회 날짜</label>
-        <input type="date" id="target-date" class="date-input">
-        <span id="weekday-display" style="margin-left: 8px; font-weight: 500; color: var(--text-secondary);"></span>
-        <button onclick="loadAllData()" class="btn-refresh">조회</button>
-        <button onclick="setPrevDay()" class="btn-today">전날</button>
-        <button onclick="setNextDay()" class="btn-today">다음날</button>
-        <button onclick="runBackup()" class="btn-backup" id="btn-backup">백업 실행</button>
-    </div>
-    <div class="date-info" id="date-info">
-        <span class="current-date"></span>
-        <span class="date-badge" id="date-badge"></span>
-    </div>
-</div>
+<!-- Filter Bar -->
+<div id="filter-bar-container"></div>
 
 <!-- Stats Grid -->
 <div class="stats-grid" id="stats-grid">
@@ -1877,249 +1436,12 @@
     </div>
 </div>
 
-<!-- Columns Info Modal -->
-<div class="columns-modal-overlay" id="columnsModal">
-    <div class="columns-modal">
-        <div class="columns-modal-header">
-            <div class="columns-modal-title">수집 항목 정보</div>
-            <button class="btn-close-columns" onclick="closeColumnsModal()">&times;</button>
-        </div>
-        <div class="columns-modal-tabs">
-            <button class="columns-tab active" onclick="switchColumnsTab('tv')">TV</button>
-            <button class="columns-tab" onclick="switchColumnsTab('hhp')">HHP</button>
-        </div>
-        <div class="columns-modal-body">
-            <div class="columns-table-wrapper">
-                <table class="columns-table" id="columnsTable">
-                    <thead id="columnsTableHead"></thead>
-                    <tbody id="columnsTableBody"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Retail Summary Modal -->
-<div class="summary-modal-overlay" id="summaryModal" onclick="closeSummaryModal(event)">
-    <div class="summary-modal" onclick="event.stopPropagation()">
-        <div class="summary-modal-header">
-            <div>
-                <div class="summary-modal-title" id="summaryModalTitle">상세 현황</div>
-                <div class="summary-modal-subtitle">
-                    <input type="date" id="summaryModalDate" onchange="onSummaryDateChange()" max="" style="border: 1px solid var(--border-color); border-radius: 4px; padding: 4px 8px; font-size: 13px;">
-                </div>
-            </div>
-            <button class="btn-close-summary" onclick="closeSummaryModal()">&times;</button>
-        </div>
-        <div class="summary-modal-tabs">
-            <button class="summary-tab active" id="summaryTabTv" onclick="switchSummaryTab('tv')">TV</button>
-            <button class="summary-tab" id="summaryTabHhp" onclick="switchSummaryTab('hhp')">HHP</button>
-            <span id="summaryCheckFooter" style="margin-left:auto; display:flex; align-items:center; gap:8px;"></span>
-        </div>
-        <div class="summary-modal-body" id="summaryModalBody">
-            <div style="text-align: center; padding: 40px; color: var(--text-secondary);">
-                데이터를 불러오는 중...
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Raw Data Popup Modal -->
-<div class="raw-data-modal-overlay" id="rawDataModal">
-    <div class="raw-data-modal">
-        <div class="raw-data-modal-header">
-            <div>
-                <div class="raw-data-modal-title" id="rawDataModalTitle">Raw Data</div>
-                <div class="raw-data-modal-subtitle" id="rawDataModalSubtitle"></div>
-            </div>
-            <div class="raw-data-modal-actions">
-                <button class="btn-reset-sort" onclick="resetSort()">정렬 초기화</button>
-                <button class="btn-close-modal" onclick="closeRawDataModal()">&times;</button>
-            </div>
-        </div>
-        <div class="raw-data-count" id="rawDataCount"></div>
-        <div class="raw-data-modal-body">
-            <div class="raw-data-table-wrapper" id="rawDataTableWrapper">
-                <div class="raw-data-loading" id="rawDataLoading">
-                    <div class="raw-data-loading-spinner"></div>
-                    데이터를 불러오는 중...
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Sentiment Raw Data Popup Modal -->
-<div class="raw-data-modal-overlay" id="sentimentModal">
-    <div class="raw-data-modal">
-        <div class="raw-data-modal-header">
-            <div>
-                <div class="raw-data-modal-title" id="sentimentModalTitle">감성분석 데이터</div>
-                <div class="raw-data-modal-subtitle" id="sentimentModalSubtitle"></div>
-            </div>
-            <div class="raw-data-modal-actions">
-                <button class="btn-reset-sort" onclick="resetSentimentSort()">정렬 초기화</button>
-                <button class="btn-close-modal" onclick="closeSentimentModal()">&times;</button>
-            </div>
-        </div>
-        <div class="raw-data-count" id="sentimentDataCount"></div>
-        <div class="raw-data-modal-body">
-            <div class="raw-data-table-wrapper" id="sentimentTableWrapper">
-                <div class="raw-data-loading" id="sentimentLoading">
-                    <div class="raw-data-loading-spinner"></div>
-                    데이터를 불러오는 중...
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- YouTube Raw Data Modal -->
-<div class="raw-data-modal-overlay" id="youtubeModal">
-    <div class="raw-data-modal">
-        <div class="raw-data-modal-header">
-            <div>
-                <div class="raw-data-modal-title" id="youtubeModalTitle">YouTube 데이터</div>
-                <div class="raw-data-modal-subtitle" id="youtubeModalSubtitle"></div>
-            </div>
-            <div class="raw-data-modal-actions">
-                <select id="youtubeDataType" onchange="loadYoutubeData()" style="padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; margin-right: 8px;">
-                    <option value="logs">수집 로그</option>
-                    <option value="videos">비디오</option>
-                    <option value="comments">댓글</option>
-                </select>
-                <button class="btn-reset-sort" onclick="resetYoutubeSort()">정렬 초기화</button>
-                <button class="btn-close-modal" onclick="closeYoutubeModal()">&times;</button>
-            </div>
-        </div>
-        <div class="raw-data-count" id="youtubeDataCount"></div>
-        <div class="raw-data-modal-body">
-            <div class="raw-data-table-wrapper" id="youtubeTableWrapper">
-                <div class="raw-data-loading" id="youtubeLoading">
-                    <div class="raw-data-loading-spinner"></div>
-                    데이터를 불러오는 중...
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Market Trend Raw Data Modal -->
-<div class="raw-data-modal-overlay" id="marketTrendModal">
-    <div class="raw-data-modal">
-        <div class="raw-data-modal-header">
-            <div>
-                <div class="raw-data-modal-title" id="marketTrendModalTitle">Market Trend 데이터</div>
-                <div class="raw-data-modal-subtitle" id="marketTrendModalSubtitle"></div>
-            </div>
-            <div class="raw-data-modal-actions">
-                <button class="btn-reset-sort" onclick="resetMarketTrendSort()">정렬 초기화</button>
-                <button class="btn-close-modal" onclick="closeMarketTrendModal()">&times;</button>
-            </div>
-        </div>
-        <div class="raw-data-count" id="marketTrendDataCount"></div>
-        <div class="raw-data-modal-body">
-            <div class="raw-data-table-wrapper" id="marketTrendTableWrapper">
-                <div class="raw-data-loading" id="marketTrendLoading">
-                    <div class="raw-data-loading-spinner"></div>
-                    데이터를 불러오는 중...
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="raw-data-modal-overlay" id="marketDemandModal">
-    <div class="raw-data-modal">
-        <div class="raw-data-modal-header">
-            <div>
-                <div class="raw-data-modal-title" id="marketDemandModalTitle">Market 수요증감율 데이터</div>
-                <div class="raw-data-modal-subtitle" id="marketDemandModalSubtitle"></div>
-            </div>
-            <div class="raw-data-modal-actions">
-                <button class="btn-reset-sort" onclick="resetMarketDemandSort()">정렬 초기화</button>
-                <button class="btn-close-modal" onclick="closeMarketDemandModal()">&times;</button>
-            </div>
-        </div>
-        <div class="raw-data-count" id="marketDemandDataCount"></div>
-        <div class="raw-data-modal-body">
-            <div class="raw-data-table-wrapper" id="marketDemandTableWrapper">
-                <div class="raw-data-loading" id="marketDemandLoading">
-                    <div class="raw-data-loading-spinner"></div>
-                    데이터를 불러오는 중...
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="raw-data-modal-overlay" id="demandMissingModal">
-    <div class="raw-data-modal">
-        <div class="raw-data-modal-header">
-            <div>
-                <div class="raw-data-modal-title" id="demandMissingModalTitle">수요증감율 부족 키워드</div>
-                <div class="raw-data-modal-subtitle" id="demandMissingModalSubtitle"></div>
-            </div>
-            <div class="raw-data-modal-actions">
-                <button class="btn-close-modal" onclick="closeDemandMissingModal()">&times;</button>
-            </div>
-        </div>
-        <div class="raw-data-count" id="demandMissingDataCount"></div>
-        <div class="raw-data-modal-body">
-            <div class="raw-data-table-wrapper" id="demandMissingTableWrapper">
-                <div class="raw-data-loading" id="demandMissingLoading">
-                    <div class="raw-data-loading-spinner"></div>
-                    데이터를 불러오는 중...
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="raw-data-modal-overlay" id="marketPromotionModal">
-    <div class="raw-data-modal">
-        <div class="raw-data-modal-header">
-            <div>
-                <div class="raw-data-modal-title" id="marketPromotionModalTitle">Market Promotion 데이터</div>
-                <div class="raw-data-modal-subtitle" id="marketPromotionModalSubtitle"></div>
-            </div>
-            <div class="raw-data-modal-actions">
-                <button class="btn-reset-sort" onclick="resetMarketPromotionSort()">정렬 초기화</button>
-                <button class="btn-close-modal" onclick="closeMarketPromotionModal()">&times;</button>
-            </div>
-        </div>
-        <div class="raw-data-count" id="marketPromotionDataCount"></div>
-        <div class="raw-data-modal-body">
-            <div class="raw-data-table-wrapper" id="marketPromotionTableWrapper">
-                <div class="raw-data-loading" id="marketPromotionLoading">
-                    <div class="raw-data-loading-spinner"></div>
-                    데이터를 불러오는 중...
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 토스트 알림 -->
-<div id="layerToast" class="layer-toast info"></div>
-
-<!-- 확인 모달 -->
+<!-- 모달은 AppModal로 동적 생성 -->
 
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// 공통 팝업 함수
-function showToast(msg, type) {
-    type = type || 'info';
-    var t = document.getElementById('layerToast');
-    t.textContent = msg;
-    t.className = 'layer-toast ' + type + ' show';
-    clearTimeout(t._tid);
-    t._tid = setTimeout(function(){ t.classList.remove('show'); }, 2500);
-}
-
-
 function getStatusBadge(status) {
     const statusMap = {
         'OK': { class: 'ok', text: '정상' },
@@ -2138,6 +1460,7 @@ function getStatusBadge(status) {
 // ============================================================
 let currentStatsData = null;    // 현재 로드된 API 데이터
 let currentCheckStatus = null;  // 현재 날짜의 체크 상태
+let currentNullData = null;     // TV/HHP NULL 컬럼 데이터
 
 function flattenCheckToDetails(sectionType, check) {
     const details = [];
@@ -2158,6 +1481,23 @@ function flattenCheckToDetails(sectionType, check) {
                     });
                 });
             });
+            // NULL 컬럼 details 추가
+            if (currentNullData) {
+                ['tv', 'hhp'].forEach(function(type) {
+                    (currentNullData[type] || []).forEach(function(ret) {
+                        ret.time_slots.forEach(function(slot) {
+                            details.push({
+                                category: type.toUpperCase(),
+                                time_slot: slot.time_slot,
+                                retailer: ret.retailer,
+                                item_name: slot.null_columns.join(', '),
+                                expected_count: 0, actual_count: 0,
+                                rate: 0, status: 'NULL'
+                            });
+                        });
+                    });
+                });
+            }
             break;
         case 'sentiment':
             (check.categories || []).forEach(cat => {
@@ -2282,13 +1622,12 @@ async function saveCheck(sectionType) {
     });
     if (!result.confirmed) return;
 
-    const dateInput = document.getElementById('target-date');
     try {
         const response = await fetch('/layer1/api/check/save/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
-                date: dateInput.value,
+                date: getSelectedDate(),
                 layer: 1,
                 sections: [{
                     section: sectionType,
@@ -2323,13 +1662,12 @@ async function deleteCheck(sectionType) {
         return;
     }
 
-    const dateInput = document.getElementById('target-date');
     try {
         const response = await fetch('/layer1/api/check/delete/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
-                date: dateInput.value,
+                date: getSelectedDate(),
                 layer: 1,
                 section: sectionType,
                 delete_memo: result.value,
@@ -2351,21 +1689,16 @@ function updateConfirmedCount() {
     const el = document.getElementById('total-confirmed');
     if (!el) return;
 
-    // 대상 섹션 수: is_target_date가 true인 섹션 + retail_summary (retail과 동일 조건)
     let targetCount = 0;
     let confirmedCount = 0;
     if (currentStatsData && currentStatsData.checks) {
         var targetChecks = currentStatsData.checks.filter(c => c.is_target_date !== false);
         targetCount = targetChecks.length;
-        // retail이 대상이면 retail_summary도 대상
-        var retailCheck = targetChecks.find(c => c.check_type === 'retail');
-        if (retailCheck) targetCount++;
 
         if (currentCheckStatus && currentCheckStatus.sections) {
             targetChecks.forEach(c => {
                 if (currentCheckStatus.sections[c.check_type]) confirmedCount++;
             });
-            if (retailCheck && currentCheckStatus.sections['retail_summary']) confirmedCount++;
         }
     }
 
@@ -2458,19 +1791,6 @@ function toggleSentimentCategory(element, checkIdx, catIdx) {
 }
 
 // 요일 표시 업데이트
-function updateWeekday() {
-    const dateInput = document.getElementById('target-date');
-    const weekdayDisplay = document.getElementById('weekday-display');
-    if (dateInput.value && weekdayDisplay) {
-        const date = new Date(dateInput.value + 'T00:00:00');
-        const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-        const weekday = weekdays[date.getDay()];
-        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-        weekdayDisplay.textContent = `(${weekday})`;
-        weekdayDisplay.style.color = isWeekend ? 'var(--color-critical)' : 'var(--text-secondary)';
-    }
-}
-
 // 로컬 날짜를 YYYY-MM-DD 형식으로 변환
 function formatLocalDate(date) {
     const yyyy = date.getFullYear();
@@ -2479,56 +1799,41 @@ function formatLocalDate(date) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
-// 날짜 초기화 (localStorage 우선 → 전일자 기본값)
-function initDate() {
-    const dateInput = document.getElementById('target-date');
-    const saved = localStorage.getItem('monitoringSelectedDate');
-    if (saved) {
-        dateInput.value = saved;
-    } else {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        dateInput.value = formatLocalDate(yesterday);
+// FilterBar 초기화
+var filterBar;
+function initFilterBar() {
+    var saved = localStorage.getItem('monitoringSelectedDate');
+    var yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    var defaultDate = saved || formatLocalDate(yesterday);
+    var today = formatLocalDate(new Date());
+
+    function onDateChange() {
+        localStorage.setItem('monitoringSelectedDate', filterBar.getDate());
     }
 
-    // 최대 날짜를 오늘로 제한
-    const today = new Date();
-    dateInput.max = formatLocalDate(today);
-
-    // 날짜 변경 시 요일 업데이트 + localStorage 저장
-    dateInput.addEventListener('change', function() {
-        updateWeekday();
-        localStorage.setItem('monitoringSelectedDate', dateInput.value);
-    });
-    updateWeekday();
+    filterBar = new FilterBar('#filter-bar-container', {
+        sticky: true,
+        controls: [
+            { type: 'date', key: 'targetDate', label: '조회 날짜', value: defaultDate, max: today, showWeekday: true },
+            { type: 'button', label: '조회', style: 'primary', onClick: function() { onDateChange(); loadAllData(); } },
+            { type: 'button', label: '전날', style: 'outline', onClick: function() { filterBar.prevDay(); onDateChange(); loadAllData(); } },
+            { type: 'button', label: '다음날', style: 'outline', onClick: function() { filterBar.nextDay(); onDateChange(); loadAllData(); } }
+        ],
+        right: [
+            { type: 'button', label: '백업 실행', style: 'save', onClick: function() { runBackup(); }, id: 'btn-backup' }
+        ]
+    }).render();
 }
 
-// 다음날(조회 날짜 기준 +1일) 설정 후 조회
-function setNextDay() {
-    const dateInput = document.getElementById('target-date');
-    const current = new Date(dateInput.value);
-    current.setDate(current.getDate() + 1);
-    dateInput.value = formatLocalDate(current);
-    localStorage.setItem('monitoringSelectedDate', dateInput.value);
-    updateWeekday();
-    loadAllData();
-}
-
-// 전날(조회 날짜 기준 -1일) 설정 후 조회
-function setPrevDay() {
-    const dateInput = document.getElementById('target-date');
-    const current = new Date(dateInput.value);
-    current.setDate(current.getDate() - 1);
-    dateInput.value = formatLocalDate(current);
-    localStorage.setItem('monitoringSelectedDate', dateInput.value);
-    updateWeekday();
-    loadAllData();
+// FilterBar에서 현재 날짜 가져오기 헬퍼
+function getSelectedDate() {
+    return filterBar.getDate();
 }
 
 async function loadStats() {
     try {
-        const dateInput = document.getElementById('target-date');
-        const selectedDate = dateInput.value;
+        const selectedDate = getSelectedDate();
 
         // 1. 체크 상태 먼저 조회
         let checkData = null;
@@ -2549,25 +1854,16 @@ async function loadStats() {
 
         currentStatsData = data;
 
-        // 조회 날짜 정보 표시 + 오늘/전일 뱃지
-        const dateInfo = document.getElementById('date-info');
-        const today = new Date().toISOString().split('T')[0];
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-        const targetDate = data.target_date;
-
-        let badgeClass = 'past';
-        let badgeText = '';
-        if (targetDate === today) {
-            badgeClass = 'today';
-            badgeText = 'TODAY';
-        } else if (targetDate === yesterday) {
-            badgeClass = 'yesterday';
-            badgeText = 'D-1';
-        } else {
-            const diffDays = Math.floor((new Date(today) - new Date(targetDate)) / 86400000);
-            badgeText = `D-${diffDays}`;
+        // NULL 컬럼 데이터 로딩 (TV + HHP)
+        try {
+            var [tvSum, hhpSum] = await Promise.all([
+                fetch('/layer1/api/retail-summary/?type=tv&date=' + selectedDate).then(r => r.json()),
+                fetch('/layer1/api/retail-summary/?type=hhp&date=' + selectedDate).then(r => r.json())
+            ]);
+            currentNullData = { tv: tvSum.null_columns || [], hhp: hhpSum.null_columns || [] };
+        } catch (e) {
+            currentNullData = null;
         }
-        dateInfo.innerHTML = `<span class="current-date">${targetDate}</span> 수집 현황 <span class="date-badge ${badgeClass}">${badgeText}</span>`;
 
         // Summary stats
         document.getElementById('total-checked').textContent = data.summary.total_checked;
@@ -2718,6 +2014,25 @@ function renderRetailCategory(cat, checkIdx, catIdx) {
     '</div>';
 }
 
+// 시간대별 NULL 컬럼 목록 조회 (categoryName: 'TV'/'HHP', slotName: '오전'/'오후')
+// 반환: [{retailer, columns}] 또는 빈 배열
+function getSlotNullColumns(categoryName, slotName) {
+    if (!currentNullData) return [];
+    var key = categoryName.toLowerCase();
+    var data = currentNullData[key];
+    if (!data) return [];
+    var result = [];
+    for (var i = 0; i < data.length; i++) {
+        for (var j = 0; j < data[i].time_slots.length; j++) {
+            var ts = data[i].time_slots[j];
+            if (ts.time_slot === slotName && ts.null_columns && ts.null_columns.length > 0) {
+                result.push({ retailer: data[i].retailer, columns: ts.null_columns.join(', ') });
+            }
+        }
+    }
+    return result;
+}
+
 // Retail 슬롯 카드 (Sentiment와 동일한 2열 레이아웃용)
 function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
     const slotStatusClass = getStatusClass(slot.status);
@@ -2759,6 +2074,29 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
         }).join('')
         : '<div style="color: var(--text-secondary); padding: 8px;">데이터 없음</div>';
 
+    // 시간대별 NULL 테이블
+    var nullItems = getSlotNullColumns(categoryName, period);
+    var nullTableHtml = '';
+    if (nullItems.length > 0) {
+        nullTableHtml = '<div class="null-summary">' +
+            '<div class="null-summary-title">⚠ NULL 컬럼 현황</div>' +
+            '<div class="null-summary-table-wrap">' +
+            '<table class="null-summary-table">' +
+                '<thead><tr><th>리테일러</th><th>시간대</th><th>NULL 컬럼</th></tr></thead>' +
+                '<tbody>' +
+                nullItems.map(function(n) {
+                    return '<tr>' +
+                        '<td>' + esc(n.retailer) + '</td>' +
+                        '<td>' + esc(period) + '</td>' +
+                        '<td class="null-col-cell">' + esc(n.columns) + '</td>' +
+                    '</tr>';
+                }).join('') +
+                '</tbody>' +
+            '</table>' +
+            '</div>' +
+        '</div>';
+    }
+
     return '<div class="sentiment-column">' +
         '<div class="sentiment-column-header">' +
             '<span class="sentiment-column-title">' + slot.name + '</span>' +
@@ -2767,7 +2105,7 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
                 getStatusBadge(slot.status) +
             '</div>' +
         '</div>' +
-        '<div class="sentiment-retailer-list">' + retailersHtml + '</div>' +
+        '<div class="sentiment-retailer-list">' + retailersHtml + nullTableHtml + '</div>' +
     '</div>';
 }
 
@@ -2832,7 +2170,6 @@ function renderRetailCheck(check, checkIdx) {
                 '<span class="criteria-item ok">정상: 200↑</span>' +
                 '<span class="criteria-item critical">심각: 200↓</span>' +
                 '<button class="btn-columns-info" onclick="event.stopPropagation(); openColumnsModal()">수집 항목 정보</button>' +
-                '<button class="btn-columns-info" onclick="event.stopPropagation(); openSummaryModal()">상세 현황</button>' +
             '</div>' +
             '<div class="check-stats">' +
                 '<div class="check-stat">' +
@@ -3984,24 +3321,21 @@ let rawDataState = {
 };
 
 function openRawDataModal(category, retailer, period) {
-    const modal = document.getElementById('rawDataModal');
-    const titleEl = document.getElementById('rawDataModalTitle');
-    const subtitleEl = document.getElementById('rawDataModalSubtitle');
+    const currentDate = getSelectedDate();
+
+    AppModal.setTitle('rawData', category + ' Retail - ' + retailer);
+    AppModal.setBody('rawData',
+        '<div class="raw-modal-header-sub">' +
+            '<div class="raw-data-modal-subtitle" id="rawDataModalSubtitle">' + currentDate + ' ' + period + '</div>' +
+            '<div class="raw-modal-actions"><button class="btn-reset-sort" onclick="resetSort()">정렬 초기화</button></div>' +
+        '</div>' +
+        '<div class="raw-data-count" id="rawDataCount"></div>' +
+        '<div class="raw-data-table-wrapper" id="rawDataTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>'
+    );
+    AppModal.open('rawData');
+
     const countEl = document.getElementById('rawDataCount');
     const wrapperEl = document.getElementById('rawDataTableWrapper');
-    const currentDate = document.getElementById('target-date').value;
-
-    // 모달 표시
-    modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
-
-    // 제목 설정
-    titleEl.textContent = category + ' Retail - ' + retailer;
-    subtitleEl.textContent = currentDate + ' ' + period;
-    countEl.innerHTML = '';
-
-    // 로딩 표시
-    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
 
     // 상태 초기화
     rawDataState = {
@@ -4052,9 +3386,7 @@ function openRawDataModal(category, retailer, period) {
 }
 
 function closeRawDataModal() {
-    const modal = document.getElementById('rawDataModal');
-    modal.classList.remove('show');
-    document.body.style.overflow = '';
+    AppModal.close('rawData');
 }
 
 let rawDataRenderedCount = 0;
@@ -4258,40 +3590,7 @@ function stopResize() {
     document.removeEventListener('mouseup', stopResize);
 }
 
-// 모달 외부 클릭 시 닫기
-document.addEventListener('click', function(e) {
-    var modal = document.getElementById('rawDataModal');
-    if (e.target === modal) {
-        closeRawDataModal();
-    }
-    var columnsModal = document.getElementById('columnsModal');
-    if (e.target === columnsModal) {
-        closeColumnsModal();
-    }
-    var sentimentModal = document.getElementById('sentimentModal');
-    if (e.target === sentimentModal) {
-        closeSentimentModal();
-    }
-    var youtubeModal = document.getElementById('youtubeModal');
-    if (e.target === youtubeModal) {
-        closeYoutubeModal();
-    }
-    var marketTrendModal = document.getElementById('marketTrendModal');
-    if (e.target === marketTrendModal) {
-        closeMarketTrendModal();
-    }
-});
-
-// ESC 키로 모달 닫기
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeRawDataModal();
-        closeColumnsModal();
-        closeSentimentModal();
-        closeYoutubeModal();
-        closeMarketTrendModal();
-    }
-});
+// 모달 오버레이 클릭/ESC 닫기는 AppModal이 자동 처리
 
 // ============================================================
 // Columns Info Modal
@@ -4300,9 +3599,15 @@ var columnsData = null;
 var currentColumnsTab = 'tv';
 
 function openColumnsModal() {
-    var modal = document.getElementById('columnsModal');
-    modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
+    AppModal.setTitle('columns', '수집 항목 정보');
+    AppModal.setBody('columns',
+        '<div class="columns-modal-tabs">' +
+            '<button class="columns-tab active" onclick="switchColumnsTab(\'tv\')">TV</button>' +
+            '<button class="columns-tab" onclick="switchColumnsTab(\'hhp\')">HHP</button>' +
+        '</div>' +
+        '<div class="columns-table-wrapper"><table class="columns-table" id="columnsTable"><thead id="columnsTableHead"></thead><tbody id="columnsTableBody"></tbody></table></div>'
+    );
+    AppModal.open('columns');
 
     if (!columnsData) {
         loadColumnsData();
@@ -4312,9 +3617,7 @@ function openColumnsModal() {
 }
 
 function closeColumnsModal() {
-    var modal = document.getElementById('columnsModal');
-    modal.classList.remove('show');
-    document.body.style.overflow = '';
+    AppModal.close('columns');
 }
 
 function switchColumnsTab(tab) {
@@ -4395,23 +3698,20 @@ var sentimentRenderedCount = 0;
 var SENTIMENT_BATCH_SIZE = 50;
 
 function openSentimentModal(category, retailer, period) {
-    var modal = document.getElementById('sentimentModal');
-    var titleEl = document.getElementById('sentimentModalTitle');
-    var subtitleEl = document.getElementById('sentimentModalSubtitle');
+    AppModal.setTitle('sentiment', category + ' ' + retailer + ' 감성분석');
+    AppModal.setBody('sentiment',
+        '<div class="raw-modal-header-sub">' +
+            '<div class="raw-data-modal-subtitle" id="sentimentModalSubtitle">' + period + '</div>' +
+            '<div class="raw-modal-actions"><button class="btn-reset-sort" onclick="resetSentimentSort()">정렬 초기화</button></div>' +
+        '</div>' +
+        '<div class="raw-data-count" id="sentimentDataCount"></div>' +
+        '<div class="raw-data-table-wrapper" id="sentimentTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>'
+    );
+    AppModal.open('sentiment');
+
     var countEl = document.getElementById('sentimentDataCount');
     var wrapperEl = document.getElementById('sentimentTableWrapper');
-    var loadingEl = document.getElementById('sentimentLoading');
-
-    titleEl.textContent = category + ' ' + retailer + ' 감성분석';
-    subtitleEl.textContent = period;
-    countEl.innerHTML = '';
-
-    wrapperEl.innerHTML = '<div class="raw-data-loading" id="sentimentLoading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
-
-    modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
-
-    var currentDate = document.getElementById('target-date').value;
+    var currentDate = getSelectedDate();
     var url = '/layer1/api/sentiment-raw-data/?category=' + encodeURIComponent(category) +
               '&retailer=' + encodeURIComponent(retailer) +
               '&period=' + encodeURIComponent(period) +
@@ -4445,9 +3745,7 @@ function openSentimentModal(category, retailer, period) {
 }
 
 function closeSentimentModal() {
-    var modal = document.getElementById('sentimentModal');
-    modal.classList.remove('show');
-    document.body.style.overflow = '';
+    AppModal.close('sentiment');
 }
 
 // 컬럼별 기본 너비 설정
@@ -4656,365 +3954,8 @@ function resetSentimentSort() {
 }
 
 // ============================================================
-// Retail Summary Modal (상세 현황)
-// ============================================================
-var currentSummaryTab = 'tv';
-var summaryCache = {};
 
-function openSummaryModal() {
-    var modal = document.getElementById('summaryModal');
-    var currentDate = document.getElementById('target-date').value;
-
-    document.getElementById('summaryModalTitle').textContent = 'Retail 상세 현황';
-    var dateInput = document.getElementById('summaryModalDate');
-    dateInput.value = currentDate;
-    dateInput.max = new Date().toISOString().split('T')[0];
-
-    modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
-
-    // 캐시 초기화
-    summaryCache = {};
-
-    // TV 탭 활성화
-    currentSummaryTab = 'tv';
-    document.getElementById('summaryTabTv').classList.add('active');
-    document.getElementById('summaryTabHhp').classList.remove('active');
-
-    renderSummaryCheckFooter();
-    loadSummaryData('tv');
-}
-
-function closeSummaryModal(event) {
-    if (event && event.target !== event.currentTarget) return;
-    var modal = document.getElementById('summaryModal');
-    modal.classList.remove('show');
-    document.body.style.overflow = '';
-}
-
-function onSummaryDateChange() {
-    var dateInput = document.getElementById('summaryModalDate');
-    var today = new Date().toISOString().split('T')[0];
-    if (dateInput.value > today) {
-        showToast('오늘 이후 날짜는 조회할 수 없습니다.', 'warning');
-        dateInput.value = today;
-        return;
-    }
-    // 날짜 변경 시 캐시 초기화 후 현재 탭 다시 로드
-    summaryCache = {};
-    loadSummaryData(currentSummaryTab);
-}
-
-function switchSummaryTab(tab) {
-    currentSummaryTab = tab;
-
-    document.getElementById('summaryTabTv').classList.toggle('active', tab === 'tv');
-    document.getElementById('summaryTabHhp').classList.toggle('active', tab === 'hhp');
-
-    if (summaryCache[tab]) {
-        renderSummaryContent(summaryCache[tab]);
-    } else {
-        loadSummaryData(tab);
-    }
-}
-
-function loadSummaryData(type) {
-    var bodyEl = document.getElementById('summaryModalBody');
-    var currentDate = document.getElementById('summaryModalDate').value;
-
-    bodyEl.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">데이터를 불러오는 중...</div>';
-
-    var url = '/layer1/api/retail-summary/?type=' + type + '&date=' + currentDate;
-
-    fetch(url)
-        .then(function(response) { return response.json(); })
-        .then(function(data) {
-            if (data.error) {
-                bodyEl.innerHTML = '<div style="text-align: center; padding: 40px; color: red;">오류: ' + esc(data.error) + '</div>';
-                return;
-            }
-
-            summaryCache[type] = data;
-            renderSummaryContent(data);
-        })
-        .catch(function(error) {
-            bodyEl.innerHTML = '<div style="text-align: center; padding: 40px; color: red;">데이터를 불러오는데 실패했습니다.</div>';
-            console.error('Error:', error);
-        });
-}
-
-function renderSummaryContent(data) {
-    var bodyEl = document.getElementById('summaryModalBody');
-
-    var html = '';
-
-    // 데이터 테이블 섹션
-    html += '<div class="summary-section">';
-    html += '<div class="summary-section-title">';
-    html += '<span class="summary-section-icon">' + (data.product_line === 'TV' ? '📺' : '📱') + '</span>';
-    html += data.product_line;
-    html += '</div>';
-
-    html += '<table class="summary-table">';
-    html += '<thead><tr>';
-    html += '<th>리테일러</th>';
-    html += '<th>시간대</th>';
-    html += '<th>Main</th>';
-    html += '<th>BSR</th>';
-    html += '<th>' + data.extra_rank_name + '</th>';
-    html += '<th>총 건수</th>';
-    html += '<th>소계</th>';
-    html += '</tr></thead>';
-    html += '<tbody>';
-
-    var amTotal = 0;
-    var pmTotal = 0;
-    var mainTotal = 0;
-    var bsrTotal = 0;
-    var extraTotal = 0;
-
-    data.summary.forEach(function(retailer) {
-        var rowCount = retailer.rows.length;
-        var isFirstRow = true;
-
-        retailer.rows.forEach(function(row, idx) {
-            html += '<tr>';
-
-            if (isFirstRow) {
-                html += '<td class="retailer-cell" rowspan="' + rowCount + '">' + retailer.retailer + '</td>';
-                isFirstRow = false;
-            }
-
-            html += '<td>' + row.time_slot + '</td>';
-            html += '<td>' + row.main.toLocaleString() + '</td>';
-            html += '<td>' + row.bsr.toLocaleString() + '</td>';
-            html += '<td>' + row.extra.toLocaleString() + '</td>';
-            html += '<td>' + row.total.toLocaleString() + '</td>';
-
-            if (idx === 0) {
-                html += '<td rowspan="' + rowCount + '" style="font-weight: 600;">' + retailer.total.toLocaleString() + '</td>';
-            }
-
-            html += '</tr>';
-
-            // 합계 계산
-            mainTotal += row.main;
-            bsrTotal += row.bsr;
-            extraTotal += row.extra;
-            if (row.time_slot === '오전') amTotal += row.total;
-            else pmTotal += row.total;
-        });
-    });
-
-    // 합계 행
-    html += '<tr class="total-row">';
-    html += '<td colspan="2" style="text-align: center; font-weight: 700;">합계</td>';
-    html += '<td>' + mainTotal.toLocaleString() + '</td>';
-    html += '<td>' + bsrTotal.toLocaleString() + '</td>';
-    html += '<td>' + extraTotal.toLocaleString() + '</td>';
-    html += '<td>' + data.totals.grand_total.toLocaleString() + '</td>';
-    html += '<td></td>';
-    html += '</tr>';
-
-    html += '</tbody></table>';
-    html += '</div>';
-
-    // NULL 컬럼 현황 섹션
-    if (data.null_columns && data.null_columns.length > 0) {
-        html += '<div class="summary-section">';
-        html += '<div class="summary-section-title">';
-        html += '<span class="summary-section-icon">⚠️</span>';
-        html += 'NULL 컬럼 현황';
-        html += '</div>';
-
-        html += '<div class="null-section">';
-        html += '<table class="null-table">';
-        html += '<thead><tr>';
-        html += '<th>리테일러</th>';
-        html += '<th>시간대</th>';
-        html += '<th>NULL 컬럼</th>';
-        html += '</tr></thead>';
-        html += '<tbody>';
-
-        data.null_columns.forEach(function(retailer) {
-            var rowCount = retailer.time_slots.length;
-            var isFirstRow = true;
-
-            retailer.time_slots.forEach(function(slot, idx) {
-                html += '<tr>';
-
-                if (isFirstRow) {
-                    html += '<td rowspan="' + rowCount + '">' + retailer.retailer + '</td>';
-                    isFirstRow = false;
-                }
-
-                html += '<td>' + slot.time_slot + '</td>';
-                html += '<td class="null-columns">' + slot.null_columns.join(', ') + '</td>';
-                html += '</tr>';
-            });
-        });
-
-        html += '</tbody></table>';
-        html += '</div>';
-        html += '</div>';
-    }
-
-    bodyEl.innerHTML = html;
-    renderSummaryCheckFooter();
-}
-
-// 상세현황 통합 확인 footer 렌더링
-function renderSummaryCheckFooter() {
-    var footerEl = document.getElementById('summaryCheckFooter');
-    if (!footerEl) return;
-
-    var checkInfo = currentCheckStatus && currentCheckStatus.sections && currentCheckStatus.sections['retail_summary'];
-    var html = '';
-
-    if (checkInfo) {
-        var timeStr = checkInfo.updated_at
-            ? new Date(checkInfo.updated_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})
-            : new Date(checkInfo.created_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
-        var who = checkInfo.updated_id || checkInfo.created_id || '';
-        html += '<button class="btn-check-confirm checked" onclick="deleteSummaryCheck()" title="' + esc(who) + ' ' + timeStr + '">확인됨 ✓</button>';
-    } else {
-        html += '<button class="btn-check-confirm" onclick="saveSummaryCheck()">확인</button>';
-    }
-
-    footerEl.innerHTML = html;
-}
-
-// 상세현황 체크 저장 (TV+HHP 통합)
-async function saveSummaryCheck() {
-    var result = await showConfirm('상세현황 (TV+HHP)을 확인 처리하시겠습니까?', 'info', {
-        input: { placeholder: '메모 (선택)' }
-    });
-    if (!result.confirmed) return;
-
-    var modalDate = document.getElementById('summaryModalDate');
-    var dateVal = (modalDate && modalDate.value) ? modalDate.value : document.getElementById('target-date').value;
-
-    // TV, HHP 데이터 모두 로드
-    for (var i = 0; i < 2; i++) {
-        var t = i === 0 ? 'tv' : 'hhp';
-        if (!summaryCache[t]) {
-            try {
-                var loadResp = await fetch('/layer1/api/retail-summary/?type=' + t + '&date=' + dateVal);
-                var loadData = await loadResp.json();
-                if (loadData.error) { showToast(t.toUpperCase() + ' 데이터 로드 실패', 'error'); return; }
-                summaryCache[t] = loadData;
-            } catch (e) { showToast(t.toUpperCase() + ' 데이터 로드 오류: ' + e.message, 'error'); return; }
-        }
-    }
-
-    // TV+HHP 합산
-    var totalExpected = 0;
-    var totalNull = 0;
-    var allDetails = [];
-
-    ['tv', 'hhp'].forEach(function(t) {
-        var data = summaryCache[t];
-        var stats = data.check_stats || { total_checks: 0, null_count: 0 };
-        totalExpected += stats.total_checks;
-        totalNull += stats.null_count;
-
-        (data.column_checks || []).forEach(function(ret) {
-            var checkColCount = (ret.check_columns || []).length;
-            ret.time_slots.forEach(function(slot) {
-                var nullCols = [];
-                (ret.check_columns || []).forEach(function(col) {
-                    if (!slot.counts || !slot.counts[col] || slot.counts[col] === 0) {
-                        nullCols.push(col);
-                    }
-                });
-                allDetails.push({
-                    category: data.product_line,
-                    time_slot: slot.time_slot,
-                    retailer: ret.retailer,
-                    item_name: nullCols.join(', '),
-                    expected_count: checkColCount,
-                    actual_count: nullCols.length,
-                    rate: checkColCount > 0 ? Math.round((checkColCount - nullCols.length) / checkColCount * 1000) / 10 : 100,
-                    status: nullCols.length > 0 ? 'NULL' : 'OK'
-                });
-            });
-        });
-    });
-
-    var totalActual = totalExpected - totalNull;
-    var rate = totalExpected > 0 ? Math.round(totalActual / totalExpected * 1000) / 10 : 100;
-    var status = totalNull > 0 ? 'NG' : 'OK';
-
-    try {
-        var response = await fetch('/layer1/api/check/save/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            body: JSON.stringify({
-                date: dateVal,
-                layer: 1,
-                sections: [{
-                    section: 'retail_summary',
-                    expected_count: totalExpected,
-                    actual_count: totalActual,
-                    rate: rate,
-                    status: status,
-                    details: allDetails,
-                    memo: result.value || ''
-                }]
-            })
-        });
-        var saveResult = await response.json();
-        if (!response.ok || !saveResult.success) {
-            showToast(saveResult.error || '저장 중 오류가 발생했습니다.', 'error');
-            return;
-        }
-        showToast('상세현황 확인 완료', 'success');
-        var selectedDate = document.getElementById('target-date').value;
-        currentCheckStatus = await loadCheckStatus(selectedDate);
-        renderSummaryCheckFooter();
-    } catch (e) {
-        showToast('시스템 오류가 발생했습니다.', 'error');
-    }
-}
-
-// 상세현황 체크 삭제 (취소)
-async function deleteSummaryCheck() {
-    var result = await showConfirm('상세현황 확인을 취소하시겠습니까?', 'warning', {
-        input: { placeholder: '취소 사유를 입력하세요 (필수)' }
-    });
-    if (!result.confirmed) return;
-    if (!result.value) {
-        showToast('취소 사유를 입력해주세요.', 'warning');
-        return;
-    }
-
-    var modalDate = document.getElementById('summaryModalDate');
-    var dateVal = (modalDate && modalDate.value) ? modalDate.value : document.getElementById('target-date').value;
-
-    try {
-        var response = await fetch('/layer1/api/check/delete/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            body: JSON.stringify({
-                date: dateVal,
-                layer: 1,
-                section: 'retail_summary',
-                delete_memo: result.value
-            })
-        });
-        var deleteResult = await response.json();
-        if (!response.ok || !deleteResult.success) {
-            showToast(deleteResult.error || '삭제 중 오류가 발생했습니다.', 'error');
-            return;
-        }
-        showToast('확인 취소됨', 'success');
-        var selectedDate = document.getElementById('target-date').value;
-        currentCheckStatus = await loadCheckStatus(selectedDate);
-        renderSummaryCheckFooter();
-    } catch (e) {
-        showToast('시스템 오류가 발생했습니다.', 'error');
-    }
-}
+// (Summary Modal 제거됨 — NULL 컬럼은 Retail 체크 항목에 통합)
 
 // ============================================================
 // YouTube Raw Data Modal
@@ -5035,40 +3976,40 @@ function openYoutubeModal(category) {
 }
 
 function openYoutubeModalWithType(category, dataType) {
-    var modal = document.getElementById('youtubeModal');
-    var titleEl = document.getElementById('youtubeModalTitle');
-    var subtitleEl = document.getElementById('youtubeModalSubtitle');
-    var countEl = document.getElementById('youtubeDataCount');
-    var wrapperEl = document.getElementById('youtubeTableWrapper');
-    var currentDate = document.getElementById('target-date').value;
-
+    var currentDate = getSelectedDate();
     youtubeDataState.category = category;
     youtubeDataState.dataType = dataType || 'logs';
-    document.getElementById('youtubeDataType').value = dataType || 'logs';
 
     var typeLabel = {'logs': '로그', 'videos': '비디오', 'comments': '댓글'}[dataType] || '로그';
-    titleEl.textContent = 'YouTube - ' + category + ' - ' + typeLabel;
-    subtitleEl.textContent = currentDate;
-    countEl.innerHTML = '';
-
-    wrapperEl.innerHTML = '<div class="raw-data-loading" id="youtubeLoading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
-
-    modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
+    AppModal.setTitle('youtube', 'YouTube - ' + category + ' - ' + typeLabel);
+    AppModal.setBody('youtube',
+        '<div class="raw-modal-header-sub">' +
+            '<div class="raw-data-modal-subtitle" id="youtubeModalSubtitle">' + currentDate + '</div>' +
+            '<div class="raw-modal-actions">' +
+                '<select id="youtubeDataType" onchange="loadYoutubeData()" style="padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; margin-right: 8px;">' +
+                    '<option value="logs"' + (dataType === 'logs' ? ' selected' : '') + '>수집 로그</option>' +
+                    '<option value="videos"' + (dataType === 'videos' ? ' selected' : '') + '>비디오</option>' +
+                    '<option value="comments"' + (dataType === 'comments' ? ' selected' : '') + '>댓글</option>' +
+                '</select>' +
+                '<button class="btn-reset-sort" onclick="resetYoutubeSort()">정렬 초기화</button>' +
+            '</div>' +
+        '</div>' +
+        '<div class="raw-data-count" id="youtubeDataCount"></div>' +
+        '<div class="raw-data-table-wrapper" id="youtubeTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>'
+    );
+    AppModal.open('youtube');
 
     loadYoutubeData();
 }
 
 function closeYoutubeModal() {
-    var modal = document.getElementById('youtubeModal');
-    modal.classList.remove('show');
-    document.body.style.overflow = '';
+    AppModal.close('youtube');
 }
 
 function loadYoutubeData() {
     var wrapperEl = document.getElementById('youtubeTableWrapper');
     var countEl = document.getElementById('youtubeDataCount');
-    var currentDate = document.getElementById('target-date').value;
+    var currentDate = getSelectedDate();
     var dataType = document.getElementById('youtubeDataType').value;
 
     youtubeDataState.dataType = dataType;
@@ -5357,42 +4298,35 @@ var marketTrendColumnWidths = {
 };
 
 function openMarketTrendModal(category, contentType) {
-    var modal = document.getElementById('marketTrendModal');
-    var titleEl = document.getElementById('marketTrendModalTitle');
-    var subtitleEl = document.getElementById('marketTrendModalSubtitle');
-    var countEl = document.getElementById('marketTrendDataCount');
-    var wrapperEl = document.getElementById('marketTrendTableWrapper');
-    var currentDate = document.getElementById('target-date').value;
-
+    var currentDate = getSelectedDate();
     marketTrendDataState.category = category;
     marketTrendDataState.contentType = contentType || '';
 
     var title = 'Market Trend - ' + category;
-    if (contentType) {
-        title += ' (' + contentType + ')';
-    }
-    titleEl.textContent = title;
-    subtitleEl.textContent = currentDate;
-    countEl.innerHTML = '';
+    if (contentType) title += ' (' + contentType + ')';
 
-    wrapperEl.innerHTML = '<div class="raw-data-loading" id="marketTrendLoading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
-
-    modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
+    AppModal.setTitle('marketTrend', title);
+    AppModal.setBody('marketTrend',
+        '<div class="raw-modal-header-sub">' +
+            '<div class="raw-data-modal-subtitle" id="marketTrendModalSubtitle">' + currentDate + '</div>' +
+            '<div class="raw-modal-actions"><button class="btn-reset-sort" onclick="resetMarketTrendSort()">정렬 초기화</button></div>' +
+        '</div>' +
+        '<div class="raw-data-count" id="marketTrendDataCount"></div>' +
+        '<div class="raw-data-table-wrapper" id="marketTrendTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>'
+    );
+    AppModal.open('marketTrend');
 
     loadMarketTrendData();
 }
 
 function closeMarketTrendModal() {
-    var modal = document.getElementById('marketTrendModal');
-    modal.classList.remove('show');
-    document.body.style.overflow = '';
+    AppModal.close('marketTrend');
 }
 
 function loadMarketTrendData() {
     var wrapperEl = document.getElementById('marketTrendTableWrapper');
     var countEl = document.getElementById('marketTrendDataCount');
-    var currentDate = document.getElementById('target-date').value;
+    var currentDate = getSelectedDate();
 
     wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
 
@@ -5639,31 +4573,25 @@ var marketDemandDataState = {
 var marketDemandRenderedCount = 0;
 
 function openMarketDemandModal(category) {
-    var modal = document.getElementById('marketDemandModal');
-    var titleEl = document.getElementById('marketDemandModalTitle');
-    var subtitleEl = document.getElementById('marketDemandModalSubtitle');
-    var countEl = document.getElementById('marketDemandDataCount');
-    var wrapperEl = document.getElementById('marketDemandTableWrapper');
-    var currentDate = document.getElementById('target-date').value;
-
+    var currentDate = getSelectedDate();
     marketDemandDataState.category = category;
 
-    titleEl.textContent = 'Market 수요증감율 - ' + category;
-    subtitleEl.textContent = currentDate;
-    countEl.innerHTML = '';
-
-    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
-
-    modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
+    AppModal.setTitle('marketDemand', 'Market 수요증감율 - ' + category);
+    AppModal.setBody('marketDemand',
+        '<div class="raw-modal-header-sub">' +
+            '<div class="raw-data-modal-subtitle" id="marketDemandModalSubtitle">' + currentDate + '</div>' +
+            '<div class="raw-modal-actions"><button class="btn-reset-sort" onclick="resetMarketDemandSort()">정렬 초기화</button></div>' +
+        '</div>' +
+        '<div class="raw-data-count" id="marketDemandDataCount"></div>' +
+        '<div class="raw-data-table-wrapper" id="marketDemandTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>'
+    );
+    AppModal.open('marketDemand');
 
     loadMarketDemandData();
 }
 
 function closeMarketDemandModal() {
-    var modal = document.getElementById('marketDemandModal');
-    modal.classList.remove('show');
-    document.body.style.overflow = '';
+    AppModal.close('marketDemand');
 }
 
 // 수요증감율 부족 키워드 모달
@@ -5673,37 +4601,31 @@ var demandMissingDataState = {
 };
 
 function openDemandMissingModal(category) {
-    var modal = document.getElementById('demandMissingModal');
-    var titleEl = document.getElementById('demandMissingModalTitle');
-    var subtitleEl = document.getElementById('demandMissingModalSubtitle');
-    var countEl = document.getElementById('demandMissingDataCount');
-    var wrapperEl = document.getElementById('demandMissingTableWrapper');
-    var currentDate = document.getElementById('target-date').value;
-
+    var currentDate = getSelectedDate();
     demandMissingDataState.category = category;
 
-    titleEl.textContent = '수요증감율 부족 키워드 - ' + category;
-    subtitleEl.textContent = currentDate;
-    countEl.innerHTML = '';
-
-    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
-
-    modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
+    AppModal.setTitle('demandMissing', '수요증감율 부족 키워드 - ' + category);
+    AppModal.setBody('demandMissing',
+        '<div class="raw-modal-header-sub">' +
+            '<div class="raw-data-modal-subtitle" id="demandMissingModalSubtitle">' + currentDate + '</div>' +
+            '<div class="raw-modal-actions"></div>' +
+        '</div>' +
+        '<div class="raw-data-count" id="demandMissingDataCount"></div>' +
+        '<div class="raw-data-table-wrapper" id="demandMissingTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>'
+    );
+    AppModal.open('demandMissing');
 
     loadDemandMissingData();
 }
 
 function closeDemandMissingModal() {
-    var modal = document.getElementById('demandMissingModal');
-    modal.classList.remove('show');
-    document.body.style.overflow = '';
+    AppModal.close('demandMissing');
 }
 
 function loadDemandMissingData() {
     var wrapperEl = document.getElementById('demandMissingTableWrapper');
     var countEl = document.getElementById('demandMissingDataCount');
-    var currentDate = document.getElementById('target-date').value;
+    var currentDate = getSelectedDate();
 
     wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
 
@@ -5776,7 +4698,7 @@ function renderDemandMissingTable() {
 function loadMarketDemandData() {
     var wrapperEl = document.getElementById('marketDemandTableWrapper');
     var countEl = document.getElementById('marketDemandDataCount');
-    var currentDate = document.getElementById('target-date').value;
+    var currentDate = getSelectedDate();
 
     wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
 
@@ -5918,37 +4840,31 @@ var marketPromotionDataState = {
 var marketPromotionRenderedCount = 0;
 
 function openMarketPromotionModal(retailer) {
-    var modal = document.getElementById('marketPromotionModal');
-    var titleEl = document.getElementById('marketPromotionModalTitle');
-    var subtitleEl = document.getElementById('marketPromotionModalSubtitle');
-    var countEl = document.getElementById('marketPromotionDataCount');
-    var wrapperEl = document.getElementById('marketPromotionTableWrapper');
-    var currentDate = document.getElementById('target-date').value;
-
+    var currentDate = getSelectedDate();
     marketPromotionDataState.retailer = retailer;
 
-    titleEl.textContent = 'Market Promotion - ' + retailer;
-    subtitleEl.textContent = currentDate;
-    countEl.innerHTML = '';
-
-    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
-
-    modal.classList.add('show');
-    document.body.style.overflow = 'hidden';
+    AppModal.setTitle('marketPromotion', 'Market Promotion - ' + retailer);
+    AppModal.setBody('marketPromotion',
+        '<div class="raw-modal-header-sub">' +
+            '<div class="raw-data-modal-subtitle" id="marketPromotionModalSubtitle">' + currentDate + '</div>' +
+            '<div class="raw-modal-actions"><button class="btn-reset-sort" onclick="resetMarketPromotionSort()">정렬 초기화</button></div>' +
+        '</div>' +
+        '<div class="raw-data-count" id="marketPromotionDataCount"></div>' +
+        '<div class="raw-data-table-wrapper" id="marketPromotionTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>'
+    );
+    AppModal.open('marketPromotion');
 
     loadMarketPromotionData();
 }
 
 function closeMarketPromotionModal() {
-    var modal = document.getElementById('marketPromotionModal');
-    modal.classList.remove('show');
-    document.body.style.overflow = '';
+    AppModal.close('marketPromotion');
 }
 
 function loadMarketPromotionData() {
     var wrapperEl = document.getElementById('marketPromotionTableWrapper');
     var countEl = document.getElementById('marketPromotionDataCount');
-    var currentDate = document.getElementById('target-date').value;
+    var currentDate = getSelectedDate();
 
     wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
 
@@ -6093,7 +5009,7 @@ function resetMarketPromotionSort() {
 // 백업 실행
 function runBackup() {
     var btn = document.getElementById('btn-backup');
-    var targetDate = document.getElementById('target-date').value;
+    var targetDate = getSelectedDate();
     btn.disabled = true;
     btn.textContent = '확인 중...';
 
@@ -6151,7 +5067,16 @@ function runBackup() {
 }
 
 window.onload = function() {
-    initDate();
+    // AppModal 생성
+    AppModal.create('rawData', { style: 'extra-wide' });
+    AppModal.create('sentiment', { style: 'extra-wide' });
+    AppModal.create('youtube', { style: 'extra-wide' });
+    AppModal.create('marketTrend', { style: 'extra-wide' });
+    AppModal.create('marketDemand', { style: 'extra-wide' });
+    AppModal.create('demandMissing', { style: 'extra-wide' });
+    AppModal.create('marketPromotion', { style: 'extra-wide' });
+    AppModal.create('columns', { style: 'wide' });
+    initFilterBar();
     loadAllData();
 };
 </script>

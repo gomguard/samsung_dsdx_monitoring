@@ -85,6 +85,16 @@
     font-size: 14px;
 }
 
+.fb-weekday {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.fb-weekday-weekend {
+    color: var(--color-critical, #ef4444);
+}
+
 /* ============================================================
    드롭다운
    ============================================================ */

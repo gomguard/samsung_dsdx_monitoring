@@ -117,3 +117,15 @@
 .app-modal--compact .app-modal__body {
     max-height: calc(85vh - 80px);
 }
+
+/* extra-wide: Raw Data 팝업 (대용량 데이터 테이블) */
+.app-modal--extra-wide .app-modal__content {
+    max-width: 1600px;
+    width: 95%;
+    max-height: 85vh;
+}
+
+.app-modal--extra-wide .app-modal__body {
+    max-height: calc(85vh - 80px);
+    padding: 0;
+}

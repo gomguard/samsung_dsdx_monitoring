@@ -17,10 +17,11 @@
  *   const title = AppModal.getTitle('detail');
  *   const bodyEl = AppModal.getBody('detail');  // DOM element 반환
  *
- * 스타일 옵션: 'wide' | 'form' | 'compact'
+ * 스타일 옵션: 'wide' | 'extra-wide' | 'form' | 'compact'
  */
 const AppModal = (() => {
     const instances = {};
+    const openStack = [];  // ESC 닫기용 열린 모달 스택
 
     function create(id, options) {
         if (instances[id]) return instances[id];
@@ -28,6 +29,7 @@ const AppModal = (() => {
         const style = (options && options.style) || 'wide';
 
         const overlay = document.createElement('div');
+        overlay.id = 'modal-' + id;
         overlay.className = 'app-modal app-modal--' + style;
 
         overlay.innerHTML =
@@ -56,12 +58,21 @@ const AppModal = (() => {
 
     function open(id) {
         var inst = instances[id];
-        if (inst) inst.el.classList.add('show');
+        if (!inst) return;
+        inst.el.classList.add('show');
+        document.body.style.overflow = 'hidden';
+        var idx = openStack.indexOf(id);
+        if (idx !== -1) openStack.splice(idx, 1);
+        openStack.push(id);
     }
 
     function close(id) {
         var inst = instances[id];
-        if (inst) inst.el.classList.remove('show');
+        if (!inst) return;
+        inst.el.classList.remove('show');
+        var idx = openStack.indexOf(id);
+        if (idx !== -1) openStack.splice(idx, 1);
+        if (openStack.length === 0) document.body.style.overflow = '';
     }
 
     function setTitle(id, text) {
@@ -83,6 +94,13 @@ const AppModal = (() => {
         var inst = instances[id];
         return inst ? inst.el.querySelector('.app-modal__body') : null;
     }
+
+    // ESC 키로 최상위 모달 닫기
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && openStack.length > 0) {
+            close(openStack[openStack.length - 1]);
+        }
+    });
 
     return { create: create, open: open, close: close, setTitle: setTitle, getTitle: getTitle, setBody: setBody, getBody: getBody };
 })();
