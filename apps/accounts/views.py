@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from .models import UserProfile
 from apps.common.db import get_dx_connection, get_ds_connection
-from apps.common.retail_columns import reload_retail_columns, reload_missing_exclude_rules
+from apps.common.retail_columns import reload_retail_columns, reload_missing_exclude_rules, reload_null_check_config
 from apps.common.targets import reload_targets, format_time
 from apps.common.dx_schedules import reload_schedules
 import json
@@ -474,6 +474,211 @@ def retail_columns_toggle(request, column_id):
         reload_retail_columns()
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': new_status, 'message': f'수집항목이 {status}되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+# ============================================================
+# 관리자 페이지 - NULL 검증 관리
+# ============================================================
+
+@login_required
+@user_passes_test(is_admin)
+def null_checks(request):
+    """NULL 검증 관리 페이지"""
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, category, check_name, table_name, check_column, check_type,
+                   date_column, display_columns, query_columns, query_days,
+                   is_active, created_id, updated_id, created_at, updated_at, memo
+            FROM monitoring_null_check
+            WHERE is_del = false
+            ORDER BY category, check_name, check_column
+        """)
+        columns_desc = [desc[0] for desc in cursor.description]
+        rows = [dict(zip(columns_desc, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        rows = []
+        log_error(e, 'db')
+
+    context = {
+        'admin_menu': 'null_checks',
+        'rows': rows,
+    }
+    return render(request, 'accounts/null_checks.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+def null_checks_create(request):
+    """NULL 검증 항목 추가"""
+    if request.method == 'GET':
+        return render(request, 'accounts/null_checks_form.html', {
+            'admin_menu': 'null_checks',
+            'mode': 'create',
+            'row': None,
+        })
+    try:
+        data = json.loads(request.body)
+        category = data.get('category', '').strip()
+        check_name = data.get('check_name', '').strip()
+        table_name = data.get('table_name', '').strip()
+        check_column = data.get('check_column', '').strip()
+        check_type = data.get('check_type', 'both').strip()
+        date_column = data.get('date_column', '').strip()
+        display_columns = data.get('display_columns', '').strip()
+        query_columns = data.get('query_columns', '').strip()
+        query_days = int(data.get('query_days', 0) or 0)
+        is_active = data.get('is_active', True)
+        memo = data.get('memo', '').strip()
+
+        if not category or not check_name or not table_name or not check_column:
+            return JsonResponse({'success': False, 'error': 'category, check_name, table_name, check_column은 필수입니다.'})
+
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO monitoring_null_check
+                (category, check_name, table_name, check_column, check_type,
+                 date_column, display_columns, query_columns, query_days,
+                 is_active, created_id, updated_id, created_at, updated_at, memo)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (category, check_name, table_name, check_column, check_type,
+              date_column or None, display_columns or None, query_columns or None, query_days,
+              is_active, request.user.username, request.user.username, now, now, memo or None))
+        new_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        reload_null_check_config()
+        return JsonResponse({'success': True, 'id': new_id, 'message': 'NULL 검증 항목이 추가되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+def null_checks_update(request, check_id):
+    """NULL 검증 항목 수정"""
+    if request.method == 'GET':
+        try:
+            conn = get_dx_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, category, check_name, table_name, check_column, check_type,
+                       date_column, display_columns, query_columns, query_days,
+                       is_active, memo
+                FROM monitoring_null_check
+                WHERE id = %s AND is_del = false
+            """, (check_id,))
+            cols = [desc[0] for desc in cursor.description]
+            result = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            if not result:
+                return redirect('accounts:null_checks')
+            row = dict(zip(cols, result))
+        except Exception as e:
+            log_error(e, 'db')
+            return redirect('accounts:null_checks')
+        return render(request, 'accounts/null_checks_form.html', {
+            'admin_menu': 'null_checks',
+            'mode': 'update',
+            'row': row,
+        })
+    try:
+        data = json.loads(request.body)
+        category = data.get('category', '').strip()
+        check_name = data.get('check_name', '').strip()
+        table_name = data.get('table_name', '').strip()
+        check_column = data.get('check_column', '').strip()
+        check_type = data.get('check_type', 'both').strip()
+        date_column = data.get('date_column', '').strip()
+        display_columns = data.get('display_columns', '').strip()
+        query_columns = data.get('query_columns', '').strip()
+        query_days = int(data.get('query_days', 0) or 0)
+        is_active = data.get('is_active', True)
+        memo = data.get('memo', '').strip()
+
+        if not category or not check_name or not table_name or not check_column:
+            return JsonResponse({'success': False, 'error': 'category, check_name, table_name, check_column은 필수입니다.'})
+
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE monitoring_null_check
+            SET category = %s, check_name = %s, table_name = %s, check_column = %s,
+                check_type = %s, date_column = %s, display_columns = %s, query_columns = %s,
+                query_days = %s, is_active = %s, updated_id = %s, updated_at = %s, memo = %s
+            WHERE id = %s
+        """, (category, check_name, table_name, check_column, check_type,
+              date_column or None, display_columns or None, query_columns or None, query_days,
+              is_active, request.user.username, now, memo or None, check_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        reload_null_check_config()
+        return JsonResponse({'success': True, 'message': 'NULL 검증 항목이 수정되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def null_checks_delete(request, check_id):
+    """NULL 검증 항목 삭제 (soft delete)"""
+    try:
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE monitoring_null_check
+            SET is_del = true, is_active = false, updated_id = %s, updated_at = %s
+            WHERE id = %s
+        """, (request.user.username, now, check_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        reload_null_check_config()
+        return JsonResponse({'success': True, 'message': 'NULL 검증 항목이 삭제되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def null_checks_toggle(request, check_id):
+    """NULL 검증 항목 활성/비활성 토글"""
+    try:
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE monitoring_null_check
+            SET is_active = NOT is_active, updated_id = %s, updated_at = %s
+            WHERE id = %s
+            RETURNING is_active
+        """, (request.user.username, now, check_id))
+        new_status = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        reload_null_check_config()
+        status = '활성화' if new_status else '비활성화'
+        return JsonResponse({'success': True, 'is_active': new_status, 'message': f'NULL 검증 항목이 {status}되었습니다.'})
     except Exception as e:
         return safe_error(e, success=False)
 

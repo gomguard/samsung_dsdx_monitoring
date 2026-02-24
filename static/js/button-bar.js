@@ -111,6 +111,7 @@ class ButtonBar {
         el.className = cls;
         el.innerHTML = content;
         if (cfg.href) el.href = cfg.href;
+        if (cfg.padding) el.style.padding = cfg.padding;
         if (cfg.onClick) el.addEventListener('click', cfg.onClick);
         return el;
     }

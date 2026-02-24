@@ -29,6 +29,13 @@ urlpatterns = [
     path('admin/exclude-rules/<int:rule_id>/delete/', views.exclude_rules_delete, name='exclude_rules_delete'),
     path('admin/exclude-rules/<int:rule_id>/toggle/', views.exclude_rules_toggle, name='exclude_rules_toggle'),
 
+    # 관리자 페이지 - NULL 검증 관리
+    path('admin/null-checks/', views.null_checks, name='null_checks'),
+    path('admin/null-checks/create/', views.null_checks_create, name='null_checks_create'),
+    path('admin/null-checks/<int:check_id>/update/', views.null_checks_update, name='null_checks_update'),
+    path('admin/null-checks/<int:check_id>/delete/', views.null_checks_delete, name='null_checks_delete'),
+    path('admin/null-checks/<int:check_id>/toggle/', views.null_checks_toggle, name='null_checks_toggle'),
+
     # 관리자 페이지 - DS 스케줄 설정
     path('admin/schedule-settings/', views.schedule_settings, name='schedule_settings'),
     path('admin/schedule-settings/create/', views.schedule_settings_create, name='schedule_settings_create'),

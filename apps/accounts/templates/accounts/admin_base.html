@@ -230,6 +230,15 @@
                 </a>
             </li>
             <li>
+                <a href="{% url 'accounts:null_checks' %}" class="sidebar-menu-item {% if admin_menu == 'null_checks' %}active{% endif %}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+                        <path d="M9 11l3 3L22 4"/>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                    </svg>
+                    NULL 검증 관리
+                </a>
+            </li>
+            <li>
                 <a href="{% url 'accounts:exclude_rules' %}" class="sidebar-menu-item {% if admin_menu == 'exclude_rules' %}active{% endif %}">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
                         <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>

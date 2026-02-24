@@ -1,0 +1,339 @@
+{% extends 'accounts/admin_base.html' %}
+{% load static %}
+
+{% block title %}NULL 검증 관리 - 관리자{% endblock %}
+
+{% block admin_css %}
+<style>
+/* 페이지 헤더 */
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+.admin-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+.admin-title-sub { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+
+/* 배지 */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.badge-type { background: var(--bg-secondary); color: var(--text-secondary); }
+.badge-active { background: #dcfce7; color: #16a34a; cursor: pointer; }
+.badge-inactive { background: #fee2e2; color: #dc2626; cursor: pointer; }
+
+/* 흰색 카드 섹션 */
+.card-section {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+/* 비활성 행 */
+.ct tbody tr.inactive { opacity: 0.5; }
+
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div>
+    <div class="admin-header">
+        <div>
+            <h1 class="admin-title">NULL 검증 관리</h1>
+            <p class="admin-title-sub">NULL 검증 대상 컬럼을 관리합니다</p>
+        </div>
+    </div>
+
+    <!-- 필터바 (FilterBar) -->
+    <div id="filterBarArea"></div>
+
+    <!-- 버튼바 (ButtonBar) -->
+    <div id="buttonBarArea"></div>
+
+    <!-- 테이블 카드 -->
+    <div class="card-section">
+    <table class="ct ct-grid" id="ncTable" style="width:100%">
+        <colgroup>
+            <col style="width:40px">
+            <col style="width:45px">
+            <col style="width:90px">
+            <col style="width:13%">
+            <col style="width:14%">
+            <col style="width:14%">
+            <col style="width:65px">
+            <col style="width:55px">
+            <col style="width:65px">
+            <col style="width:80px">
+            <col style="width:130px">
+        </colgroup>
+        <thead>
+            <tr>
+                <th style="text-align:center"><input type="checkbox" id="checkAll"></th>
+                <th style="text-align:center">No</th>
+                <th>카테고리</th>
+                <th>체크명</th>
+                <th>테이블</th>
+                <th>체크 컬럼</th>
+                <th style="text-align:center">타입</th>
+                <th style="text-align:center">조회일</th>
+                <th style="text-align:center">상태</th>
+                <th>생성자</th>
+                <th>생성일</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            {% for row in rows %}
+            <tr ondblclick="location.href='/accounts/admin/null-checks/'+this.dataset.id+'/update/'" style="cursor:pointer"
+                data-id="{{ row.id }}"
+                data-category="{{ row.category }}"
+                data-check-name="{{ row.check_name }}"
+                data-table-name="{{ row.table_name }}"
+                data-check-column="{{ row.check_column }}"
+                data-check-type="{{ row.check_type }}"
+                data-date-column="{{ row.date_column|default:'' }}"
+                data-display-columns="{{ row.display_columns|default:'' }}"
+                data-query-columns="{{ row.query_columns|default:'' }}"
+                data-query-days="{{ row.query_days|default:0 }}"
+                data-active="{{ row.is_active }}"
+                data-memo="{{ row.memo|default:'' }}"
+                data-created-id="{{ row.created_id|default:'' }}"
+                class="{% if not row.is_active %}inactive{% endif %}">
+                <td class="ct-nc" style="text-align:center"><input type="checkbox" class="row-check" value="{{ row.id }}"></td>
+                <td class="col-no" style="text-align:center">{{ forloop.counter }}</td>
+                <td>{{ row.category }}</td>
+                <td><strong>{{ row.check_name }}</strong></td>
+                <td>{{ row.table_name }}</td>
+                <td><strong>{{ row.check_column }}</strong></td>
+                <td style="text-align:center"><span class="badge badge-type">{{ row.check_type }}</span></td>
+                <td style="text-align:center">{{ row.query_days|default:0 }}</td>
+                <td class="ct-nc" style="text-align:center">
+                    <span class="badge {% if row.is_active %}badge-active{% else %}badge-inactive{% endif %}" onclick="toggleCheck({{ row.id }})">
+                        {% if row.is_active %}활성{% else %}비활성{% endif %}
+                    </span>
+                </td>
+                <td>{{ row.created_id|default:'-' }}</td>
+                <td>{% if row.created_at %}{{ row.created_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block admin_js %}
+<script>
+// ========== FilterBar 초기화 ==========
+var filterBar = new FilterBar('#filterBarArea', {
+    sticky: false,
+    controls: [
+        { type: 'select', key: 'searchField', options: [
+            { value: '', label: '검색항목' },
+            { value: 'checkName', label: '체크명' },
+            { value: 'tableName', label: '테이블명' },
+            { value: 'checkColumn', label: '체크 컬럼' },
+            { value: 'createdId', label: '생성자' },
+        ] },
+        { type: 'input', key: 'filterSearch', placeholder: '체크명 / 컬럼명 검색...',
+          onEnter: function() { applyFilter(); } },
+        { type: 'select', key: 'filterCategory', options: [
+            { value: '', label: '전체 카테고리' },
+            { value: 'tv_retail', label: 'tv_retail' },
+            { value: 'hhp_retail', label: 'hhp_retail' },
+            { value: 'youtube', label: 'youtube' },
+            { value: 'market', label: 'market' },
+        ], onChange: function() { applyFilter(); } },
+        { type: 'select', key: 'filterActive', default: 'true', options: [
+            { value: '', label: '전체 상태' },
+            { value: 'true', label: '활성' },
+            { value: 'false', label: '비활성' },
+        ], onChange: function() { applyFilter(); } },
+    ],
+    onSearch: function() { applyFilter(); },
+    onReset: function() { applyFilter(); }
+}).render();
+
+// ========== ButtonBar 초기화 ==========
+new ButtonBar('#buttonBarArea', {
+    align: 'between',
+    margin: '0 0 12px 0',
+    buttons: [
+        { id: 'btnAdd', label: '추가', style: 'save', size: 'fb', padding: '8px 12px', position: 'left', onClick: function() { location.href = '/accounts/admin/null-checks/create/'; } },
+        { id: 'btnEdit', label: '수정', style: 'outline', size: 'fb', padding: '8px 12px', position: 'left', onClick: function() { editSelected(); } },
+        { id: 'btnDelete', label: '삭제', style: 'danger', size: 'fb', padding: '8px 12px', position: 'right', onClick: function() { deleteSelected(); } },
+    ]
+}).render();
+
+// ========== 필터 상태 sessionStorage 저장 ==========
+function saveFilterState() {
+    var params = new URLSearchParams();
+    var cat = filterBar.getValue('filterCategory');
+    var act = filterBar.getValue('filterActive');
+    var search = filterBar.getValue('filterSearch');
+    var field = filterBar.getValue('searchField');
+    if (cat) params.set('cat', cat);
+    if (act) params.set('act', act);
+    if (search) params.set('q', search);
+    if (field) params.set('field', field);
+    sessionStorage.setItem('nc_filter', params.toString());
+}
+
+// ========== 필터 ==========
+function applyFilter() {
+    var cat = filterBar.getValue('filterCategory');
+    var act = filterBar.getValue('filterActive');
+    var field = filterBar.getValue('searchField');
+    var search = (filterBar.getValue('filterSearch') || '').toLowerCase();
+
+    document.querySelectorAll('#tableBody tr').forEach(function(row) {
+        var show = true;
+        if (cat && row.dataset.category !== cat) show = false;
+        if (act === 'true' && row.dataset.active !== 'True' && row.dataset.active !== 'true') show = false;
+        if (act === 'false' && (row.dataset.active === 'True' || row.dataset.active === 'true')) show = false;
+        if (search) {
+            if (field) {
+                show = show && (row.dataset[field] || '').toLowerCase().includes(search);
+            } else {
+                show = show && (
+                    row.dataset.checkName.toLowerCase().includes(search) ||
+                    row.dataset.tableName.toLowerCase().includes(search) ||
+                    row.dataset.checkColumn.toLowerCase().includes(search) ||
+                    (row.dataset.createdId || '').toLowerCase().includes(search)
+                );
+            }
+        }
+        if (show) {
+            row.removeAttribute('data-filtered');
+        } else {
+            row.setAttribute('data-filtered', 'hidden');
+        }
+    });
+    // 체크박스 리셋
+    document.getElementById('checkAll').checked = false;
+    document.querySelectorAll('#tableBody .row-check').forEach(function(cb) { cb.checked = false; });
+    // 필터 상태 저장
+    saveFilterState();
+}
+
+// ========== 체크박스 ==========
+document.getElementById('checkAll').addEventListener('change', function() {
+    var checked = this.checked;
+    document.querySelectorAll('#tableBody tr:not([data-filtered]) .row-check').forEach(function(cb) {
+        cb.checked = checked;
+    });
+});
+
+function getSelectedRows() {
+    var rows = [];
+    document.querySelectorAll('#tableBody .row-check:checked').forEach(function(cb) {
+        rows.push(cb.closest('tr'));
+    });
+    return rows;
+}
+
+function editSelected() {
+    var rows = getSelectedRows();
+    if (rows.length === 0) { showToast('수정할 항목을 선택하세요.', 'warn'); return; }
+    if (rows.length > 1) { showToast('수정은 1개 항목만 선택하세요.', 'warn'); return; }
+    location.href = '/accounts/admin/null-checks/' + rows[0].dataset.id + '/update/';
+}
+
+function deleteSelected() {
+    var rows = getSelectedRows();
+    if (rows.length === 0) { showToast('삭제할 항목을 선택하세요.', 'warn'); return; }
+    var ids = rows.map(function(r) { return r.dataset.id; });
+    showConfirm(ids.length + '개 항목을 삭제하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        var promises = ids.map(function(id) {
+            return fetch('/accounts/admin/null-checks/' + id + '/delete/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+            }).then(function(r) { return r.json(); });
+        });
+        Promise.all(promises).then(function(results) {
+            var failed = results.filter(function(r) { return !r.success; });
+            if (failed.length > 0) showToast(failed.length + '개 삭제 실패', 'error');
+            reloadWithFilter();
+        });
+    });
+}
+
+// CSRF
+function getCsrfToken() {
+    return document.cookie.split('; ').find(function(r) { return r.startsWith('csrftoken='); })?.split('=')[1] || '';
+}
+
+
+// 필터 상태를 유지하며 새로고침
+function reloadWithFilter() {
+    var params = new URLSearchParams();
+    var cat = filterBar.getValue('filterCategory');
+    var act = filterBar.getValue('filterActive');
+    var search = filterBar.getValue('filterSearch');
+    if (cat) params.set('cat', cat);
+    if (act) params.set('act', act);
+    if (search) params.set('q', search);
+    var qs = params.toString();
+    location.href = location.pathname + (qs ? '?' + qs : '');
+}
+
+// 토글
+function toggleCheck(id) {
+    showConfirm('상태를 변경하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        fetch('/accounts/admin/null-checks/' + id + '/toggle/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.success) reloadWithFilter();
+            else showToast(res.error, 'error');
+        });
+    });
+}
+
+// URL 파라미터 또는 sessionStorage에서 필터 복원
+(function() {
+    var params = new URLSearchParams(location.search);
+    var fromForm = /\/null-checks\/(create\/|\d+\/update\/)/.test(document.referrer);
+    if (!params.toString() && fromForm) {
+        var saved = sessionStorage.getItem('nc_filter');
+        if (saved) params = new URLSearchParams(saved);
+    }
+    if (!fromForm && !params.toString()) {
+        sessionStorage.removeItem('nc_filter');
+    }
+    if (params.get('field')) filterBar.setValue('searchField', params.get('field'));
+    if (params.get('cat')) filterBar.setValue('filterCategory', params.get('cat'));
+    if (params.get('act')) filterBar.setValue('filterActive', params.get('act'));
+    if (params.get('q')) filterBar.setValue('filterSearch', params.get('q'));
+})();
+
+// 초기화
+enableColumnResize('#ncTable');
+var pager = enablePagination('#tableBody', {
+    perPage: 25,
+    showInfo: false,
+    onRender: function(visibleRows, start) {
+        visibleRows.forEach(function(row, i) {
+            var noCell = row.querySelector('.col-no');
+            if (noCell) noCell.textContent = start + i + 1;
+        });
+    }
+});
+
+// 필터 후 페이지네이션 갱신
+var _origApplyFilter = applyFilter;
+applyFilter = function() {
+    _origApplyFilter();
+    if (pager) pager.reset();
+};
+
+// 초기 필터 적용
+_origApplyFilter();
+if (pager) pager.reset();
+</script>
+{% endblock %}

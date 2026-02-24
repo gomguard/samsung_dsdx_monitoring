@@ -1,0 +1,251 @@
+{% extends 'accounts/admin_base.html' %}
+{% load static %}
+
+{% block title %}{% if mode == 'create' %}항목 추가{% else %}항목 수정{% endif %} - NULL 검증 관리{% endblock %}
+
+{% block admin_css %}
+<style>
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+.admin-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+.admin-title-sub { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+
+.card-section {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.nc-form .form-group { margin-bottom: 20px; }
+.nc-form .form-group label {
+    display: block; font-size: 13px; font-weight: 600;
+    color: var(--text-secondary); margin-bottom: 6px;
+}
+.nc-form .form-group input,
+.nc-form .form-group select,
+.nc-form .form-group textarea {
+    width: 100%; padding: 10px 14px;
+    border: 1px solid var(--border-color); border-radius: 8px;
+    font-size: 14px; background: var(--bg-primary); color: var(--text-primary);
+    box-sizing: border-box;
+}
+.nc-form .form-group input:focus,
+.nc-form .form-group select:focus,
+.nc-form .form-group textarea:focus {
+    outline: none; border-color: var(--page-color);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+.nc-form .form-group textarea { resize: vertical; font-family: inherit; line-height: 1.5; }
+.nc-form .form-hint { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 4px; opacity: 0.7; }
+.nc-form .form-row { display: flex; gap: 20px; }
+.nc-form .form-row .form-group { flex: 1; }
+.nc-form .form-checkbox { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+.nc-form .form-checkbox input[type="checkbox"] { width: 18px; height: 18px; }
+.nc-form .form-checkbox label { font-size: 14px; color: var(--text-primary); margin-bottom: 0; }
+.nc-form .form-actions { display: flex; justify-content: flex-end; margin-top: 32px; }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div>
+    <div class="admin-header">
+        <div>
+            <h1 class="admin-title">{% if mode == 'create' %}항목 추가{% else %}항목 수정{% endif %}</h1>
+            <p class="admin-title-sub">NULL 검증 대상 컬럼 정보를 입력합니다</p>
+        </div>
+    </div>
+
+    <div id="buttonBarArea"></div>
+
+    <div class="card-section">
+        <div class="nc-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>카테고리 *</label>
+                    <select id="formCategory">
+                        <option value="tv_retail" {% if row.category == 'tv_retail' %}selected{% endif %}>tv_retail</option>
+                        <option value="hhp_retail" {% if row.category == 'hhp_retail' %}selected{% endif %}>hhp_retail</option>
+                        <option value="youtube" {% if row.category == 'youtube' %}selected{% endif %}>youtube</option>
+                        <option value="market" {% if row.category == 'market' %}selected{% endif %}>market</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>체크 타입 *</label>
+                    <select id="formCheckType">
+                        <option value="both" {% if row.check_type == 'both' %}selected{% endif %}>both (NULL + 빈값)</option>
+                        <option value="null" {% if row.check_type == 'null' %}selected{% endif %}>null (NULL만)</option>
+                        <option value="empty" {% if row.check_type == 'empty' %}selected{% endif %}>empty (빈값만)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>체크명 *</label>
+                    <input type="text" id="formCheckName" placeholder="예: amazon_tv" value="{{ row.check_name|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label>테이블명 *</label>
+                    <input type="text" id="formTableName" placeholder="예: tv_retail_com" value="{{ row.table_name|default:'' }}">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>체크 컬럼 *</label>
+                    <input type="text" id="formCheckColumn" placeholder="예: screen_size" value="{{ row.check_column|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label>날짜 컬럼</label>
+                    <input type="text" id="formDateColumn" placeholder="예: crawl_datetime" value="{{ row.date_column|default:'' }}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>표시 컬럼 (display_columns)</label>
+                <input type="text" id="formDisplayColumns" placeholder="예: id|item|screen_size" value="{{ row.display_columns|default:'' }}">
+                <span class="form-hint">상세보기에 표시할 컬럼 — | 로 구분</span>
+            </div>
+
+            <div class="form-group">
+                <label>쿼리 컬럼 (query_columns)</label>
+                <input type="text" id="formQueryColumns" placeholder="예: id|account_name|item" value="{{ row.query_columns|default:'' }}">
+                <span class="form-hint">복사 쿼리용 컬럼 — | 로 구분</span>
+            </div>
+
+            <div class="form-group">
+                <label>조회 일수</label>
+                <input type="number" id="formQueryDays" value="{{ row.query_days|default:0 }}" min="0">
+                <span class="form-hint">0이면 당일만 조회</span>
+            </div>
+
+            <div class="form-group">
+                <label>메모</label>
+                <textarea id="formMemo" rows="3" placeholder="메모를 입력하세요">{{ row.memo|default:'' }}</textarea>
+            </div>
+
+            <div class="form-checkbox">
+                <input type="checkbox" id="formIsActive" {% if row.is_active or mode == 'create' %}checked{% endif %}>
+                <label for="formIsActive">활성</label>
+            </div>
+
+            <div class="form-actions">
+                <button class="app-btn app-btn-fb app-btn-save" onclick="saveCheck()">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+var MODE = '{{ mode }}';
+var CHECK_ID = '{{ row.id|default:"" }}';
+
+// ========== ButtonBar ==========
+new ButtonBar('#buttonBarArea', {
+    align: 'left',
+    margin: '0 0 16px 0',
+    buttons: [
+        { id: 'btnBack', label: '← 목록', style: 'back', size: 'fb', onClick: function() { goBackToList(); } },
+    ]
+}).render();
+
+// ========== 원본 데이터 (수정 시 변경 감지용) ==========
+var _originalData = null;
+{% if mode == 'update' and row %}
+_originalData = {
+    category: '{{ row.category|escapejs }}',
+    check_name: '{{ row.check_name|escapejs }}',
+    table_name: '{{ row.table_name|escapejs }}',
+    check_column: '{{ row.check_column|escapejs }}',
+    check_type: '{{ row.check_type|escapejs }}',
+    date_column: '{{ row.date_column|default:""|escapejs }}',
+    display_columns: '{{ row.display_columns|default:""|escapejs }}',
+    query_columns: '{{ row.query_columns|default:""|escapejs }}',
+    query_days: '{{ row.query_days|default:0 }}',
+    memo: '{{ row.memo|default:""|escapejs }}',
+    is_active: {{ row.is_active|yesno:"true,false" }},
+};
+{% endif %}
+
+function getCsrfToken() {
+    return document.cookie.split('; ').find(function(r) { return r.startsWith('csrftoken='); })?.split('=')[1] || '';
+}
+
+function saveCheck() {
+    var data = {
+        category: document.getElementById('formCategory').value,
+        check_name: document.getElementById('formCheckName').value.trim(),
+        table_name: document.getElementById('formTableName').value.trim(),
+        check_column: document.getElementById('formCheckColumn').value.trim(),
+        check_type: document.getElementById('formCheckType').value,
+        date_column: document.getElementById('formDateColumn').value.trim(),
+        display_columns: document.getElementById('formDisplayColumns').value.trim(),
+        query_columns: document.getElementById('formQueryColumns').value.trim(),
+        query_days: parseInt(document.getElementById('formQueryDays').value) || 0,
+        memo: document.getElementById('formMemo').value.trim(),
+        is_active: document.getElementById('formIsActive').checked,
+    };
+
+    if (!data.check_name || !data.table_name || !data.check_column) {
+        showToast('체크명, 테이블명, 체크 컬럼은 필수입니다.', 'warn');
+        return;
+    }
+
+    if (MODE === 'update' && _originalData) {
+        var hasChange = Object.keys(data).some(function(k) {
+            if (typeof data[k] === 'boolean') return data[k] !== _originalData[k];
+            return String(data[k] || '') !== String(_originalData[k] || '');
+        });
+        if (!hasChange) {
+            showToast('변경된 데이터가 없습니다.', 'info');
+            return;
+        }
+    }
+
+    var url = MODE === 'update'
+        ? '/accounts/admin/null-checks/' + CHECK_ID + '/update/'
+        : '/accounts/admin/null-checks/create/';
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(function(r) {
+        if (!r.ok) return r.text().then(function(t) { throw new Error('서버 ' + r.status + ': ' + t.substring(0, 200)); });
+        return r.json();
+    })
+    .then(function(res) {
+        if (res.success) {
+            showToast(res.message || '저장되었습니다.', 'success');
+            if (MODE === 'create' && res.id) {
+                // 생성 후 수정 페이지로 전환
+                MODE = 'update';
+                CHECK_ID = res.id;
+                history.replaceState(null, '', '/accounts/admin/null-checks/' + res.id + '/update/');
+                document.querySelector('.admin-title').textContent = '항목 수정';
+            }
+            // _originalData 갱신 (이후 변경 감지용)
+            _originalData = JSON.parse(JSON.stringify(data));
+        } else {
+            showToast(res.error || '오류가 발생했습니다.', 'error');
+        }
+    })
+    .catch(function(err) { showToast('요청 오류: ' + err.message, 'error'); });
+}
+
+// 목록으로 돌아갈 때 필터 복원
+function goBackToList() {
+    var saved = sessionStorage.getItem('nc_filter');
+    location.href = '/accounts/admin/null-checks/' + (saved ? '?' + saved : '');
+}
+</script>
+{% endblock %}

@@ -191,6 +191,7 @@ class CommonTable {
 
 function enablePagination(tbodySelector, options = {}) {
     const perPage = options.perPage || 25;
+    const showInfo = options.showInfo !== undefined ? options.showInfo : true;
     const onRender = options.onRender || null;
     const tbody = typeof tbodySelector === 'string'
         ? document.querySelector(tbodySelector)
@@ -248,7 +249,7 @@ function enablePagination(tbodySelector, options = {}) {
         const start = (currentPage - 1) * perPage + 1;
         const end = Math.min(currentPage * perPage, totalItems);
 
-        let html = `<span class="pagination-info">${totalItems}개 중 ${start}-${end}</span>`;
+        let html = showInfo ? `<span class="pagination-info">${totalItems}개 중 ${start}-${end}</span>` : '';
         html += '<div class="pagination-buttons">';
 
         // 이전

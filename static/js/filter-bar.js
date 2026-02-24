@@ -33,15 +33,29 @@
  * bar.nextDay();               // 하루 후
  * bar.getValue('key');         // 컨트롤 값 반환
  * bar.setValue('key', 'val');  // 컨트롤 값 설정
+ * bar.reset();                // 모든 컨트롤을 default 값으로 초기화
+ *
+ * 조회 / 해제 버튼 (onSearch, onReset 옵션):
+ *   onSearch 지정 시 "조회" 버튼 자동 추가 (searchLabel로 라벨 변경 가능)
+ *   onReset 지정 시 "해제" 버튼 자동 추가 (resetLabel로 라벨 변경 가능)
+ *   해제 클릭 시 모든 컨트롤을 default로 복원 후 onReset 콜백 호출
+ *
+ *   new FilterBar('#el', {
+ *       controls: [
+ *           { type: 'select', key: 'status', default: 'active', options: [...] },
+ *       ],
+ *       onSearch: () => applyFilter(),    // "조회" 버튼 자동 생성
+ *       onReset: () => applyFilter(),     // "해제" 버튼 자동 생성
+ *   }).render();
  *
  * ============================================================
  * 컨트롤 타입
  * ============================================================
  *
- * date   : { type: 'date', key, label, value, showWeekday: true }
+ * date   : { type: 'date', key, label, value, default, showWeekday: true }
  * button : { type: 'button', label, style, size, bg, color, border, padding, onClick }
- * select : { type: 'select', key, label, options: [{value, label}], onChange }
- * input  : { type: 'input', key, label, placeholder, value, onEnter }
+ * select : { type: 'select', key, label, default, options: [{value, label}], onChange }
+ * input  : { type: 'input', key, label, placeholder, value, default, onEnter }
  * toggle : { type: 'toggle', options: ['A','B'], default: 0, onClick: (label, index) => {} }
  * custom : { type: 'custom', html: '<div>...</div>' }
  *
@@ -59,6 +73,7 @@ class FilterBar {
             ...options
         };
         this.elements = {};
+        this._defaults = {};
         this.barEl = null;
     }
 
@@ -86,6 +101,26 @@ class FilterBar {
         this.options.controls.forEach(ctrl => {
             left.appendChild(this._createControl(ctrl));
         });
+
+        // onSearch 지정 시 "조회" 버튼 자동 추가
+        if (this.options.onSearch) {
+            left.appendChild(this._createButton({
+                label: this.options.searchLabel || '조회',
+                style: 'primary', size: 'fb',
+                onClick: this.options.onSearch
+            }));
+        }
+
+        // onReset 지정 시 "해제" 버튼 자동 추가
+        if (this.options.onReset) {
+            var self = this;
+            left.appendChild(this._createButton({
+                label: this.options.resetLabel || '해제',
+                style: 'cancel', size: 'fb',
+                onClick: function() { self.reset(); }
+            }));
+        }
+
         bar.appendChild(left);
 
         // 우측 컨트롤
@@ -102,6 +137,13 @@ class FilterBar {
         this.container.innerHTML = '';
         this.container.appendChild(bar);
         this.barEl = bar;
+
+        // default 값이 지정된 컨트롤에 초기값 적용
+        for (var key in this._defaults) {
+            if (this._defaults[key] && this.elements[key]) {
+                this.elements[key].value = this._defaults[key];
+            }
+        }
 
         return this;
     }
@@ -140,7 +182,10 @@ class FilterBar {
         if (ctrl.max) input.max = ctrl.max;
         wrapper.appendChild(input);
 
-        if (ctrl.key) this.elements[ctrl.key] = input;
+        if (ctrl.key) {
+            this.elements[ctrl.key] = input;
+            this._defaults[ctrl.key] = ctrl.default !== undefined ? ctrl.default : (ctrl.value || '');
+        }
 
         // 요일 표시 옵션
         if (ctrl.showWeekday) {
@@ -188,7 +233,10 @@ class FilterBar {
         }
 
         wrapper.appendChild(input);
-        if (ctrl.key) this.elements[ctrl.key] = input;
+        if (ctrl.key) {
+            this.elements[ctrl.key] = input;
+            this._defaults[ctrl.key] = ctrl.default !== undefined ? ctrl.default : (ctrl.value || '');
+        }
 
         return wrapper;
     }
@@ -254,7 +302,12 @@ class FilterBar {
         }
         wrapper.appendChild(select);
 
-        if (ctrl.key) this.elements[ctrl.key] = select;
+        if (ctrl.key) {
+            this.elements[ctrl.key] = select;
+            var defaultVal = ctrl.default !== undefined ? ctrl.default
+                : (ctrl.options && ctrl.options.length > 0 ? ctrl.options[0].value : '');
+            this._defaults[ctrl.key] = defaultVal;
+        }
 
         return wrapper;
     }
@@ -345,6 +398,15 @@ class FilterBar {
         if (input.max && next > input.max) return this;
         input.value = next;
         input.dispatchEvent(new Event('change'));
+        return this;
+    }
+
+    reset() {
+        for (var key in this._defaults) {
+            var el = this.elements[key];
+            if (el) el.value = this._defaults[key];
+        }
+        if (this.options.onReset) this.options.onReset();
         return this;
     }
 }
