@@ -1,0 +1,278 @@
+{% extends 'layer1/base_layer1.html' %}
+{% block page_title %}Market 수요증감율{% endblock %}
+
+{% block layer1_content %}
+<div class="checks-section" id="summary-view">
+    <div id="section-content">
+        <div class="check-item">
+            <div class="check-main"><div class="check-info"><div class="check-name">로딩 중...</div></div></div>
+        </div>
+    </div>
+</div>
+
+{% include 'layer1/includes/_raw_data_view.html' with back_url='/layer1/market-demand/' %}
+{% endblock %}
+
+{% block layer1_js %}
+<script>
+// ============================================================
+// Render: Market Demand Check
+// ============================================================
+function renderMarketDemandCheck(check, checkIdx) {
+    const statusClass = getStatusClass(check.status);
+    const hasCategories = check.categories && check.categories.length > 0;
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 23:00 KST 2026-01-06 13:00
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '23:00';
+    const krTime = check.kr_time || '';
+
+    // 수집 시간 헤더 (Market Trend와 동일)
+    const timeHeader = `
+        <div class="time-slot-item" style="margin-bottom: 16px;">
+            <div class="time-slot-header" style="cursor: default;">
+                <div class="time-slot-info">
+                    <span class="time-slot-name">수집 시간</span>
+                    <span class="time-slot-time">
+                        <span class="utc">US(NY) ${usTime}</span>
+                        <span class="kst">${kstLabel} ${krTime}</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    `;
+
+    let contentHtml = '';
+    const isPending = check.status === 'PENDING';
+    const isCollecting = check.status === 'COLLECTING';
+
+    if (hasCategories) {
+        // TV, HHP 순서로 정렬
+        const sortOrder = ['TV', 'HHP'];
+        const sortedCategories = [...check.categories].sort((a, b) => {
+            const aIdx = sortOrder.indexOf(a.category);
+            const bIdx = sortOrder.indexOf(b.category);
+            if (aIdx === -1 && bIdx === -1) return 0;
+            if (aIdx === -1) return 1;
+            if (bIdx === -1) return -1;
+            return aIdx - bIdx;
+        });
+
+        contentHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${timeHeader}
+                <div class="sentiment-two-column show no-side-padding no-bg">
+                    ${sortedCategories.map((cat, catIdx) => {
+                        const catStatusClass = getStatusClass(cat.status);
+                        const missingCount = cat.target - cat.collected;
+                        return `
+                            <div class="sentiment-column ${catStatusClass}">
+                                <a class="sentiment-column-header" href="/layer1/market-demand/?category=${encodeURIComponent(cat.category)}&date=${getSelectedDate()}" style="cursor: pointer; text-decoration: none; color: inherit;">
+                                    <span class="sentiment-column-title">${cat.category}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.target.toLocaleString()}</span>
+                                        <span class="sentiment-column-rate ${catStatusClass}">${cat.rate}%</span>
+                                        ${getStatusBadge(cat.status)}
+                                    </div>
+                                </a>
+                                ${missingCount > 0 ? `
+                                <div class="sentiment-column-actions" style="padding: 8px 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+                                    <a class="btn-missing-keywords" href="/layer1/market-demand/?category=${encodeURIComponent(cat.category)}&view=missing&date=${getSelectedDate()}" style="font-size: 12px; padding: 4px 8px; background: rgba(255,100,100,0.2); border: 1px solid rgba(255,100,100,0.5); color: #ff6b6b; border-radius: 4px; cursor: pointer; text-decoration: none;">
+                                        부족 키워드 보기 (${missingCount}건)
+                                    </a>
+                                </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    } else {
+        const defaultCategories = ['TV', 'HHP'];
+        contentHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${timeHeader}
+                <div class="sentiment-two-column show no-side-padding no-bg">
+                    ${defaultCategories.map(catName => `
+                        <div class="sentiment-column pending">
+                            <div class="sentiment-column-header">
+                                <span class="sentiment-column-title">${catName}</span>
+                                <div class="sentiment-column-stats">
+                                    <span class="sentiment-column-count">0/0</span>
+                                    <span class="sentiment-column-rate pending">0%</span>
+                                    <span class="status-badge pending"><span class="status-dot"></span>대기중</span>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="check-item">
+            <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
+                <div class="check-info">
+                    <div class="check-name">
+                        <span class="toggle-icon">▶</span>
+                        ${esc(check.name)}
+                    </div>
+                    <div class="check-description">${esc(check.description)}</div>
+                </div>
+                <div class="check-criteria">
+                    <span class="criteria-item ok">정상: 100%</span>
+                    <span class="criteria-item critical">심각: 100% 미만</span>
+                </div>
+                <div class="check-stats">
+                    <div class="check-stat">
+                        <div class="value ${statusClass}">${check.rate || 0}%</div>
+                        <div class="label">수집률</div>
+                    </div>
+                    ${getStatusBadge(check.status)}
+                </div>
+            </div>
+            ${contentHtml}
+        </div>
+    `;
+}
+
+// ============================================================
+// Raw Data View
+// ============================================================
+
+var rawView = new RawDataView({
+    apiUrl: '/layer1/api/market-demand-raw-data/',
+    backUrl: '/layer1/market-demand/',
+    title: function(p) { return 'Market Demand - ' + p.category; },
+    urlParams: ['category'],
+    onInit: function(params) {
+        if (params.get('view') === 'missing' && params.get('category')) {
+            showMissingView(params.get('category'));
+            return true;
+        }
+        return false;
+    }
+});
+
+function showMissingView(category) {
+    var currentDate = getSelectedDate();
+
+    document.getElementById('filter-bar-container').style.display = 'none';
+    document.getElementById('summary-view').style.display = 'none';
+    document.getElementById('raw-data-view').style.display = '';
+
+    document.getElementById('raw-data-title').textContent = '수요증감율 부족 키워드 - ' + category;
+
+    var countEl = document.getElementById('rawDataCount');
+    var wrapperEl = document.getElementById('rawDataTableWrapper');
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+    document.getElementById('rawDataPagination').innerHTML = '';
+    document.getElementById('raw-data-filter-bar').innerHTML = '';
+
+    var url = '/layer1/api/market-demand-missing/?category=' + encodeURIComponent(category) +
+              '&date=' + encodeURIComponent(currentDate);
+
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.error) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(data.error) + '</div>';
+                return;
+            }
+
+            var missingData = data.missing_keywords || [];
+
+            var summaryHtml = '';
+            if (data.summary) {
+                var summaryParts = [];
+                for (var cat in data.summary) {
+                    var s = data.summary[cat];
+                    summaryParts.push(cat + ': ' + s.missing + '/' + s.total + '건 부족');
+                }
+                summaryHtml = summaryParts.length > 0 ? ' (' + summaryParts.join(', ') + ')' : '';
+            }
+            countEl.innerHTML = '총 <strong>' + (data.total_missing || 0).toLocaleString() + '</strong>건 부족' + summaryHtml;
+
+            if (missingData.length === 0) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">부족한 키워드가 없습니다</div>';
+                return;
+            }
+
+            // CommonTable로 미수집 키워드 테이블 생성
+            var missingColumns = [
+                { key: '_no', label: 'No.', width: 50, sortable: false, align: 'center' },
+                { key: 'category', label: '카테고리', width: 80, sortable: true },
+                { key: 'product_name', label: '제품명', sortable: true },
+                { key: 'event_name', label: '이벤트명', sortable: true },
+                { key: 'event_date', label: '이벤트일자', width: 120, sortable: true }
+            ];
+
+            var missingTable = new CommonTable('#rawDataTableWrapper', {
+                variant: 'detail',
+                columns: missingColumns,
+                vlines: true,
+                padding: '10px 12px'
+            });
+            missingTable.render();
+
+            missingTable.renderBody(missingData, function(item, i) {
+                return '<tr>' +
+                    '<td style="text-align:center">' + (i + 1) + '</td>' +
+                    '<td>' + esc(item.category || '') + '</td>' +
+                    '<td>' + esc(item.product_name || '') + '</td>' +
+                    '<td>' + esc(item.event_name || '') + '</td>' +
+                    '<td>' + esc(item.event_date || '') + '</td>' +
+                '</tr>';
+            });
+        })
+        .catch(function(error) {
+            wrapperEl.innerHTML = '<div class="raw-data-empty">데이터를 불러오는데 실패했습니다.</div>';
+            console.error('Error:', error);
+        });
+}
+
+// ============================================================
+// Section Data Loading
+// ============================================================
+async function loadSectionData() {
+    if (rawView.checkUrlAndShow()) return;
+
+    try {
+        var selectedDate = getSelectedDate();
+        try { currentCheckStatus = await loadCheckStatus(selectedDate); }
+        catch (e) { currentCheckStatus = null; }
+
+        var response = await fetch('/layer1/api/stats/?date=' + selectedDate + '&check_type=market_demand');
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var data = await response.json();
+        currentStatsData = data;
+
+        var check = data.checks ? data.checks.find(function(c) { return c.check_type === 'market_demand'; }) : null;
+        var checkIdx = check ? data.checks.indexOf(check) : 0;
+        if (!check) check = { name: 'Market 수요증감율', description: '데이터 없음', check_type: 'market_demand', status: 'PENDING', categories: [] };
+
+        var container = document.getElementById('section-content');
+        var html = renderMarketDemandCheck(check, checkIdx);
+        html = html.replace('<div class="check-item">', '<div class="check-item" data-check-type="market_demand">');
+        container.innerHTML = html;
+        addCheckBadges();
+        expandSectionContent();
+    } catch (error) {
+        console.error('Load failed:', error);
+        document.getElementById('section-content').innerHTML = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 로드 실패</div><div class="check-description">' + esc(error.message) + '</div></div></div></div>';
+    }
+}
+
+function loadAllData() { loadSectionData(); }
+
+window.onload = function() {
+    var urlDate = new URLSearchParams(window.location.search).get('date');
+    if (urlDate) localStorage.setItem('monitoringSelectedDate', urlDate);
+    initFilterBar();
+    loadAllData();
+};
+</script>
+{% endblock %}

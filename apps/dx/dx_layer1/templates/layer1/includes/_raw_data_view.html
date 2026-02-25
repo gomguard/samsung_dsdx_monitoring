@@ -1,0 +1,16 @@
+<div id="raw-data-view" style="display:none;">
+    <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+        <a href="{{ back_url }}" class="app-btn app-btn-md app-btn-back">&larr; 뒤로가기</a>
+        <h3 id="raw-data-title" style="margin: 0; font-size: 16px; font-weight: 600;"></h3>
+    </div>
+    <div id="raw-data-filter-bar"></div>
+    <div class="checks-section" style="overflow: hidden;">
+        <div class="raw-data-table-wrapper" id="rawDataTableWrapper" style="overflow: auto;">
+            <div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>
+        </div>
+        <div style="padding: 16px 10px;">
+            <div class="raw-data-count" id="rawDataCount" style="padding-left: 0; padding-right: 0; border-bottom: none;"></div>
+            <div id="rawDataPagination"></div>
+        </div>
+    </div>
+</div>

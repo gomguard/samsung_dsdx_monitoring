@@ -63,6 +63,7 @@
    ============================================================ */
 .ct {
     width: 100%;
+    min-width: 100%;
     table-layout: fixed;
     border-collapse: collapse;
     font-size: 13px;
@@ -73,6 +74,7 @@
     text-align: left;
     border-bottom: 1px solid var(--border-color);
 }
+
 
 .ct th {
     padding: 12px 16px;
@@ -96,6 +98,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* 셀 클릭 선택 */
+.ct td.ct-selected {
+    background: #dbeafe;
+    outline: 2px solid #3b82f6;
+    outline-offset: -2px;
+}
+
+.ct td.ct-selected::selection {
+    background: transparent;
+    color: inherit;
 }
 
 /* ellipsis 해제 (체크박스, 아이콘 등 비텍스트 셀용) */
@@ -189,6 +203,19 @@
 
 .ct-list tbody tr.selected {
     background: rgba(124, 58, 237, 0.1);
+}
+
+/* ============================================================
+   Modifier: vlines (세로선)
+   ============================================================ */
+.ct.ct-vlines th,
+.ct.ct-vlines td {
+    border-right: 1px solid var(--border-color);
+}
+
+.ct.ct-vlines th:last-child,
+.ct.ct-vlines td:last-child {
+    border-right: none;
 }
 
 /* ============================================================

@@ -1,0 +1,773 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Layer 1: {{ layer.name }} - {% block page_title %}대시보드{% endblock %}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/layer1.css' %}?v=1">
+<style>
+    :root {
+        --page-color: {{ layer.color }};
+        --layer-color: {{ layer.color }};
+    }
+
+    .layer-header {
+        background: {{ layer.color }};
+        color: white;
+        padding: 32px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+    }
+
+    .layer-header-content {
+        display: flex;
+        align-items: center;
+        gap: 24px;
+    }
+
+    .layer-badge {
+        width: 64px;
+        height: 64px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 800;
+    }
+
+    .layer-info h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .layer-info p {
+        opacity: 0.9;
+        font-size: 14px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    @media (max-width: 768px) {
+        .stats-grid { grid-template-columns: 1fr; }
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        border: 1px solid var(--border-color);
+    }
+
+    .stat-card .label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+    }
+
+    .stat-card .value {
+        font-size: 28px;
+        font-weight: 700;
+    }
+
+    .checks-section {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        margin-bottom: 24px;
+        overflow: hidden;
+    }
+
+    .checks-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        font-weight: 600;
+    }
+
+    .check-item { border-bottom: 1px solid var(--border-color); }
+    .check-item:last-child { border-bottom: none; }
+
+    .check-main {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 24px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .check-main:hover { background: var(--bg-primary); }
+    .check-info { flex: 1; }
+    .check-name { font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .check-name .toggle-icon { font-size: 12px; color: var(--text-secondary); transition: transform 0.2s; }
+    .check-name .toggle-icon.expanded { transform: rotate(90deg); }
+    .check-detail-link { font-size: 13px; color: var(--text-secondary); text-decoration: none; white-space: nowrap; }
+    .check-detail-link:hover { color: var(--primary-color); }
+    .check-description { font-size: 13px; color: var(--text-secondary); }
+    .check-stats { display: flex; align-items: center; gap: 24px; }
+    .check-stat { text-align: center; }
+    .check-stat .value { font-size: 18px; font-weight: 700; }
+    .check-stat .label { font-size: 11px; color: var(--text-secondary); }
+
+    .time-slots-container { display: none; background: var(--bg-primary); padding: 16px 24px; }
+    .time-slots-container.show { display: block; }
+    .time-slot-item { background: white; border-radius: 8px; margin-bottom: 12px; border: 1px solid var(--border-color); overflow: hidden; }
+    .time-slot-item:last-child { margin-bottom: 0; }
+    .time-slot-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; cursor: pointer; transition: background 0.2s; }
+    .time-slot-header:hover { background: #e8e8e8; }
+    .time-slot-info { display: flex; align-items: center; gap: 12px; }
+    .time-slot-name { font-weight: 600; font-size: 14px; }
+    .time-slot-time { font-size: 12px; color: var(--text-secondary); display: flex; gap: 8px; }
+    .time-slot-time .utc { color: var(--color-layer2); }
+    .time-slot-time .kst { color: var(--color-layer1); }
+    .time-slot-stats { display: flex; align-items: center; gap: 16px; }
+    .time-slot-count { font-weight: 700; font-size: 16px; }
+
+    .retailer-details { display: none; padding: 12px 20px 16px; background: var(--bg-primary); border-top: 1px solid var(--border-color); }
+    .retailer-details.show { display: block; }
+    .retailer-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .youtube-category-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+
+    @media (max-width: 768px) {
+        .retailer-grid { grid-template-columns: 1fr; }
+        .youtube-category-grid { grid-template-columns: 1fr; }
+    }
+
+    .retailer-card { background: white; border-radius: 8px; padding: 16px; border: 1px solid var(--border-color); }
+    .retailer-card.ok { border-left: 4px solid var(--color-ok); }
+    .retailer-card.warning { border-left: 4px solid var(--color-warning); }
+    .retailer-card.critical { border-left: 4px solid var(--color-critical); }
+    .retailer-name { font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .retailer-count { font-size: 24px; font-weight: 700; }
+    .retailer-expected { font-size: 13px; color: var(--text-secondary); }
+
+    .failed-section { background: white; border-radius: 12px; border: 1px solid var(--border-color); }
+    .failed-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; }
+    .failed-count { background: var(--color-critical); color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    .failed-count.warning { background: var(--color-warning); }
+    .failed-count.ok { background: var(--color-ok); }
+
+    .toggle-icon-small { font-size: 10px; color: var(--text-secondary); transition: transform 0.2s; margin-right: 8px; }
+    .toggle-icon-small.expanded { transform: rotate(90deg); }
+
+    /* NULL 컬럼 카드 */
+    .null-summary { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; margin-top: 12px; overflow: hidden; }
+    .null-summary-title { font-size: 13px; font-weight: 600; color: #92400e; padding: 10px 16px; }
+    .null-summary-table-wrap { padding: 0 16px 12px; }
+    .null-summary-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .null-summary-table th { padding: 8px 16px; background: #fef3c7; border: 1px solid #fde68a; font-weight: 600; color: #92400e; text-align: left; }
+    .null-summary-table td { padding: 8px 16px; background: #fff; border: 1px solid #fde68a; color: #78350f; }
+    .null-summary-table td.null-col-cell { font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; }
+
+    /* 검수 확인 배지 */
+    .check-badge-inline { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; }
+    .btn-check-confirm { padding: 4px 14px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg-secondary); color: var(--text-secondary); transition: all 0.15s; flex-shrink: 0; }
+    .btn-check-confirm:hover { border-color: var(--page-color); color: var(--page-color); background: var(--bg-primary); }
+    .btn-check-confirm.checked { background: var(--page-color); color: white; border-color: var(--page-color); }
+    .btn-check-confirm.checked:hover { opacity: 0.85; }
+
+    /* Threshold */
+    .threshold-info { background: white; border-radius: 12px; padding: 16px 24px; border: 1px solid var(--border-color); margin-bottom: 24px; }
+    .threshold-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; }
+    .threshold-items { display: flex; gap: 16px; flex-wrap: wrap; }
+    .threshold-item { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+    .threshold-item::before { content: ''; width: 8px; height: 8px; border-radius: 50%; }
+    .threshold-item.ok { background: rgba(16, 185, 129, 0.1); color: var(--color-ok); }
+    .threshold-item.ok::before { background: var(--color-ok); }
+    .threshold-item.warning { background: rgba(245, 158, 11, 0.1); color: var(--color-warning); }
+    .threshold-item.warning::before { background: var(--color-warning); }
+    .threshold-item.critical { background: rgba(239, 68, 68, 0.1); color: var(--color-critical); }
+    .threshold-item.critical::before { background: var(--color-critical); }
+    .threshold-item.expected { background: rgba(99, 102, 241, 0.1); color: var(--color-pending); }
+    .threshold-item.expected::before { background: var(--color-pending); }
+
+    .check-criteria { display: flex; align-items: center; gap: 8px; margin-right: 24px; }
+    .criteria-item { font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
+    .criteria-item.ok { background: rgba(16, 185, 129, 0.1); color: var(--color-ok); }
+    .criteria-item.warning { background: rgba(245, 158, 11, 0.1); color: var(--color-warning); }
+    .criteria-item.critical { background: rgba(239, 68, 68, 0.1); color: var(--color-critical); }
+
+    /* Sentiment */
+    .sentiment-table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; border-radius: 8px; }
+    .sentiment-table th, .sentiment-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    .sentiment-table th { background: var(--bg-primary); font-weight: 600; color: var(--text-secondary); font-size: 12px; }
+    .sentiment-table tr:last-child td { border-bottom: none; }
+
+    .sentiment-categories { display: flex; flex-direction: column; gap: 12px; }
+    .sentiment-category-item { background: white; border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; }
+    .sentiment-category-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; cursor: pointer; background: var(--bg-secondary); transition: background-color 0.2s; }
+    .sentiment-category-header:hover { background: #e8e8e8; }
+    .sentiment-category-info { display: flex; align-items: center; gap: 8px; }
+    .sentiment-category-name { font-weight: 600; font-size: 14px; }
+    .detail-view-btn { cursor: pointer; font-size: 12px; margin-left: 6px; opacity: 0.6; transition: opacity 0.2s; }
+    .detail-view-btn:hover { opacity: 1; }
+    .sentiment-category-stats { display: flex; align-items: center; gap: 12px; }
+    .sentiment-category-count { font-size: 13px; color: var(--text-secondary); }
+    .sentiment-category-rate { font-weight: 700; font-size: 14px; }
+    .sentiment-category-rate.ok { color: var(--color-ok); }
+    .sentiment-category-rate.warning { color: var(--color-warning); }
+    .sentiment-category-rate.critical { color: var(--color-critical); }
+    .sentiment-category-rate.pending { color: var(--color-pending); }
+    .sentiment-category-rate.collecting { color: var(--color-collecting); }
+
+    .sentiment-two-column { display: none; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; background: var(--bg-primary); }
+    .sentiment-two-column.no-side-padding { padding-left: 0; padding-right: 0; }
+    .sentiment-two-column.no-bg .sentiment-column-header { background: white; border-bottom: none; }
+    .sentiment-two-column.show { display: grid; }
+    .sentiment-column { background: white; border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; }
+    .sentiment-column.ok { }
+    .sentiment-column.warning { }
+    .sentiment-column.critical { }
+    .sentiment-column.pending { }
+    .sentiment-column.collecting { }
+    .sentiment-column-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--bg-primary); border-bottom: 1px solid var(--border-color); }
+    .sentiment-column-title { font-weight: 600; font-size: 14px; }
+    .sentiment-column-stats { display: flex; align-items: center; gap: 8px; }
+    .sentiment-column-count { font-size: 13px; color: var(--text-secondary); }
+    .sentiment-column-rate { font-weight: 700; font-size: 14px; }
+    .sentiment-column-rate.ok { color: var(--color-ok); }
+    .sentiment-column-rate.warning { color: var(--color-warning); }
+    .sentiment-column-rate.critical { color: var(--color-critical); }
+    .sentiment-column-rate.pending { color: var(--color-pending); }
+    .sentiment-column-rate.collecting { color: var(--color-collecting); }
+    .sentiment-retailer-list { padding: 12px; }
+    .sentiment-retailer-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; background: var(--bg-primary); }
+    .sentiment-retailer-item:last-child { margin-bottom: 0; }
+    .sentiment-retailer-item.ok { border-left: 3px solid var(--color-ok); }
+    .sentiment-retailer-item.warning { border-left: 3px solid var(--color-warning); }
+    .sentiment-retailer-item.critical { border-left: 3px solid var(--color-critical); }
+    .sentiment-retailer-item.pending { border-left: 3px solid var(--color-pending); }
+    .sentiment-retailer-item.collecting { border-left: 3px solid var(--color-collecting); }
+    .sentiment-retailer-name { font-weight: 500; font-size: 13px; }
+    .sentiment-retailer-stats { display: flex; align-items: center; gap: 12px; }
+    .sentiment-retailer-count { font-size: 12px; color: var(--text-secondary); }
+    .sentiment-retailer-count.large { font-size: 15px; font-weight: 600; }
+    .sentiment-retailer-rate { font-weight: 700; font-size: 14px; min-width: 50px; text-align: right; }
+    .sentiment-retailer-rate.ok { color: var(--color-ok); }
+    .sentiment-retailer-rate.warning { color: var(--color-warning); }
+    .sentiment-retailer-rate.critical { color: var(--color-critical); }
+    .sentiment-retailer-rate.pending { color: var(--color-pending); }
+    .sentiment-retailer-rate.collecting { color: var(--color-collecting); }
+
+    /* Retail Rank */
+    .retail-rank-wrap { padding: 12px; }
+    .retail-rank-wrap .ct th, .retail-rank-wrap .ct td { padding: 9px 12px; text-align: center; }
+    .retail-rank-wrap .ct td.rt-name { text-align: left; font-weight: 600; overflow: visible; }
+    .retail-rank-wrap .ct td.rt-name a { color: var(--text-primary); text-decoration: none; }
+    .retail-rank-wrap .ct td.rt-name a:hover { color: var(--page-color); text-decoration: underline; }
+    .retail-rank-wrap .ct td.rt-extra { font-size: 12px; color: var(--text-secondary); }
+    .retail-rank-wrap .ct td.rt-total { font-weight: 700; }
+    .retail-rank-wrap .ct td.rt-status { overflow: visible; }
+    .retail-rank-wrap .ct tr.rt-sum { background: #f0fdf4; }
+    .retail-rank-wrap .ct tr.rt-sum td { color: var(--color-ok); font-weight: 700; }
+    .retail-rank-wrap .ct tr.rt-sum td:first-child { color: var(--text-secondary); font-weight: 600; }
+
+    /* Status colors */
+    .check-stat .value.ok { color: var(--color-ok); }
+    .check-stat .value.warning { color: var(--color-warning); }
+    .check-stat .value.critical { color: var(--color-critical); }
+    .check-stat .value.pending { color: var(--color-pending); }
+    .check-stat .value.collecting { color: var(--color-collecting); }
+
+    .retailer-stats { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+    .retailer-rate { font-size: 20px; font-weight: 700; }
+    .retailer-rate.ok { color: var(--color-ok); }
+    .retailer-rate.warning { color: var(--color-warning); }
+    .retailer-rate.critical { color: var(--color-critical); }
+
+    .time-slot-rate { font-weight: 700; font-size: 14px; margin-right: 8px; }
+    .time-slot-rate.ok { color: var(--color-ok); }
+    .time-slot-rate.warning { color: var(--color-warning); }
+    .time-slot-rate.critical { color: var(--color-critical); }
+
+    /* Market */
+    .market-groups { display: flex; gap: 24px; padding: 16px; }
+    .market-group { flex: 1; }
+    .market-group-header { font-weight: 600; font-size: 14px; color: var(--color-text); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--color-border); }
+    .market-items { display: flex; flex-direction: column; gap: 8px; }
+    .market-items .retailer-card { width: 100%; }
+
+    .demand-container { display: flex; gap: 24px; padding: 16px; }
+    .demand-section { flex: 1; background: var(--color-bg); border-radius: 8px; overflow: hidden; }
+    .demand-section-header { padding: 12px 16px; background: #f8f9fa; border-bottom: 1px solid var(--color-border); font-weight: 600; }
+    .demand-section-title { font-size: 14px; color: var(--color-text); }
+    .demand-section-date { font-size: 12px; color: var(--color-text-muted); margin-left: 8px; }
+    .demand-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .demand-table th { padding: 10px 12px; text-align: left; font-weight: 500; color: var(--color-text-muted); border-bottom: 1px solid var(--color-border); background: #fafafa; }
+    .demand-table td { padding: 12px; border-bottom: 1px solid var(--color-border); }
+    .demand-table tr:last-child td { border-bottom: none; }
+    .demand-category { font-weight: 600; color: var(--color-text); }
+    .demand-progress-cell { display: flex; align-items: center; gap: 10px; min-width: 150px; }
+    .demand-progress-bar { flex: 1; height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+    .demand-progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
+    .demand-progress-fill.ok { background: var(--color-ok); }
+    .demand-progress-fill.warning { background: var(--color-warning); }
+    .demand-progress-fill.critical { background: var(--color-critical); }
+    .demand-progress-fill.pending { background: var(--color-pending); }
+    .demand-count { font-weight: 600; color: var(--color-text); min-width: 30px; }
+    .demand-target { color: var(--color-text-muted); }
+    .demand-rate { font-weight: 700; }
+    .demand-rate.ok { color: var(--color-ok); }
+    .demand-rate.warning { color: var(--color-warning); }
+    .demand-rate.critical { color: var(--color-critical); }
+
+    /* Raw Data Modal */
+    .raw-modal-header-sub { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+    .raw-data-modal-subtitle { font-size: 13px; color: var(--text-secondary); }
+    .raw-modal-actions { display: flex; align-items: center; gap: 12px; }
+    .btn-reset-sort { padding: 6px 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; font-size: 12px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s; }
+    .btn-reset-sort:hover { background: var(--bg-primary); color: var(--text-primary); }
+    .raw-data-table-wrapper { width: 100%; height: 100%; overflow: auto; }
+    .raw-data-table { table-layout: fixed; border-collapse: collapse; font-size: 12px; min-width: 100%; }
+    .raw-data-table th, .raw-data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border-color); border-right: 1px solid var(--border-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+    .raw-data-table th { background: var(--bg-primary); font-weight: 600; color: var(--text-secondary); position: sticky; top: 0; z-index: 10; cursor: pointer; user-select: none; }
+    .raw-data-table th:hover { background: #e8e8e8; }
+    .raw-data-table th.th-dragging { opacity: 0.4; }
+    .raw-data-table th.th-drag-left { box-shadow: inset 3px 0 0 var(--page-color); }
+    .raw-data-table th.th-drag-right { box-shadow: inset -3px 0 0 var(--page-color); }
+    .raw-data-table th.sort-asc::after { content: ' ▲'; font-size: 10px; color: var(--color-layer1); }
+    .raw-data-table th.sort-desc::after { content: ' ▼'; font-size: 10px; color: var(--color-layer1); }
+    .raw-data-table tbody tr:hover { background: var(--bg-primary); }
+    .raw-data-table tbody tr:nth-child(even) { background: #fafafa; }
+    .raw-data-table tbody tr:nth-child(even):hover { background: var(--bg-primary); }
+    .column-resizer { position: absolute; right: 0; top: 0; width: 5px; height: 100%; cursor: col-resize; background: transparent; }
+    .column-resizer:hover { background: var(--color-layer1); }
+    .column-resizer.resizing { background: var(--color-layer1); }
+    .raw-data-loading { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 14px; }
+    .raw-data-loading-spinner { width: 24px; height: 24px; border: 3px solid var(--border-color); border-top: 3px solid var(--color-layer1); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 12px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .raw-data-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); font-size: 14px; }
+    .raw-data-count { font-size: 13px; color: var(--text-secondary); padding: 8px 24px; background: transparent; border-bottom: 1px solid var(--border-color); }
+    .raw-data-count strong { color: var(--text-primary); }
+
+    /* Column Dropdown */
+    .column-dropdown { position: absolute; top: 100%; right: 0; margin-top: 4px; background: white; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; min-width: 200px; max-height: 400px; overflow: hidden; display: flex; flex-direction: column; }
+    .column-dropdown-actions { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border-color); }
+    .column-dropdown-list { overflow-y: auto; max-height: 340px; padding: 4px 0; }
+    .column-dropdown-item { display: flex; align-items: center; gap: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; color: var(--text-primary); transition: background 0.1s; }
+    .column-dropdown-item:hover { background: #f1f5f9; }
+    .column-dropdown-item.dragging { opacity: 0.4; background: #e2e8f0; }
+    .column-dropdown-item.drag-over { border-top: 2px solid #7c3aed; margin-top: -2px; }
+    .column-dropdown-item input[type="checkbox"] { cursor: pointer; }
+    .column-dropdown-item .drag-handle { cursor: grab; color: #94a3b8; font-size: 14px; line-height: 1; user-select: none; }
+    .column-dropdown-item .drag-handle:active { cursor: grabbing; }
+
+    /* Columns Modal */
+    .columns-modal-tabs { display: flex; gap: 8px; padding: 16px 24px; border-bottom: 1px solid var(--border-color); }
+    .columns-tab { padding: 8px 16px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); cursor: pointer; font-size: 13px; font-weight: 500; color: var(--text-secondary); transition: all 0.15s; }
+    .columns-tab:hover { background: var(--bg-primary); }
+    .columns-tab.active { background: var(--color-layer1); color: white; border-color: var(--color-layer1); }
+    .columns-table-wrapper { overflow-x: auto; }
+    .columns-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .columns-table th, .columns-table td { padding: 10px 12px; text-align: center; border: 1px solid var(--border-color); }
+    .columns-table th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); position: sticky; top: 0; z-index: 1; }
+    .columns-table th:first-child { text-align: left; min-width: 200px; position: sticky; left: 0; z-index: 2; }
+    .columns-table td:first-child { text-align: left; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; background: var(--bg-primary); position: sticky; left: 0; z-index: 1; }
+    .columns-table tbody tr:hover { background: var(--bg-secondary); }
+    .columns-table tbody tr:hover td:first-child { background: var(--bg-secondary); }
+    .col-check { color: #22c55e; font-weight: 600; }
+    .col-empty { color: var(--text-muted); }
+    .btn-columns-info { padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); cursor: pointer; font-size: 12px; color: var(--text-secondary); transition: all 0.15s; margin-left: 12px; }
+    .btn-columns-info:hover { background: var(--bg-primary); color: var(--text-primary); }
+    .field-select-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 400px; overflow-y: auto; }
+    .field-select-item { padding: 10px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s; }
+    .field-select-item:hover { background: #dbeafe; border-color: #3b82f6; }
+    .field-select-item.selected { background: #3b82f6; color: white; border-color: #3b82f6; }
+
+    /* Section title (non-dashboard pages) */
+    .section-title { font-size: 20px; font-weight: 700; color: var(--text-primary); margin-bottom: 20px; }
+
+</style>
+{% block layer1_css %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="l1-layout">
+    {% include 'layer1/includes/_sidebar.html' %}
+
+    <div class="l1-content">
+        {% if section == 'dashboard' %}
+        <div class="layer-header">
+            <div class="layer-header-content">
+                <div class="layer-badge">{{ layer.number }}</div>
+                <div class="layer-info">
+                    <h1>{{ layer.name }}</h1>
+                    <p>{{ layer.name_en }} - DX 데이터 품질 모니터링</p>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <h2 class="section-title">{{ section_title }}</h2>
+        {% endif %}
+
+        {% include 'layer1/includes/_filter_bar.html' %}
+
+        {% block layer1_content %}{% endblock %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ============================================================
+// Sidebar toggle
+// ============================================================
+function toggleL1Sidebar() {
+    var sidebar = document.getElementById('l1-sidebar');
+    var collapsed = sidebar.classList.toggle('collapsed');
+    localStorage.setItem('l1SidebarCollapsed', collapsed ? '1' : '');
+}
+(function() {
+    if (localStorage.getItem('l1SidebarCollapsed') === '1') {
+        document.getElementById('l1-sidebar').classList.add('collapsed');
+    }
+})();
+
+    window.LAYER1 = {
+        color: '{{ layer.color|escapejs }}',
+        section: '{{ section|escapejs }}',
+        targetDate: '{{ target_date|default:""|escapejs }}',
+        username: '{{ request.user.username|default:""|escapejs }}'
+    };
+
+// ============================================================
+// Common state
+// ============================================================
+var currentStatsData = null;
+var currentCheckStatus = null;
+var currentNullData = null;
+var currentRetailSummary = null;
+
+// ============================================================
+// Common utility functions
+// ============================================================
+function getStatusBadge(status) {
+    var statusMap = {
+        'OK': { class: 'ok', text: '정상' },
+        'WARNING': { class: 'warning', text: '주의' },
+        'CRITICAL': { class: 'critical', text: '심각' },
+        'PENDING': { class: 'pending', text: '대기중' },
+        'COLLECTING': { class: 'collecting', text: '수집중' },
+        'ANALYZING': { class: 'collecting', text: '분석중' }
+    };
+    var s = statusMap[status] || { class: 'ok', text: status };
+    return '<span class="status-badge ' + s.class + '"><span class="status-dot"></span>' + s.text + '</span>';
+}
+
+function getStatusClass(status) {
+    return status ? status.toLowerCase() : 'pending';
+}
+
+function getRetailerStatusClass(status) {
+    var classMap = { 'OK': 'ok', 'WARNING': 'warning', 'CRITICAL': 'critical', 'PENDING': 'pending', 'COLLECTING': 'collecting' };
+    return classMap[status] || 'ok';
+}
+
+function formatLocalDate(date) {
+    var yyyy = date.getFullYear();
+    var mm = String(date.getMonth() + 1).padStart(2, '0');
+    var dd = String(date.getDate()).padStart(2, '0');
+    return yyyy + '-' + mm + '-' + dd;
+}
+
+// ============================================================
+// FilterBar
+// ============================================================
+var filterBar;
+
+function getSelectedDate() {
+    return filterBar.getDate();
+}
+
+function initFilterBar(options) {
+    var saved = localStorage.getItem('monitoringSelectedDate');
+    var yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    var defaultDate = saved || formatLocalDate(yesterday);
+    var today = formatLocalDate(new Date());
+
+    function onDateChange() {
+        localStorage.setItem('monitoringSelectedDate', filterBar.getDate());
+    }
+
+    var config = {
+        sticky: true,
+        controls: [
+            { type: 'date', key: 'targetDate', label: '조회 날짜', value: defaultDate, max: today, showWeekday: true },
+            { type: 'button', label: '조회', style: 'primary', onClick: function() { onDateChange(); loadAllData(); } },
+            { type: 'button', label: '전날', style: 'outline', onClick: function() { filterBar.prevDay(); onDateChange(); loadAllData(); } },
+            { type: 'button', label: '다음날', style: 'outline', onClick: function() { filterBar.nextDay(); onDateChange(); loadAllData(); } }
+        ]
+    };
+
+    if (options && options.right) {
+        config.right = options.right;
+    }
+
+    filterBar = new FilterBar('#filter-bar-container', config).render();
+}
+
+// ============================================================
+// Check Log (검수 확인)
+// ============================================================
+function flattenCheckToDetails(sectionType, check) {
+    var details = [];
+    switch (sectionType) {
+        case 'retail':
+            (check.categories || []).forEach(function(cat) {
+                (cat.time_slots || []).forEach(function(slot) {
+                    if (slot.status === 'PENDING') return;
+                    (slot.retailers || []).forEach(function(ret) {
+                        details.push({
+                            category: cat.name, time_slot: slot.name,
+                            retailer: ret.retailer, item_name: '',
+                            expected_count: ret.expected || 0, actual_count: ret.count || 0,
+                            rate: ret.expected > 0 ? Math.round((ret.count || 0) / ret.expected * 1000) / 10 : 0,
+                            status: ret.status
+                        });
+                    });
+                });
+            });
+            if (currentNullData) {
+                ['tv', 'hhp'].forEach(function(type) {
+                    (currentNullData[type] || []).forEach(function(ret) {
+                        ret.time_slots.forEach(function(slot) {
+                            details.push({
+                                category: type.toUpperCase(), time_slot: slot.time_slot,
+                                retailer: ret.retailer, item_name: slot.null_columns.join(', '),
+                                expected_count: 0, actual_count: 0, rate: 0, status: 'NULL'
+                            });
+                        });
+                    });
+                });
+            }
+            break;
+        case 'sentiment':
+            (check.categories || []).forEach(function(cat) {
+                (cat.time_slots || []).forEach(function(slot) {
+                    (slot.retailers || []).forEach(function(ret) {
+                        details.push({
+                            category: cat.name, time_slot: slot.time,
+                            retailer: ret.name, item_name: '',
+                            expected_count: ret.target || 0, actual_count: ret.analyzed || 0,
+                            rate: ret.rate || 0, status: ret.status
+                        });
+                    });
+                });
+            });
+            break;
+        case 'youtube':
+            (check.categories || []).forEach(function(cat) {
+                details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'log_count',
+                    expected_count: cat.expected || 0, actual_count: cat.log_count || 0,
+                    rate: cat.rate || 0, status: cat.status });
+                details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'video_count',
+                    expected_count: cat.avg_7day || 0, actual_count: cat.video_count || 0,
+                    rate: cat.avg_7day > 0 ? Math.round(cat.video_count / cat.avg_7day * 1000) / 10 : 0,
+                    status: cat.status });
+                details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'comment_count',
+                    expected_count: 0, actual_count: cat.comment_count || 0, rate: 0, status: cat.status });
+            });
+            break;
+        case 'market_trend':
+            (check.categories || []).forEach(function(cat) {
+                (cat.items || []).forEach(function(item) {
+                    details.push({ category: cat.name, time_slot: '', retailer: '', item_name: item.name,
+                        expected_count: item.expected || 0, actual_count: item.collected || 0,
+                        rate: item.rate || 0, status: item.status });
+                });
+                if (cat.keyword_coverage) {
+                    var kc = cat.keyword_coverage;
+                    details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'keyword_coverage',
+                        expected_count: kc.registered || 0, actual_count: kc.collected || 0,
+                        rate: kc.rate || 0, status: kc.status || cat.status });
+                }
+            });
+            break;
+        case 'market_competitor':
+        case 'market_competitor_event':
+            (check.categories || []).forEach(function(cat) {
+                details.push({ category: cat.category, time_slot: '', retailer: '', item_name: 'collected',
+                    expected_count: cat.expected || 0, actual_count: cat.collected || 0,
+                    rate: cat.rate || 0, status: cat.status });
+                if (cat.keyword_coverage) {
+                    var kc2 = cat.keyword_coverage;
+                    details.push({ category: cat.category, time_slot: '', retailer: '', item_name: 'keyword_coverage',
+                        expected_count: kc2.combo_expected || 0, actual_count: kc2.combo_collected || 0,
+                        rate: kc2.combo_rate || 0, status: cat.status });
+                }
+            });
+            break;
+        case 'market_demand':
+            (check.categories || []).forEach(function(cat) {
+                details.push({ category: cat.category, time_slot: '', retailer: '', item_name: '',
+                    expected_count: cat.target || 0, actual_count: cat.collected || 0,
+                    rate: cat.rate || 0, status: cat.status });
+            });
+            break;
+        case 'market_promotion':
+            (check.retailers || []).forEach(function(ret) {
+                details.push({ category: '', time_slot: '', retailer: ret.retailer, item_name: '',
+                    expected_count: ret.expected || 0, actual_count: ret.collected || 0,
+                    rate: ret.rate || 0, status: ret.status });
+            });
+            break;
+    }
+    return details;
+}
+
+async function loadCheckStatus(dateStr) {
+    var response = await fetch('/layer1/api/check/status/?date=' + dateStr);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return await response.json();
+}
+
+async function saveCheck(sectionType) {
+    if (!currentStatsData || !currentStatsData.checks) return;
+
+    var check = currentStatsData.checks.find(function(c) { return c.check_type === sectionType; });
+    if (!check) { showToast('해당 섹션 데이터가 없습니다.', 'error'); return; }
+
+    var result = await showConfirm(check.name + ' 검수를 확인 처리하시겠습니까?', 'info', {
+        input: { placeholder: '메모 (선택)' }
+    });
+    if (!result.confirmed) return;
+
+    try {
+        var response = await fetch('/layer1/api/check/save/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({
+                date: getSelectedDate(), layer: 1,
+                sections: [{ section: sectionType,
+                    expected_count: check.expected || check.expected_min || check.target || 0,
+                    actual_count: check.actual || 0, rate: check.rate || 0, status: check.status,
+                    details: flattenCheckToDetails(sectionType, check), memo: result.value || '' }]
+            })
+        });
+        var saveData = await response.json();
+        if (!response.ok || !saveData.success) { showToast(saveData.error || '저장 중 오류가 발생했습니다.', 'error'); return; }
+        showToast('확인 완료', 'success');
+        loadAllData();
+    } catch (e) { showToast('시스템 오류가 발생했습니다.', 'error'); }
+}
+
+async function deleteCheck(sectionType) {
+    var result = await showConfirm('확인을 취소하시겠습니까?', 'warning', {
+        input: { placeholder: '취소 사유를 입력하세요 (필수)' }
+    });
+    if (!result.confirmed) return;
+    if (!result.value) { showToast('취소 사유를 입력해주세요.', 'warning'); return; }
+
+    try {
+        var response = await fetch('/layer1/api/check/delete/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ date: getSelectedDate(), layer: 1, section: sectionType, delete_memo: result.value })
+        });
+        var data = await response.json();
+        if (!response.ok || !data.success) { showToast(data.error || '삭제 중 오류가 발생했습니다.', 'error'); return; }
+        showToast('확인 취소됨', 'info');
+        loadAllData();
+    } catch (e) { showToast('시스템 오류가 발생했습니다.', 'error'); }
+}
+
+function updateConfirmedCount() {
+    var el = document.getElementById('total-confirmed');
+    if (!el) return;
+    var targetCount = 0, confirmedCount = 0;
+    if (currentStatsData && currentStatsData.checks) {
+        var targetChecks = currentStatsData.checks.filter(function(c) { return c.is_target_date !== false; });
+        targetCount = targetChecks.length;
+        if (currentCheckStatus && currentCheckStatus.sections) {
+            targetChecks.forEach(function(c) { if (currentCheckStatus.sections[c.check_type]) confirmedCount++; });
+        }
+    }
+    el.textContent = targetCount > 0 ? confirmedCount + ' / ' + targetCount : '-';
+    if (targetCount > 0 && confirmedCount === targetCount) { el.style.color = 'var(--color-ok)'; }
+    else if (confirmedCount > 0) { el.style.color = '#f59e0b'; }
+    else { el.style.color = ''; }
+}
+
+function getCheckBadgeHtml(sectionType) {
+    if (!currentCheckStatus || !currentCheckStatus.sections) {
+        return '<button class="btn-check-confirm" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\')" title="확인">확인</button>';
+    }
+    var sec = currentCheckStatus.sections[sectionType];
+    if (!sec) {
+        return '<button class="btn-check-confirm" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\')" title="확인">확인</button>';
+    }
+    var timeStr = sec.updated_at
+        ? new Date(sec.updated_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})
+        : new Date(sec.created_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+    var who = sec.updated_id || sec.created_id || '';
+    return '<button class="btn-check-confirm checked" onclick="event.stopPropagation(); deleteCheck(\'' + sectionType + '\')" title="' + esc(who) + ' ' + timeStr + '">확인됨 ✓</button>';
+}
+
+function addCheckBadges() {
+    document.querySelectorAll('.check-item[data-check-type]').forEach(function(item) {
+        var type = item.dataset.checkType;
+        var statsDiv = item.querySelector('.check-stats');
+        if (!statsDiv) return;
+        if (currentStatsData && currentStatsData.checks) {
+            var check = currentStatsData.checks.find(function(c) { return c.check_type === type; });
+            if (check && check.is_target_date === false) return;
+        }
+        var badge = document.createElement('span');
+        badge.className = 'check-badge-inline';
+        badge.innerHTML = getCheckBadgeHtml(type);
+        statsDiv.appendChild(badge);
+    });
+}
+
+// ============================================================
+// Toggle functions
+// ============================================================
+function toggleTimeSlots(element, checkIdx) {
+    var container = document.getElementById('time-slots-' + checkIdx);
+    var icon = element.querySelector('.toggle-icon');
+    if (container) { container.classList.toggle('show'); icon.classList.toggle('expanded'); }
+}
+
+function toggleRetailerDetails(element, checkIdx, slotIdx) {
+    var container = document.getElementById('retailers-' + checkIdx + '-' + slotIdx);
+    var icon = element.querySelector('.toggle-icon-small');
+    if (container) { container.classList.toggle('show'); if (icon) icon.classList.toggle('expanded'); }
+}
+
+function toggleSentimentCategory(element, checkIdx, catIdx) {
+    var container = document.getElementById('sentiment-cat-' + checkIdx + '-' + catIdx);
+    var icon = element.querySelector('.toggle-icon-small');
+    if (container) { container.classList.toggle('show'); if (icon) icon.classList.toggle('expanded'); }
+}
+
+// ============================================================
+// Common table helpers
+// ============================================================
+var DEFAULT_COL_WIDTH = 150;
+var MIN_COL_WIDTH = 50;
+
+// escJs: escape for inline JS strings (single quotes)
+function escJs(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+
+// 섹션 페이지: 토글 없이 모든 콘텐츠 펼침
+function expandSectionContent() {
+    document.querySelectorAll('.time-slots-container').forEach(function(el) { el.classList.add('show'); });
+    document.querySelectorAll('.sentiment-two-column').forEach(function(el) { el.classList.add('show'); });
+    document.querySelectorAll('.toggle-icon, .toggle-icon-small').forEach(function(el) { el.remove(); });
+    document.querySelectorAll('.check-main[onclick], .sentiment-category-header[onclick]').forEach(function(el) {
+        el.removeAttribute('onclick');
+        el.style.cursor = 'default';
+    });
+}
+</script>
+<script src="{% static 'js/dx/dx_layer1/raw-data-view.js' %}?v=1"></script>
+{% block layer1_js %}{% endblock %}
+{% endblock %}

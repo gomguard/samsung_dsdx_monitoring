@@ -67,14 +67,17 @@ class CommonTable {
             variant: 'detail',
             columns: [],
             resize: true,
+            vlines: false,
             rowHeight: null,
             padding: null,
             onSort: null,
+            showTotalCount: false,
             ...options
         };
         this.sortKey = null;
         this.sortOrder = null;
         this.tableEl = null;
+        this.countEl = null;
     }
 
     /**
@@ -85,7 +88,7 @@ class CommonTable {
         const { variant, columns, resize, rowHeight, padding } = this.options;
 
         const table = document.createElement('table');
-        table.className = `ct ct-${variant}`;
+        table.className = `ct ct-${variant}${this.options.vlines ? ' ct-vlines' : ''}`;
         if (rowHeight) table.style.setProperty('--ct-row-height', rowHeight + 'px');
         if (padding) table.style.setProperty('--ct-padding', padding);
 
@@ -125,6 +128,61 @@ class CommonTable {
         this.container.appendChild(table);
         this.tableEl = table;
 
+        // col width가 th 텍스트보다 좁으면 자동 보정
+        const measureEl = document.createElement('span');
+        measureEl.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font-size:13px;font-weight:600;';
+        document.body.appendChild(measureEl);
+        const colEls = colgroup.querySelectorAll('col');
+        columns.forEach((col, idx) => {
+            if (col.width) {
+                measureEl.textContent = col.label;
+                const textWidth = measureEl.offsetWidth;
+                const sortExtra = col.sortable ? 17 : 0;
+                const minWidth = textWidth + 32 + sortExtra;
+                if (minWidth > col.width) {
+                    colEls[idx].style.width = minWidth + 'px';
+                }
+            }
+        });
+        document.body.removeChild(measureEl);
+
+        if (this.options.showTotalCount) {
+            this.countEl = document.createElement('div');
+            this.countEl.className = 'ct-count';
+            this.countEl.style.cssText = 'padding: 10px 12px; font-size: 13px; color: var(--text-secondary);';
+            this.container.appendChild(this.countEl);
+        }
+
+        // 셀 클릭 시 텍스트 선택 (Ctrl+C 복사용)
+        // 셀 클릭 → 셀 하이라이트 + 텍스트 선택 (Ctrl+C 복사용)
+        let selectedTd = null;
+        table.addEventListener('click', (e) => {
+            const td = e.target.closest('td');
+            if (!td || td.classList.contains('ct-nc')) return;
+            if (selectedTd) selectedTd.classList.remove('ct-selected');
+            td.classList.add('ct-selected');
+            selectedTd = td;
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(td);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        });
+        document.addEventListener('click', (e) => {
+            if (selectedTd && !table.contains(e.target)) {
+                selectedTd.classList.remove('ct-selected');
+                selectedTd = null;
+                window.getSelection().removeAllRanges();
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && selectedTd) {
+                selectedTd.classList.remove('ct-selected');
+                selectedTd = null;
+                window.getSelection().removeAllRanges();
+            }
+        });
+
         if (resize) enableColumnResize(table);
 
         return this;
@@ -146,6 +204,9 @@ class CommonTable {
                 tbody.appendChild(tr);
             }
         });
+        if (this.countEl) {
+            this.countEl.innerHTML = '총 <strong>' + rows.length.toLocaleString() + '</strong>건';
+        }
     }
 
     /**

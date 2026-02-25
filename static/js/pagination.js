@@ -37,6 +37,9 @@ class Pagination {
             pageSize: 20,
             maxVisible: 5,
             showInfo: true,
+            padding: null,          // e.g. '16px 24px'
+            margin: null,           // e.g. '20px 0', '0'
+            border: null,           // e.g. 'none', '1px solid #eee'
             onPageChange: null,
             ...options
         };
@@ -60,7 +63,8 @@ class Pagination {
             return;
         }
 
-        let html = '<div class="pagination">';
+        const styles = this._buildStyles();
+        let html = `<div class="pagination"${styles}>`;
 
         // 이전 버튼
         html += `<button class="pagination-btn" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>
@@ -126,7 +130,8 @@ class Pagination {
 
         const totalPages = Math.ceil(totalItems / this.options.pageSize) || 1;
 
-        let html = '<div class="pagination pagination-simple">';
+        const styles = this._buildStyles();
+        let html = `<div class="pagination pagination-simple"${styles}>`;
 
         if (this.options.showInfo) {
             html += `<span class="pagination-info">총 ${totalItems.toLocaleString()}건</span>`;
@@ -163,6 +168,14 @@ class Pagination {
 
     getPageSize() {
         return this.options.pageSize;
+    }
+
+    _buildStyles() {
+        const parts = [];
+        if (this.options.padding) parts.push(`padding:${this.options.padding}`);
+        if (this.options.margin !== null) parts.push(`margin:${this.options.margin}`);
+        if (this.options.border !== null) parts.push(`border:${this.options.border}`);
+        return parts.length ? ` style="${parts.join(';')}"` : '';
     }
 }
 

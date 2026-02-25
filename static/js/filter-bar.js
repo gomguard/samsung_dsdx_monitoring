@@ -291,6 +291,9 @@ class FilterBar {
 
         const select = document.createElement('select');
         if (ctrl.key) select.id = ctrl.key;
+        if (ctrl.width && ctrl.width !== 'auto') {
+            select.style.width = typeof ctrl.width === 'number' ? ctrl.width + 'px' : ctrl.width;
+        }
         (ctrl.options || []).forEach(opt => {
             const option = document.createElement('option');
             option.value = opt.value;
@@ -301,6 +304,20 @@ class FilterBar {
             select.addEventListener('change', () => ctrl.onChange(select.value));
         }
         wrapper.appendChild(select);
+
+        // autoWidth: 선택된 옵션 텍스트에 맞춰 너비 동적 조정
+        if (ctrl.width === 'auto') {
+            var measure = document.createElement('span');
+            measure.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;font-size:14px;';
+            document.body.appendChild(measure);
+            function fitSelect() {
+                var text = select.options[select.selectedIndex];
+                measure.textContent = text ? text.textContent : '';
+                select.style.width = (measure.offsetWidth + 50) + 'px';
+            }
+            select.addEventListener('change', fitSelect);
+            fitSelect();
+        }
 
         if (ctrl.key) {
             this.elements[ctrl.key] = select;

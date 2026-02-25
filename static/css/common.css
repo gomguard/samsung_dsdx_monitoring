@@ -552,14 +552,14 @@ tr:hover {
 }
 
 .pagination-btn:hover:not(:disabled) {
-    background: rgba(124, 58, 237, 0.05);
-    border-color: #7c3aed;
-    color: #7c3aed;
+    background: color-mix(in srgb, var(--page-color, #7c3aed) 8%, transparent);
+    border-color: var(--page-color, #7c3aed);
+    color: var(--page-color, #7c3aed);
 }
 
 .pagination-btn.active {
-    background: #7c3aed;
-    border-color: #7c3aed;
+    background: var(--page-color, #7c3aed);
+    border-color: var(--page-color, #7c3aed);
     color: white;
 }
 

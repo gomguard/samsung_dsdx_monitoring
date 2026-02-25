@@ -7,7 +7,15 @@ app_name = 'layer1'
 
 urlpatterns = [
     # Pages
-    path('', views.index, name='index'),
+    path('', views.dashboard, name='dashboard'),
+    path('retail/', views.retail, name='retail'),
+    path('sentiment/', views.sentiment, name='sentiment'),
+    path('youtube/', views.youtube, name='youtube'),
+    path('market-trend/', views.market_trend, name='market_trend'),
+    path('market-demand/', views.market_demand, name='market_demand'),
+    path('market-competitor/', views.market_competitor, name='market_competitor'),
+    path('market-competitor-event/', views.market_competitor_event, name='market_competitor_event'),
+    path('market-promotion/', views.market_promotion, name='market_promotion'),
     path('check-log/', lambda request: redirect('/dx/data/check-log/', permanent=True)),
 
     # API
@@ -22,6 +30,9 @@ urlpatterns = [
     path('api/market-trend-raw-data/', api_views.market_trend_raw_data, name='api_market_trend_raw_data'),
     path('api/market-demand-raw-data/', api_views.market_demand_raw_data, name='api_market_demand_raw_data'),
     path('api/market-demand-missing/', api_views.market_demand_missing_keywords, name='api_market_demand_missing'),
+    path('api/market-competitor-keywords/', api_views.market_competitor_keywords, name='api_market_competitor_keywords'),
+    path('api/market-competitor-raw-data/', api_views.market_competitor_raw_data, name='api_market_competitor_raw_data'),
+    path('api/market-competitor-event-raw-data/', api_views.market_competitor_event_raw_data, name='api_market_competitor_event_raw_data'),
     path('api/market-promotion-raw-data/', api_views.market_promotion_raw_data, name='api_market_promotion_raw_data'),
     path('api/backup/', api_views.backup_retail_data, name='api_backup'),
     path('api/backup-status/', api_views.backup_status, name='api_backup_status'),
