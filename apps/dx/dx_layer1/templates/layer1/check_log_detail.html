@@ -192,7 +192,7 @@ async function loadDetail() {
     document.title = sectionName + ' 검수 상세';
 
     try {
-        var response = await fetch('/layer1/api/check/status/?date=' + p.date + '&layer=1&detail=1');
+        var response = await fetch('/dx/layer1/api/check/status/?date=' + p.date + '&layer=1&detail=1');
         var result = await response.json();
         if (!response.ok || !result.success) {
             document.getElementById('detailBody').innerHTML = '<tr><td class="empty-state">' + esc(result.error || '조회 실패') + '</td></tr>';

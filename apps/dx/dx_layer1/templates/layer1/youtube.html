@@ -10,7 +10,7 @@
     </div>
 </div>
 
-{% include 'layer1/includes/_raw_data_view.html' with back_url='/layer1/youtube/' %}
+{% include 'layer1/includes/_raw_data_view.html' with back_url='/dx/layer1/youtube/' %}
 {% endblock %}
 
 {% block layer1_js %}
@@ -44,7 +44,7 @@ function renderYoutubeStatCard(catName, typeKey, typeLabel, typeDataType, value,
             getStatusBadge(status);
     }
 
-    var detailUrl = '/layer1/youtube/?category=' + encodeURIComponent(catName) +
+    var detailUrl = '/dx/layer1/youtube/?category=' + encodeURIComponent(catName) +
         '&data_type=' + encodeURIComponent(typeDataType) +
         '&date=' + getSelectedDate();
 
@@ -228,8 +228,8 @@ function renderYouTubeCheck(check, checkIdx) {
 // ============================================================
 
 var rawView = new RawDataView({
-    apiUrl: '/layer1/api/youtube-raw-data/',
-    backUrl: '/layer1/youtube/',
+    apiUrl: '/dx/layer1/api/youtube-raw-data/',
+    backUrl: '/dx/layer1/youtube/',
     title: function(p) {
         var typeLabel = {'logs': '로그', 'videos': '비디오', 'comments': '댓글'}[p.data_type] || '로그';
         return 'YouTube - ' + p.category + ' - ' + typeLabel;
@@ -267,7 +267,7 @@ async function loadSectionData() {
         try { currentCheckStatus = await loadCheckStatus(selectedDate); }
         catch (e) { currentCheckStatus = null; }
 
-        var response = await fetch('/layer1/api/stats/?date=' + selectedDate + '&check_type=youtube');
+        var response = await fetch('/dx/layer1/api/stats/?date=' + selectedDate + '&check_type=youtube');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         var data = await response.json();
         currentStatsData = data;

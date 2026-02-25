@@ -10,7 +10,7 @@
     </div>
 </div>
 
-{% include 'layer1/includes/_raw_data_view.html' with back_url='/layer1/retail/' %}
+{% include 'layer1/includes/_raw_data_view.html' with back_url='/dx/layer1/retail/' %}
 {% endblock %}
 
 {% block layer1_js %}
@@ -95,7 +95,7 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
             totals.total += row.total;
             var rStatus = statusMap[ret.retailer] || 'PENDING';
             rowsHtml += '<tr>' +
-                '<td class="rt-name"><a href="/layer1/retail/?category=' + encodeURIComponent(categoryName) + '&retailer=' + encodeURIComponent(ret.retailer) + '&period=' + encodeURIComponent(period) + '&date=' + getSelectedDate() + '">' + esc(ret.retailer) + '</a></td>' +
+                '<td class="rt-name"><a href="/dx/layer1/retail/?category=' + encodeURIComponent(categoryName) + '&retailer=' + encodeURIComponent(ret.retailer) + '&period=' + encodeURIComponent(period) + '&date=' + getSelectedDate() + '">' + esc(ret.retailer) + '</a></td>' +
                 '<td>' + row.main.toLocaleString() + '</td>' +
                 '<td>' + row.bsr.toLocaleString() + '</td>' +
                 '<td class="rt-extra">' + row.extra.toLocaleString() + '</td>' +
@@ -294,8 +294,8 @@ function toggleRetailCategory(element, checkIdx, catIdx) {
 // ============================================================
 
 var rawView = new RawDataView({
-    apiUrl: '/layer1/api/retailer-raw-data/',
-    backUrl: '/layer1/retail/',
+    apiUrl: '/dx/layer1/api/retailer-raw-data/',
+    backUrl: '/dx/layer1/retail/',
     title: function(p) { return p.category + ' Retail - ' + p.retailer + ' (' + p.period + ')'; },
     urlParams: ['category', 'retailer', 'period']
 });
@@ -345,7 +345,7 @@ function switchColumnsTab(tab) {
 }
 
 function loadColumnsData() {
-    fetch('/layer1/api/retailer-columns/')
+    fetch('/dx/layer1/api/retailer-columns/')
         .then(function(response) { return response.json(); })
         .then(function(data) {
             columnsData = data;
@@ -408,7 +408,7 @@ async function loadSectionData() {
         try { currentCheckStatus = await loadCheckStatus(selectedDate); }
         catch (e) { currentCheckStatus = null; }
 
-        var response = await fetch('/layer1/api/stats/?date=' + selectedDate + '&check_type=retail');
+        var response = await fetch('/dx/layer1/api/stats/?date=' + selectedDate + '&check_type=retail');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         var data = await response.json();
         currentStatsData = data;
@@ -416,8 +416,8 @@ async function loadSectionData() {
         // Retail Summary 데이터 로딩 (TV + HHP)
         try {
             var [tvSum, hhpSum] = await Promise.all([
-                fetch('/layer1/api/retail-summary/?type=tv&date=' + selectedDate).then(r => r.json()),
-                fetch('/layer1/api/retail-summary/?type=hhp&date=' + selectedDate).then(r => r.json())
+                fetch('/dx/layer1/api/retail-summary/?type=tv&date=' + selectedDate).then(r => r.json()),
+                fetch('/dx/layer1/api/retail-summary/?type=hhp&date=' + selectedDate).then(r => r.json())
             ]);
             currentRetailSummary = { tv: tvSum, hhp: hhpSum };
             currentNullData = { tv: tvSum.null_columns || [], hhp: hhpSum.null_columns || [] };

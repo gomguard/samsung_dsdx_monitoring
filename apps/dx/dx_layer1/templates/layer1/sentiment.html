@@ -10,7 +10,7 @@
     </div>
 </div>
 
-{% include 'layer1/includes/_raw_data_view.html' with back_url='/layer1/sentiment/' %}
+{% include 'layer1/includes/_raw_data_view.html' with back_url='/dx/layer1/sentiment/' %}
 {% endblock %}
 
 {% block layer1_js %}
@@ -20,18 +20,20 @@
 // ============================================================
 function renderSentimentRetailer(r, category, period) {
     const rStatusClass = getStatusClass(r.status);
-    const detailUrl = '/layer1/sentiment/?category=' + encodeURIComponent(category) +
-        '&retailer=' + encodeURIComponent(r.name) +
-        '&period=' + encodeURIComponent(period) +
-        '&date=' + getSelectedDate();
-    return '<a class="sentiment-retailer-item ' + rStatusClass + '" href="' + detailUrl + '" style="cursor: pointer; text-decoration: none; color: inherit;">' +
-        '<span class="sentiment-retailer-name">' + r.name + '</span>' +
+    const inner = '<span class="sentiment-retailer-name">' + r.name + '</span>' +
         '<div class="sentiment-retailer-stats">' +
             '<span class="sentiment-retailer-count">' + r.analyzed.toLocaleString() + '/' + r.target.toLocaleString() + '건</span>' +
             '<span class="sentiment-retailer-rate ' + rStatusClass + '">' + r.rate + '%</span>' +
             getStatusBadge(r.status) +
-        '</div>' +
-    '</a>';
+        '</div>';
+    if (r.analyzed === 0) {
+        return '<div class="sentiment-retailer-item ' + rStatusClass + '" style="cursor: pointer;" onclick="showToast(\'데이터가 없습니다.\', \'info\')">' + inner + '</div>';
+    }
+    const detailUrl = '/dx/layer1/sentiment/?category=' + encodeURIComponent(category) +
+        '&retailer=' + encodeURIComponent(r.name) +
+        '&period=' + encodeURIComponent(period) +
+        '&date=' + getSelectedDate();
+    return '<a class="sentiment-retailer-item ' + rStatusClass + '" href="' + detailUrl + '" style="cursor: pointer; text-decoration: none; color: inherit;">' + inner + '</a>';
 }
 
 function renderSentimentSlot(slot, category) {
@@ -195,8 +197,8 @@ function renderSentimentCheck(check, checkIdx) {
 // ============================================================
 
 var rawView = new RawDataView({
-    apiUrl: '/layer1/api/sentiment-raw-data/',
-    backUrl: '/layer1/sentiment/',
+    apiUrl: '/dx/layer1/api/sentiment-raw-data/',
+    backUrl: '/dx/layer1/sentiment/',
     title: function(p) { return p.category + ' Sentiment - ' + p.retailer + ' (' + p.period + ')'; },
     urlParams: ['category', 'retailer', 'period']
 });
@@ -212,7 +214,7 @@ async function loadSectionData() {
         try { currentCheckStatus = await loadCheckStatus(selectedDate); }
         catch (e) { currentCheckStatus = null; }
 
-        var response = await fetch('/layer1/api/stats/?date=' + selectedDate + '&check_type=sentiment');
+        var response = await fetch('/dx/layer1/api/stats/?date=' + selectedDate + '&check_type=sentiment');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         var data = await response.json();
         currentStatsData = data;

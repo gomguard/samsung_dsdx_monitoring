@@ -38,6 +38,19 @@ def _get_sidebar_items():
     return {'null': items, 'format': items, 'anomaly': items}
 
 
+def _build_sidebar_groups(section):
+    categories = get_all_categories()
+    items = [{'name': CATEGORY_NAMES.get(c, c), 'active': False} for c in categories]
+    return [
+        {'key': 'null_validation', 'icon': '🔍', 'label': 'NULL 검증',
+         'expanded': section == 'null_validation', 'active': section == 'null_validation', 'items': items},
+        {'key': 'format_validation', 'icon': '📋', 'label': '형식 검증',
+         'expanded': section == 'format_validation', 'active': section == 'format_validation', 'items': items},
+        {'key': 'anomaly_validation', 'icon': '🔄', 'label': '중복 검증',
+         'expanded': section == 'anomaly_validation', 'active': section == 'anomaly_validation', 'items': items},
+    ]
+
+
 def _build_context(section, request):
     return {
         'layer': LAYER_CONTEXT,
@@ -45,6 +58,9 @@ def _build_context(section, request):
         'section_title': SECTION_TITLES.get(section, ''),
         'target_date': request.GET.get('date', ''),
         'sidebar_items': _get_sidebar_items(),
+        'sidebar_title': 'Layer 2 검증',
+        'sidebar_base_url': '/dx/layer2/',
+        'sidebar_groups': _build_sidebar_groups(section),
     }
 
 

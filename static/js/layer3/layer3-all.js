@@ -3105,22 +3105,7 @@ function getValidationRules(checkName) {
 }
 
 // =============================================
-// 사이드바 — 2단 메뉴 (Level 1 + Level 2)
-// =============================================
-
-// 사이드바 그룹 토글 (▶ 버튼 → 하위 항목 펼침/접기만, 페이지 이동 없음)
-function initSidebar() {
-    document.querySelectorAll('.l3-sidebar .sidebar-toggle').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const group = btn.closest('.sidebar-group');
-            if (group) group.classList.toggle('expanded');
-        });
-    });
-}
-
-// 사이드바 하위 항목은 서버 사이드 렌더링 (_sidebar.html)
-
-// 하위 항목 클릭 시 해당 항목으로 이동 (전 섹션 공통)
+// 사이드바 — 하위 항목 클릭 (전 섹션 공통)
 function onSubitemClick(parentSection, checkName) {
     const section = (window.LAYER3 && window.LAYER3.section) || 'dashboard';
     const date = document.getElementById('target-date') ? document.getElementById('target-date').value : '';
@@ -3147,5 +3132,3 @@ function onSubitemClick(parentSection, checkName) {
     }
 }
 
-// 사이드바 초기화
-document.addEventListener('DOMContentLoaded', initSidebar);

@@ -10,7 +10,7 @@
     </div>
 </div>
 
-{% include 'layer1/includes/_raw_data_view.html' with back_url='/layer1/market-promotion/' %}
+{% include 'layer1/includes/_raw_data_view.html' with back_url='/dx/layer1/market-promotion/' %}
 {% endblock %}
 
 {% block layer1_js %}
@@ -83,7 +83,7 @@ function renderMarketPromotionCheck(check, checkIdx) {
                         const retailerStatusClass = getStatusClass(displayStatus);
                         // 분석대상일이 아니면 "분석대상일 아님" 배지 표시
                         const statusBadgeHtml = isTargetDate ? getStatusBadge(r.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
-                        var detailUrl = '/layer1/market-promotion/?retailer=' + encodeURIComponent(r.retailer) + '&date=' + getSelectedDate();
+                        var detailUrl = '/dx/layer1/market-promotion/?retailer=' + encodeURIComponent(r.retailer) + '&date=' + getSelectedDate();
                         return `
                             <a class="sentiment-column ${retailerStatusClass}"
                                  style="cursor: pointer; text-decoration: none; color: inherit; display: block;"
@@ -183,8 +183,8 @@ function renderMarketPromotionCheck(check, checkIdx) {
 // ============================================================
 
 var rawView = new RawDataView({
-    apiUrl: '/layer1/api/market-promotion-raw-data/',
-    backUrl: '/layer1/market-promotion/',
+    apiUrl: '/dx/layer1/api/market-promotion-raw-data/',
+    backUrl: '/dx/layer1/market-promotion/',
     title: function(p) { return 'Market Promotion - ' + p.retailer; },
     urlParams: ['retailer']
 });
@@ -200,7 +200,7 @@ async function loadSectionData() {
         try { currentCheckStatus = await loadCheckStatus(selectedDate); }
         catch (e) { currentCheckStatus = null; }
 
-        var response = await fetch('/layer1/api/stats/?date=' + selectedDate + '&check_type=market_promotion');
+        var response = await fetch('/dx/layer1/api/stats/?date=' + selectedDate + '&check_type=market_promotion');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         var data = await response.json();
         currentStatsData = data;

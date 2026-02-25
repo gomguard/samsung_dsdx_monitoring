@@ -36,7 +36,6 @@ function getDetailSubtitle() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    initSidebar();
     initDatePicker();
     checkBackupStatus();
     fetchDXStats();
@@ -268,7 +267,6 @@ function showTableDetail(tableIdx) {
     let html = `
         <div class="inline-detail-view">
             <div class="inline-detail-header">
-                <button class="viewstack-back" onclick="ViewStack.pop()">← 뒤로가기</button>
                 <div>
                     <div class="inline-detail-title">${table.table_name}</div>
                     <div class="inline-detail-subtitle">${(table.total_records || table.total_checked || 0).toLocaleString()}건 검사 | ${table.total_issues}건 오류</div>
@@ -1474,15 +1472,6 @@ function initColumnResize() {
 }
 
 // ==================== 사이드바 ====================
-function initSidebar() {
-    document.querySelectorAll('.l2-sidebar .sidebar-toggle').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const group = btn.closest('.sidebar-group');
-            if (group) group.classList.toggle('expanded');
-        });
-    });
-}
-
 function onSubitemClick(parentSection, tableName) {
     const section = (window.LAYER2 && window.LAYER2.section) || 'dashboard';
     const date = document.getElementById('target-date') ? document.getElementById('target-date').value : '';
@@ -1549,7 +1538,6 @@ function showTableDetailByName(tableName) {
 function handleFocusParam() {
     const params = new URLSearchParams(window.location.search);
     const focus = params.get('focus');
-    if (!focus) return;
 
     const nameMap = {
         tv_retail: 'TV Retail',
@@ -1557,11 +1545,21 @@ function handleFocusParam() {
         youtube: 'YouTube',
         market: 'Market'
     };
-    const displayName = nameMap[focus] || focus;
 
-    if (isInlineMode()) {
-        setTimeout(() => showTableDetailByName(displayName), 100);
-    } else {
-        setTimeout(() => scrollToTable(displayName), 100);
+    if (focus) {
+        const displayName = nameMap[focus] || focus;
+        if (isInlineMode()) {
+            setTimeout(() => showTableDetailByName(displayName), 100);
+        } else {
+            setTimeout(() => scrollToTable(displayName), 100);
+        }
+    } else if (isInlineMode()) {
+        // focus 없이 방문 시 첫 번째 테이블 자동 표시
+        setTimeout(() => {
+            if (dxData && dxData.validation_types && dxData.validation_types[0]) {
+                const tables = dxData.validation_types[0].tables || [];
+                if (tables.length > 0) showTableDetail(0);
+            }
+        }, 100);
     }
 }

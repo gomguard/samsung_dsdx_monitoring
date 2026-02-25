@@ -10,7 +10,7 @@
     </div>
 </div>
 
-{% include 'layer1/includes/_raw_data_view.html' with back_url='/layer1/market-competitor-event/' %}
+{% include 'layer1/includes/_raw_data_view.html' with back_url='/dx/layer1/market-competitor-event/' %}
 {% endblock %}
 
 {% block layer1_js %}
@@ -106,7 +106,7 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
                         const statusBadgeHtml = isTargetDate ? getStatusBadge(cat.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
                         return `
                             <div class="sentiment-column ${catStatusClass}">
-                                <a class="sentiment-column-header" href="/layer1/market-competitor-event/?category=${encodeURIComponent(cat.category)}&date=${getSelectedDate()}" style="cursor: pointer; text-decoration: none; color: inherit;">
+                                <a class="sentiment-column-header" href="/dx/layer1/market-competitor-event/?category=${encodeURIComponent(cat.category)}&date=${getSelectedDate()}" style="cursor: pointer; text-decoration: none; color: inherit;">
                                     <span class="sentiment-column-title">${cat.category}</span>
                                     <div class="sentiment-column-stats">
                                         <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.expected.toLocaleString()}</span>
@@ -199,8 +199,8 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
 // Raw Data View
 // ============================================================
 var rawView = new RawDataView({
-    apiUrl: '/layer1/api/market-competitor-event-raw-data/',
-    backUrl: '/layer1/market-competitor-event/',
+    apiUrl: '/dx/layer1/api/market-competitor-event-raw-data/',
+    backUrl: '/dx/layer1/market-competitor-event/',
     title: function(p) { return 'Market Competitor Event - ' + p.category; },
     urlParams: ['category']
 });
@@ -216,7 +216,7 @@ async function loadSectionData() {
         try { currentCheckStatus = await loadCheckStatus(selectedDate); }
         catch (e) { currentCheckStatus = null; }
 
-        var response = await fetch('/layer1/api/stats/?date=' + selectedDate + '&check_type=market_competitor_event');
+        var response = await fetch('/dx/layer1/api/stats/?date=' + selectedDate + '&check_type=market_competitor_event');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         var data = await response.json();
         currentStatsData = data;

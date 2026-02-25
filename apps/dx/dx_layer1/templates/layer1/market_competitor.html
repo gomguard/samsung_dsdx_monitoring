@@ -10,7 +10,7 @@
     </div>
 </div>
 
-{% include 'layer1/includes/_raw_data_view.html' with back_url='/layer1/market-competitor/' %}
+{% include 'layer1/includes/_raw_data_view.html' with back_url='/dx/layer1/market-competitor/' %}
 {% endblock %}
 
 {% block layer1_js %}
@@ -118,7 +118,7 @@ function renderMarketCompetitorCheck(check, checkIdx) {
                                     </div>
                                 </div>
                                 <div class="sentiment-retailer-list">
-                                    <a class="sentiment-retailer-item ${getStatusClass(kwStatus)}" href="/layer1/market-competitor/?category=${encodeURIComponent(cat.category)}&view=keywords&date=${getSelectedDate()}" style="text-decoration: none; color: inherit; cursor: pointer;">
+                                    <a class="sentiment-retailer-item ${getStatusClass(kwStatus)}" href="/dx/layer1/market-competitor/?category=${encodeURIComponent(cat.category)}&view=keywords&date=${getSelectedDate()}" style="text-decoration: none; color: inherit; cursor: pointer;">
                                         <span class="sentiment-retailer-name">키워드</span>
                                         <div class="sentiment-retailer-stats">
                                             <span class="sentiment-retailer-count">${catKw.combo_collected || 0}/${catKw.combo_expected || 0}</span>
@@ -126,7 +126,7 @@ function renderMarketCompetitorCheck(check, checkIdx) {
                                             ${getStatusBadge(kwStatus)}
                                         </div>
                                     </a>
-                                    <a class="sentiment-retailer-item ${getStatusClass(kwStatus)}" href="/layer1/market-competitor/?category=${encodeURIComponent(cat.category)}&date=${getSelectedDate()}" style="text-decoration: none; color: inherit; cursor: pointer;">
+                                    <a class="sentiment-retailer-item ${getStatusClass(kwStatus)}" href="/dx/layer1/market-competitor/?category=${encodeURIComponent(cat.category)}&date=${getSelectedDate()}" style="text-decoration: none; color: inherit; cursor: pointer;">
                                         <span class="sentiment-retailer-name">수집량</span>
                                         <div class="sentiment-retailer-stats">
                                             <span class="sentiment-retailer-count large">${cat.collected.toLocaleString()}</span>
@@ -228,8 +228,8 @@ function renderMarketCompetitorCheck(check, checkIdx) {
 // Raw Data View
 // ============================================================
 var rawView = new RawDataView({
-    apiUrl: '/layer1/api/market-competitor-raw-data/',
-    backUrl: '/layer1/market-competitor/',
+    apiUrl: '/dx/layer1/api/market-competitor-raw-data/',
+    backUrl: '/dx/layer1/market-competitor/',
     title: function(p) { return 'Market Competitor 수집 데이터 - ' + p.category; },
     urlParams: ['category'],
     onInit: function(params) {
@@ -261,7 +261,7 @@ function showKeywordsView(category) {
     // colIdx → data array index 매핑: key 1=product_line, 2=content_type, 3=keyword, 4=is_active, 5=created_at
     var colKeyToIdx = { 'product_line': 1, 'content_type': 2, 'keyword': 3, 'is_active': 4, 'created_at': 5 };
 
-    var url = '/layer1/api/market-competitor-keywords/?category=' + encodeURIComponent(category);
+    var url = '/dx/layer1/api/market-competitor-keywords/?category=' + encodeURIComponent(category);
 
     fetch(url)
         .then(function(response) { return response.json(); })
@@ -401,7 +401,7 @@ async function loadSectionData() {
         try { currentCheckStatus = await loadCheckStatus(selectedDate); }
         catch (e) { currentCheckStatus = null; }
 
-        var response = await fetch('/layer1/api/stats/?date=' + selectedDate + '&check_type=market_competitor');
+        var response = await fetch('/dx/layer1/api/stats/?date=' + selectedDate + '&check_type=market_competitor');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         var data = await response.json();
         currentStatsData = data;

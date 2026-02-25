@@ -390,7 +390,7 @@
 
 {% block content %}
 <div class="l1-layout">
-    {% include 'layer1/includes/_sidebar.html' %}
+    {% include 'includes/_sidebar.html' %}
 
     <div class="l1-content">
         {% if section == 'dashboard' %}
@@ -407,7 +407,7 @@
         <h2 class="section-title">{{ section_title }}</h2>
         {% endif %}
 
-        {% include 'layer1/includes/_filter_bar.html' %}
+        <div id="filter-bar-container"></div>
 
         {% block layer1_content %}{% endblock %}
     </div>
@@ -416,26 +416,34 @@
 
 {% block extra_js %}
 <script>
-// ============================================================
-// Sidebar toggle
-// ============================================================
-function toggleL1Sidebar() {
-    var sidebar = document.getElementById('l1-sidebar');
-    var collapsed = sidebar.classList.toggle('collapsed');
-    localStorage.setItem('l1SidebarCollapsed', collapsed ? '1' : '');
-}
-(function() {
-    if (localStorage.getItem('l1SidebarCollapsed') === '1') {
-        document.getElementById('l1-sidebar').classList.add('collapsed');
-    }
-})();
-
     window.LAYER1 = {
         color: '{{ layer.color|escapejs }}',
         section: '{{ section|escapejs }}',
         targetDate: '{{ target_date|default:""|escapejs }}',
         username: '{{ request.user.username|default:""|escapejs }}'
     };
+
+// ============================================================
+// Sidebar subitem click
+// ============================================================
+function onSubitemClick(groupKey, itemName) {
+    var urls = {
+        'Retail': '/dx/layer1/retail/',
+        'Retail 감성분석': '/dx/layer1/sentiment/',
+        'YouTube': '/dx/layer1/youtube/',
+        'Market Trend': '/dx/layer1/market-trend/',
+        'Market 수요증감율': '/dx/layer1/market-demand/',
+        'Market Competitor': '/dx/layer1/market-competitor/',
+        'Market Competitor Event': '/dx/layer1/market-competitor-event/',
+        'Market Promotion': '/dx/layer1/market-promotion/',
+    };
+    var url = urls[itemName];
+    if (url) {
+        var date = document.getElementById('target-date') ?
+                   document.getElementById('target-date').value : '';
+        window.location.href = url + (date ? '?date=' + date : '');
+    }
+}
 
 // ============================================================
 // Common state
@@ -624,7 +632,7 @@ function flattenCheckToDetails(sectionType, check) {
 }
 
 async function loadCheckStatus(dateStr) {
-    var response = await fetch('/layer1/api/check/status/?date=' + dateStr);
+    var response = await fetch('/dx/layer1/api/check/status/?date=' + dateStr);
     if (!response.ok) throw new Error('HTTP ' + response.status);
     return await response.json();
 }
@@ -641,7 +649,7 @@ async function saveCheck(sectionType) {
     if (!result.confirmed) return;
 
     try {
-        var response = await fetch('/layer1/api/check/save/', {
+        var response = await fetch('/dx/layer1/api/check/save/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
@@ -667,7 +675,7 @@ async function deleteCheck(sectionType) {
     if (!result.value) { showToast('취소 사유를 입력해주세요.', 'warning'); return; }
 
     try {
-        var response = await fetch('/layer1/api/check/delete/', {
+        var response = await fetch('/dx/layer1/api/check/delete/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ date: getSelectedDate(), layer: 1, section: sectionType, delete_memo: result.value })

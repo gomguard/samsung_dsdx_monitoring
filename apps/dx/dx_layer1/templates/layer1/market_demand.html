@@ -10,7 +10,7 @@
     </div>
 </div>
 
-{% include 'layer1/includes/_raw_data_view.html' with back_url='/layer1/market-demand/' %}
+{% include 'layer1/includes/_raw_data_view.html' with back_url='/dx/layer1/market-demand/' %}
 {% endblock %}
 
 {% block layer1_js %}
@@ -68,7 +68,7 @@ function renderMarketDemandCheck(check, checkIdx) {
                         const missingCount = cat.target - cat.collected;
                         return `
                             <div class="sentiment-column ${catStatusClass}">
-                                <a class="sentiment-column-header" href="/layer1/market-demand/?category=${encodeURIComponent(cat.category)}&date=${getSelectedDate()}" style="cursor: pointer; text-decoration: none; color: inherit;">
+                                <a class="sentiment-column-header" href="/dx/layer1/market-demand/?category=${encodeURIComponent(cat.category)}&date=${getSelectedDate()}" style="cursor: pointer; text-decoration: none; color: inherit;">
                                     <span class="sentiment-column-title">${cat.category}</span>
                                     <div class="sentiment-column-stats">
                                         <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.target.toLocaleString()}</span>
@@ -78,7 +78,7 @@ function renderMarketDemandCheck(check, checkIdx) {
                                 </a>
                                 ${missingCount > 0 ? `
                                 <div class="sentiment-column-actions" style="padding: 8px 12px; border-top: 1px solid rgba(255,255,255,0.1);">
-                                    <a class="btn-missing-keywords" href="/layer1/market-demand/?category=${encodeURIComponent(cat.category)}&view=missing&date=${getSelectedDate()}" style="font-size: 12px; padding: 4px 8px; background: rgba(255,100,100,0.2); border: 1px solid rgba(255,100,100,0.5); color: #ff6b6b; border-radius: 4px; cursor: pointer; text-decoration: none;">
+                                    <a class="btn-missing-keywords" href="/dx/layer1/market-demand/?category=${encodeURIComponent(cat.category)}&view=missing&date=${getSelectedDate()}" style="font-size: 12px; padding: 4px 8px; background: rgba(255,100,100,0.2); border: 1px solid rgba(255,100,100,0.5); color: #ff6b6b; border-radius: 4px; cursor: pointer; text-decoration: none;">
                                         부족 키워드 보기 (${missingCount}건)
                                     </a>
                                 </div>
@@ -144,8 +144,8 @@ function renderMarketDemandCheck(check, checkIdx) {
 // ============================================================
 
 var rawView = new RawDataView({
-    apiUrl: '/layer1/api/market-demand-raw-data/',
-    backUrl: '/layer1/market-demand/',
+    apiUrl: '/dx/layer1/api/market-demand-raw-data/',
+    backUrl: '/dx/layer1/market-demand/',
     title: function(p) { return 'Market Demand - ' + p.category; },
     urlParams: ['category'],
     onInit: function(params) {
@@ -172,7 +172,7 @@ function showMissingView(category) {
     document.getElementById('rawDataPagination').innerHTML = '';
     document.getElementById('raw-data-filter-bar').innerHTML = '';
 
-    var url = '/layer1/api/market-demand-missing/?category=' + encodeURIComponent(category) +
+    var url = '/dx/layer1/api/market-demand-missing/?category=' + encodeURIComponent(category) +
               '&date=' + encodeURIComponent(currentDate);
 
     fetch(url)
@@ -245,7 +245,7 @@ async function loadSectionData() {
         try { currentCheckStatus = await loadCheckStatus(selectedDate); }
         catch (e) { currentCheckStatus = null; }
 
-        var response = await fetch('/layer1/api/stats/?date=' + selectedDate + '&check_type=market_demand');
+        var response = await fetch('/dx/layer1/api/stats/?date=' + selectedDate + '&check_type=market_demand');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         var data = await response.json();
         currentStatsData = data;

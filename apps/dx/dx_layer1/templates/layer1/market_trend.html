@@ -10,7 +10,7 @@
     </div>
 </div>
 
-{% include 'layer1/includes/_raw_data_view.html' with back_url='/layer1/market-trend/' %}
+{% include 'layer1/includes/_raw_data_view.html' with back_url='/dx/layer1/market-trend/' %}
 {% endblock %}
 
 {% block layer1_js %}
@@ -28,7 +28,7 @@ function renderMarketTrendCategory(cat, checkIdx, catIdx) {
         itemsHtml = '<div class="sentiment-two-column no-side-padding" id="market-cat-' + checkIdx + '-' + catIdx + '">' +
             cat.items.map(item => {
                 const itemStatusClass = getStatusClass(item.status);
-                var detailUrl = '/layer1/market-trend/?category=' + encodeURIComponent(cat.name) + '&content_type=' + encodeURIComponent(item.name) + '&date=' + getSelectedDate();
+                var detailUrl = '/dx/layer1/market-trend/?category=' + encodeURIComponent(cat.name) + '&content_type=' + encodeURIComponent(item.name) + '&date=' + getSelectedDate();
                 return '<a class="sentiment-column ' + itemStatusClass + '" href="' + detailUrl + '" style="cursor: pointer; text-decoration: none; color: inherit; display: block;">' +
                     '<div class="sentiment-column-header">' +
                         '<span class="sentiment-column-title">' + item.name + '</span>' +
@@ -115,7 +115,7 @@ function renderMarketTrendCheck(check, checkIdx) {
             if (hasItems) {
                 itemsHtml = cat.items.map(item => {
                     const itemStatusClass = getStatusClass(item.status);
-                    var itemDetailUrl = '/layer1/market-trend/?category=' + encodeURIComponent(cat.name) + '&content_type=' + encodeURIComponent(item.name) + '&date=' + getSelectedDate();
+                    var itemDetailUrl = '/dx/layer1/market-trend/?category=' + encodeURIComponent(cat.name) + '&content_type=' + encodeURIComponent(item.name) + '&date=' + getSelectedDate();
                     return '<a class="sentiment-retailer-item ' + itemStatusClass + '" href="' + itemDetailUrl + '" style="cursor: pointer; text-decoration: none; color: inherit;">' +
                         '<span class="sentiment-retailer-name">' + item.name + '</span>' +
                         '<div class="sentiment-retailer-stats">' +
@@ -208,8 +208,8 @@ function renderMarketTrendCheck(check, checkIdx) {
 // ============================================================
 
 var rawView = new RawDataView({
-    apiUrl: '/layer1/api/market-trend-raw-data/',
-    backUrl: '/layer1/market-trend/',
+    apiUrl: '/dx/layer1/api/market-trend-raw-data/',
+    backUrl: '/dx/layer1/market-trend/',
     title: function(p) {
         var t = 'Market Trend - ' + p.category;
         if (p.content_type) t += ' (' + p.content_type + ')';
@@ -229,7 +229,7 @@ async function loadSectionData() {
         try { currentCheckStatus = await loadCheckStatus(selectedDate); }
         catch (e) { currentCheckStatus = null; }
 
-        var response = await fetch('/layer1/api/stats/?date=' + selectedDate + '&check_type=market_trend');
+        var response = await fetch('/dx/layer1/api/stats/?date=' + selectedDate + '&check_type=market_trend');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         var data = await response.json();
         currentStatsData = data;

@@ -281,7 +281,7 @@ async function loadLogData() {
     if (!dateStr) return;
 
     try {
-        var response = await fetch('/layer1/api/check/log/?date=' + dateStr + '&layer=1');
+        var response = await fetch('/dx/layer1/api/check/log/?date=' + dateStr + '&layer=1');
         if (!response.ok) throw new Error('HTTP ' + response.status);
         var result = await response.json();
 
@@ -386,7 +386,7 @@ async function editMemo(logId, el) {
     if (!result.confirmed) return;
 
     try {
-        var response = await fetch('/layer1/api/check/memo/', {
+        var response = await fetch('/dx/layer1/api/check/memo/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ id: logId, memo: result.value })

@@ -26,6 +26,38 @@ SECTION_TITLES = {
     'market_promotion': 'Market Promotion',
 }
 
+SIDEBAR_GROUPS_DEF = [
+    {
+        'key': 'daily',
+        'icon': '📦',
+        'label': '데일리 검증',
+        'sections': ['retail', 'sentiment', 'youtube', 'market_trend', 'market_demand'],
+    },
+    {
+        'key': 'period',
+        'icon': '📅',
+        'label': '분석대상일별 검증',
+        'sections': ['market_competitor', 'market_competitor_event', 'market_promotion'],
+    },
+]
+
+
+def _build_sidebar_groups(section):
+    groups = []
+    for g in SIDEBAR_GROUPS_DEF:
+        groups.append({
+            'key': g['key'],
+            'icon': g['icon'],
+            'label': g['label'],
+            'expanded': section in g['sections'],
+            'active': section in g['sections'],
+            'items': [
+                {'name': SECTION_TITLES[s], 'active': section == s}
+                for s in g['sections']
+            ],
+        })
+    return groups
+
 
 def _build_context(section, request):
     return {
@@ -34,6 +66,9 @@ def _build_context(section, request):
         'section_title': SECTION_TITLES.get(section, ''),
         'section_titles': SECTION_TITLES,
         'target_date': request.GET.get('date', ''),
+        'sidebar_title': 'Layer 1 검증',
+        'sidebar_base_url': '/dx/layer1/',
+        'sidebar_groups': _build_sidebar_groups(section),
     }
 
 
