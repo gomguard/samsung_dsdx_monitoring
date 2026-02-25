@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/screenshot-capture/', api_views.screenshot_capture, name='api_screenshot_capture'),
     path('api/screenshot-status/', api_views.screenshot_status, name='api_screenshot_status'),
     path('api/screenshot-delete/', api_views.screenshot_delete, name='api_screenshot_delete'),
+    path('api/screenshot-upload/', api_views.screenshot_upload, name='api_screenshot_upload'),
     # 파일 용량 히스토리 API
     path('api/file-size-history/', api_views.report_file_size_history, name='api_file_size_history'),
 ]

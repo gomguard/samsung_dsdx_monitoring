@@ -2559,3 +2559,107 @@ def screenshot_delete(request):
 
     except Exception as e:
         return safe_error(e, success=False)
+
+
+def screenshot_upload(request):
+    """스크린샷 수동 업로드 API (파일 → S3 업로드 → DB 등록 → anomaly 연결)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST 요청만 허용됩니다.'}, status=405)
+
+    try:
+        uploaded_file = request.FILES.get('file')
+        anomaly_id = request.POST.get('anomaly_id')
+
+        if not uploaded_file or not anomaly_id:
+            return JsonResponse({'success': False, 'error': '파일과 anomaly_id가 필요합니다.'})
+
+        # 파일 검증
+        allowed_types = ('image/png', 'image/jpeg')
+        if uploaded_file.content_type not in allowed_types:
+            return JsonResponse({'success': False, 'error': 'PNG 또는 JPG 파일만 업로드할 수 있습니다.'})
+
+        max_size = 10 * 1024 * 1024  # 10MB
+        if uploaded_file.size > max_size:
+            return JsonResponse({'success': False, 'error': '파일 크기가 10MB를 초과합니다.'})
+
+        anomaly_id = int(anomaly_id)
+
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+
+        # anomaly 조회 → retailer, crawl_date, retailersku 추출
+        cursor.execute("""
+            SELECT a.id, t.retailer, a.crawl_date, a.retailersku
+            FROM ssd_crawl_db.ds_monitoring_report_anomaly a
+            LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
+            WHERE a.id = %s AND a.is_del = 0
+        """, (anomaly_id,))
+        row = cursor.fetchone()
+
+        if not row:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'success': False, 'error': '해당 이상치를 찾을 수 없습니다.'})
+
+        retailer = row[1]
+        crawl_date = row[2]  # date 객체
+        retailersku = row[3]
+        if isinstance(crawl_date, str):
+            crawl_date = datetime.strptime(crawl_date, '%Y-%m-%d').date()
+
+        # S3 키 생성 (캡쳐 프로그램과 동일 패턴: {retailer}_{retailersku}_{timestamp}.png)
+        # 캡쳐 프로그램은 소문자 retailer를 사용하므로 동일하게 소문자 변환
+        retailer_lower = retailer.lower()
+        now = datetime.now()
+        year = crawl_date.strftime('%Y')
+        year_month = crawl_date.strftime('%Y%m')
+        year_month_day = crawl_date.strftime('%Y%m%d')
+        creation_timestamp = now.strftime('%Y%m%d%H%M%S')
+        if retailersku:
+            file_name = f"{retailer_lower}_{retailersku}_{creation_timestamp}.png"
+        else:
+            file_name = f"{retailer_lower}_{creation_timestamp}.png"
+        file_path = f"{year}/{year_month}/{year_month_day}/{retailer_lower}/"
+        s3_key = f"{file_path}{file_name}"
+
+        # S3 업로드
+        file_bytes = uploaded_file.read()
+        s3_client = boto3.client(
+            's3',
+            region_name=S3_CONFIG['region'],
+            aws_access_key_id=S3_CONFIG['access_key'],
+            aws_secret_access_key=S3_CONFIG['secret_key']
+        )
+        s3_client.put_object(
+            Bucket=S3_CONFIG['bucket'],
+            Key=s3_key,
+            Body=file_bytes,
+            ContentType=uploaded_file.content_type
+        )
+
+        # ds_monitoring_file INSERT
+        created_id = request.user.username if request.user.is_authenticated else ''
+        cursor.execute("""
+            INSERT INTO ssd_crawl_db.ds_monitoring_file
+            (file_name, file_path, file_size, file_type, is_del, created_at, created_id)
+            VALUES (%s, %s, %s, %s, 0, %s, %s)
+        """, (file_name, file_path, len(file_bytes), uploaded_file.content_type, now, created_id))
+        file_id = cursor.lastrowid
+
+        # anomaly.screenshot_id 업데이트
+        cursor.execute("""
+            UPDATE ssd_crawl_db.ds_monitoring_report_anomaly
+            SET screenshot_id = %s
+            WHERE id = %s
+        """, (file_id, anomaly_id))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'file_id': file_id})
+
+    except ClientError as e:
+        return safe_error(e, 's3', success=False)
+    except Exception as e:
+        return safe_error(e, success=False)

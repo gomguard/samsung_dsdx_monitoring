@@ -1083,11 +1083,31 @@ async function saveRetailer(retailer, event) {
         return;
     }
 
+    // 파일서버 파일 확인
+    showToast('파일서버 확인 중...', 'info');
+    let fileMatches = [];
+    try {
+        const fsRes = await fetch(`/ds/layer1/api/fileserver/?date=${date}`);
+        const fsData = await fsRes.json();
+        const normalizeFs = name => name.toLowerCase().replace(/[-_]/g, '');
+        fileMatches = (fsData.countries || []).filter(c => normalizeFs(c.retailer) === normalizeFs(retailer));
+    } catch (e) {
+        showToast('파일서버 조회 실패', 'error');
+        return;
+    }
+
+    if (fileMatches.length === 0) {
+        showToast(`${retailer}: 파일서버에 저장된 파일이 없습니다. 파일을 확인해주세요.`, 'error');
+        return;
+    }
+
     // 저장 확인 팝업
+    const fileNames = fileMatches.map(f => f.files[0]?.name).filter(Boolean).join('\n');
     const errorCount = (retailerData.null_union || 0) + (retailerData.price_zero || 0) + (retailerData.partial_null || 0);
-    const confirmMsg = errorCount > 0
+    let confirmMsg = errorCount > 0
         ? `${retailer} 이상치 데이터 ${errorCount}건을 저장하시겠습니까?`
         : `${retailer} 현황을 저장하시겠습니까?`;
+    confirmMsg += `\n\n파일:\n${fileNames}`;
     const confirmed = await showConfirm(confirmMsg, errorCount > 0 ? 'warning' : 'info');
     if (!confirmed) {
         return;
@@ -1241,27 +1261,39 @@ async function bulkSaveRetailers() {
     const date = document.getElementById('targetDate').value;
     const selectedRetailers = Array.from(checked).map(cb => cb.dataset.retailer);
 
-    // 최종 배치 데이터 조회
+    // 최종 배치 데이터 + 파일서버 동시 조회
     showToast('마감 조건 확인 중...', 'info');
     let finalData = null;
+    let fsData = null;
     try {
-        const res = await fetch(`/ds/layer2/api/stats/?date=${date}&batch_view=final`);
-        finalData = await res.json();
+        const [finalRes, fsRes] = await Promise.all([
+            fetch(`/ds/layer2/api/stats/?date=${date}&batch_view=final`),
+            fetch(`/ds/layer1/api/fileserver/?date=${date}`)
+        ]);
+        finalData = await finalRes.json();
+        fsData = await fsRes.json();
     } catch (e) {
         showToast('데이터 조회 실패', 'error');
         return;
     }
 
-    // 조건 체크: 최종 배치 수집 건수 >= 예상 건수
+    // 파일서버 리테일러 매핑
+    const normalizeFs = name => name.toLowerCase().replace(/[-_]/g, '');
+    const fsRetailers = (fsData.countries || []);
+
+    // 조건 체크: 최종 배치 수집 건수 >= 예상 건수 + 파일서버 파일 존재
     const eligible = [];
     const ineligible = [];
 
     for (const retailer of selectedRetailers) {
         const finalInfo = finalData.results?.find(r => r.retailer === retailer);
+        const fileInfo = fsRetailers.find(c => normalizeFs(c.retailer) === normalizeFs(retailer));
         if (!finalInfo) {
             ineligible.push({ retailer, reason: '데이터 없음' });
         } else if (finalInfo.total < finalInfo.expected_count) {
             ineligible.push({ retailer, reason: `수집 미완료 (${finalInfo.total}/${finalInfo.expected_count})` });
+        } else if (!fileInfo) {
+            ineligible.push({ retailer, reason: '저장된 zip 파일 없음' });
         } else {
             eligible.push(retailer);
         }
@@ -1521,6 +1553,8 @@ function renderNullTable(data) {
         } else {
             if (isSaved) {
                 actionButtons = AppButton.html('취소', `deleteRetailer('${item.retailer}', event)`, { size: 'sm', bg: '#f1f5f9', color: '#64748b', border: '1px solid #e2e8f0', padding: '3px 9px', radius: '4px', fontSize: '11px' });
+            } else if (item.expected_count > 0 && item.total < item.expected_count) {
+                actionButtons = '';
             } else {
                 actionButtons = AppButton.html('마감', `saveRetailer('${item.retailer}', event)`, { size: 'sm', style: 'primary', padding: '3px 9px', radius: '4px', fontSize: '11px' });
             }

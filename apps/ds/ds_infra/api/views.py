@@ -4,6 +4,7 @@
 
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from apps.common.targets import load_ec2_instances
@@ -54,15 +55,17 @@ def ec2_status(request):
                 region_map[region] = []
             region_map[region].append(info['instance_id'])
 
-    # 리전별 describe_instances 호출
+    # 리전별 describe_instances 병렬 호출
     state_map = {}
-    for region, instance_ids in region_map.items():
+
+    def fetch_region(region, instance_ids):
+        result = {}
         try:
             client = _get_ec2_client(region)
             if not client:
                 for iid in instance_ids:
-                    state_map[iid] = {'state': 'unknown'}
-                continue
+                    result[iid] = {'state': 'unknown'}
+                return result
 
             response = client.describe_instances(InstanceIds=instance_ids)
             for reservation in response.get('Reservations', []):
@@ -74,12 +77,21 @@ def ec2_status(request):
                         if tag['Key'] == 'Name':
                             name = tag['Value']
                             break
-                    state_map[iid] = {'state': state, 'name': name}
+                    result[iid] = {'state': state, 'name': name}
         except Exception as e:
             logger.error(f"EC2 describe_instances 실패 (region={region}): {e}")
             for iid in instance_ids:
-                if iid not in state_map:
-                    state_map[iid] = {'state': 'unknown'}
+                if iid not in result:
+                    result[iid] = {'state': 'unknown'}
+        return result
+
+    with ThreadPoolExecutor(max_workers=len(region_map) or 1) as executor:
+        futures = {
+            executor.submit(fetch_region, region, ids): region
+            for region, ids in region_map.items()
+        }
+        for future in as_completed(futures):
+            state_map.update(future.result())
 
     # 응답 구성 — instance_id, region 미포함
     result = []
