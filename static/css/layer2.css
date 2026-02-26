@@ -27,7 +27,7 @@
 
 .inline-detail-header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 16px;
     margin-bottom: 20px;
     padding-bottom: 16px;
@@ -119,128 +119,6 @@
 .layer-info p {
     opacity: 0.9;
     font-size: 14px;
-}
-
-/* ============================================================
- * 필터 섹션
- * ============================================================ */
-.filter-section {
-    background: white;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    padding: 20px 24px;
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 16px;
-    position: sticky;
-    top: 64px;
-    z-index: 99;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.filter-section-title {
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--layer-color);
-    white-space: nowrap;
-}
-
-.filter-divider {
-    width: 1px;
-    height: 24px;
-    background: var(--border-color);
-}
-
-.date-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    margin-left: 8px;
-}
-.date-badge.today { background: #dcfce7; color: #166534; }
-.date-badge.yesterday { background: #dbeafe; color: #1e40af; }
-.date-badge.past { background: #f3f4f6; color: #6b7280; }
-
-.filter-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.filter-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.filter-group label {
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--text-secondary);
-}
-
-.filter-input {
-    padding: 10px 14px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    font-size: 14px;
-    width: 140px;
-}
-
-.filter-input:focus {
-    outline: none;
-    border-color: var(--layer-color);
-}
-
-.search-btn {
-    padding: 10px 24px;
-    background: var(--layer-color);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.2s;
-}
-
-.search-btn:hover { opacity: 0.9; }
-
-.today-btn {
-    padding: 10px 16px;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.today-btn:hover {
-    background: var(--bg-primary);
-    border-color: var(--layer-color);
-}
-
-.filter-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-left: auto;
-}
-
-.current-info {
-    font-size: 14px;
-    color: var(--text-secondary);
-}
-
-.current-info strong {
-    color: var(--layer-color);
 }
 
 /* ============================================================

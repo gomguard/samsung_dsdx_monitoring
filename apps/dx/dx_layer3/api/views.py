@@ -226,10 +226,7 @@ def validate_review_detail_match(row, product_line, return_detail=False):
         }
 
     패턴 규칙:
-        - TV Amazon: {N}- (예: 1-, 2-, ..., 10-)
-        - TV Bestbuy: review {N}- (예: review 1-, review 2-)
-        - TV Walmart: review{N}- (예: review1-, review2-)
-        - HHP (all): review{N} - (예: review1 -, review2 -)
+        - 전체 공통: review{N} - (예: review1 -, review2 -, ..., review20 -)
     """
     count_of_reviews = row.get('count_of_reviews', '')
     detailed_review_content = row.get('detailed_review_content', '')
@@ -267,16 +264,8 @@ def validate_review_detail_match(row, product_line, return_detail=False):
     # 검증할 리뷰 번호 (최대 20까지만)
     max_review_num = min(review_count, 20)
 
-    # 패턴 생성 (product_line과 account_name에 따라)
-    if product_line.lower() in ['tv', 'tv_retail']:
-        if account_name == 'Amazon':
-            pattern = f"{max_review_num}-"
-        elif account_name == 'Bestbuy':
-            pattern = f"review {max_review_num}-"
-        else:  # Walmart
-            pattern = f"review{max_review_num}-"
-    else:  # HHP
-        pattern = f"review{max_review_num} -"
+    # 패턴 생성 (전체 공통)
+    pattern = f"review{max_review_num} -"
 
     # 패턴이 detailed_review_content에 있는지 확인
     pattern_found = pattern.lower() in detailed_review_content.lower()

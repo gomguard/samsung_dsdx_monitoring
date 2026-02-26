@@ -6,7 +6,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/layer2.css' %}?v=1">
 <style>
-    :root { --layer-color: {{ layer.color|escapejs }}; }
+    :root { --layer-color: {{ layer.color|escapejs }}; --page-color: {{ layer.color|escapejs }}; }
 </style>
 {% block layer2_css %}{% endblock %}
 {% endblock %}
@@ -31,8 +31,13 @@
         </div>
         {% endif %}
 
+        <!-- 뒤로가기 (ViewStack 활성 시 표시) -->
+        <div id="viewstack-back-container" style="display:none; margin-bottom:12px;">
+            <button class="app-btn app-btn-md app-btn-back" onclick="ViewStack.pop()">&larr; 뒤로가기</button>
+        </div>
+
         <!-- 필터 영역 -->
-        {% include 'layer2/includes/_filter_bar.html' %}
+        <div id="filter-bar-container"></div>
 
         {% block layer2_content %}{% endblock %}
     </div>
@@ -77,6 +82,55 @@
         targetDate: '{{ target_date|default:""|escapejs }}',
         username: '{{ request.user.username|default:""|escapejs }}'
     };
+
+    var filterBar;
+
+    function initFilterBar() {
+        var saved = localStorage.getItem('monitoringSelectedDate');
+        var yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        var defaultDate = saved || formatLocalDate(yesterday);
+        var today = formatLocalDate(new Date());
+
+        var urlDate = new URLSearchParams(window.location.search).get('date');
+        if (urlDate) { defaultDate = urlDate; localStorage.setItem('monitoringSelectedDate', urlDate); }
+
+        function onDateChange() {
+            localStorage.setItem('monitoringSelectedDate', filterBar.getDate());
+        }
+
+        var section = (window.LAYER2 && window.LAYER2.section) || 'dashboard';
+        var controls = [];
+
+        if (section !== 'dashboard') {
+            var sectionTitles = { null_validation: 'NULL 검증', format_validation: '형식 검증', anomaly_validation: '중복 검증' };
+            controls.push({
+                type: 'custom',
+                html: '<div style="display:flex;align-items:center;gap:12px;"><span style="font-size:17px;font-weight:700;color:var(--layer-color);white-space:nowrap;line-height:1;">' + (sectionTitles[section] || '') + '</span><span style="width:2px;height:24px;background:#999;"></span></div>'
+            });
+        }
+
+        controls.push(
+            { type: 'date', key: 'targetDate', label: '조회 날짜', value: defaultDate, max: today, showWeekday: true },
+            { type: 'button', label: '조회', style: 'primary', onClick: function() {
+                if (filterBar.getDate() > today) { showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning'); filterBar.setDate(today); return; }
+                onDateChange(); handleSearch();
+            } },
+            { type: 'button', label: '전날', style: 'outline', onClick: function() { filterBar.prevDay(); onDateChange(); handleSearch(); } },
+            { type: 'button', label: '다음날', style: 'outline', onClick: function() {
+                var before = filterBar.getDate();
+                filterBar.nextDay();
+                if (filterBar.getDate() === before) { showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning'); return; }
+                onDateChange(); handleSearch();
+            } }
+        );
+
+        filterBar = new FilterBar('#filter-bar-container', { sticky: true, controls: controls }).render();
+    }
+
+    function getSelectedDate() {
+        return filterBar ? filterBar.getDate() : '';
+    }
 </script>
 {% block layer2_js %}{% endblock %}
 {% endblock %}

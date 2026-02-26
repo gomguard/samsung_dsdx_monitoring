@@ -27,7 +27,7 @@ function renderSentimentRetailer(r, category, period) {
             getStatusBadge(r.status) +
         '</div>';
     if (r.analyzed === 0) {
-        return '<div class="sentiment-retailer-item ' + rStatusClass + '" style="cursor: pointer;" onclick="showToast(\'데이터가 없습니다.\', \'info\')">' + inner + '</div>';
+        return '<div class="sentiment-retailer-item ' + rStatusClass + '" style="cursor: pointer;" onclick="showToast(\'조회된 데이터가 없습니다.\', \'info\')">' + inner + '</div>';
     }
     const detailUrl = '/dx/layer1/sentiment/?category=' + encodeURIComponent(category) +
         '&retailer=' + encodeURIComponent(r.name) +

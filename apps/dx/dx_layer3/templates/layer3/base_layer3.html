@@ -6,7 +6,7 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/layer3.css' %}?v=1">
 <style>
-    :root { --layer-color: {{ layer.color|escapejs }}; }
+    :root { --layer-color: {{ layer.color|escapejs }}; --page-color: {{ layer.color|escapejs }}; }
 </style>
 {% block layer3_css %}{% endblock %}
 {% endblock %}

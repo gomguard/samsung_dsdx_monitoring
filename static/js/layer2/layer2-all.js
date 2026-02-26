@@ -1,5 +1,6 @@
 // Layer 2: 형식/NULL 검수 (DX 데이터 품질 모니터링)
 let dxData = null;
+let currentFocusTable = null;  // 현재 보고 있는 테이블 이름 (날짜 변경 시 유지용)
 
 // ViewStack — 섹션 페이지에서 모달 대신 인라인 콘텐츠 교체
 const ViewStack = {
@@ -11,15 +12,21 @@ const ViewStack = {
         this.stack.push({ html: c.innerHTML, scrollTop: window.scrollY });
         c.innerHTML = html;
         window.scrollTo(0, 0);
+        this._updateBackBtn();
     },
     pop() {
         if (this.stack.length === 0) return false;
         const s = this.stack.pop();
         const c = this.getContainer();
         if (c) { c.innerHTML = s.html; window.scrollTo(0, s.scrollTop); }
+        this._updateBackBtn();
         return true;
     },
-    depth() { return this.stack.length; }
+    depth() { return this.stack.length; },
+    _updateBackBtn() {
+        var el = document.getElementById('viewstack-back-container');
+        if (el) el.style.display = this.stack.length > 0 ? '' : 'none';
+    }
 };
 
 function isInlineMode() {
@@ -36,7 +43,7 @@ function getDetailSubtitle() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    initDatePicker();
+    initFilterBar();
     checkBackupStatus();
     fetchDXStats();
 });
@@ -59,20 +66,6 @@ async function checkBackupStatus() {
     } catch (e) { /* 백업 상태 조회 실패 시 무시 */ }
 }
 
-// 요일 표시 업데이트
-function updateWeekday() {
-    const dateInput = document.getElementById('target-date');
-    const weekdayDisplay = document.getElementById('weekday-display');
-    if (dateInput.value && weekdayDisplay) {
-        const date = new Date(dateInput.value + 'T00:00:00');
-        const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-        const weekday = weekdays[date.getDay()];
-        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-        weekdayDisplay.textContent = `(${weekday})`;
-        weekdayDisplay.style.color = isWeekend ? 'var(--color-critical)' : 'var(--text-secondary)';
-    }
-}
-
 // 로컬 날짜를 YYYY-MM-DD 형식으로 변환
 function formatLocalDate(date) {
     const yyyy = date.getFullYear();
@@ -81,57 +74,11 @@ function formatLocalDate(date) {
     return `${yyyy}-${mm}-${dd}`;
 }
 
-function initDatePicker() {
-    const dateInput = document.getElementById('target-date');
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlDate = urlParams.get('date');
-    const saved = localStorage.getItem('monitoringSelectedDate');
-
-    if (urlDate) {
-        dateInput.value = urlDate;
-    } else if (saved) {
-        dateInput.value = saved;
-    } else {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        dateInput.value = formatLocalDate(yesterday);
-    }
-    localStorage.setItem('monitoringSelectedDate', dateInput.value);
-
-    const today = new Date();
-    dateInput.max = formatLocalDate(today);
-
-    // 날짜 변경 시 요일 업데이트 + localStorage 저장
-    dateInput.addEventListener('change', function() {
-        updateWeekday();
-        localStorage.setItem('monitoringSelectedDate', dateInput.value);
-    });
-    updateWeekday();
-}
-
-function setNextDay() {
-    const dateInput = document.getElementById('target-date');
-    const current = new Date(dateInput.value);
-    current.setDate(current.getDate() + 1);
-    dateInput.value = formatLocalDate(current);
-    localStorage.setItem('monitoringSelectedDate', dateInput.value);
-    updateWeekday();
-    handleSearch();
-}
-
-function setPrevDay() {
-    const dateInput = document.getElementById('target-date');
-    const current = new Date(dateInput.value);
-    current.setDate(current.getDate() - 1);
-    dateInput.value = formatLocalDate(current);
-    localStorage.setItem('monitoringSelectedDate', dateInput.value);
-    updateWeekday();
-    handleSearch();
-}
-
 function handleSearch() {
     checkBackupStatus();
     dxData = null;
+    ViewStack.stack = [];
+    ViewStack._updateBackBtn();
     document.getElementById('dx-validation-container').innerHTML = `
         <div class="loading">
             <div class="loading-spinner"></div>
@@ -140,9 +87,6 @@ function handleSearch() {
     fetchDXStats();
 }
 
-function getSelectedDate() {
-    return document.getElementById('target-date').value;
-}
 
 // ==================== DX ====================
 function fetchDXStats() {
@@ -225,9 +169,46 @@ function renderDXValidationTypes(data) {
                 `;
             });
         }
-        // dxData에 validation_types 저장 (showTableDetail에서 사용)
-        container.innerHTML = html;
-        handleFocusParam();
+        // focus 결정: currentFocusTable > URL focus > 첫 번째 테이블
+        var focusTarget = currentFocusTable;
+        if (!focusTarget) {
+            const focus = new URLSearchParams(window.location.search).get('focus');
+            if (focus) {
+                focusTarget = decodeURIComponent(focus);
+            }
+        }
+        // focus 없으면 첫 번째 테이블
+        if (!focusTarget && vType && vType.tables && vType.tables.length > 0) {
+            focusTarget = vType.tables[0].table_name;
+        }
+
+        if (focusTarget && vType) {
+            const idx = vType.tables.findIndex(t => t.table_name === focusTarget);
+            if (idx >= 0) {
+                // 목록 HTML은 ViewStack에만 저장 (뒤로가기용)
+                ViewStack.stack = [{ html: html, scrollTop: 0 }];
+                ViewStack._updateBackBtn();
+                const table = vType.tables[idx];
+                currentFocusTable = table.table_name;
+                let detailHtml = `
+                    <div class="inline-detail-view">
+                        <div class="inline-detail-header">
+                            <div>
+                                <div class="inline-detail-title">${table.table_name}</div>
+                                <div class="inline-detail-subtitle">${(table.total_records || table.total_checked || 0).toLocaleString()}건 검사 | ${table.total_issues}건 오류</div>
+                            </div>
+                        </div>
+                        <div class="inline-detail-body">
+                            ${renderDXTableDetail(vType, table)}
+                        </div>
+                    </div>`;
+                container.innerHTML = detailHtml;
+            } else {
+                container.innerHTML = html;
+            }
+        } else {
+            container.innerHTML = html;
+        }
     } else {
         // 대시보드: 기존 validation-section + toggle 구조
         data.validation_types.forEach((vType, vIdx) => {
@@ -263,6 +244,11 @@ function showTableDetail(tableIdx) {
     const vType = dxData.validation_types[0];
     if (!vType || !vType.tables || !vType.tables[tableIdx]) return;
     const table = vType.tables[tableIdx];
+    currentFocusTable = table.table_name;
+    // URL에 focus 파라미터 반영 (새로고침 시 현재 메뉴 유지)
+    const url = new URL(window.location);
+    url.searchParams.set('focus', table.table_name);
+    history.replaceState(null, '', url);
 
     let html = `
         <div class="inline-detail-view">
@@ -509,7 +495,7 @@ let modalState = {
 };
 
 function openDetailModal(type, tableName, retailer, count, page = 1) {
-    if (count === 0) return;
+    if (count === 0) { showToast('조회된 데이터가 없습니다.', 'info'); return; }
 
     const typeNames = { 'null': 'NULL 검증', 'format': '형식 검증', 'duplicate': '중복 검증' };
     const titleText = `${retailer} - ${typeNames[type]} 오류`;
@@ -520,7 +506,6 @@ function openDetailModal(type, tableName, retailer, count, page = 1) {
         ViewStack.push(`
             <div class="inline-detail-view">
                 <div class="inline-detail-header">
-                    <button class="viewstack-back" onclick="ViewStack.pop()">← 뒤로가기</button>
                     <div>
                         <div class="inline-detail-title">${titleText}</div>
                         <div class="inline-detail-subtitle" id="detail-subtitle">${subtitleText}</div>
@@ -834,7 +819,6 @@ WHERE id IN (${idInClause});`;
         const wrapper = `
             <div class="inline-detail-view">
                 <div class="inline-detail-header">
-                    <button class="viewstack-back" onclick="ViewStack.pop()">← 뒤로가기</button>
                     <div>
                         <div class="inline-detail-title">${fieldTitle}</div>
                         <div class="inline-detail-subtitle" id="detail-subtitle">${fieldSubtitle}</div>
@@ -1474,7 +1458,7 @@ function initColumnResize() {
 // ==================== 사이드바 ====================
 function onSubitemClick(parentSection, tableName) {
     const section = (window.LAYER2 && window.LAYER2.section) || 'dashboard';
-    const date = document.getElementById('target-date') ? document.getElementById('target-date').value : '';
+    const date = getSelectedDate();
     const dateParam = date ? `?date=${date}` : '';
 
     if (section !== parentSection) {
@@ -1491,6 +1475,11 @@ function onSubitemClick(parentSection, tableName) {
 
     // 같은 섹션: ViewStack으로 해당 테이블 상세 표시
     showTableDetailByName(tableName);
+
+    // 사이드바 active 갱신
+    document.querySelectorAll('.sidebar-subitem').forEach(function(el) {
+        el.classList.toggle('active', el.textContent.trim() === tableName);
+    });
 }
 
 function scrollToTable(tableName) {
@@ -1536,30 +1525,17 @@ function showTableDetailByName(tableName) {
 }
 
 function handleFocusParam() {
-    const params = new URLSearchParams(window.location.search);
-    const focus = params.get('focus');
+    var target = currentFocusTable;
+    if (!target) {
+        const focus = new URLSearchParams(window.location.search).get('focus');
+        if (focus) target = decodeURIComponent(focus);
+    }
 
-    const nameMap = {
-        tv_retail: 'TV Retail',
-        hhp_retail: 'HHP Retail',
-        youtube: 'YouTube',
-        market: 'Market'
-    };
-
-    if (focus) {
-        const displayName = nameMap[focus] || focus;
+    if (target) {
         if (isInlineMode()) {
-            setTimeout(() => showTableDetailByName(displayName), 100);
+            showTableDetailByName(target);
         } else {
-            setTimeout(() => scrollToTable(displayName), 100);
+            scrollToTable(target);
         }
-    } else if (isInlineMode()) {
-        // focus 없이 방문 시 첫 번째 테이블 자동 표시
-        setTimeout(() => {
-            if (dxData && dxData.validation_types && dxData.validation_types[0]) {
-                const tables = dxData.validation_types[0].tables || [];
-                if (tables.length > 0) showTableDetail(0);
-            }
-        }, 100);
     }
 }

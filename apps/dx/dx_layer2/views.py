@@ -38,20 +38,24 @@ def _get_sidebar_items():
     return {'null': items, 'format': items, 'anomaly': items}
 
 
-def _build_sidebar_groups(section):
+def _build_sidebar_groups(section, focus=''):
     categories = get_all_categories()
-    items = [{'name': CATEGORY_NAMES.get(c, c), 'active': False} for c in categories]
+
+    def make_items(sec):
+        return [{'name': CATEGORY_NAMES.get(c, c), 'active': section == sec and CATEGORY_NAMES.get(c, c) == focus} for c in categories]
+
     return [
         {'key': 'null_validation', 'icon': '🔍', 'label': 'NULL 검증',
-         'expanded': section == 'null_validation', 'active': section == 'null_validation', 'items': items},
+         'expanded': section == 'null_validation', 'active': section == 'null_validation', 'items': make_items('null_validation')},
         {'key': 'format_validation', 'icon': '📋', 'label': '형식 검증',
-         'expanded': section == 'format_validation', 'active': section == 'format_validation', 'items': items},
+         'expanded': section == 'format_validation', 'active': section == 'format_validation', 'items': make_items('format_validation')},
         {'key': 'anomaly_validation', 'icon': '🔄', 'label': '중복 검증',
-         'expanded': section == 'anomaly_validation', 'active': section == 'anomaly_validation', 'items': items},
+         'expanded': section == 'anomaly_validation', 'active': section == 'anomaly_validation', 'items': make_items('anomaly_validation')},
     ]
 
 
 def _build_context(section, request):
+    focus = request.GET.get('focus', '')
     return {
         'layer': LAYER_CONTEXT,
         'section': section,
@@ -60,7 +64,7 @@ def _build_context(section, request):
         'sidebar_items': _get_sidebar_items(),
         'sidebar_title': 'Layer 2 검증',
         'sidebar_base_url': '/dx/layer2/',
-        'sidebar_groups': _build_sidebar_groups(section),
+        'sidebar_groups': _build_sidebar_groups(section, focus),
     }
 
 
