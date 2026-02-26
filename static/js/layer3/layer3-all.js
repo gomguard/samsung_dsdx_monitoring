@@ -1561,35 +1561,14 @@ function showRetailerDetail(retailer) {
     const inClauseWithQuotes = items.map(item => `'${item}'`).join(', ');
     const itemListDisplay = items.join(', ');
 
-    // cross_detail_mismatch 타입이면 validation_tag 컬럼 추가 (리테일러별 패턴)
+    // cross_detail_mismatch 타입이면 validation_tag 컬럼 추가 (전체 공통 패턴: review{N} -)
     // 순서: id, account_name, item, crawl_datetime, expected_pattern, validation_tag, count_of_reviews, detailed_review_content, product_url
     const validationType = window.crossfieldValidationType || '';
     let validationTagCol = '';
     if (validationType === 'cross_detail_mismatch') {
-        if (productLine.toUpperCase() === 'TV') {
-            // TV: 리테일러별 패턴 다름
-            if (retailer === 'Amazon') {
-                // Amazon: {N}-
-                validationTagCol = `
-LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-' AS expected_pattern,
-CASE WHEN LOWER(detailed_review_content) LIKE '%' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,`;
-            } else if (retailer === 'Bestbuy') {
-                // Bestbuy: review {N}-
-                validationTagCol = `
-'review ' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-' AS expected_pattern,
-CASE WHEN LOWER(detailed_review_content) LIKE '%review ' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,`;
-            } else {
-                // Walmart: review{N}-
-                validationTagCol = `
-'review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-' AS expected_pattern,
-CASE WHEN LOWER(detailed_review_content) LIKE '%review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || '-%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,`;
-            }
-        } else {
-            // HHP: 모든 리테일러 동일 패턴 (review{N} -)
-            validationTagCol = `
+        validationTagCol = `
 'review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || ' -' AS expected_pattern,
 CASE WHEN LOWER(detailed_review_content) LIKE '%review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || ' -%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,`;
-        }
     }
 
     // 순서: id, account_name, item, crawl_datetime, (validation컬럼), 동적컬럼, product_url
