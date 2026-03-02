@@ -2015,7 +2015,7 @@ def document_categories_create(request):
               request.user.username, now, request.user.username, now))
         new_id = cursor.fetchone()[0]
         # 고아 파일 정리 (에디터에서 삭제된 이미지)
-        cleanup_orphan_files(cursor, object_document_id, template_content)
+        cleanup_orphan_files(cursor, object_document_id, template_content, request.user.username)
         conn.commit()
         cursor.close()
         conn.close()
@@ -2059,7 +2059,7 @@ def document_categories_update(request, category_id):
               template_content or None, object_document_id or None, category_type,
               request.user.username, now, category_id))
         # 고아 파일 정리 (에디터에서 삭제된 이미지)
-        cleanup_orphan_files(cursor, object_document_id, template_content)
+        cleanup_orphan_files(cursor, object_document_id, template_content, request.user.username)
         conn.commit()
         cursor.close()
         conn.close()

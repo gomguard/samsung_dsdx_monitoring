@@ -46,6 +46,7 @@ def _build_sidebar_groups(section, focus=''):
                 {'name': '형식 검수', 'active': section == 'corrections' and focus == '형식 검수'},
                 {'name': '중복 검수', 'active': section == 'corrections' and focus == '중복 검수'},
                 {'name': '크로스필드 검수', 'active': section == 'corrections' and focus == '크로스필드 검수'},
+                {'name': '누락필드 검수', 'active': section == 'corrections' and focus == '누락필드 검수'},
             ],
         },
         {

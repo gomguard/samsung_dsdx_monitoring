@@ -117,13 +117,17 @@ def document_detail(request):
 @login_required
 @require_POST
 def document_create(request):
-    """문서 생성 API"""
+    """문서 생성 API (crawl_date 중복 시 업데이트)"""
     try:
         data = json.loads(request.body)
         category_id = data.get('category_id', '').strip()
         title = data.get('title', '').strip()
         content = data.get('content', '')
         object_document_id = data.get('object_document_id', '').strip()
+        if not object_document_id:
+            from apps.common.dx.id_generator import generate_dx_object_document_id
+            object_document_id = generate_dx_object_document_id()
+        crawl_date = data.get('crawl_date', '').strip() or None
 
         if not category_id:
             return JsonResponse({'success': False, 'error': '카테고리를 선택하세요.'})
@@ -132,27 +136,52 @@ def document_create(request):
 
         now = datetime.now()
         with dx_connection() as (conn, cursor):
-            cursor.execute("""
-                INSERT INTO monitoring_documents
-                    (category_id, title, content, object_document_id, created_id, created_at, updated_id, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING document_id, object_document_id
-            """, (category_id, title, content, object_document_id or None,
-                  request.user.username, now, request.user.username, now))
-            result = cursor.fetchone()
+            # crawl_date가 있으면 같은 카테고리+날짜 기존 문서 확인 → 업데이트
+            existing_id = None
+            if crawl_date:
+                cursor.execute("""
+                    SELECT document_id FROM monitoring_documents
+                    WHERE category_id = %s AND crawl_date = %s AND is_del = false
+                """, (category_id, crawl_date))
+                row = cursor.fetchone()
+                if row:
+                    existing_id = row[0]
+
+            if existing_id:
+                cursor.execute("""
+                    UPDATE monitoring_documents
+                    SET title = %s, content = %s, updated_id = %s, updated_at = %s
+                    WHERE document_id = %s
+                """, (title, content, request.user.username, now, existing_id))
+                result_id = existing_id
+                result_obj_id = object_document_id or None
+                message = '보고서가 업데이트되었습니다.'
+            else:
+                cursor.execute("""
+                    INSERT INTO monitoring_documents
+                        (category_id, title, content, object_document_id, crawl_date, created_id, created_at, updated_id, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING document_id, object_document_id
+                """, (category_id, title, content, object_document_id or None, crawl_date,
+                      request.user.username, now, request.user.username, now))
+                result = cursor.fetchone()
+                result_id = result[0]
+                result_obj_id = result[1]
+                message = '문서가 저장되었습니다.'
+
             # 카테고리 타입 조회 (2=파일저장 전용이면 고아 파일 정리 건너뜀)
             cursor.execute("SELECT category_type FROM monitoring_document_categories WHERE category_id = %s", (category_id,))
             cat_row = cursor.fetchone()
             category_type = cat_row[0] if cat_row else 1
             if category_type != 2:
-                cleanup_orphan_files(cursor, object_document_id, content, request.user.username)
+                cleanup_orphan_files(cursor, object_document_id or result_obj_id, content, request.user.username)
             conn.commit()
 
         return JsonResponse({
             'success': True,
-            'document_id': result[0],
-            'object_document_id': result[1],
-            'message': '문서가 저장되었습니다.'
+            'document_id': result_id,
+            'object_document_id': result_obj_id,
+            'message': message
         })
     except Exception as e:
         return safe_error(e, success=False)

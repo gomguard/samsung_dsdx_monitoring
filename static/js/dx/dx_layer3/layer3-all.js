@@ -16,9 +16,13 @@ const ViewStack = {
         });
         container.innerHTML = html;
         window.scrollTo(0, 0);
-        // 하위 뷰 진입 시 필터바 숨김
+        // 하위 뷰 진입 시 필터바 숨김 + category-section 배경/보더 제거
         var filterBar = document.querySelector('.filter-section');
         if (filterBar) filterBar.style.display = 'none';
+        if (container.classList.contains('category-section')) {
+            container.style.background = 'none';
+            container.style.border = 'none';
+        }
     },
     pop() {
         if (this.stack.length === 0) return false;
@@ -28,10 +32,14 @@ const ViewStack = {
             container.innerHTML = state.html;
             window.scrollTo(0, state.scrollTop);
         }
-        // 최상위로 돌아오면 필터바 복원
+        // 최상위로 돌아오면 필터바 복원 + category-section 스타일 복원
         if (this.stack.length === 0) {
             var filterBar = document.querySelector('.filter-section');
             if (filterBar) filterBar.style.display = '';
+            if (container && container.classList.contains('category-section')) {
+                container.style.background = '';
+                container.style.border = '';
+            }
         }
         return true;
     },
@@ -883,6 +891,7 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             window.crossfieldTableName = data.table_name || '';
             window.crossfieldEditableCols = new Set(data.editable_columns || []);
             window.crossfieldNormalReviews = data.normal_reviews || {};
+            window.crossfieldRetailerColumns = data.retailer_columns || {};
             window.crossfieldPendingEdits = {};
 
             const titleText = `${ruleName} (${data.total_anomalies}건)`;
@@ -1611,7 +1620,7 @@ function showRetailerDetail(retailer) {
                 </div>
             </div>`;
 
-        // 컬럼 정의
+        // 컬럼 정의: 기본 표시 컬럼
         const allColumns = [
             { key: '_no', label: 'No', width: 50, fixed: true },
             { key: 'id', label: 'id', width: 80 },
@@ -1625,6 +1634,16 @@ function showRetailerDetail(retailer) {
             allColumns.push({ key: 'product_url', label: 'product_url', width: 100 });
         }
         const defaultVisibleKeys = allColumns.map(c => c.key);
+
+        // 리테일러 전체 수집 컬럼 추가 (컬럼 선택용, 기본 비표시)
+        const retailerCols = (window.crossfieldRetailerColumns || {})[retailer] || [];
+        const existingKeys = {};
+        allColumns.forEach(c => { existingKeys[c.key] = true; });
+        retailerCols.forEach(col => {
+            if (!existingKeys[col]) {
+                allColumns.push({ key: col, label: col, width: 120 });
+            }
+        });
 
         // 컨테이너 HTML
         const containerHtml = `<div class="detail-view-wrapper">
@@ -1658,11 +1677,17 @@ function showRetailerDetail(retailer) {
             </div>
         `);
 
-        // 데이터 준비 (CommonTable 형식)
+        // 데이터 준비 (CommonTable 형식) - 전체 수집 컬럼 포함
         const tableRows = rows.map((row, idx) => {
             const r = { _no: idx + 1, id: row.id || '-', item: row.item || '-', page_type: row.page_type || '-' };
             otherKeys.forEach(key => {
                 r[key] = row[key] !== null && row[key] !== undefined ? String(row[key]) : '-';
+            });
+            // 추가 수집 컬럼 (컬럼 선택 시 표시용)
+            retailerCols.forEach(col => {
+                if (!(col in r)) {
+                    r[col] = row[col] !== null && row[col] !== undefined ? String(row[col]) : '-';
+                }
             });
             if (urlKey) {
                 const url = safeUrl(row[urlKey]);
@@ -2015,6 +2040,7 @@ async function reloadCfDays() {
         window.crossfieldAnomalies = anomalies;
         window.crossfieldEditableCols = new Set(data.editable_columns || []);
         window.crossfieldNormalReviews = data.normal_reviews || {};
+        window.crossfieldRetailerColumns = data.retailer_columns || {};
         window.crossfieldPendingEdits = {};
 
         // 현재 리테일러 데이터 갱신
@@ -2057,6 +2083,16 @@ async function reloadCfDays() {
                 st.editableCols = editableCols;
                 st.normalReviews = normalReviews;
                 st.sortState = [];
+
+                // 컬럼 갱신: 추가된 수집 컬럼 반영
+                var existKeys = {};
+                st.allColumns.forEach(function(c) { existKeys[c.key] = true; });
+                otherKeys.forEach(function(k) {
+                    if (!existKeys[k]) {
+                        st.allColumns.splice(st.allColumns.length - (urlKey ? 1 : 0), 0, { key: k, label: k, width: 120 });
+                        existKeys[k] = true;
+                    }
+                });
 
                 // 타이틀 업데이트
                 var titleEl = document.querySelector('.inline-detail-title');
@@ -2889,11 +2925,17 @@ let missingSummaryState = {
     date: ''
 };
 
-// 누락분 요약 버튼 (모달로 필드별 누락 건수 표시)
+// 누락분 요약 버튼 (인라인 또는 모달)
 function viewMissingSummary(retailer, dateOverride = null) {
     missingSummaryState.retailer = retailer;
     missingSummaryState.productLine = currentFieldMissingPL;
     missingSummaryState.date = dateOverride || document.getElementById('target-date').value;
+
+    // 누락필드 섹션이면 인라인
+    if (window.LAYER3 && window.LAYER3.section === 'field_missing') {
+        viewMissingSummaryInline(retailer, missingSummaryState.date);
+        return;
+    }
 
     AppModal.setTitle('detail', `${currentFieldMissingPL.toUpperCase()} - ${retailer} 필드별 누락 요약`);
     AppModal.open('detail');
@@ -3015,6 +3057,77 @@ function changeSummaryDate(retailer) {
 
     missingSummaryState.date = newDate;
     loadMissingSummaryData(retailer, newDate);
+}
+
+// --- 인라인 요약 뷰 ---
+async function viewMissingSummaryInline(retailer, date) {
+    var actualDate = date || document.getElementById('target-date').value;
+    var cacheKey = currentFieldMissingPL + '-' + retailer;
+    var cached = retailerMissingCache[cacheKey];
+
+    // 캐시가 있고 같은 날짜면 캐시 사용
+    if (cached && cached.date === actualDate) {
+        _fmRenderSummaryInline(cached.missingFields, cached.summary, cached.date, cached.prevDates, retailer);
+    } else {
+        // 로딩 표시 후 API 호출
+        var loadingHtml = '<div class="detail-view-wrapper" style="padding:40px;text-align:center;">데이터를 불러오는 중...</div>';
+        ViewStack.push(loadingHtml, currentFieldMissingPL.toUpperCase() + ' - ' + retailer + ' 필드별 누락 요약');
+        try {
+            var data = await fetchAPI('/layer3/api/field-missing/?date=' + (date || document.getElementById('target-date').value) + '&type=' + currentFieldMissingPL + '&retailer=' + retailer);
+            var missingFields = data.missing_fields || [];
+            var summary = data.summary || {};
+            var prevDates = data.prev_dates || [];
+            var actualDate = date || document.getElementById('target-date').value;
+            ViewStack.pop();
+            _fmRenderSummaryInline(missingFields, summary, actualDate, prevDates, retailer);
+        } catch (e) {
+            console.error(e);
+            ViewStack.pop();
+            showToast('데이터 로드 실패', 'error');
+        }
+    }
+}
+
+function _fmRenderSummaryInline(missingFields, summary, date, prevDates, retailer) {
+    var plUpper = currentFieldMissingPL.toUpperCase();
+    var totalMissing = summary.total_missing_cases || 0;
+
+    var titleText = plUpper + ' - ' + retailer + ' 필드별 누락 요약 (' + totalMissing + '건)';
+
+    // 카드 목록
+    var cardsHtml = '';
+    if (missingFields.length === 0) {
+        cardsHtml = '<div style="padding:40px;text-align:center;">'
+            + '<div style="font-size:16px;font-weight:600;color:#059669;">누락된 필드가 없습니다</div></div>';
+    } else {
+        cardsHtml = '<div class="rule-summary-container">';
+        missingFields.forEach(function(f) {
+            var itemCount = f.today_missing_items || 0;
+            var rowCount = f.today_null_rows || 0;
+            var countClass = '';
+            if (itemCount >= 20) countClass = ' critical';
+            else if (itemCount >= 10) countClass = ' warning';
+
+            cardsHtml += '<div class="rule-summary-card" onclick="showFieldMissingDetailInline(\'' + escJs(retailer) + '\',\'' + escJs(f.column) + '\')">'
+                + '<div class="rule-info">'
+                + '<div class="rule-name">' + esc(f.column) + '</div>'
+                + '<div class="rule-desc">' + itemCount + ' items | ' + rowCount + '건</div>'
+                + '</div>'
+                + '<span class="rule-count' + (rowCount === 0 ? ' zero' : countClass) + '">' + rowCount + '건</span>'
+                + '</div>';
+        });
+        cardsHtml += '</div>';
+        cardsHtml += '<p style="margin-top:12px;font-size:12px;color:var(--text-secondary);">* 필드명을 클릭하면 해당 필드의 누락 item 데이터를 볼 수 있습니다.</p>';
+    }
+
+    var html = '<div class="inline-detail">'
+        + '<button class="btn-back" onclick="ViewStack.pop()">&#8592; 뒤로가기</button>'
+        + '<div class="rule-summary-section">'
+        + '<div class="rule-summary-section-header">' + _inlineTitle(titleText) + '</div>'
+        + cardsHtml
+        + '</div></div>';
+
+    ViewStack.push(html);
 }
 
 // 필드별 누락 상세 보기 (3일치 데이터)
@@ -3877,9 +3990,13 @@ async function showFieldMissingDetailProblem(retailer, fieldName) {
     }
 }
 
-// 클릭시 기본 동작 (문제 데이터)
+// 클릭시 기본 동작
 function showFieldMissingDetail(retailer, fieldName) {
-    showFieldMissingDetailProblem(retailer, fieldName);
+    if (window.LAYER3 && window.LAYER3.section === 'field_missing') {
+        showFieldMissingDetailInline(retailer, fieldName);
+    } else {
+        showFieldMissingDetailProblem(retailer, fieldName);
+    }
 }
 
 // 전체 데이터 모달 렌더링
@@ -4038,4 +4155,663 @@ function onSubitemClick(parentSection, checkName) {
         return;
     }
 }
+
+// ============================================================
+// 누락필드 인라인 상세 뷰 + 셀 수정 / 정상 처리
+// ============================================================
+
+async function showFieldMissingDetailInline(retailer, fieldName) {
+    var date = document.getElementById('target-date').value;
+    var productLine = currentFieldMissingPL || 'tv';
+    var days = 3;
+
+    try {
+        var data = await fetchAPI('/layer3/api/field-missing-detail-by-field/?date=' + date + '&product_line=' + productLine + '&retailer=' + encodeURIComponent(retailer) + '&field=' + encodeURIComponent(fieldName) + '&days=' + days);
+        if (data.status !== 'success') {
+            showToast(data.message || '데이터 로드 실패', 'error');
+            return;
+        }
+        _fmRenderInlineView(data, retailer, fieldName, productLine, date, days);
+    } catch (e) {
+        console.error(e);
+        showToast('데이터 로드 실패', 'error');
+    }
+}
+
+function _fmRenderInlineView(data, retailer, fieldName, productLine, date, days) {
+    var tableName = data.table_name || (productLine === 'tv' ? 'tv_retail_com' : 'hhp_retail_com');
+    var dateCol = productLine === 'tv' ? 'crawl_datetime' : 'crawl_strdatetime';
+    var editableCols = new Set(data.editable_columns || []);
+    var normalReviews = data.normal_reviews || {};
+    var columns = data.columns || [];
+    var rawRows = data.data || [];
+    var plDisplay = (productLine || 'tv').toUpperCase();
+    var _wn = ['일','월','화','수','목','금','토'][new Date(date).getDay()];
+    var dateDisplay = date + '(' + _wn + ')';
+
+    // 컬럼 정의: API가 반환한 전체 컬럼
+    var allColumns = [{ key: '_no', label: 'No', width: 50, fixed: true }];
+    columns.forEach(function(col) {
+        var w = 120;
+        if (col === 'id') w = 80;
+        else if (col === 'item') w = 140;
+        else if (col === dateCol) w = 150;
+        else if (col === 'product_url') w = 80;
+        allColumns.push({ key: col, label: col, width: w });
+    });
+
+    // 기본 표시 컬럼 (default_columns 기반)
+    var defaultCols = data.default_columns || columns;
+    var defaultColSet = {};
+    defaultCols.forEach(function(c) { defaultColSet[c] = true; });
+    var defaultVisibleKeys = ['_no'];
+    defaultCols.forEach(function(c) { defaultVisibleKeys.push(c); });
+
+    // 데이터 변환
+    var tableRows = rawRows.map(function(row, idx) {
+        var r = { _no: idx + 1 };
+        columns.forEach(function(col) {
+            var val = row[col];
+            if (col === 'product_url') {
+                var url = safeUrl(val);
+                r[col] = url ? '<a href="' + esc(url) + '" target="_blank" style="color:#1976d2;">링크</a>' : '-';
+            } else {
+                r[col] = val !== null && val !== undefined ? String(val) : '-';
+            }
+        });
+        r._rowId = row.id;
+        r._rowDate = (row[dateCol] || '').substring(0, 10);
+        return r;
+    });
+
+    // Item 목록 토글
+    var missingItems = [];
+    var seen = {};
+    rawRows.forEach(function(row) {
+        var rd = (row[dateCol] || '').substring(0, 10);
+        if (rd === date && !seen[row.item]) {
+            var fv = row[fieldName];
+            if (fv === null || fv === undefined || fv === '') {
+                missingItems.push(row.item);
+                seen[row.item] = true;
+            }
+        }
+    });
+    var retailerSafe = retailer.replace(/[^a-zA-Z0-9]/g, '');
+    var itemListDisplay = missingItems.join(', ');
+    var itemQueryHtml = '<div class="item-toggle-section">'
+        + '<div class="item-toggle-header" onclick="var c=this.nextElementSibling;c.style.display=c.style.display===\'none\'?\'\':\'none\';this.querySelector(\'.toggle-arrow\').textContent=c.style.display===\'none\'?\'\\u25b8\':\'\\u25be\';">'
+        + '<span class="toggle-arrow">▸</span> Item 목록 (' + missingItems.length + '개)'
+        + '</div>'
+        + '<div class="item-toggle-content" style="display:none;">'
+        + '<div class="item-copy-header"><span class="item-copy-title">누락 Item (' + missingItems.length + '개)</span>'
+        + '<button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById(\'fm-item-list-' + retailerSafe + '\'))">복사</button></div>'
+        + '<div id="fm-item-list-' + retailerSafe + '" class="item-copy-content">' + esc(itemListDisplay) + '</div>'
+        + '</div></div>';
+
+    // 컨테이너 HTML
+    var containerHtml = '<div class="detail-view-wrapper">'
+        + '<div id="fm-detail-item-query">' + itemQueryHtml + '</div>'
+        + '<div id="fm-detail-filter-bar"></div>'
+        + '<div id="fm-detail-action-bar"></div>'
+        + '<div id="fm-detail-table-area"></div>'
+        + '<div id="fm-detail-pagination"></div>'
+        + '</div>';
+
+    var daysInputHtml = '<div style="display:flex;align-items:center;gap:6px;margin-right:12px;">'
+        + '<label style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">일수:</label>'
+        + '<input type="number" id="fm-detail-days" value="' + days + '" min="1" max="30" style="width:50px;padding:3px 6px;border:1px solid var(--border-color,#e2e8f0);border-radius:4px;font-size:12px;text-align:center;" onkeydown="if(event.key===\'Enter\')reloadFmDays()">'
+        + '<button onclick="reloadFmDays()" style="padding:3px 10px;font-size:12px;border:1px solid var(--border-color,#e2e8f0);border-radius:4px;background:var(--page-color,#0d9488);color:#fff;cursor:pointer;white-space:nowrap;">조회</button></div>';
+
+    var titleText = fieldName + ' (' + (data.missing_item_count || 0) + '건)';
+    var subtitleText = plDisplay + ' Retail | ' + retailer;
+    var wrapper = '<div class="inline-detail-view">'
+        + '<div class="inline-detail-header"><div>'
+        + '<div class="inline-detail-title">' + esc(titleText) + '</div>'
+        + '<div class="inline-detail-subtitle">' + esc(subtitleText) + '</div>'
+        + '</div><div style="display:flex;align-items:center;">' + daysInputHtml + '<div class="inline-detail-date">' + dateDisplay + '</div></div></div>'
+        + '<div id="fm-detail-body">' + containerHtml + '</div>'
+        + '</div>';
+
+    ViewStack.push('<div class="inline-detail"><button class="btn-back" onclick="ViewStack.pop()">← 뒤로가기</button>' + wrapper + '</div>');
+
+    // 전역 상태 저장
+    window._fmCurrentRetailer = retailer;
+    window._fmCurrentField = fieldName;
+    window._fmCurrentPL = productLine;
+    window._fmDate = date;
+    window._fmTableName = tableName;
+
+    // FilterBar 옵션
+    var filterCols = [];
+    columns.forEach(function(col) {
+        if (col !== 'product_url') filterCols.push({ value: col, label: col });
+    });
+
+    window._fmDetailState = {
+        allData: tableRows,
+        filteredData: null,
+        allColumns: allColumns,
+        visibleKeys: defaultVisibleKeys.slice(),
+        editableCols: editableCols,
+        normalReviews: normalReviews,
+        sortState: [],
+        table: null,
+        filterBar: null,
+        pager: null,
+        fieldName: fieldName,
+        dateCol: dateCol
+    };
+
+    window._fmDetailState.filterBar = new FilterBar('#fm-detail-filter-bar', {
+        sticky: false,
+        padding: '8px 12px',
+        controls: [
+            { type: 'select', key: 'fmFilterCol', label: '항목', width: 'auto', options: filterCols },
+            { type: 'input', key: 'fmFilterVal', placeholder: '검색어 입력...', onEnter: function() { _fmApplyFilter(); } }
+        ],
+        onSearch: function() { _fmApplyFilter(); },
+        onReset: function() { _fmClearFilter(); },
+        columnSelector: {
+            columns: allColumns.map(function(c) { return { key: c.key, label: c.label }; }),
+            fixed: ['_no'],
+            defaultVisible: defaultVisibleKeys,
+            onUpdate: function(selected) {
+                window._fmDetailState.visibleKeys = selected;
+                _fmRebuildTable();
+            }
+        },
+        right: [
+            { type: 'button', label: '정렬 초기화', style: 'outline', size: 'fb', onClick: function() { window._fmDetailState.sortState = []; _fmRebuildTable(); } }
+        ]
+    }).render();
+
+    _fmRebuildTable();
+    setTimeout(function() { _fmBindEditEvents(); }, 100);
+}
+
+// N일치 재조회
+window.reloadFmDays = function() {
+    var daysEl = document.getElementById('fm-detail-days');
+    var days = daysEl ? parseInt(daysEl.value, 10) : 1;
+    if (isNaN(days) || days < 1) days = 1;
+    if (days > 30) days = 30;
+
+    var retailer = window._fmCurrentRetailer;
+    var fieldName = window._fmCurrentField;
+    var productLine = window._fmCurrentPL;
+    var date = window._fmDate;
+
+    fetchAPI('/layer3/api/field-missing-detail-by-field/?date=' + date + '&product_line=' + productLine + '&retailer=' + encodeURIComponent(retailer) + '&field=' + encodeURIComponent(fieldName) + '&days=' + days)
+        .then(function(data) {
+            if (data.status !== 'success') { showToast(data.message || '재조회 실패', 'error'); return; }
+            var st = window._fmDetailState;
+            var dateCol = st.dateCol;
+            var columns = data.columns || [];
+            var rawRows = data.data || [];
+            var targetDate = window._fmDate;
+
+            var tableRows = rawRows.map(function(row, idx) {
+                var r = { _no: idx + 1 };
+                columns.forEach(function(col) {
+                    var val = row[col];
+                    if (col === 'product_url') {
+                        var url = safeUrl(val);
+                        r[col] = url ? '<a href="' + esc(url) + '" target="_blank" style="color:#1976d2;">링크</a>' : '-';
+                    } else {
+                        r[col] = val !== null && val !== undefined ? String(val) : '-';
+                    }
+                });
+                r._rowId = row.id;
+                r._rowDate = (row[dateCol] || '').substring(0, 10);
+                return r;
+            });
+
+            st.allData = tableRows;
+            st.filteredData = null;
+            st.editableCols = new Set(data.editable_columns || []);
+            st.normalReviews = data.normal_reviews || {};
+            _fmRebuildTable();
+            setTimeout(function() { _fmBindEditEvents(); }, 100);
+        })
+        .catch(function(e) { console.error(e); showToast('재조회 실패', 'error'); });
+};
+
+// CommonTable 재구성
+function _fmRebuildTable() {
+    var st = window._fmDetailState;
+    if (!st) return;
+
+    var visibleCols = st.allColumns.filter(function(c) { return st.visibleKeys.indexOf(c.key) >= 0; });
+    st._visibleCols = visibleCols;
+
+    var ctColumns = visibleCols.map(function(c) {
+        return { key: c.key, label: c.label, width: c.width, sortable: c.key !== '_no', align: c.key === '_no' ? 'center' : undefined };
+    });
+
+    var el = document.getElementById('fm-detail-table-area');
+    if (!el) return;
+    el.innerHTML = '';
+
+    st.table = new CommonTable('#fm-detail-table-area', {
+        variant: 'detail', columns: ctColumns, vlines: true, section: true, showTotalCount: true,
+        padding: '6px 12px', reorder: true, fixedColumns: ['_no'], multiSort: true,
+        onSort: function(sortArr) { st.sortState = sortArr; _fmSortAndRender(); }
+    }).render();
+
+    var pageSize = 15;
+    st.pager = new Pagination('#fm-detail-pagination', {
+        pageSize: pageSize, showInfo: true,
+        onPageChange: function(page) { _fmRenderPage(page); }
+    });
+
+    _fmSortAndRender();
+}
+
+function _fmSortAndRender() {
+    var st = window._fmDetailState;
+    if (!st) return;
+    var dataArr = st.filteredData || st.allData;
+
+    if (st.sortState && st.sortState.length > 0) {
+        dataArr = dataArr.slice().sort(function(a, b) {
+            for (var i = 0; i < st.sortState.length; i++) {
+                var s = st.sortState[i];
+                var va = a[s.key] || '', vb = b[s.key] || '';
+                var cmp = String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' });
+                if (cmp !== 0) return s.dir === 'asc' ? cmp : -cmp;
+            }
+            return 0;
+        });
+    }
+    st._sortedData = dataArr;
+    _fmRenderPage(1);
+}
+
+function _fmRenderPage(page) {
+    var st = window._fmDetailState;
+    if (!st || !st.table) return;
+
+    var dataArr = st._sortedData || st.allData;
+    var pageSize = 15;
+    var start = (page - 1) * pageSize;
+    var pageData = dataArr.slice(start, start + pageSize);
+    pageData.forEach(function(r, i) { r._no = start + i + 1; });
+
+    var visibleCols = st._visibleCols || st.allColumns;
+    var targetDate = window._fmDate || '';
+    var targetField = st.fieldName || '';
+
+    // item 컬럼 rowspan 계산
+    var itemSpanMap = {};  // index -> rowspan count
+    var itemSkipSet = {};  // index -> true (skip item td)
+    var hasItemCol = visibleCols.some(function(c) { return c.key === 'item'; });
+    if (hasItemCol) {
+        var i = 0;
+        while (i < pageData.length) {
+            var curItem = pageData[i].item;
+            var spanCount = 1;
+            while (i + spanCount < pageData.length && pageData[i + spanCount].item === curItem) {
+                itemSkipSet[i + spanCount] = true;
+                spanCount++;
+            }
+            if (spanCount > 1) itemSpanMap[i] = spanCount;
+            i += spanCount;
+        }
+    }
+
+    st.table.renderBody(pageData, function(row, rowIdx) {
+        var tr = '<tr>';
+        var rowId = row._rowId;
+        var isTargetDate = row._rowDate === targetDate;
+        visibleCols.forEach(function(c) {
+            // item 컬럼 rowspan 처리
+            if (c.key === 'item') {
+                if (itemSkipSet[rowIdx]) return; // 이미 rowspan으로 병합됨
+                var span = itemSpanMap[rowIdx];
+                var spanAttr = span ? ' rowspan="' + span + '"' : '';
+                var val = row[c.key];
+                var displayVal = val !== null && val !== undefined ? String(val) : '-';
+                tr += '<td' + spanAttr + ' style="vertical-align:middle;">' + esc(displayVal) + '</td>';
+                return;
+            }
+
+            var val = row[c.key];
+            var displayVal = val !== null && val !== undefined ? String(val) : '-';
+
+            if (c.key === '_no') {
+                tr += '<td style="text-align:center;">' + displayVal + '</td>';
+                return;
+            }
+            if (c.key === 'product_url') {
+                tr += '<td>' + displayVal + '</td>';
+                return;
+            }
+
+            var nrKey = rowId + '_' + c.key;
+            if (isTargetDate && st.normalReviews[nrKey]) {
+                var nr = st.normalReviews[nrKey];
+                var tip = '정상 처리됨';
+                if (nr.reason) tip += ' | 사유: ' + nr.reason;
+                if (nr.memo) tip += ' | 메모: ' + nr.memo;
+                tr += '<td class="cell-normal" data-row-id="' + rowId + '" data-col="' + esc(c.key) + '" data-normal-key="' + nrKey + '" title="' + esc(tip) + '">' + esc(displayVal) + '<span class="normal-badge">정상</span></td>';
+            } else if (isTargetDate && st.editableCols.has(c.key) && rowId) {
+                // 누락필드 특유: 타겟 날짜 NULL 셀 빨간 배경
+                var isNull = displayVal === '-' || displayVal === '';
+                var cellStyle = (isNull && c.key === targetField) ? ' style="background:#fee2e2;"' : '';
+                tr += '<td data-editable="true" data-row-id="' + rowId + '" data-col="' + esc(c.key) + '"' + cellStyle + '>' + esc(displayVal) + '</td>';
+            } else if (isTargetDate && rowId) {
+                var isNull2 = displayVal === '-' || displayVal === '';
+                var cellStyle2 = (isNull2 && c.key === targetField) ? ' style="background:#fee2e2;"' : '';
+                tr += '<td data-row-id="' + rowId + '" data-col="' + esc(c.key) + '"' + cellStyle2 + '>' + esc(displayVal) + '</td>';
+            } else {
+                tr += '<td>' + esc(displayVal) + '</td>';
+            }
+        });
+        tr += '</tr>';
+        return tr;
+    });
+
+    if (st.pager) st.pager.render(dataArr.length, page);
+    var countEl = document.querySelector('#fm-detail-table-area .ct-count');
+    if (countEl) {
+        var suffix = st.filteredData ? ' (필터 적용)' : '';
+        countEl.innerHTML = '총 <strong>' + dataArr.length.toLocaleString() + '</strong>건' + suffix;
+    }
+}
+
+// 필터
+function _fmApplyFilter() {
+    var st = window._fmDetailState;
+    if (!st) return;
+    var colEl = document.getElementById('fmFilterCol');
+    var valEl = document.getElementById('fmFilterVal');
+    if (!colEl || !valEl) return;
+    var col = colEl.value, keyword = (valEl.value || '').trim().toLowerCase();
+    if (!keyword) { _fmClearFilter(); return; }
+    st.filteredData = st.allData.filter(function(r) { return String(r[col] || '').toLowerCase().indexOf(keyword) >= 0; });
+    _fmSortAndRender();
+}
+function _fmClearFilter() {
+    var st = window._fmDetailState;
+    if (!st) return;
+    st.filteredData = null;
+    var valEl = document.getElementById('fmFilterVal');
+    if (valEl) valEl.value = '';
+    _fmSortAndRender();
+}
+
+// ============================================================
+// 누락필드 셀 수정 / 정상 처리
+// ============================================================
+var fmPendingEdits = {};
+
+function _fmBindEditEvents() {
+    var container = document.getElementById('fm-detail-table-area');
+    if (!container) return;
+    var tableEl = container.querySelector('table');
+    if (!tableEl) return;
+    if (tableEl._fmEditBound) return;
+    tableEl._fmEditBound = true;
+
+    // 클릭: 셀 선택 / 정상처리 바
+    tableEl.addEventListener('click', function(e) {
+        var td = e.target.closest('td[data-editable]');
+        var reviewTd = !td ? e.target.closest('td[data-row-id]') : null;
+        var normalTd = (!td && !reviewTd) ? e.target.closest('td.cell-normal') : null;
+        var prev = tableEl.querySelector('.cell-selected');
+        if (prev) prev.classList.remove('cell-selected');
+        _fmHideReviewBar();
+        if (td) {
+            td.classList.add('cell-selected');
+            window._fmSelectedCell = td;
+            _fmShowReviewBar(td, 'normal');
+        } else if (reviewTd) {
+            reviewTd.classList.add('cell-selected');
+            window._fmSelectedCell = null;
+            _fmShowReviewBar(reviewTd, 'normal');
+        } else if (normalTd) {
+            window._fmSelectedCell = null;
+            _fmShowReviewBar(normalTd, 'revert');
+        } else {
+            window._fmSelectedCell = null;
+        }
+    });
+
+    // 테이블 외부 클릭
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#fm-detail-table-area') && !e.target.closest('#fm-review-bar')) {
+            var sel = tableEl.querySelector('.cell-selected');
+            if (sel) sel.classList.remove('cell-selected');
+            window._fmSelectedCell = null;
+            _fmHideReviewBar();
+        }
+    });
+
+    // 더블클릭: 직접 입력
+    tableEl.addEventListener('dblclick', function(e) {
+        var td = e.target.closest('td[data-editable]');
+        if (!td) return;
+        if (td.querySelector('.cell-edit-overlay')) return;
+        var currentVal = td.textContent.trim();
+        if (currentVal === '-') currentVal = '';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'cell-edit-overlay';
+        input.value = currentVal;
+        input.style.width = td.offsetWidth + 'px';
+        input.style.height = td.offsetHeight + 'px';
+        input.style.position = 'absolute';
+        input.style.left = td.offsetLeft + 'px';
+        input.style.top = td.offsetTop + 'px';
+        input.style.zIndex = '100';
+        td.style.position = 'relative';
+        td.appendChild(input);
+        input.focus();
+        input.select();
+        input.addEventListener('blur', function() { _fmApplyEdit(td, input.value); input.remove(); });
+        input.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') { _fmApplyEdit(td, input.value); input.remove(); } else if (ev.key === 'Escape') { input.remove(); } });
+    });
+
+    // Ctrl+V 붙여넣기
+    tableEl.addEventListener('paste', function(e) {
+        var td = e.target.closest('td[data-editable]');
+        if (!td) return;
+        e.preventDefault();
+        var text = (e.clipboardData || window.clipboardData).getData('text').trim();
+        _fmApplyEdit(td, text);
+    });
+}
+
+function _fmApplyEdit(td, newVal) {
+    var rowId = td.getAttribute('data-row-id');
+    var col = td.getAttribute('data-col');
+    if (!rowId || !col) return;
+    var key = rowId + '_' + col;
+    var original = fmPendingEdits[key] ? fmPendingEdits[key].original : td.textContent.trim();
+    if (original === '-') original = '';
+    // 값이 변경되지 않았으면 무시
+    if (newVal.trim() === original) {
+        delete fmPendingEdits[key];
+        td.classList.remove('cell-pending');
+        _fmUpdateSaveButton();
+        return;
+    }
+    if (!fmPendingEdits[key]) {
+        fmPendingEdits[key] = { rowId: rowId, col: col, original: original };
+    }
+    fmPendingEdits[key].newVal = newVal;
+    td.textContent = newVal || '-';
+    td.classList.add('cell-pending');
+    _fmUpdateSaveButton();
+}
+
+function _fmUpdateSaveButton() {
+    var bar = document.getElementById('fm-detail-action-bar');
+    if (!bar) return;
+    var count = Object.keys(fmPendingEdits).length;
+    if (count === 0) { bar.innerHTML = ''; return; }
+    bar.innerHTML = '<div class="detail-edit-actions">'
+        + '<span class="edit-actions-info">' + count + '건 변경됨</span>'
+        + '<div style="display:flex;gap:8px;">'
+        + '<button class="btn-cancel-edits" onclick="_fmCancelAllEdits()">취소</button>'
+        + '<button class="btn-save-edits" onclick="_fmSaveAllEdits()">저장</button>'
+        + '</div></div>';
+}
+
+window._fmCancelAllEdits = function() {
+    Object.keys(fmPendingEdits).forEach(function(key) {
+        var edit = fmPendingEdits[key];
+        var tds = document.querySelectorAll('td[data-row-id="' + edit.rowId + '"][data-col="' + edit.col + '"]');
+        tds.forEach(function(td) { td.textContent = edit.original; td.classList.remove('cell-pending'); });
+    });
+    fmPendingEdits = {};
+    _fmUpdateSaveButton();
+};
+
+window._fmSaveAllEdits = function() {
+    var edits = Object.values(fmPendingEdits);
+    if (edits.length === 0) return;
+    _fmShowMemoDialog(function(memo) {
+        var promises = edits.map(function(edit) {
+            return fetch('/dx/layer3/api/update-cell/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                body: JSON.stringify({
+                    table_name: window._fmTableName,
+                    row_id: parseInt(edit.rowId),
+                    column_name: edit.col,
+                    new_value: edit.newVal,
+                    crawl_date: window._fmDate,
+                    memo: memo,
+                    correction_type: 'field_missing'
+                })
+            }).then(function(r) { return r.json(); });
+        });
+        Promise.all(promises).then(function(results) {
+            console.log('fm save results:', results);
+            var failedResults = results.filter(function(r) { return !r.success; });
+            if (failedResults.length > 0) console.warn('fm save failures:', failedResults);
+            var successCount = results.filter(function(r) { return r.success; }).length;
+            showToast(successCount + '건 저장 완료', 'success');
+            document.querySelectorAll('td.cell-pending').forEach(function(td) { td.classList.remove('cell-pending'); td.classList.add('cell-saved'); });
+            fmPendingEdits = {};
+            _fmUpdateSaveButton();
+            setTimeout(function() { document.querySelectorAll('td.cell-saved').forEach(function(td) { td.classList.remove('cell-saved'); }); }, 2000);
+        }).catch(function(e) { console.error(e); showToast('저장 실패', 'error'); });
+    });
+};
+
+function _fmShowMemoDialog(callback) {
+    var overlay = document.createElement('div');
+    overlay.className = 'memo-dialog-overlay';
+    overlay.innerHTML = '<div class="memo-dialog">'
+        + '<div class="memo-dialog-title">수정 메모</div>'
+        + '<div class="memo-dialog-field"><textarea class="memo-dialog-input" id="fm-memo-input" rows="3" placeholder="수정 사유를 입력하세요 (선택)"></textarea></div>'
+        + '<div class="memo-dialog-buttons">'
+        + '<button class="memo-dialog-cancel" id="fm-memo-cancel">취소</button>'
+        + '<button class="memo-dialog-confirm" id="fm-memo-confirm">저장</button>'
+        + '</div></div>';
+    document.body.appendChild(overlay);
+    requestAnimationFrame(function() { overlay.classList.add('show'); });
+    document.getElementById('fm-memo-cancel').onclick = function() { overlay.remove(); };
+    document.getElementById('fm-memo-confirm').onclick = function() {
+        var memo = document.getElementById('fm-memo-input').value.trim();
+        overlay.remove();
+        callback(memo);
+    };
+}
+
+// 정상처리 바
+function _fmShowReviewBar(td, mode) {
+    _fmHideReviewBar();
+    var bar = document.getElementById('fm-detail-action-bar');
+    if (!bar) return;
+    if (Object.keys(fmPendingEdits).length > 0) return;
+    var rowId = td.getAttribute('data-row-id');
+    var col = td.getAttribute('data-col');
+    if (!rowId) return;
+
+    var html = '<div class="null-review-bar" id="fm-review-bar">';
+    if (mode === 'revert') {
+        var nk = td.getAttribute('data-normal-key');
+        html += '<span class="null-review-info">정상 처리를 취소하시겠습니까?</span>'
+            + '<button class="btn-null-revert" onclick="_fmSubmitReview(\'' + rowId + '\',\'' + esc(col) + '\',\'reverted\',\'\',\'\',\'' + (nk || '') + '\')">정상 취소</button>';
+    } else {
+        html += '<span class="null-review-info">' + esc(col) + ' (ID: ' + rowId + ')</span>'
+            + '<button class="btn-null-normal" onclick="_fmShowReviewDialog(\'' + rowId + '\',\'' + esc(col) + '\')">정상 처리</button>';
+    }
+    html += '</div>';
+    bar.innerHTML = html;
+}
+
+function _fmHideReviewBar() {
+    var bar = document.getElementById('fm-review-bar');
+    if (bar) bar.remove();
+}
+
+window._fmShowReviewDialog = function(rowId, col) {
+    fetch('/dx/layer3/api/review-reasons/?check_type=field_missing')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var reasons = (data.reasons || []).map(function(r) { return typeof r === 'object' ? r.text : r; });
+            var overlay = document.createElement('div');
+            overlay.className = 'memo-dialog-overlay';
+            var reasonOpts = '<option value="">선택하세요</option>';
+            reasons.forEach(function(r) { reasonOpts += '<option value="' + esc(r) + '">' + esc(r) + '</option>'; });
+            overlay.innerHTML = '<div class="memo-dialog">'
+                + '<div class="memo-dialog-title">정상 처리</div>'
+                + '<div class="memo-dialog-field"><label class="memo-dialog-label">이유 (필수)</label><select class="memo-dialog-select" id="fm-review-reason">' + reasonOpts + '</select></div>'
+                + '<div class="memo-dialog-field"><label class="memo-dialog-label">메모 (선택)</label><textarea class="memo-dialog-input" id="fm-review-memo" rows="2"></textarea></div>'
+                + '<div class="memo-dialog-buttons">'
+                + '<button class="memo-dialog-cancel" id="fm-rev-cancel">취소</button>'
+                + '<button class="memo-dialog-confirm" id="fm-rev-confirm">확인</button>'
+                + '</div></div>';
+            document.body.appendChild(overlay);
+            requestAnimationFrame(function() { overlay.classList.add('show'); });
+            document.getElementById('fm-rev-cancel').onclick = function() { overlay.remove(); };
+            document.getElementById('fm-rev-confirm').onclick = function() {
+                var reason = document.getElementById('fm-review-reason').value;
+                var memo = document.getElementById('fm-review-memo').value.trim();
+                if (!reason) { showToast('이유를 선택해주세요', 'warning'); return; }
+                overlay.remove();
+                _fmSubmitReview(rowId, col, 'normal', reason, memo, '');
+            };
+        });
+};
+
+window._fmSubmitReview = function(rowId, col, status, reason, memo, normalKey) {
+    fetch('/dx/layer3/api/review/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify({
+            table_name: window._fmTableName,
+            record_id: parseInt(rowId),
+            column_name: col,
+            status: status,
+            reason: reason || '',
+            memo: memo || '',
+            crawl_date: window._fmDate,
+            retailer: window._fmCurrentRetailer || '',
+            correction_type: 'field_missing'
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success) { showToast(data.error || '처리 실패', 'error'); return; }
+        var st = window._fmDetailState;
+        var nk = rowId + '_' + col;
+        if (status === 'normal') {
+            st.normalReviews[nk] = { reason: reason, memo: memo, created_id: '' };
+            showToast('정상 처리 완료', 'success');
+        } else {
+            delete st.normalReviews[nk];
+            showToast('정상 취소 완료', 'success');
+        }
+        _fmHideReviewBar();
+        _fmRenderPage(st.pager ? st.pager.currentPage || 1 : 1);
+        setTimeout(function() { _fmBindEditEvents(); }, 100);
+    })
+    .catch(function(e) { console.error(e); showToast('처리 실패', 'error'); });
+};
 

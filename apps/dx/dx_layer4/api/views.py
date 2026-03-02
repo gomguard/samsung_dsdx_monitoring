@@ -365,6 +365,35 @@ def report_data(request):
                 grouped_details[ct][tn] = []
             grouped_details[ct][tn].append(d)
 
+        # 비제품 제외 (is_product: true → false 변경 이력)
+        cursor.execute("""
+            SELECT h.table_name, h.item_id,
+                   CASE WHEN h.table_name = 'tv_item_mst' THEN m_tv.account_name
+                        WHEN h.table_name = 'hhp_item_mst' THEN m_hhp.account_name
+                        ELSE NULL END as account_name,
+                   CASE WHEN h.table_name = 'tv_item_mst' THEN m_tv.item
+                        WHEN h.table_name = 'hhp_item_mst' THEN m_hhp.item
+                        ELSE NULL END as item
+            FROM item_mst_history h
+            LEFT JOIN tv_item_mst m_tv ON h.table_name = 'tv_item_mst' AND h.item_id = m_tv.id
+            LEFT JOIN hhp_item_mst m_hhp ON h.table_name = 'hhp_item_mst' AND h.item_id = m_hhp.id
+            WHERE h.field_name = 'is_product'
+              AND h.old_value = 'True' AND h.new_value = 'False'
+              AND DATE(h.changed_at) = %s
+            ORDER BY h.table_name, h.changed_at
+        """, (str(target_date),))
+        excluded_items = []
+        for row in cursor.fetchall():
+            table_name_h = row[0]
+            category = 'TV' if table_name_h == 'tv_item_mst' else 'HHP'
+            account_name = row[2] or ''
+            item_code = row[3] or ''
+            excluded_items.append({
+                'category': category,
+                'account_name': account_name,
+                'item': item_code,
+            })
+
         # 수요증감율 부족 키워드
         cursor.execute("""
             SELECT k.event_name, k.category, k.product_name, k.event_date
@@ -396,6 +425,7 @@ def report_data(request):
             'table_summary': table_summary,
             'details': details,
             'grouped_details': grouped_details,
+            'excluded_items': excluded_items,
         })
     except Exception as e:
         if conn:

@@ -1300,7 +1300,7 @@ def cross_field_detail(request):
                         if not error_pairs or not table_name or not date_col:
                             anomalies = []
                         else:
-                            # select_fields에서 조회 컬럼 결정
+                            # select_fields에서 기본 표시 컬럼 결정
                             select_fields_raw = rule_result.get('select_fields', '')
                             if select_fields_raw:
                                 dynamic_cols = [f.strip() for f in select_fields_raw.split('|') if f.strip()]
@@ -1313,9 +1313,6 @@ def cross_field_detail(request):
                                         if k not in exclude:
                                             dynamic_cols.append(k)
 
-                            all_cols = ['id', 'account_name', 'item', 'page_type', date_col] + dynamic_cols + ['product_url']
-                            select_sql = ', '.join(all_cols)
-
                             # 리테일러별 아이템 그룹핑
                             retailer_items = {}
                             for acct, item in error_pairs:
@@ -1326,7 +1323,25 @@ def cross_field_detail(request):
                             anomalies = []
 
                             from_date = target_date - timedelta(days=days - 1)
+                            from apps.common.retail_columns import get_retailer_columns
                             for acct, items in retailer_items.items():
+                                # 리테일러 전체 수집 컬럼으로 SELECT
+                                retail_cols = get_retailer_columns(product_line, acct)
+                                fixed_cols = ['id', 'account_name', 'item', 'page_type', date_col]
+                                # 기본 표시 컬럼 먼저, 나머지 수집 컬럼 추가
+                                added = set(fixed_cols + ['product_url'])
+                                ordered_cols = list(fixed_cols)
+                                for c in dynamic_cols:
+                                    if c not in added:
+                                        ordered_cols.append(c)
+                                        added.add(c)
+                                for c in retail_cols:
+                                    if c not in added:
+                                        ordered_cols.append(c)
+                                        added.add(c)
+                                ordered_cols.append('product_url')
+                                select_sql = ', '.join(ordered_cols)
+
                                 placeholders = ', '.join(['%s'] * len(items))
                                 cur_days.execute(f"""
                                     SELECT {select_sql}
@@ -1393,6 +1408,17 @@ def cross_field_detail(request):
                     # 정상 처리 건수 차감한 이상치 수
                     adjusted_total = max(0, len(anomalies) - len(normal_reviews))
 
+                    # 리테일러별 전체 수집 컬럼 (컬럼 선택용)
+                    from apps.common.retail_columns import get_retailer_columns
+                    retailer_columns = {}
+                    seen_retailers = set()
+                    for a in anomalies:
+                        r = a.get('account_name', '')
+                        if r and r not in seen_retailers:
+                            seen_retailers.add(r)
+                            cols = get_retailer_columns(product_line, r)
+                            retailer_columns[r] = cols
+
                     return JsonResponse({
                         'date': str(target_date),
                         'days': days,
@@ -1409,6 +1435,7 @@ def cross_field_detail(request):
                         'table_name': table_name,
                         'editable_columns': editable_columns,
                         'normal_reviews': normal_reviews,
+                        'retailer_columns': retailer_columns,
                     })
 
             return JsonResponse({'error': '해당 규칙을 찾을 수 없습니다.'})
@@ -3146,6 +3173,11 @@ def field_missing_detail_by_field(request):
     product_line = request.GET.get('product_line', 'tv')
     retailer = request.GET.get('retailer', 'Amazon')
     field = request.GET.get('field', '')  # 필수: 조회할 필드
+    days = int(request.GET.get('days', 3))
+    if days < 1:
+        days = 1
+    if days > 30:
+        days = 30
 
     if not field:
         return JsonResponse({'status': 'error', 'message': 'field 파라미터가 필요합니다.'})
@@ -3155,6 +3187,11 @@ def field_missing_detail_by_field(request):
     else:
         target_date = (datetime.now() - timedelta(days=1)).date()
 
+    # 조회 범위: target_date 포함 days일치
+    prev_dates = [target_date - timedelta(days=i) for i in range(1, days)]
+    all_dates = [target_date] + prev_dates  # [오늘, 어제, 그저께, ...]
+
+    # 누락 판정용 (직전 2일)
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
@@ -3186,15 +3223,28 @@ def field_missing_detail_by_field(request):
 
         safe_field = f'"{field}"'
 
-        # SELECT 컬럼 구성: 필수(id, 수집시간, item) + 조회용 컬럼 or 누락필드 + URL(마지막)
-        # 조회용 컬럼이 있으면 조회용 컬럼만, 없으면 누락필드만 표시
+        # SELECT 컬럼 구성: 필수(id, 수집시간, item) + 전체 수집 컬럼 + URL(마지막)
         select_cols = ['id', date_column, 'item']
+        # 기본 표시 컬럼: related_columns가 있으면 related, 없으면 해당 필드만
+        default_display = []
         if related_columns:
             for rel_col in related_columns:
                 if rel_col in display_fields:
-                    select_cols.append(f'"{rel_col}"')
+                    default_display.append(rel_col)
         else:
-            select_cols.append(safe_field)
+            default_display.append(field)
+
+        # 전체 수집 컬럼 SELECT (컬럼 선택 기능용)
+        added = set()
+        # 기본 표시 컬럼 먼저
+        for col in default_display:
+            select_cols.append(f'"{col}"')
+            added.add(col)
+        # 나머지 수집 컬럼
+        for col in display_fields:
+            if col not in added:
+                select_cols.append(f'"{col}"')
+                added.add(col)
         select_cols.append('product_url')  # URL은 마지막에
         select_clause = ', '.join(select_cols)
 
@@ -3228,22 +3278,14 @@ def field_missing_detail_by_field(request):
 
         if not missing_items:
             # 누락 item이 없으면 빈 결과 반환
-            # 컬럼명 목록 생성 (select_cols와 동일한 순서)
-            column_names = ['id', date_column, 'item']
-            if related_columns:
-                for rel_col in related_columns:
-                    if rel_col in display_fields:
-                        column_names.append(rel_col)
-            else:
-                column_names.append(field)
-            column_names.append('product_url')
+            column_names = ['id', date_column, 'item'] + list(default_display) + [c for c in display_fields if c not in default_display] + ['product_url']
 
             cursor.close()
             conn.close()
             return JsonResponse({
                 'status': 'success',
                 'date': str(target_date),
-                'prev_dates': [str(prev_date_2), str(prev_date_1)],
+                'prev_dates': [str(d) for d in prev_dates],
                 'product_line': product_line.upper(),
                 'retailer': retailer,
                 'field': field,
@@ -3252,33 +3294,27 @@ def field_missing_detail_by_field(request):
                 'data': []
             })
 
-        # 누락 item들의 3일치 데이터 조회
+        # 누락 item들의 N일치 데이터 조회
         placeholders = ', '.join(['%s'] * len(missing_items))
+        date_placeholders = ', '.join(['%s'] * len(all_dates))
         query = f"""
             SELECT {select_clause}
             FROM {table_name}
             WHERE account_name = %s
-            AND DATE({date_cast}) IN (%s, %s, %s)
+            AND DATE({date_cast}) IN ({date_placeholders})
             AND item IN ({placeholders})
             ORDER BY item, {date_column}
         """
 
         cursor.execute(query, (
-            retailer, prev_date_2, prev_date_1, target_date,
+            retailer, *[str(d) for d in all_dates],
             *missing_items
         ))
 
         rows = cursor.fetchall()
 
         # 컬럼명 목록: select_cols와 동일한 순서
-        column_names = ['id', date_column, 'item']
-        if related_columns:
-            for rel_col in related_columns:
-                if rel_col in display_fields:
-                    column_names.append(rel_col)
-        else:
-            column_names.append(field)
-        column_names.append('product_url')
+        column_names = ['id', date_column, 'item'] + list(default_display) + [c for c in display_fields if c not in default_display] + ['product_url']
 
         # 데이터 변환
         all_data = []
@@ -3301,21 +3337,53 @@ def field_missing_detail_by_field(request):
             if crawl_date == str(target_date) and (field_val is None or field_val == ''):
                 today_null_count += 1
 
+        # editable_columns 조회
+        editable_cols = get_editable_columns(product_line, retailer)
+
+        # normal_reviews 조회 (field_missing 정상처리 이력)
+        normal_reviews = {}
+        try:
+            cursor.execute("""
+                SELECT record_id, column_name, reason, memo, created_id
+                FROM monitoring_corrections
+                WHERE layer = 3 AND correction_type = 'field_missing'
+                  AND table_name = %s AND crawl_date = %s
+                  AND status = 'normal'
+            """, (table_name, str(target_date)))
+            for nr_row in cursor.fetchall():
+                nk = str(nr_row[0]) + '_' + nr_row[1]
+                normal_reviews[nk] = {
+                    'reason': nr_row[2] or '',
+                    'memo': nr_row[3] or '',
+                    'created_id': nr_row[4] or ''
+                }
+        except Exception:
+            pass
+
         cursor.close()
         conn.close()
+
+        # 리테일러 전체 수집 컬럼 (컬럼 선택용)
+        all_display_fields = [c['column_name'] for c in columns_info
+                              if c['column_name'] not in ('id', 'item', 'account_name', 'page_type', date_column, 'product_url')]
 
         return JsonResponse({
             'status': 'success',
             'date': str(target_date),
-            'prev_dates': [str(prev_date_2), str(prev_date_1)],
+            'prev_dates': [str(d) for d in prev_dates],
             'product_line': product_line.upper(),
             'retailer': retailer,
             'field': field,
             'columns': column_names,
+            'display_fields': all_display_fields,
             'total_rows': len(all_data),
-            'missing_item_count': len(missing_items),  # 누락 item 수
-            'today_null_count': today_null_count,  # 오늘 날짜의 누락 데이터 수
-            'data': all_data
+            'missing_item_count': len(missing_items),
+            'today_null_count': today_null_count,
+            'data': all_data,
+            'table_name': table_name,
+            'editable_columns': editable_cols,
+            'normal_reviews': normal_reviews,
+            'default_columns': ['id', date_column, 'item'] + list(default_display) + ['product_url'],
         })
 
     except Exception as e:
@@ -3450,6 +3518,9 @@ def update_cell(request):
     crawl_date = body.get('crawl_date')
     memo = body.get('memo', '') or None
     rule_id = body.get('rule_id')
+    correction_type = body.get('correction_type', 'cross_field')
+    if correction_type not in ('cross_field', 'field_missing'):
+        correction_type = 'cross_field'
 
     if not all([table_name, row_id, column_name]):
         return JsonResponse({'error': '필수 파라미터 누락'}, status=400)
@@ -3508,7 +3579,7 @@ def update_cell(request):
                  old_value, new_value, crawl_date, created_id, created_at, status, memo, retailer, item, rule_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            3, 'cross_field', table_name, row_id, column_name,
+            3, correction_type, table_name, row_id, column_name,
             str(old_value) if old_value is not None else None,
             str(new_value) if new_value is not None else None,
             crawl_date, user_id, now, 'corrected', memo, retailer, item_value or None, rule_id
@@ -3558,6 +3629,9 @@ def review(request):
     crawl_date = body.get('crawl_date')
     retailer = body.get('retailer', '')
     rule_id = body.get('rule_id')
+    correction_type = body.get('correction_type', 'cross_field')
+    if correction_type not in ('cross_field', 'field_missing'):
+        correction_type = 'cross_field'
 
     if not all([table_name, record_id, column_name, status]):
         return JsonResponse({'error': '필수 파라미터 누락'}, status=400)
@@ -3607,7 +3681,7 @@ def review(request):
                  old_value, new_value, crawl_date, created_id, created_at, status, memo, reason, retailer, item, rule_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            3, 'cross_field', table_name, record_id, column_name,
+            3, correction_type, table_name, record_id, column_name,
             str(old_value) if old_value is not None else None,
             None,
             crawl_date, user_id, now, status, memo or None,

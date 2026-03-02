@@ -15,7 +15,8 @@
         'null_check': 'NULL 검증',
         'format_check': '형식 검증',
         'duplicate_check': '중복 검증',
-        'cross_field': '크로스필드 검증'
+        'cross_field': '크로스필드 검증',
+        'field_missing': '누락필드 검증'
     };
 
     var STATUS_NAMES = {
@@ -275,7 +276,7 @@
 
         // 검증유형별 현황
         var byType = data.by_type || {};
-        ['null_check', 'format_check', 'duplicate_check', 'cross_field'].forEach(function(ct) {
+        ['null_check', 'format_check', 'duplicate_check', 'cross_field', 'field_missing'].forEach(function(ct) {
             var el = document.getElementById('type-' + ct);
             if (!el) return;
             var counts = byType[ct];
@@ -348,7 +349,7 @@
     // 검수기록
     // ============================================================
     // focus 파라미터 → 고정 검증유형
-    var FOCUS_TO_TYPE = { 'NULL 검수': 'null_check', '형식 검수': 'format_check', '중복 검수': 'duplicate_check', '크로스필드 검수': 'cross_field' };
+    var FOCUS_TO_TYPE = { 'NULL 검수': 'null_check', '형식 검수': 'format_check', '중복 검수': 'duplicate_check', '크로스필드 검수': 'cross_field', '누락필드 검수': 'field_missing' };
     var correctionsFocus = '';
     var correctionsFixedType = '';
 
@@ -374,7 +375,8 @@
                     { value: 'null_check', label: 'NULL 검증' },
                     { value: 'format_check', label: '형식 검증' },
                     { value: 'duplicate_check', label: '중복 검증' },
-                    { value: 'cross_field', label: '크로스필드 검증' }
+                    { value: 'cross_field', label: '크로스필드 검증' },
+                    { value: 'field_missing', label: '누락필드 검증' }
                 ],
                 onChange: function() {
                     currentPage = 1; correctionsTable = null;
@@ -507,6 +509,7 @@
                 { key: 'rule_name', label: '검증규칙명', width: 150 },
                 { key: 'retailer', label: '리테일러', width: 90 },
                 { key: 'record_id', label: 'Record', width: 80 },
+                { key: 'item', label: 'Item', width: 120 },
                 { key: 'column_name', label: '컬럼', width: 140 },
                 { key: 'old_value', label: '이전값' },
                 { key: 'new_value', label: '변경한 값' },
@@ -521,6 +524,7 @@
                 { key: 'table_name', label: '카테고리', width: 60 },
                 { key: 'retailer', label: '리테일러', width: 90 },
                 { key: 'record_id', label: 'Record', width: 80 },
+                { key: 'item', label: 'Item', width: 120 },
                 { key: 'column_name', label: '컬럼', width: 160 },
                 { key: 'old_value', label: '이전값' },
                 { key: 'new_value', label: '변경한 값' },
@@ -645,17 +649,52 @@
         document.getElementById('report-summary').style.display = tab === 'summary' ? '' : 'none';
     };
 
-    window.copyReport = function() {
-        var el = currentReportTab === 'detail'
-            ? document.getElementById('report-detail')
-            : document.getElementById('report-summary');
-        var text = el ? el.innerText : '';
-        if (!text || text.trim() === '날짜를 선택하고 조회 버튼을 클릭하세요.') {
-            showToast('복사할 보고서가 없습니다.', 'warning');
+    window.saveReportToDocument = function() {
+        var el = document.getElementById('report-detail');
+        var rawContent = el ? el.innerHTML : '';
+        if (!rawContent || rawContent.indexOf('l4-empty-state') >= 0) {
+            showToast('저장할 보고서가 없습니다.', 'warning');
             return;
         }
-        copyText(text);
-        showToast('보고서가 클립보드에 복사되었습니다.', 'success');
+
+        // h2 타이틀 제거 (문서 제목으로 별도 저장) + 섹션 앞 줄바꿈
+        var content = rawContent
+            .replace(/<div class="report-title"[^>]*>.*?<\/div>/i, '')
+            .replace(/<div class="report-section-title"/g, '<br><div class="report-section-title"');
+
+        var date = getSelectedDate();
+        var title = date + ' DX 검수 보고서';
+        var categoryId = '20260207-0002';
+
+        var btn = document.getElementById('saveReportBtn');
+        btn.disabled = true;
+
+        fetch('/api/dx/documents/create/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                category_id: categoryId,
+                title: title,
+                content: content,
+                crawl_date: date
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            btn.disabled = false;
+            if (res.success) {
+                showToast(res.message || '검수 보고서가 저장되었습니다.', 'success');
+            } else {
+                showToast(res.error || '보고서 저장에 실패했습니다.', 'info');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            showToast('보고서 저장 중 오류가 발생했습니다.', 'error');
+        });
     };
 
     function loadReport() {
@@ -771,15 +810,39 @@
                 var uniqueItems = g.items.filter(function(v, i, a) { return a.indexOf(v) === i; });
                 return { column: g.column, count: g.count, item: uniqueItems.join(', '), action: g.action };
             });
+            // 같은 필드끼리 연속 정렬
+            rows.sort(function(a, b) { return a.column.localeCompare(b.column); });
 
+            // 필드 rowspan 계산
+            var fieldSpanMap = {};
+            var fieldSkipSet = {};
+            var ri = 0;
+            while (ri < rows.length) {
+                var curCol = rows[ri].column;
+                var spanCount = 1;
+                while (ri + spanCount < rows.length && rows[ri + spanCount].column === curCol) {
+                    fieldSkipSet[ri + spanCount] = true;
+                    spanCount++;
+                }
+                if (spanCount > 1) fieldSpanMap[ri] = spanCount;
+                ri += spanCount;
+            }
+
+            var fieldWidth = typeName === '누락필드 검증' ? 240 : 140;
             createReportTable(section, [
-                { key: 'column', label: '필드', width: 140 },
+                { key: 'column', label: '필드', width: fieldWidth },
                 { key: 'count', label: '건수', width: 60, align: 'center' },
                 { key: 'item', label: itemLabel },
                 { key: 'action', label: '조치 및 확인사항' }
-            ], rows, function(d) {
+            ], rows, function(d, idx) {
+                var fieldTd = '';
+                if (!fieldSkipSet[idx]) {
+                    var span = fieldSpanMap[idx];
+                    var spanAttr = span ? ' rowspan="' + span + '"' : '';
+                    fieldTd = '<td' + spanAttr + ' style="vertical-align:middle;">' + escapeHtml(d.column) + '</td>';
+                }
                 return '<tr>'
-                    + '<td>' + escapeHtml(d.column) + '</td>'
+                    + fieldTd
                     + '<td style="text-align:center">' + d.count + '</td>'
                     + '<td>' + escapeHtml(d.item) + '</td>'
                     + '<td>' + escapeHtml(d.action) + '</td>'
@@ -1013,7 +1076,7 @@
         summarySection.appendChild(createDiv('report-section-title', '■ 요약'));
 
         var issueCount = collectionIssues.length;
-        var TYPES_ORDER = ['null_check', 'duplicate_check', 'format_check', 'cross_field'];
+        var TYPES_ORDER = ['null_check', 'duplicate_check', 'format_check', 'cross_field', 'field_missing'];
         // 수집현황 비고: 섹션별 메모 조합
         var collMemos = [];
         collectionStatus.forEach(function(cs) {
@@ -1060,6 +1123,22 @@
             }
             summaryData.push({ category: TYPE_NAMES[ct], count: total + '건', remarks: remarks });
         });
+
+        // 비제품 제외
+        var excludedItems = data.excluded_items || [];
+        var exCount = excludedItems.length;
+        var exRemarks = '특이사항 없음';
+        if (exCount > 0) {
+            var exByRetailer = {};
+            excludedItems.forEach(function(d) {
+                var name = d.category + ' ' + d.account_name;
+                exByRetailer[name] = (exByRetailer[name] || 0) + 1;
+            });
+            exRemarks = sortRetailerKeys(Object.keys(exByRetailer)).map(function(name) {
+                return name + ' ' + exByRetailer[name] + '건 비제품으로 변경';
+            }).join('\n');
+        }
+        summaryData.push({ category: '비제품 제외', count: exCount + '건', remarks: exRemarks });
 
         createReportTable(summarySection, [
             { key: 'category', label: '구분', width: 150 },
@@ -1146,7 +1225,7 @@
 
         // ━━━ 2~5. 검증 상세 (NULL / 중복 / 형식 / 크로스필드) ━━━
         var sectionNo = 2;
-        ['null_check', 'duplicate_check', 'format_check', 'cross_field'].forEach(function(ct) {
+        ['null_check', 'duplicate_check', 'format_check', 'cross_field', 'field_missing'].forEach(function(ct) {
             var tableGroups = groupedDetails[ct];
             var hasData = tableGroups && Object.keys(tableGroups).length > 0;
             if (hasData) {
@@ -1168,6 +1247,45 @@
             }
             sectionNo++;
         });
+
+        // ━━━ 비제품 제외 ━━━
+        var excludedItems = data.excluded_items || [];
+        if (excludedItems.length > 0) {
+            var exSection = createDiv('report-section');
+            exSection.appendChild(createDiv('report-section-title',
+                '■ ' + sectionNo + '. 비제품 제외 (' + excludedItems.length + '건)'));
+
+            // 리테일러별 그룹핑
+            var exRetailerData = {};
+            excludedItems.forEach(function(d) {
+                var retailerName = d.category + ' ' + d.account_name;
+                if (!exRetailerData[retailerName]) exRetailerData[retailerName] = { items: [] };
+                if (d.item) exRetailerData[retailerName].items.push(d.item);
+            });
+
+            var exRows = sortRetailerKeys(Object.keys(exRetailerData)).map(function(name) {
+                var rd = exRetailerData[name];
+                var uniqueItems = rd.items.filter(function(v, i, a) { return a.indexOf(v) === i; });
+                return { retailer: name, count: uniqueItems.length, item: uniqueItems.join(', '), action: 'is_product = false로 변경' };
+            });
+
+            createReportTable(exSection, [
+                { key: 'retailer', label: '리테일러', width: 140 },
+                { key: 'count', label: '건수', width: 60, align: 'center' },
+                { key: 'item', label: 'Item' },
+                { key: 'action', label: '조치 및 확인사항' }
+            ], exRows, function(d) {
+                return '<tr>'
+                    + '<td>' + escapeHtml(d.retailer) + '</td>'
+                    + '<td style="text-align:center">' + d.count + '</td>'
+                    + '<td>' + escapeHtml(d.item) + '</td>'
+                    + '<td>' + escapeHtml(d.action) + '</td>'
+                    + '</tr>';
+            });
+
+            detailEl.appendChild(exSection);
+            sectionNo++;
+        }
 
         // === 한줄 요약 ===
         var sHtml = '<div class="report-title">[DX] ' + date + ' 검수 요약</div>';
@@ -1201,7 +1319,7 @@
         }
 
         // 유형별 한줄씩
-        ['null_check', 'duplicate_check', 'format_check', 'cross_field'].forEach(function(ct) {
+        ['null_check', 'duplicate_check', 'format_check', 'cross_field', 'field_missing'].forEach(function(ct) {
             var c = typeSummary[ct];
             if (!c) return;
             var corrected = c.corrected || 0;
@@ -1213,6 +1331,11 @@
             if (normal > 0) parts.push('확인 ' + normal + '건');
             sHtml += '<div class="report-item">[' + TYPE_NAMES[ct] + '] → ' + parts.join(', ') + '</div>';
         });
+
+        // 비제품 제외 한줄
+        if (excludedItems.length > 0) {
+            sHtml += '<div class="report-item">[비제품 제외] → ' + excludedItems.length + '건 is_product = false로 변경</div>';
+        }
 
         summaryEl.innerHTML = sHtml;
     }
