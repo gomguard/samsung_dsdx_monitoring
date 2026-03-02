@@ -18,6 +18,13 @@ REVIEW_REASONS = {
     ],
     'duplicate_check': [
     ],
+    'cross_field': [
+        '수집 대상 제품 아님',
+        '상품페이지 내 항목 부재',
+        '상품페이지 없음',
+        'final_sku_price가 현재와 달라 보정 불가',
+        '중간 텍스트 리뷰 없음',
+    ],
 }
 
 

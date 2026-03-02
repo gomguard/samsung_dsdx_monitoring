@@ -14,12 +14,13 @@
     var TYPE_NAMES = {
         'null_check': 'NULL 검증',
         'format_check': '형식 검증',
-        'duplicate_check': '중복 검증'
+        'duplicate_check': '중복 검증',
+        'cross_field': '크로스필드 검증'
     };
 
     var STATUS_NAMES = {
         'corrected': '수정',
-        'normal': '정상처리',
+        'normal': '확인',
         'reverted': '취소'
     };
 
@@ -274,7 +275,7 @@
 
         // 검증유형별 현황
         var byType = data.by_type || {};
-        ['null_check', 'format_check', 'duplicate_check'].forEach(function(ct) {
+        ['null_check', 'format_check', 'duplicate_check', 'cross_field'].forEach(function(ct) {
             var el = document.getElementById('type-' + ct);
             if (!el) return;
             var counts = byType[ct];
@@ -322,7 +323,7 @@
             tableContainer.innerHTML = '<span class="l4-no-data">데이터 없음</span>';
         } else {
             var html = '<table class="l4-table-summary"><thead><tr>'
-                + '<th>테이블</th><th>수정</th><th>정상처리</th><th>취소</th><th>합계</th>'
+                + '<th>테이블</th><th>수정</th><th>확인</th><th>취소</th><th>합계</th>'
                 + '</tr></thead><tbody>';
             tables.forEach(function(tn) {
                 var c = byTable[tn];
@@ -347,15 +348,21 @@
     // 검수기록
     // ============================================================
     // focus 파라미터 → 고정 검증유형
-    var FOCUS_TO_TYPE = { 'NULL 검수': 'null_check', '형식 검수': 'format_check', '중복 검수': 'duplicate_check' };
+    var FOCUS_TO_TYPE = { 'NULL 검수': 'null_check', '형식 검수': 'format_check', '중복 검수': 'duplicate_check', '크로스필드 검수': 'cross_field' };
     var correctionsFocus = '';
     var correctionsFixedType = '';
 
-    function initCorrectionsFilterBar() {
-        var focusParam = new URLSearchParams(window.location.search).get('focus') || '';
-        correctionsFocus = focusParam;
-        correctionsFixedType = FOCUS_TO_TYPE[focusParam] || '';
+    var correctionsFilterBar = null;
 
+    function getActiveType() {
+        return correctionsFixedType || (document.getElementById('filter-type') ? document.getElementById('filter-type').value : 'all');
+    }
+
+    function isCrossFieldMode() {
+        return getActiveType() === 'cross_field';
+    }
+
+    function buildCorrectionsFilterBar() {
         var controls = [];
 
         // focus 없으면 검증유형 드롭다운 표시
@@ -366,8 +373,36 @@
                     { value: 'all', label: '전체' },
                     { value: 'null_check', label: 'NULL 검증' },
                     { value: 'format_check', label: '형식 검증' },
-                    { value: 'duplicate_check', label: '중복 검증' }
+                    { value: 'duplicate_check', label: '중복 검증' },
+                    { value: 'cross_field', label: '크로스필드 검증' }
                 ],
+                onChange: function() {
+                    currentPage = 1; correctionsTable = null;
+                    // 크로스필드 선택 시 필터바 재구성
+                    var newType = document.getElementById('filter-type').value;
+                    if ((newType === 'cross_field') !== (correctionsLastType === 'cross_field')) {
+                        correctionsLastType = newType;
+                        buildCorrectionsFilterBar();
+                    }
+                    loadCorrections();
+                }
+            });
+        }
+
+        // 크로스필드일 때 카테고리/룰 드롭다운 추가
+        if (isCrossFieldMode()) {
+            controls.push({
+                type: 'select', key: 'filter-category', label: '카테고리',
+                options: [
+                    { value: 'all', label: '전체' },
+                    { value: 'TV', label: 'TV' },
+                    { value: 'HHP', label: 'HHP' }
+                ],
+                onChange: function() { currentPage = 1; correctionsTable = null; loadCorrections(); }
+            });
+            controls.push({
+                type: 'select', key: 'filter-rule', label: '검증규칙명',
+                options: [{ value: 'all', label: '전체' }],
                 onChange: function() { currentPage = 1; correctionsTable = null; loadCorrections(); }
             });
         }
@@ -377,13 +412,29 @@
             options: [
                 { value: 'all', label: '전체' },
                 { value: 'corrected', label: '수정' },
-                { value: 'normal', label: '정상처리' },
+                { value: 'normal', label: '확인' },
                 { value: 'reverted', label: '취소' }
             ],
             onChange: function() { currentPage = 1; correctionsTable = null; loadCorrections(); }
         });
 
-        new FilterBar('#corrections-filter-bar', { controls: controls, plain: true, sticky: false }).render();
+        correctionsFilterBar = new FilterBar('#corrections-filter-bar', { controls: controls, plain: true, sticky: false }).render();
+
+        // 검증유형 드롭다운 값 복원
+        if (!correctionsFixedType && correctionsLastType !== 'all') {
+            var typeEl = document.getElementById('filter-type');
+            if (typeEl) typeEl.value = correctionsLastType;
+        }
+    }
+
+    var correctionsLastType = 'all';
+
+    function initCorrectionsFilterBar() {
+        var focusParam = new URLSearchParams(window.location.search).get('focus') || '';
+        correctionsFocus = focusParam;
+        correctionsFixedType = FOCUS_TO_TYPE[focusParam] || '';
+        correctionsLastType = correctionsFixedType || 'all';
+        buildCorrectionsFilterBar();
     }
 
     window.loadCorrections = function(page) {
@@ -393,12 +444,16 @@
         if (page !== undefined) currentPage = page;
         if (currentPage === 1) correctionsTable = null;
 
-        var type = correctionsFixedType || (document.getElementById('filter-type') ? document.getElementById('filter-type').value : 'all');
+        var type = getActiveType();
         var status = document.getElementById('filter-status') ? document.getElementById('filter-status').value : 'all';
+        var category = document.getElementById('filter-category') ? document.getElementById('filter-category').value : 'all';
+        var ruleName = document.getElementById('filter-rule') ? document.getElementById('filter-rule').value : 'all';
 
         var url = '/dx/layer4/api/corrections/?date=' + encodeURIComponent(date)
             + '&type=' + encodeURIComponent(type)
             + '&status=' + encodeURIComponent(status)
+            + '&category=' + encodeURIComponent(category)
+            + '&rule_name=' + encodeURIComponent(ruleName)
             + '&page=' + currentPage
             + '&page_size=50';
 
@@ -409,6 +464,10 @@
                     showToast(data.error || '조회 실패', 'error');
                     return;
                 }
+                // 룰 드롭다운 갱신
+                if (data.rule_options) {
+                    updateRuleDropdown(data.rule_options);
+                }
                 renderCorrections(data);
             })
             .catch(function(e) {
@@ -417,28 +476,61 @@
             });
     };
 
+    function updateRuleDropdown(ruleOptions) {
+        var sel = document.getElementById('filter-rule');
+        if (!sel) return;
+        var currentVal = sel.value;
+        var html = '<option value="all">전체</option>';
+        ruleOptions.forEach(function(r) {
+            html += '<option value="' + escapeHtml(r.name) + '">' + escapeHtml(r.name) + '</option>';
+        });
+        sel.innerHTML = html;
+        // 기존 선택값 복원
+        if (currentVal !== 'all') {
+            sel.value = currentVal;
+            if (sel.value !== currentVal) sel.value = 'all';
+        }
+    }
+
     var correctionsTable = null;
 
     function getCorrectionsColumns() {
         var cols = [
-            { key: 'no', label: 'No.', width: 50, align: 'center' },
-            { key: 'crawl_date', label: '수집일시', width: 100 }
+            { key: 'no', label: 'No.', width: 50, align: 'center' }
         ];
         if (!correctionsFixedType) {
             cols.push({ key: 'correction_type', label: '검증유형', width: 90, align: 'center' });
         }
-        cols.push(
-            { key: 'table_name', label: '테이블', width: 130 },
-            { key: 'record_id', label: 'Record', width: 80 },
-            { key: 'column_name', label: '컬럼', width: 120 },
-            { key: 'old_value', label: '이전값' },
-            { key: 'new_value', label: '새값' },
-            { key: 'status', label: '상태', width: 70, align: 'center' },
-            { key: 'reason', label: '이유' },
-            { key: 'memo', label: '메모' },
-            { key: 'created_id', label: '작업자', width: 70 },
-            { key: 'created_at', label: '시간', width: 140 }
-        );
+        if (isCrossFieldMode()) {
+            cols.push(
+                { key: 'table_name', label: '카테고리', width: 60 },
+                { key: 'rule_name', label: '검증규칙명', width: 150 },
+                { key: 'retailer', label: '리테일러', width: 90 },
+                { key: 'record_id', label: 'Record', width: 80 },
+                { key: 'column_name', label: '컬럼', width: 140 },
+                { key: 'old_value', label: '이전값' },
+                { key: 'new_value', label: '변경한 값' },
+                { key: 'status', label: '상태', width: 70, align: 'center' },
+                { key: 'reason', label: '이유' },
+                { key: 'memo', label: '메모' },
+                { key: 'created_id', label: '수정자', width: 70 },
+                { key: 'created_at', label: '수정일', width: 140 }
+            );
+        } else {
+            cols.push(
+                { key: 'table_name', label: '카테고리', width: 60 },
+                { key: 'retailer', label: '리테일러', width: 90 },
+                { key: 'record_id', label: 'Record', width: 80 },
+                { key: 'column_name', label: '컬럼', width: 160 },
+                { key: 'old_value', label: '이전값' },
+                { key: 'new_value', label: '변경한 값' },
+                { key: 'status', label: '상태', width: 70, align: 'center' },
+                { key: 'reason', label: '이유' },
+                { key: 'memo', label: '메모' },
+                { key: 'created_id', label: '수정자', width: 70 },
+                { key: 'created_at', label: '수정일', width: 140 }
+            );
+        }
         return cols;
     }
 
@@ -462,21 +554,33 @@
                 columns: getCorrectionsColumns(),
                 resize: true,
                 section: true,
+                vlines: true,
                 showTotalCount: true
             });
             correctionsTable.render();
         }
 
+        var CATEGORY_NAME = {
+            'tv_retail_com': 'TV', 'hhp_retail_com': 'HHP',
+            'youtube_collection_logs': 'YouTube', 'youtube_videos': 'YouTube', 'youtube_comments': 'YouTube',
+            'market_trend': 'Market Trend', 'market_comp_product': 'Market', 'market_comp_event': 'Market',
+            'openai_forecast_results': '수요증감율'
+        };
+        var crossFieldMode = isCrossFieldMode();
         correctionsTable.renderBody(items, function(item, idx) {
             var statusName = STATUS_NAMES[item.status] || item.status;
+            var categoryName = CATEGORY_NAME[item.table_name] || item.table_name;
             var html = '<tr>'
-                + '<td style="text-align:center">' + (startNo + idx + 1) + '</td>'
-                + '<td>' + escapeHtml(item.crawl_date) + '</td>';
+                + '<td style="text-align:center">' + (startNo + idx + 1) + '</td>';
             if (!correctionsFixedType) {
                 var typeName = TYPE_NAMES[item.correction_type] || item.correction_type;
                 html += '<td style="text-align:center"><span class="l4-type-badge">' + escapeHtml(typeName) + '</span></td>';
             }
-            html += '<td>' + escapeHtml(item.table_name) + '</td>'
+            html += '<td>' + escapeHtml(categoryName) + '</td>';
+            if (crossFieldMode) {
+                html += '<td>' + escapeHtml(item.rule_name || '-') + '</td>';
+            }
+            html += '<td>' + escapeHtml(item.retailer || '-') + '</td>'
                 + '<td>' + escapeHtml(String(item.record_id)) + '</td>'
                 + '<td>' + escapeHtml(item.column_name) + '</td>'
                 + '<td title="' + escapeHtml(item.old_value || '') + '">' + escapeHtml(item.old_value || '-') + '</td>'
@@ -636,10 +740,10 @@
                 if (!retailerData[retailerName]) retailerData[retailerName] = { total: 0, groups: {} };
                 retailerData[retailerName].total++;
 
-                // 그룹 결정: 수정 → 필드별 하나로, 정상처리 → reason별
+                // 그룹 결정: 수정 → 필드별 하나로, 확인 → reason별
                 var action, groupKey;
                 if (d.status === 'normal') {
-                    action = d.reason || '정상처리';
+                    action = d.reason || '확인';
                     groupKey = 'normal|' + (d.column_name || '') + '|' + action;
                 } else {
                     action = (d.column_name || '') + ' 수정';
@@ -739,6 +843,93 @@
         parentEl.appendChild(section);
     }
 
+    // 크로스필드 검증 전용: rule별 그룹 렌더링
+    function renderCrossfieldSection(parentEl, sectionNo, typeName, tableGroups, typeSummaryData) {
+        if (!tableGroups || Object.keys(tableGroups).length === 0) return;
+        var corrected = (typeSummaryData && typeSummaryData.corrected) || 0;
+        var normal = (typeSummaryData && typeSummaryData.normal) || 0;
+        var total = corrected + normal;
+
+        var section = createDiv('report-section');
+        section.appendChild(createDiv('report-section-title',
+            '■ ' + sectionNo + '. ' + typeName + ' (' + total + '건)'));
+
+        var TABLE_CATEGORY = { 'tv_retail_com': 'TV', 'hhp_retail_com': 'HHP' };
+
+        // detail_code별 그룹핑 (TV/HHP 동일 규칙 합산)
+        var ruleGroups = {};
+        Object.keys(tableGroups).forEach(function(tn) {
+            var category = TABLE_CATEGORY[tn] || tn;
+            tableGroups[tn].forEach(function(d) {
+                var ruleKey = d.detail_code || d.rule_name || '규칙 ' + (d.rule_id || 0);
+                if (!ruleGroups[ruleKey]) ruleGroups[ruleKey] = { name: d.rule_name || ruleKey, items: [] };
+                var item = Object.assign({}, d);
+                item._category = category;
+                ruleGroups[ruleKey].items.push(item);
+            });
+        });
+
+        // rule별 서브섹션
+        var ruleIdx = 1;
+        Object.keys(ruleGroups).forEach(function(ruleKey) {
+            var rg = ruleGroups[ruleKey];
+            section.appendChild(createDiv('rpt-sub-title',
+                '(' + ruleIdx + ') ' + rg.name + ' (' + rg.items.length + '건)'));
+
+            // 리테일러별 → 조치별 그룹핑
+            var retailerData = {};
+            rg.items.forEach(function(d) {
+                var retailerName = d.retailer ? (d._category + ' ' + d.retailer) : d._category;
+                if (!retailerData[retailerName]) retailerData[retailerName] = { total: 0, groups: {} };
+                retailerData[retailerName].total++;
+
+                var action, groupKey;
+                if (d.status === 'normal') {
+                    action = d.reason || '확인';
+                    groupKey = 'normal|' + action;
+                } else {
+                    action = '수정';
+                    groupKey = 'corrected';
+                }
+
+                if (!retailerData[retailerName].groups[groupKey]) {
+                    retailerData[retailerName].groups[groupKey] = { action: action, items: [], count: 0 };
+                }
+                retailerData[retailerName].groups[groupKey].count++;
+                if (d.item) retailerData[retailerName].groups[groupKey].items.push(d.item);
+            });
+
+            // 리테일러별 행 생성
+            var rows = [];
+            sortRetailerKeys(Object.keys(retailerData)).forEach(function(name) {
+                var rd = retailerData[name];
+                Object.keys(rd.groups).forEach(function(gk) {
+                    var g = rd.groups[gk];
+                    var uniqueItems = g.items.filter(function(v, i, a) { return a.indexOf(v) === i; });
+                    rows.push({ retailer: name, count: g.count, item: uniqueItems.join(', '), action: g.action });
+                });
+            });
+
+            createReportTable(section, [
+                { key: 'retailer', label: '리테일러', width: 120 },
+                { key: 'count', label: '건수', width: 60, align: 'center' },
+                { key: 'item', label: 'Item' },
+                { key: 'action', label: '조치 및 확인사항' }
+            ], rows, function(d) {
+                return '<tr>'
+                    + '<td>' + escapeHtml(d.retailer) + '</td>'
+                    + '<td style="text-align:center">' + d.count + '</td>'
+                    + '<td>' + escapeHtml(d.item) + '</td>'
+                    + '<td>' + escapeHtml(d.action) + '</td>'
+                    + '</tr>';
+            });
+
+            ruleIdx++;
+        });
+
+        parentEl.appendChild(section);
+    }
+
     // correction_type별 상세 섹션 렌더링 (DOM 기반)
     function renderGroupedSection(parentEl, sectionNo, typeName, tableGroups, typeSummaryData) {
         if (!tableGroups || Object.keys(tableGroups).length === 0) return;
@@ -747,7 +938,7 @@
 
         var section = createDiv('report-section');
         section.appendChild(createDiv('report-section-title',
-            '■ ' + sectionNo + '. ' + typeName + ' (수정 ' + corrected + '건, 정상처리 ' + normal + '건)'));
+            '■ ' + sectionNo + '. ' + typeName + ' (수정 ' + corrected + '건, 확인 ' + normal + '건)'));
 
         var detailCols = [
             { key: 'no', label: 'No', width: 40, align: 'center' },
@@ -767,10 +958,10 @@
                 else tNormal++;
             });
             section.appendChild(createDiv('rpt-sub-title',
-                '▸ ' + tn + ' — 수정 ' + tCorrected + '건, 정상처리 ' + tNormal + '건'));
+                '▸ ' + tn + ' — 수정 ' + tCorrected + '건, 확인 ' + tNormal + '건'));
 
             createReportTable(section, detailCols, items, function(d, idx) {
-                var statusText = d.status === 'corrected' ? '수정' : '정상처리';
+                var statusText = d.status === 'corrected' ? '수정' : '확인';
                 return '<tr>'
                     + '<td style="text-align:center">' + (idx + 1) + '</td>'
                     + '<td>' + escapeHtml(d.column_name) + '</td>'
@@ -822,16 +1013,16 @@
         summarySection.appendChild(createDiv('report-section-title', '■ 요약'));
 
         var issueCount = collectionIssues.length;
-        var TYPES_ORDER = ['null_check', 'duplicate_check', 'format_check'];
+        var TYPES_ORDER = ['null_check', 'duplicate_check', 'format_check', 'cross_field'];
         // 수집현황 비고: 섹션별 메모 조합
         var collMemos = [];
         collectionStatus.forEach(function(cs) {
             if (cs.memo) {
                 var name = CHECK_SECTION_NAMES[cs.section] || cs.section;
-                collMemos.push(name + ': ' + cs.memo);
+                collMemos.push(name + ':\n' + cs.memo);
             }
         });
-        var collRemarks = collMemos.length > 0 ? collMemos.join(' / ') : '특이사항 없음';
+        var collRemarks = collMemos.length > 0 ? collMemos.join('\n') : '특이사항 없음';
         var summaryData = [{ category: '수집현황', count: issueCount + '건', remarks: collRemarks }];
         var TABLE_SECTION = {
             'tv_retail_com': 'Retail', 'hhp_retail_com': 'Retail',
@@ -846,7 +1037,7 @@
             if (total === 0) {
                 remarks = '특이사항 없음';
             } else {
-                // 섹션별 수정/정상처리 건수 자동 생성
+                // 섹션별 수정/확인 건수 자동 생성
                 var tableGroups = groupedDetails[ct] || {};
                 var sectionStats = {};
                 Object.keys(tableGroups).forEach(function(tn) {
@@ -862,7 +1053,7 @@
                     var s = sectionStats[sName];
                     var sub = [];
                     if (s.corrected > 0) sub.push('수정 ' + s.corrected + '건');
-                    if (s.normal > 0) sub.push('정상처리 ' + s.normal + '건');
+                    if (s.normal > 0) sub.push('확인 ' + s.normal + '건');
                     parts.push(sName + ' ' + sub.join(', '));
                 });
                 remarks = parts.join(' / ');
@@ -871,14 +1062,14 @@
         });
 
         createReportTable(summarySection, [
-            { key: 'category', label: '구분', width: 120 },
+            { key: 'category', label: '구분', width: 150 },
             { key: 'count', label: '이슈건수', width: 80, align: 'center' },
             { key: 'remarks', label: '비고' }
         ], summaryData, function(item) {
             return '<tr>'
                 + '<td>' + escapeHtml(item.category) + '</td>'
                 + '<td style="text-align:center">' + escapeHtml(item.count) + '</td>'
-                + '<td>' + escapeHtml(item.remarks) + '</td>'
+                + '<td style="white-space:pre-line">' + escapeHtml(item.remarks) + '</td>'
                 + '</tr>';
         });
         detailEl.appendChild(summarySection);
@@ -953,14 +1144,16 @@
         }
         detailEl.appendChild(collSection);
 
-        // ━━━ 2~4. 검증 상세 (NULL / 중복 / 형식) ━━━
+        // ━━━ 2~5. 검증 상세 (NULL / 중복 / 형식 / 크로스필드) ━━━
         var sectionNo = 2;
-        ['null_check', 'duplicate_check', 'format_check'].forEach(function(ct) {
+        ['null_check', 'duplicate_check', 'format_check', 'cross_field'].forEach(function(ct) {
             var tableGroups = groupedDetails[ct];
             var hasData = tableGroups && Object.keys(tableGroups).length > 0;
             if (hasData) {
                 if (ct === 'duplicate_check') {
                     renderDuplicateSection(detailEl, sectionNo, TYPE_NAMES[ct], tableGroups, typeSummary[ct]);
+                } else if (ct === 'cross_field') {
+                    renderCrossfieldSection(detailEl, sectionNo, TYPE_NAMES[ct], tableGroups, typeSummary[ct]);
                 } else {
                     renderRetailerGroupedSection(detailEl, sectionNo, TYPE_NAMES[ct], tableGroups, typeSummary[ct], 'item', 'Item');
                 }
@@ -1008,7 +1201,7 @@
         }
 
         // 유형별 한줄씩
-        ['null_check', 'duplicate_check', 'format_check'].forEach(function(ct) {
+        ['null_check', 'duplicate_check', 'format_check', 'cross_field'].forEach(function(ct) {
             var c = typeSummary[ct];
             if (!c) return;
             var corrected = c.corrected || 0;
@@ -1017,7 +1210,7 @@
 
             var parts = [];
             if (corrected > 0) parts.push('수정 ' + corrected + '건');
-            if (normal > 0) parts.push('정상처리 ' + normal + '건');
+            if (normal > 0) parts.push('확인 ' + normal + '건');
             sHtml += '<div class="report-item">[' + TYPE_NAMES[ct] + '] → ' + parts.join(', ') + '</div>';
         });
 

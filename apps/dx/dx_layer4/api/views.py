@@ -106,6 +106,8 @@ def corrections_list(request):
 
     correction_type = request.GET.get('type', 'all')
     status = request.GET.get('status', 'all')
+    category = request.GET.get('category', 'all')
+    rule_name = request.GET.get('rule_name', 'all')
     page = int(request.GET.get('page', 1))
     page_size = int(request.GET.get('page_size', 50))
 
@@ -125,6 +127,17 @@ def corrections_list(request):
             where_clauses.append("c.status = %s")
             params.append(status)
 
+        if category != 'all':
+            category_table_map = {'TV': 'tv_retail_com', 'HHP': 'hhp_retail_com'}
+            table_name = category_table_map.get(category)
+            if table_name:
+                where_clauses.append("c.table_name = %s")
+                params.append(table_name)
+
+        if rule_name != 'all':
+            where_clauses.append("c.rule_id IN (SELECT id FROM monitoring_validation_rules WHERE detail_name = %s)")
+            params.append(rule_name)
+
         where_sql = " AND ".join(where_clauses)
 
         # 총 건수
@@ -134,10 +147,12 @@ def corrections_list(request):
         # 데이터 조회
         offset = (page - 1) * page_size
         cursor.execute(f"""
-            SELECT id, layer, correction_type, table_name, record_id,
-                   column_name, old_value, new_value, crawl_date,
-                   status, memo, created_id, created_at, reason
+            SELECT c.id, c.layer, c.correction_type, c.table_name, c.record_id,
+                   c.column_name, c.old_value, c.new_value, c.crawl_date,
+                   c.status, c.memo, c.created_id, c.created_at, c.reason,
+                   c.retailer, c.item, c.rule_id, r.detail_name
             FROM monitoring_corrections c
+            LEFT JOIN monitoring_validation_rules r ON c.rule_id = r.id
             WHERE {where_sql}
             ORDER BY c.created_at DESC
             LIMIT %s OFFSET %s
@@ -161,21 +176,44 @@ def corrections_list(request):
                 'created_id': row[11] or '',
                 'created_at': row[12].strftime('%Y-%m-%d %H:%M:%S') if row[12] else '',
                 'reason': row[13] or '',
+                'retailer': row[14] or '',
+                'item': row[15] or '',
+                'rule_id': row[16],
+                'rule_name': row[17] or '',
             })
+
+        # 크로스필드일 때 룰 목록 반환 (detail_name 기준 중복 제거)
+        rule_options = []
+        if correction_type == 'cross_field':
+            cursor.execute("""
+                SELECT DISTINCT r.detail_name
+                FROM monitoring_corrections c
+                LEFT JOIN monitoring_validation_rules r ON c.rule_id = r.id
+                WHERE c.crawl_date = %s AND c.correction_type = 'cross_field'
+                  AND c.status IS NOT NULL AND c.rule_id IS NOT NULL
+                ORDER BY r.detail_name
+            """, [str(target_date)])
+            for rrow in cursor.fetchall():
+                if rrow[0]:
+                    rule_options.append({'name': rrow[0]})
 
         cursor.close()
         conn.close()
 
         total_pages = (total_count + page_size - 1) // page_size
 
-        return JsonResponse({
+        resp = {
             'success': True,
             'items': items,
             'total': total_count,
             'page': page,
             'page_size': page_size,
             'total_pages': total_pages,
-        })
+        }
+        if rule_options:
+            resp['rule_options'] = rule_options
+
+        return JsonResponse(resp)
     except Exception as e:
         if conn:
             try:
@@ -287,12 +325,14 @@ def report_data(request):
 
         # 수정 상세 목록 (보고서용)
         cursor.execute("""
-            SELECT correction_type, table_name, column_name,
-                   record_id, old_value, new_value, status, memo,
-                   reason, created_id, retailer, item
-            FROM monitoring_corrections
-            WHERE crawl_date = %s AND status IN ('corrected', 'normal')
-            ORDER BY correction_type, table_name, created_at
+            SELECT c.correction_type, c.table_name, c.column_name,
+                   c.record_id, c.old_value, c.new_value, c.status, c.memo,
+                   c.reason, c.created_id, c.retailer, c.item,
+                   c.rule_id, r.detail_name, r.detail_code
+            FROM monitoring_corrections c
+            LEFT JOIN monitoring_validation_rules r ON c.rule_id = r.id
+            WHERE c.crawl_date = %s AND c.status IN ('corrected', 'normal')
+            ORDER BY c.correction_type, c.table_name, c.created_at
         """, (str(target_date),))
         details = []
         for row in cursor.fetchall():
@@ -309,6 +349,9 @@ def report_data(request):
                 'created_id': row[9] or '',
                 'retailer': row[10] or '',
                 'item': row[11] or '',
+                'rule_id': row[12],
+                'rule_name': row[13] or '',
+                'detail_code': row[14] or '',
             })
 
         # correction_type → table_name 그룹핑

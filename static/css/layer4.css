@@ -305,6 +305,20 @@
     white-space: nowrap;
 }
 
+/* 검수기록 CommonTable 컴팩트 스타일 */
+#corrections-table-container .ct {
+    font-size: 12px;
+}
+
+#corrections-table-container .ct th {
+    padding: 6px 8px;
+    font-size: 11px;
+}
+
+#corrections-table-container .ct td {
+    padding: 5px 8px;
+}
+
 /* 상태 뱃지 */
 .l4-status {
     display: inline-block;

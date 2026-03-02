@@ -12,6 +12,7 @@ from django.http import JsonResponse
 from django.conf import settings
 from datetime import datetime, timedelta
 from apps.common.db import get_dx_connection
+from apps.common.retail_columns import get_editable_columns
 from apps.common.response import safe_error, log_error
 
 
@@ -530,6 +531,40 @@ def validate_crossfield(target_date, section='tv_retail'):
     return results
 
 
+def get_crossfield_normal_counts(target_date, table_name=None):
+    """크로스필드 정상 처리 건수를 rule_id별로 반환.
+    Returns: dict {rule_id: distinct_record_count}
+    """
+    conn = None
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        sql = """
+            SELECT rule_id, COUNT(DISTINCT record_id)
+            FROM monitoring_corrections
+            WHERE layer = 3 AND correction_type = 'cross_field'
+              AND status = 'normal' AND crawl_date = %s
+              AND rule_id IS NOT NULL
+        """
+        params = [str(target_date)]
+        if table_name:
+            sql += " AND table_name = %s"
+            params.append(table_name)
+        sql += " GROUP BY rule_id"
+        cursor.execute(sql, params)
+        result = {row[0]: row[1] for row in cursor.fetchall()}
+        cursor.close()
+        conn.close()
+        return result
+    except Exception:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return {}
+
+
 def get_status(issue_count, total_count=0, needs_review=False):
     """상태 판정
     - OK: 이상치 0건
@@ -911,6 +946,9 @@ def layer_stats(request):
             try:
                 tv_crossfield_result = validate_crossfield(target_date, 'tv_retail')
                 tv_cross_errors = tv_crossfield_result['total_errors']
+                # 정상 처리 건수 차감
+                tv_normal = get_crossfield_normal_counts(target_date, 'tv_retail_com')
+                tv_cross_errors = max(0, tv_cross_errors - sum(tv_normal.values()))
             except Exception as e:
                 log_error(e)
                 tv_cross_errors = 0
@@ -934,6 +972,9 @@ def layer_stats(request):
             try:
                 hhp_crossfield_result = validate_crossfield(target_date, 'hhp_retail')
                 hhp_cross_errors = hhp_crossfield_result['total_errors']
+                # 정상 처리 건수 차감
+                hhp_normal = get_crossfield_normal_counts(target_date, 'hhp_retail_com')
+                hhp_cross_errors = max(0, hhp_cross_errors - sum(hhp_normal.values()))
             except Exception as e:
                 log_error(e)
                 hhp_cross_errors = 0
@@ -1202,6 +1243,11 @@ def cross_field_detail(request):
     date_str = request.GET.get('date')
     product_line = request.GET.get('type', 'tv')
     rule_id = request.GET.get('rule_id')  # 특정 규칙 상세 조회 시
+    days = int(request.GET.get('days', 1))
+    if days < 1:
+        days = 1
+    if days > 30:
+        days = 30
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
@@ -1213,36 +1259,94 @@ def cross_field_detail(request):
     section = section_map.get(product_line, f'{product_line}_retail')
 
     try:
-        # DB 기반 크로스필드 검증 실행
+        # 검증은 항상 target_date 하루만 실행
         crossfield_result = validate_crossfield(target_date, section)
 
         # 특정 규칙 상세 조회
         if rule_id:
             for rule_result in crossfield_result['rule_results']:
                 if str(rule_result['rule_id']) == str(rule_id):
-                    # 해당 규칙의 상세 데이터 반환
-                    anomalies = []
+                    table_name = crossfield_result.get('table_name', '')
+                    date_col = crossfield_result.get('date_col', '')
                     validation_type = rule_result.get('validation_type', '')
 
-                    for detail in rule_result['error_details']:
-                        # 모든 컬럼 포함
-                        anomaly = {
-                            'item': detail.get('item'),
-                            'account_name': detail.get('account_name'),
-                            'page_type': detail.get('page_type'),
-                        }
-                        # 쿼리 결과의 모든 컬럼 추가
-                        for key, value in detail.items():
-                            if key not in ['item', 'account_name', 'page_type']:
-                                anomaly[key] = value
+                    # 1일치: 기존 로직 (검증 결과 그대로 반환)
+                    if days == 1:
+                        anomalies = []
+                        for detail in rule_result['error_details']:
+                            anomaly = {
+                                'item': detail.get('item'),
+                                'account_name': detail.get('account_name'),
+                                'page_type': detail.get('page_type'),
+                            }
+                            for key, value in detail.items():
+                                if key not in ['item', 'account_name', 'page_type']:
+                                    anomaly[key] = value
+                            if validation_type == 'cross_detail_mismatch':
+                                validation_info = validate_review_detail_match(detail, product_line, return_detail=True)
+                                anomaly['validation_tag'] = validation_info.get('reason', '')
+                                anomaly['expected_pattern'] = validation_info.get('expected_pattern', '')
+                            anomalies.append(anomaly)
+                    else:
+                        # N일치: 에러 아이템의 원본 데이터를 N일간 조회
+                        # 에러 아이템 추출 (account_name + item 쌍)
+                        error_pairs = set()
+                        for detail in rule_result['error_details']:
+                            acct = detail.get('account_name', '')
+                            item = detail.get('item', '')
+                            if acct and item:
+                                error_pairs.add((acct, item))
 
-                        # cross_detail_mismatch 타입이면 validation_tag 추가
-                        if validation_type == 'cross_detail_mismatch':
-                            validation_info = validate_review_detail_match(detail, product_line, return_detail=True)
-                            anomaly['validation_tag'] = validation_info.get('reason', '')
-                            anomaly['expected_pattern'] = validation_info.get('expected_pattern', '')
+                        if not error_pairs or not table_name or not date_col:
+                            anomalies = []
+                        else:
+                            # select_fields에서 조회 컬럼 결정
+                            select_fields_raw = rule_result.get('select_fields', '')
+                            if select_fields_raw:
+                                dynamic_cols = [f.strip() for f in select_fields_raw.split('|') if f.strip()]
+                            else:
+                                # error_details의 키에서 추출
+                                exclude = {'id', 'item', 'account_name', 'page_type', date_col, 'product_url'}
+                                dynamic_cols = []
+                                if rule_result['error_details']:
+                                    for k in rule_result['error_details'][0].keys():
+                                        if k not in exclude:
+                                            dynamic_cols.append(k)
 
-                        anomalies.append(anomaly)
+                            all_cols = ['id', 'account_name', 'item', 'page_type', date_col] + dynamic_cols + ['product_url']
+                            select_sql = ', '.join(all_cols)
+
+                            # 리테일러별 아이템 그룹핑
+                            retailer_items = {}
+                            for acct, item in error_pairs:
+                                retailer_items.setdefault(acct, []).append(item)
+
+                            conn_days = get_dx_connection()
+                            cur_days = conn_days.cursor()
+                            anomalies = []
+
+                            from_date = target_date - timedelta(days=days - 1)
+                            for acct, items in retailer_items.items():
+                                placeholders = ', '.join(['%s'] * len(items))
+                                cur_days.execute(f"""
+                                    SELECT {select_sql}
+                                    FROM {table_name}
+                                    WHERE account_name = %s
+                                      AND item IN ({placeholders})
+                                      AND DATE({date_col}::timestamp) >= %s
+                                      AND DATE({date_col}::timestamp) <= %s
+                                    ORDER BY item, {date_col}
+                                """, [acct] + items + [str(from_date), str(target_date)])
+                                cols_desc = [desc[0] for desc in cur_days.description]
+                                for row in cur_days.fetchall():
+                                    anomaly = {}
+                                    for i, col_name in enumerate(cols_desc):
+                                        val = row[i]
+                                        anomaly[col_name] = str(val) if val is not None else None
+                                    anomalies.append(anomaly)
+
+                            cur_days.close()
+                            conn_days.close()
 
                     # account_name, item, crawl_datetime 순으로 정렬
                     anomalies.sort(key=lambda x: (
@@ -1251,8 +1355,47 @@ def cross_field_detail(request):
                         str(x.get('crawl_datetime', '') or x.get('crawl_strdatetime', '') or '')
                     ))
 
+                    # editable 컬럼 수집 (리테일러별 합집합)
+                    editable_columns = []
+                    if table_name in ('tv_retail_com', 'hhp_retail_com'):
+                        seen_retailers = set()
+                        all_editable = set()
+                        for a in anomalies:
+                            r = a.get('account_name', '')
+                            if r and r not in seen_retailers:
+                                seen_retailers.add(r)
+                                cols = get_editable_columns(product_line, r)
+                                all_editable.update(cols)
+                        editable_columns = sorted(all_editable)
+
+                    # 기존 정상 처리 이력 조회
+                    normal_reviews = {}
+                    conn_nr = get_dx_connection()
+                    cur_nr = conn_nr.cursor()
+                    cur_nr.execute("""
+                        SELECT record_id, column_name, memo, reason, created_id, created_at
+                        FROM monitoring_corrections
+                        WHERE layer = 3 AND correction_type = 'cross_field'
+                          AND crawl_date = %s AND status = 'normal'
+                          AND table_name = %s
+                    """, (str(target_date), table_name))
+                    for nr_row in cur_nr.fetchall():
+                        nr_key = f"{nr_row[0]}_{nr_row[1]}"
+                        normal_reviews[nr_key] = {
+                            'memo': nr_row[2] or '',
+                            'reason': nr_row[3] or '',
+                            'created_id': nr_row[4] or '',
+                            'created_at': str(nr_row[5]) if nr_row[5] else ''
+                        }
+                    cur_nr.close()
+                    conn_nr.close()
+
+                    # 정상 처리 건수 차감한 이상치 수
+                    adjusted_total = max(0, len(anomalies) - len(normal_reviews))
+
                     return JsonResponse({
                         'date': str(target_date),
+                        'days': days,
                         'product_line': product_line.upper(),
                         'rule_id': rule_result['rule_id'],
                         'detail_code': rule_result['detail_code'],
@@ -1260,17 +1403,25 @@ def cross_field_detail(request):
                         'field2': rule_result.get('field2'),
                         'validation_type': validation_type,
                         'error_message': rule_result['error_message'],
-                        'total_anomalies': rule_result['error_count'],
+                        'total_anomalies': adjusted_total,
                         'anomalies': anomalies,
-                        'select_fields': rule_result.get('select_fields', '')
+                        'select_fields': rule_result.get('select_fields', ''),
+                        'table_name': table_name,
+                        'editable_columns': editable_columns,
+                        'normal_reviews': normal_reviews,
                     })
 
             return JsonResponse({'error': '해당 규칙을 찾을 수 없습니다.'})
 
         # 규칙별 요약 반환 (검증 유형별 건수) - 0건도 포함
+        # 정상 처리 건수 차감
+        table_name_for_normal = 'tv_retail_com' if product_line == 'tv' else 'hhp_retail_com'
+        normal_counts = get_crossfield_normal_counts(target_date, table_name_for_normal)
+
         rule_summary = []
         total_anomalies = 0
         for r in crossfield_result['rule_results']:
+            adjusted_count = max(0, r['error_count'] - normal_counts.get(r['rule_id'], 0))
             rule_summary.append({
                 'rule_id': r['rule_id'],
                 'detail_code': r['detail_code'],
@@ -1278,11 +1429,11 @@ def cross_field_detail(request):
                 'field2': r.get('field2'),
                 'validation_type': r.get('validation_type', ''),
                 'error_message': r['error_message'],
-                'error_count': r['error_count'],
+                'error_count': adjusted_count,
                 'query': r.get('query', ''),
                 'select_fields': r.get('select_fields', '')
             })
-            total_anomalies += r['error_count']
+            total_anomalies += adjusted_count
 
         # 테이블/컬럼 정보 (플레이스홀더 치환용)
         table_name = crossfield_result.get('table_name', '')
@@ -3269,4 +3420,212 @@ def category_rules(request):
         log_error(e)
         return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
 
+
+# ============================================================
+# 셀 수정 / 정상 처리 API (크로스필드 검증)
+# ============================================================
+
+VALID_TABLES_UPDATE = {
+    'tv_retail_com', 'hhp_retail_com',
+    'youtube_collection_logs', 'youtube_videos', 'youtube_comments',
+    'market_trend', 'market_comp_product', 'market_comp_event', 'openai_forecast_results',
+}
+
+
+def update_cell(request):
+    """셀 값 수정 API (POST) — Layer3 크로스필드"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+
+    import json
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': '잘못된 요청 형식'}, status=400)
+
+    table_name = body.get('table_name', '')
+    row_id = body.get('row_id')
+    column_name = body.get('column_name', '')
+    new_value = body.get('new_value')
+    crawl_date = body.get('crawl_date')
+    memo = body.get('memo', '') or None
+    rule_id = body.get('rule_id')
+
+    if not all([table_name, row_id, column_name]):
+        return JsonResponse({'error': '필수 파라미터 누락'}, status=400)
+
+    if table_name not in VALID_TABLES_UPDATE:
+        return JsonResponse({'error': '수정 불가능한 테이블'}, status=400)
+
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', column_name):
+        return JsonResponse({'error': '잘못된 컬럼명'}, status=400)
+
+    product_line = 'tv' if table_name == 'tv_retail_com' else 'hhp'
+
+    conn = None
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            f"SELECT {column_name}, account_name, item FROM {table_name} WHERE id = %s",
+            (row_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'error': '해당 레코드가 없습니다'}, status=404)
+
+        old_value = row[0]
+        retailer = row[1]
+        item_value = str(row[2]) if row[2] else ''
+
+        editable_cols = get_editable_columns(product_line, retailer)
+        if column_name not in editable_cols:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'error': f'{column_name} 컬럼은 수정할 수 없습니다'}, status=403)
+
+        old_str = str(old_value) if old_value is not None else ''
+        new_str = str(new_value) if new_value is not None else ''
+        if old_str == new_str:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'success': True, 'message': '변경 없음'})
+
+        update_value = new_value if new_value != '' else None
+        cursor.execute(
+            f"UPDATE {table_name} SET {column_name} = %s WHERE id = %s",
+            (update_value, row_id)
+        )
+
+        now = datetime.now()
+        user_id = request.user.username if request.user.is_authenticated else 'anonymous'
+        cursor.execute("""
+            INSERT INTO monitoring_corrections
+                (layer, correction_type, table_name, record_id, column_name,
+                 old_value, new_value, crawl_date, created_id, created_at, status, memo, retailer, item, rule_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            3, 'cross_field', table_name, row_id, column_name,
+            str(old_value) if old_value is not None else None,
+            str(new_value) if new_value is not None else None,
+            crawl_date, user_id, now, 'corrected', memo, retailer, item_value or None, rule_id
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'old_value': old_str, 'new_value': new_str})
+
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+                conn.close()
+            except Exception:
+                pass
+        return safe_error(e)
+
+
+def review_reasons(request):
+    """정상 처리 이유 목록 조회 API (GET)"""
+    from apps.common.constants import get_reasons
+    check_type = request.GET.get('check_type', 'cross_field')
+    reasons = [{'text': r} for r in get_reasons(check_type)]
+    return JsonResponse({'success': True, 'reasons': reasons})
+
+
+def review(request):
+    """크로스필드 정상 처리 / 취소 API (POST)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+
+    import json
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': '잘못된 요청 형식'}, status=400)
+
+    table_name = body.get('table_name', '')
+    record_id = body.get('record_id')
+    column_name = body.get('column_name', '')
+    status = body.get('status', '')
+    memo = body.get('memo', '')
+    reason = body.get('reason', '')
+    crawl_date = body.get('crawl_date')
+    retailer = body.get('retailer', '')
+    rule_id = body.get('rule_id')
+
+    if not all([table_name, record_id, column_name, status]):
+        return JsonResponse({'error': '필수 파라미터 누락'}, status=400)
+
+    if status == 'normal' and not reason:
+        return JsonResponse({'error': '이유 선택은 필수입니다'}, status=400)
+
+    if status not in ('normal', 'reverted'):
+        return JsonResponse({'error': '잘못된 status 값'}, status=400)
+
+    if table_name not in VALID_TABLES_UPDATE:
+        return JsonResponse({'error': '허용되지 않는 테이블'}, status=400)
+
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', column_name):
+        return JsonResponse({'error': '잘못된 컬럼명'}, status=400)
+
+    conn = None
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        is_retail = table_name in ('tv_retail_com', 'hhp_retail_com')
+        if is_retail:
+            cursor.execute(
+                f"SELECT {column_name}, item FROM {table_name} WHERE id = %s",
+                (record_id,)
+            )
+        else:
+            cursor.execute(
+                f"SELECT {column_name} FROM {table_name} WHERE id = %s",
+                (record_id,)
+            )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'error': '해당 레코드가 없습니다'}, status=404)
+
+        old_value = row[0]
+        item_value = str(row[1]) if is_retail and row[1] else None
+        now = datetime.now()
+        user_id = request.user.username if request.user.is_authenticated else 'anonymous'
+
+        cursor.execute("""
+            INSERT INTO monitoring_corrections
+                (layer, correction_type, table_name, record_id, column_name,
+                 old_value, new_value, crawl_date, created_id, created_at, status, memo, reason, retailer, item, rule_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            3, 'cross_field', table_name, record_id, column_name,
+            str(old_value) if old_value is not None else None,
+            None,
+            crawl_date, user_id, now, status, memo or None,
+            reason or None, retailer or None, item_value, rule_id
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'status': status})
+
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+                conn.close()
+            except Exception:
+                pass
+        return safe_error(e)
 

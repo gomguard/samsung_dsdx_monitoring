@@ -16,6 +16,9 @@ const ViewStack = {
         });
         container.innerHTML = html;
         window.scrollTo(0, 0);
+        // 하위 뷰 진입 시 필터바 숨김
+        var filterBar = document.querySelector('.filter-section');
+        if (filterBar) filterBar.style.display = 'none';
     },
     pop() {
         if (this.stack.length === 0) return false;
@@ -24,6 +27,11 @@ const ViewStack = {
         if (container) {
             container.innerHTML = state.html;
             window.scrollTo(0, state.scrollTop);
+        }
+        // 최상위로 돌아오면 필터바 복원
+        if (this.stack.length === 0) {
+            var filterBar = document.querySelector('.filter-section');
+            if (filterBar) filterBar.style.display = '';
         }
         return true;
     },
@@ -43,6 +51,18 @@ function isCatSpecInline() {
 // 크로스 필드 검증 인라인 모드 판별
 function isCrossFieldInline() {
     return (window.LAYER3 && window.LAYER3.section) === 'cross_field';
+}
+
+// 인라인 상세 타이틀 HTML (제목 + 날짜)
+function _inlineTitle(title) {
+    var dateVal = document.getElementById('target-date') ? document.getElementById('target-date').value : '';
+    var dateDisplay = '';
+    if (dateVal) {
+        var d = new Date(dateVal + 'T00:00:00');
+        var weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+        dateDisplay = dateVal + '(' + weekdays[d.getDay()] + ')';
+    }
+    return '<span>' + title + '</span>' + (dateDisplay ? '<span class="inline-detail-date">' + dateDisplay + '</span>' : '');
 }
 
 // 요일 표시 업데이트
@@ -405,7 +425,7 @@ async function showDetail(category, checkName) {
             ViewStack.push(`
                 <div class="inline-detail">
                     <button class="btn-back" onclick="ViewStack.pop()">← 목록으로</button>
-                    <div class="inline-detail-title">${title}</div>
+                    <div class="inline-detail-title">${_inlineTitle(title)}</div>
                     <div class="inline-detail-body"><p style="text-align:center;">데이터를 불러오는 중...</p></div>
                 </div>
             `);
@@ -652,6 +672,8 @@ function renderCrossfieldSummaryContent(title, _category, data) {
         const noReviewTexts = data.no_review_texts || '';
         const targetDate = data.date || '';
 
+        html += '<div class="rule-summary-section">';
+        if (inline) html += `<div class="rule-summary-section-header">${_inlineTitle(titleText)}</div>`;
         html += '<div class="rule-summary-container">';
         ruleSummary.forEach((rule, idx) => {
             const fieldDisplay = rule.field2 ? `${rule.field1} ↔ ${rule.field2}` : rule.field1;
@@ -660,7 +682,7 @@ function renderCrossfieldSummaryContent(title, _category, data) {
             const detailTitle = `${fieldDisplay} (${rule.error_message})`;
             html += `
                 <div class="rule-summary-card-wrapper">
-                    <div class="rule-summary-card" onclick="loadCrossfieldRuleDetail('${escJs(data.product_line.toLowerCase())}', '${escJs(rule.rule_id)}', '${escJs(data.date)}', '${escJs(detailTitle)}')">
+                    <div class="rule-summary-card" data-rule-id="${esc(String(rule.rule_id))}" onclick="loadCrossfieldRuleDetail('${escJs(data.product_line.toLowerCase())}', '${escJs(rule.rule_id)}', '${escJs(data.date)}', '${escJs(detailTitle)}')">
                         <div class="rule-info">
                             <div class="rule-name">
                                 ${esc(fieldDisplay)}
@@ -678,12 +700,13 @@ function renderCrossfieldSummaryContent(title, _category, data) {
             `;
         });
         html += '</div>';
+        html += '</div>';
     }
 
     if (inline) {
         const titleEl = document.querySelector('.inline-detail-title');
         const bodyEl = document.querySelector('.inline-detail-body');
-        if (titleEl) titleEl.textContent = titleText;
+        if (titleEl) titleEl.style.display = 'none';
         if (bodyEl) bodyEl.innerHTML = html;
     } else {
         AppModal.setTitle('detail', titleText);
@@ -716,6 +739,8 @@ function renderCatSpecSummaryContent(title, data) {
     if (ruleSummary.length === 0) {
         html += '<p>범위 이탈 데이터가 없습니다.</p>';
     } else {
+        html += '<div class="rule-summary-section">';
+        if (isCatSpecInline()) html += `<div class="rule-summary-section-header">${_inlineTitle(titleText)}</div>`;
         html += '<div class="rule-summary-container">';
         ruleSummary.forEach(rule => {
             html += `
@@ -729,12 +754,13 @@ function renderCatSpecSummaryContent(title, data) {
             `;
         });
         html += '</div>';
+        html += '</div>';
     }
 
     if (isCatSpecInline()) {
         const titleEl = document.querySelector('.inline-detail-title');
         const bodyEl = document.querySelector('.inline-detail-body');
-        if (titleEl) titleEl.textContent = titleText;
+        if (titleEl) titleEl.style.display = 'none';
         if (bodyEl) bodyEl.innerHTML = html;
     } else {
         AppModal.setTitle('detail', titleText);
@@ -798,7 +824,7 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
         ViewStack.push(`
             <div class="inline-detail">
                 <button class="btn-back" onclick="ViewStack.pop()">← 뒤로가기</button>
-                <div class="inline-detail-title">${ruleName}</div>
+                <div class="inline-detail-title">${_inlineTitle(ruleName)}</div>
                 <div class="inline-detail-body"><p style="text-align:center;">데이터를 불러오는 중...</p></div>
             </div>
         `);
@@ -851,32 +877,43 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             window.crossfieldProductLine = productLine;
             window.crossfieldDate = date;
             window.crossfieldRuleName = ruleName;
+            window.crossfieldRuleId = ruleId;
             window.crossfieldSelectFields = data.select_fields || '';
             window.crossfieldValidationType = data.validation_type || '';
+            window.crossfieldTableName = data.table_name || '';
+            window.crossfieldEditableCols = new Set(data.editable_columns || []);
+            window.crossfieldNormalReviews = data.normal_reviews || {};
+            window.crossfieldPendingEdits = {};
 
-            // 리테일러 목록만 표시
-            html += '<div class="retailer-list-container">';
+            const titleText = `${ruleName} (${data.total_anomalies}건)`;
+
+            // 리테일러 목록 (rule-summary-card 스타일)
+            html += '<div class="rule-summary-section">';
+            if (inline) html += `<div class="rule-summary-section-header">${_inlineTitle(titleText)}</div>`;
+            html += '<div class="rule-summary-container">';
             Object.keys(retailerData).sort().forEach(retailer => {
                 const items = retailerData[retailer].items;
                 const rowCount = retailerData[retailer].rows.length;
                 html += `
-                    <div class="retailer-card" onclick="showRetailerDetail('${escJs(retailer)}')">
-                        <div class="retailer-card-name">${esc(retailer)}</div>
-                        <div class="retailer-card-count">${rowCount}건 (${items.length} items)</div>
+                    <div class="rule-summary-card" data-retailer="${esc(retailer)}" onclick="showRetailerDetail('${escJs(retailer)}')">
+                        <div class="rule-info">
+                            <div class="rule-name">${esc(retailer)}</div>
+                            <div class="rule-desc">${items.length} items</div>
+                        </div>
+                        <span class="rule-count${rowCount === 0 ? ' zero' : ''}">${rowCount}건</span>
                     </div>
                 `;
             });
             html += '</div>';
+            html += '</div>';
         }
-
-        const titleText = `${ruleName} (${data.total_anomalies}건)`;
         if (inline) {
             const titleEl = document.querySelector('.inline-detail-title');
             const bodyEl = document.querySelector('.inline-detail-body');
-            if (titleEl) titleEl.textContent = titleText;
+            if (titleEl) titleEl.style.display = 'none';
             if (bodyEl) bodyEl.innerHTML = html;
         } else {
-            AppModal.setTitle('detail', titleText);
+            AppModal.setTitle('detail', ruleName + ' (' + (data.total_anomalies || 0) + '건)');
             AppModal.setBody('detail', html);
         }
 
@@ -1005,6 +1042,8 @@ function copyUrlToClipboard(text, btn) {
 function backToCrossfieldSummary() {
     if (isCrossFieldInline()) {
         ViewStack.pop();
+        // pop 후 규칙 카드 건수 갱신
+        setTimeout(_cfUpdateRuleCardCount, 0);
         return;
     }
     if (window.crossfieldSummaryData && window.crossfieldTitle) {
@@ -1353,7 +1392,7 @@ ORDER BY account_name, item;`;
     if (inline) {
         const titleEl = document.querySelector('.inline-detail-title');
         const bodyEl = document.querySelector('.inline-detail-body');
-        if (titleEl) titleEl.textContent = titleText;
+        if (titleEl) titleEl.innerHTML = _inlineTitle(titleText);
         if (bodyEl) bodyEl.innerHTML = html;
     } else {
         AppModal.setTitle('detail', titleText);
@@ -1527,66 +1566,195 @@ function showRetailerDetail(retailer) {
     const rows = data.rows;
     const items = data.items;
 
-    let html = '';
-    // 뒤로가기 버튼 (모달에서만, 인라인은 ViewStack으로 처리)
-    if (!inline) {
-        html += `<button class="btn-back" onclick="backToRetailerList()">← 뒤로가기</button>`;
-    }
-
-    // 3일치 조회 쿼리 생성
     const productLine = window.crossfieldProductLine || 'HHP';
     const date = window.crossfieldDate || new Date().toISOString().slice(0, 10);
     const tableName = productLine.toUpperCase() === 'HHP' ? 'hhp_retail_com' : 'tv_retail_com';
     const dateCol = productLine.toUpperCase() === 'HHP' ? 'crawl_strdatetime' : 'crawl_datetime';
+    const productLineDisplay = productLine.toUpperCase();
+    const ruleNameDisplay = window.crossfieldRuleName || '';
+    const titleText = `${ruleNameDisplay} (${rows.length}건)`;
+    const subtitleText = `${productLineDisplay} Retail | ${retailer}`;
 
-    // select_fields가 있으면 CSV에서 지정한 필드 사용, 없으면 동적 추출
-    let dynamicCols = [];
-    const selectFieldsRaw = window.crossfieldSelectFields || '';
-    if (selectFieldsRaw) {
-        // 파이프(|)로 구분된 필드 목록 파싱
-        dynamicCols = selectFieldsRaw.split('|').map(f => f.trim()).filter(f => f);
-    } else {
-        // 기존 로직: 고정 컬럼 제외하고 동적 추출
-        const excludeCols = ['id', 'item', dateCol, 'account_name', 'product_url', 'page_type'];
-        if (rows.length > 0) {
-            Object.keys(rows[0]).forEach(key => {
-                if (!excludeCols.includes(key)) {
-                    dynamicCols.push(key);
-                }
-            });
+    const editableCols = inline ? (window.crossfieldEditableCols || new Set()) : new Set();
+    const normalReviews = inline ? (window.crossfieldNormalReviews || {}) : {};
+
+    // 동적 컬럼
+    const excludeKeys = ['id', 'item', 'account_name', 'page_type'];
+    const dynamicKeys = [];
+    if (rows.length > 0) {
+        Object.keys(rows[0]).forEach(key => {
+            if (!excludeKeys.includes(key)) dynamicKeys.push(key);
+        });
+    }
+    const urlKey = dynamicKeys.find(k => k === 'product_url');
+    const otherKeys = dynamicKeys.filter(k => k !== 'product_url');
+
+    // --- 인라인 모드: Layer2 스타일 ---
+    if (inline) {
+        const _wn = ['일','월','화','수','목','금','토'][new Date(date).getDay()];
+        const dateDisplay = `${date}(${_wn})`;
+
+        // Item 목록 토글
+        const retailerSafe = retailer.replace(/[^a-zA-Z0-9]/g, '');
+        const itemListDisplay = items.join(', ');
+        const itemQueryHtml = `
+            <div class="item-toggle-section">
+                <div class="item-toggle-header" onclick="var c=this.nextElementSibling;c.style.display=c.style.display==='none'?'':'none';this.querySelector('.toggle-arrow').textContent=c.style.display==='none'?'▸':'▾';">
+                    <span class="toggle-arrow">▸</span> Item 목록 (${items.length}개)
+                </div>
+                <div class="item-toggle-content" style="display:none;">
+                    <div class="item-copy-header">
+                        <span class="item-copy-title">Item 목록 (${items.length}개)</span>
+                        <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('item-list-${retailerSafe}'))">복사</button>
+                    </div>
+                    <div id="item-list-${retailerSafe}" class="item-copy-content">${esc(itemListDisplay)}</div>
+                </div>
+            </div>`;
+
+        // 컬럼 정의
+        const allColumns = [
+            { key: '_no', label: 'No', width: 50, fixed: true },
+            { key: 'id', label: 'id', width: 80 },
+            { key: 'item', label: 'item', width: 140 },
+            { key: 'page_type', label: 'page_type', width: 80 }
+        ];
+        otherKeys.forEach(k => {
+            allColumns.push({ key: k, label: k, width: 140 });
+        });
+        if (urlKey) {
+            allColumns.push({ key: 'product_url', label: 'product_url', width: 100 });
         }
-    }
+        const defaultVisibleKeys = allColumns.map(c => c.key);
 
-    // 순서: id, account_name, item, crawl_datetime, 동적컬럼, (validation컬럼), product_url
-    const inClauseWithQuotes = items.map(item => `'${item}'`).join(', ');
-    const itemListDisplay = items.join(', ');
+        // 컨테이너 HTML
+        const containerHtml = `<div class="detail-view-wrapper">
+            <div id="cf-detail-item-query">${itemQueryHtml}</div>
+            <div id="cf-detail-filter-bar"></div>
+            <div id="cf-detail-action-bar"></div>
+            <div id="cf-detail-table-area"></div>
+            <div id="cf-detail-pagination"></div>
+        </div>`;
 
-    // cross_detail_mismatch 타입이면 validation_tag 컬럼 추가 (전체 공통 패턴: review{N} -)
-    // 순서: id, account_name, item, crawl_datetime, expected_pattern, validation_tag, count_of_reviews, detailed_review_content, product_url
-    const validationType = window.crossfieldValidationType || '';
-    let validationTagCol = '';
-    if (validationType === 'cross_detail_mismatch') {
-        validationTagCol = `
-'review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || ' -' AS expected_pattern,
-CASE WHEN LOWER(detailed_review_content) LIKE '%review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || ' -%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,`;
-    }
+        const daysInputHtml = `<div style="display:flex;align-items:center;gap:6px;margin-right:12px;">
+            <label style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">일수:</label>
+            <input type="number" id="cf-detail-days" value="1" min="1" max="30"
+                style="width:50px;padding:3px 6px;border:1px solid var(--border-color,#e2e8f0);border-radius:4px;font-size:12px;text-align:center;"
+                onkeydown="if(event.key==='Enter')reloadCfDays()">
+            <button onclick="reloadCfDays()" style="padding:3px 10px;font-size:12px;border:1px solid var(--border-color,#e2e8f0);border-radius:4px;background:var(--page-color,#0d9488);color:#fff;cursor:pointer;white-space:nowrap;">조회</button>
+        </div>`;
 
-    // 순서: id, account_name, item, crawl_datetime, (validation컬럼), 동적컬럼, product_url
-    let selectCols = ['id', 'account_name', 'item', dateCol].join(', ');
+        const wrapper = `<div class="inline-detail-view">
+            <div class="inline-detail-header"><div>
+                <div class="inline-detail-title">${esc(titleText)}</div>
+                <div class="inline-detail-subtitle">${esc(subtitleText)}</div>
+            </div><div style="display:flex;align-items:center;">${daysInputHtml}<div class="inline-detail-date">${dateDisplay}</div></div></div>
+            <div id="cf-detail-body">${containerHtml}</div>
+        </div>`;
 
-    const query = `SELECT ${selectCols},${validationTagCol}
-${dynamicCols.join(', ')}, product_url
-FROM ${tableName}
-WHERE account_name = '${retailer}'
-AND item IN (${inClauseWithQuotes})
-AND DATE(${dateCol}::timestamp) >= DATE('${date}') - INTERVAL '2 days'
-AND DATE(${dateCol}::timestamp) <= DATE('${date}')
-ORDER BY item, ${dateCol};`;
+        ViewStack.push(`
+            <div class="inline-detail">
+                <button class="btn-back" onclick="ViewStack.pop()">← 뒤로가기</button>
+                ${wrapper}
+            </div>
+        `);
 
-    // Item 목록 + 3일치 조회 쿼리 (CSS 클래스 사용)
-    const retailerSafe = retailer.replace(/[^a-zA-Z0-9]/g, '');
-    html += `
-        <div class="query-section">
+        // 데이터 준비 (CommonTable 형식)
+        const tableRows = rows.map((row, idx) => {
+            const r = { _no: idx + 1, id: row.id || '-', item: row.item || '-', page_type: row.page_type || '-' };
+            otherKeys.forEach(key => {
+                r[key] = row[key] !== null && row[key] !== undefined ? String(row[key]) : '-';
+            });
+            if (urlKey) {
+                const url = safeUrl(row[urlKey]);
+                r['product_url'] = url ? `<a href="${esc(url)}" target="_blank" style="color:#1976d2;">링크</a>` : '-';
+            }
+            // 편집용 메타데이터
+            r._rowId = row.id;
+            r._rowDate = (row[dateCol] || '').substring(0, 10);
+            return r;
+        });
+
+        // 현재 리테일러 저장 (일수 재조회용)
+        window._cfCurrentRetailer = retailer;
+
+        // 상태 저장
+        window._cfDetailState = {
+            _ruleId: window.crossfieldRuleId || '',
+            allData: tableRows,
+            filteredData: null,
+            allColumns: allColumns,
+            visibleKeys: defaultVisibleKeys.slice(),
+            editableCols: editableCols,
+            normalReviews: normalReviews,
+            sortState: [],
+            table: null,
+            filterBar: null,
+            pager: null
+        };
+
+        // FilterBar
+        const filterCols = [{ value: 'id', label: 'id' }, { value: 'item', label: 'item' }];
+        otherKeys.forEach(k => filterCols.push({ value: k, label: k }));
+
+        window._cfDetailState.filterBar = new FilterBar('#cf-detail-filter-bar', {
+            sticky: false,
+            padding: '8px 12px',
+            controls: [
+                { type: 'select', key: 'filterCol', label: '항목', width: 'auto', options: filterCols },
+                { type: 'input', key: 'filterVal', placeholder: '검색어 입력...', onEnter: function() { _cfApplyFilter(); } }
+            ],
+            onSearch: function() { _cfApplyFilter(); },
+            onReset: function() { _cfClearFilter(); },
+            columnSelector: {
+                columns: allColumns.map(c => ({ key: c.key, label: c.label })),
+                fixed: ['_no'],
+                defaultVisible: defaultVisibleKeys,
+                onUpdate: function(selected) {
+                    window._cfDetailState.visibleKeys = selected;
+                    _cfRebuildTable();
+                }
+            },
+            right: [
+                { type: 'button', label: '정렬 초기화', style: 'outline', size: 'fb', onClick: function() { window._cfDetailState.sortState = []; _cfRebuildTable(); } }
+            ]
+        }).render();
+
+        // CommonTable + Pagination 빌드
+        _cfRebuildTable();
+
+        // 편집/정상처리 이벤트
+        setTimeout(function() { _cfBindEditEvents(); }, 100);
+
+    } else {
+        // --- 모달 모드: 기존 방식 ---
+        let html = '';
+        html += `<button class="btn-back" onclick="backToRetailerList()">← 뒤로가기</button>`;
+
+        // 쿼리 생성
+        let dynamicCols = [];
+        const selectFieldsRaw = window.crossfieldSelectFields || '';
+        if (selectFieldsRaw) {
+            dynamicCols = selectFieldsRaw.split('|').map(f => f.trim()).filter(f => f);
+        } else {
+            const excludeCols = ['id', 'item', dateCol, 'account_name', 'product_url', 'page_type'];
+            if (rows.length > 0) {
+                Object.keys(rows[0]).forEach(key => {
+                    if (!excludeCols.includes(key)) dynamicCols.push(key);
+                });
+            }
+        }
+        const inClauseWithQuotes = items.map(item => `'${item}'`).join(', ');
+        const validationType = window.crossfieldValidationType || '';
+        let validationTagCol = '';
+        if (validationType === 'cross_detail_mismatch') {
+            validationTagCol = `\n'review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || ' -' AS expected_pattern,\nCASE WHEN LOWER(detailed_review_content) LIKE '%review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || ' -%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,`;
+        }
+        let selectCols = ['id', 'account_name', 'item', dateCol].join(', ');
+        const query = `SELECT ${selectCols},${validationTagCol}\n${dynamicCols.join(', ')}, product_url\nFROM ${tableName}\nWHERE account_name = '${retailer}'\nAND item IN (${inClauseWithQuotes})\nAND DATE(${dateCol}::timestamp) >= DATE('${date}') - INTERVAL '2 days'\nAND DATE(${dateCol}::timestamp) <= DATE('${date}')\nORDER BY item, ${dateCol};`;
+
+        const retailerSafe = retailer.replace(/[^a-zA-Z0-9]/g, '');
+        const itemListDisplay = items.join(', ');
+        html += `<div class="query-section">
             <div class="item-list-box">
                 <div class="query-box-header">
                     <span class="query-box-title">${esc(retailer)} - Item 목록 (${items.length}개)</span>
@@ -1603,71 +1771,829 @@ ORDER BY item, ${dateCol};`;
             </div>
         </div>`;
 
-    // 동적으로 컬럼 추출 (id, item, account_name, page_type 제외)
-    const excludeKeys = ['id', 'item', 'account_name', 'page_type'];
-    const dynamicKeys = [];
-    if (rows.length > 0) {
-        Object.keys(rows[0]).forEach(key => {
-            if (!excludeKeys.includes(key)) {
-                dynamicKeys.push(key);
+        html += '<div class="table-scroll-container"><table class="detail-table"><thead><tr>';
+        html += '<th>No.</th><th>ID</th><th>Item</th><th>Page Type</th>';
+        otherKeys.forEach(key => { html += `<th>${key.toUpperCase()}</th>`; });
+        if (urlKey) html += '<th>URL</th>';
+        html += '</tr></thead><tbody>';
+        rows.forEach((row, idx) => {
+            html += '<tr>';
+            html += `<td>${idx + 1}</td>`;
+            html += `<td>${esc(String(row.id || '-'))}</td>`;
+            html += `<td>${esc(row.item || '-')}</td>`;
+            html += `<td>${esc(row.page_type || '-')}</td>`;
+            otherKeys.forEach(key => {
+                const value = row[key];
+                html += `<td>${value !== null && value !== undefined ? esc(String(value)) : '-'}</td>`;
+            });
+            if (urlKey) {
+                const url = safeUrl(row[urlKey]);
+                html += url ? `<td><a href="${esc(url)}" target="_blank" style="color:#1976d2;">링크</a></td>` : '<td>-</td>';
+            }
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+
+        const modalTitle = `${ruleNameDisplay} : ${productLineDisplay} ${retailer} (${rows.length}건)`;
+        window.crossfieldCurrentTitle = AppModal.getTitle('detail');
+        AppModal.setTitle('detail', modalTitle);
+        AppModal.setBody('detail', html);
+    }
+}
+
+// ---- 크로스필드 상세 CommonTable 헬퍼 ----
+function _cfRebuildTable() {
+    var st = window._cfDetailState;
+    if (!st) return;
+    var visibleCols = st.allColumns.filter(c => st.visibleKeys.includes(c.key));
+    st._visibleCols = visibleCols;
+
+    var ctColumns = visibleCols.map(c => ({
+        key: c.key,
+        label: c.label,
+        width: c.width,
+        sortable: c.key !== '_no',
+        align: c.key === '_no' ? 'center' : undefined
+    }));
+
+    st.table = new CommonTable('#cf-detail-table-area', {
+        variant: 'detail',
+        columns: ctColumns,
+        vlines: true,
+        section: true,
+        showTotalCount: true,
+        padding: '6px 12px',
+        reorder: true,
+        fixedColumns: ['_no'],
+        multiSort: true,
+        onSort: function(sortArr) {
+            st.sortState = sortArr;
+            _cfSortAndRender();
+        }
+    }).render();
+
+    var pageSize = 15;
+    st.pager = new Pagination('#cf-detail-pagination', {
+        pageSize: pageSize,
+        showInfo: true,
+        padding: '0',
+        margin: '0',
+        border: 'none',
+        onPageChange: function(page) { _cfRenderPage(page); }
+    });
+
+    _cfSortAndRender();
+}
+
+function _cfSortAndRender() {
+    var st = window._cfDetailState;
+    if (!st) return;
+    var dataArr = st.filteredData || st.allData;
+
+    // 정상 처리된 행 제외
+    if (st.editableCols && st.editableCols.size > 0 && st.normalReviews) {
+        dataArr = dataArr.filter(function(row) {
+            var rowId = row._rowId;
+            if (!rowId) return true;
+            var hasNormal = false;
+            st.editableCols.forEach(function(col) {
+                if (st.normalReviews[rowId + '_' + col]) hasNormal = true;
+            });
+            return !hasNormal;
+        });
+    }
+
+    if (st.sortState && st.sortState.length > 0) {
+        dataArr = dataArr.slice().sort(function(a, b) {
+            for (var i = 0; i < st.sortState.length; i++) {
+                var s = st.sortState[i];
+                var va = a[s.key] || '', vb = b[s.key] || '';
+                var na = parseFloat(va), nb = parseFloat(vb);
+                var cmp = 0;
+                if (!isNaN(na) && !isNaN(nb)) cmp = na - nb;
+                else cmp = String(va).localeCompare(String(vb));
+                if (cmp !== 0) return s.order === 'asc' ? cmp : -cmp;
+            }
+            return 0;
+        });
+    }
+    st._sortedData = dataArr;
+    _cfRenderPage(1);
+
+    // 헤더 타이틀 건수 갱신
+    var titleEl = document.querySelector('.inline-detail-title');
+    if (titleEl) {
+        titleEl.textContent = titleEl.textContent.replace(/\(\d+건\)/, '(' + dataArr.length + '건)');
+    }
+}
+
+function _cfRenderPage(page) {
+    var st = window._cfDetailState;
+    if (!st || !st.table) return;
+    var dataArr = st._sortedData || st.allData;
+    var pageSize = 15;
+    var start = (page - 1) * pageSize;
+    var pageData = dataArr.slice(start, start + pageSize);
+    pageData.forEach(function(r, i) { r._no = start + i + 1; });
+
+    var visibleCols = st._visibleCols || st.allColumns;
+
+    // renderBody로 tr을 직접 생성 (td에 data-editable, cell-normal 등 속성 부여)
+    var targetDate = window.crossfieldDate || '';
+    st.table.renderBody(pageData, function(row) {
+        var tr = '<tr>';
+        var rowId = row._rowId;
+        var isTargetDate = row._rowDate === targetDate;
+        visibleCols.forEach(function(c) {
+            var val = row[c.key];
+            var displayVal = val !== null && val !== undefined ? String(val) : '-';
+
+            if (c.key === '_no') {
+                tr += '<td style="text-align:center;">' + displayVal + '</td>';
+                return;
+            }
+            if (c.key === 'product_url') {
+                tr += '<td>' + displayVal + '</td>';
+                return;
+            }
+
+            var nrKey = rowId + '_' + c.key;
+            if (isTargetDate && st.normalReviews[nrKey]) {
+                var nr = st.normalReviews[nrKey];
+                var tip = '정상 처리됨';
+                if (nr.reason) tip += ' | 사유: ' + nr.reason;
+                if (nr.memo) tip += ' | 메모: ' + nr.memo;
+                tr += '<td class="cell-normal" data-row-id="' + rowId + '" data-col="' + esc(c.key) + '" data-normal-key="' + nrKey + '" title="' + esc(tip) + '">' + esc(displayVal) + '<span class="normal-badge">정상</span></td>';
+            } else if (isTargetDate && st.editableCols.has(c.key) && rowId) {
+                tr += '<td data-editable="true" data-row-id="' + rowId + '" data-col="' + esc(c.key) + '">' + esc(displayVal) + '</td>';
+            } else if (isTargetDate && rowId) {
+                tr += '<td data-row-id="' + rowId + '" data-col="' + esc(c.key) + '">' + esc(displayVal) + '</td>';
+            } else {
+                tr += '<td>' + esc(displayVal) + '</td>';
             }
         });
-    }
-
-    const urlKey = dynamicKeys.find(k => k === 'product_url');
-    const otherKeys = dynamicKeys.filter(k => k !== 'product_url');
-
-    html += '<div class="table-scroll-container"><table class="detail-table"><thead><tr>';
-    html += '<th>No.</th><th>ID</th><th>Item</th><th>Page Type</th>';
-    otherKeys.forEach(key => {
-        html += `<th>${key.toUpperCase()}</th>`;
+        tr += '</tr>';
+        return tr;
     });
-    if (urlKey) {
-        html += '<th>URL</th>';
-    }
-    html += '</tr></thead><tbody>';
 
-    rows.forEach((row, idx) => {
-        html += `<tr>`;
-        html += `<td>${idx + 1}</td>`;
-        html += `<td>${esc(String(row.id || '-'))}</td>`;
-        html += `<td>${esc(row.item || '-')}</td>`;
-        html += `<td>${esc(row.page_type || '-')}</td>`;
-        otherKeys.forEach(key => {
-            const value = row[key];
-            html += `<td>${value !== null && value !== undefined ? esc(String(value)) : '-'}</td>`;
+    // 페이지네이션 UI 갱신
+    if (st.pager) st.pager.render(dataArr.length, page);
+
+    // 총 건수 덮어쓰기
+    var countEl = document.querySelector('#cf-detail-table-area .ct-count');
+    if (countEl) {
+        var suffix = st.filteredData ? ' (필터 적용)' : '';
+        countEl.innerHTML = '총 <strong>' + dataArr.length.toLocaleString() + '</strong>건' + suffix;
+    }
+
+    // 편집 이벤트 재바인딩
+    if (st.editableCols && st.editableCols.size > 0) {
+        setTimeout(function() { _cfBindEditEvents(); }, 50);
+    }
+}
+
+function _cfApplyFilter() {
+    var st = window._cfDetailState;
+    if (!st || !st.filterBar) return;
+    var vals = st.filterBar.getValues();
+    var col = vals.filterCol;
+    var keyword = (vals.filterVal || '').trim().toLowerCase();
+    if (!keyword) { _cfClearFilter(); return; }
+    st.filteredData = st.allData.filter(function(r) {
+        return String(r[col] || '').toLowerCase().includes(keyword);
+    });
+    _cfSortAndRender();
+}
+
+function _cfClearFilter() {
+    var st = window._cfDetailState;
+    if (!st) return;
+    st.filteredData = null;
+    if (st.filterBar) st.filterBar.reset();
+    _cfSortAndRender();
+}
+
+
+// 일수 변경하여 크로스필드 상세 재조회
+async function reloadCfDays() {
+    var daysInput = document.getElementById('cf-detail-days');
+    var days = daysInput ? parseInt(daysInput.value) || 1 : 1;
+    if (days < 1) days = 1;
+    if (days > 30) days = 30;
+
+    var productLine = (window.crossfieldProductLine || 'tv').toLowerCase();
+    var date = window.crossfieldDate || '';
+    var ruleId = window._cfDetailState?._ruleId || '';
+    var currentRetailer = window._cfCurrentRetailer || '';
+
+    if (!ruleId || !date) return;
+
+    // 로딩 표시
+    var tableArea = document.getElementById('cf-detail-table-area');
+    if (tableArea) tableArea.innerHTML = '<p style="text-align:center;padding:20px;">데이터를 불러오는 중...</p>';
+
+    try {
+        var data = await fetchAPI(`/layer3/api/cross-field-detail/?date=${date}&type=${productLine}&rule_id=${ruleId}&days=${days}`);
+        if (data.error) {
+            if (tableArea) tableArea.innerHTML = '<p style="color:red;">오류: ' + esc(data.error) + '</p>';
+            return;
+        }
+
+        // 데이터 갱신
+        var anomalies = data.anomalies || [];
+        var retailerData = {};
+        anomalies.forEach(function(row) {
+            var retailer = row.account_name || 'Unknown';
+            if (!retailerData[retailer]) retailerData[retailer] = { items: [], rows: [] };
+            retailerData[retailer].rows.push(row);
+            if (row.item && !retailerData[retailer].items.includes(row.item)) {
+                retailerData[retailer].items.push(row.item);
+            }
         });
-        if (urlKey) {
-            const url = safeUrl(row[urlKey]);
-            if (url) {
-                html += `<td><a href="${esc(url)}" target="_blank" style="color: #1976d2;">링크</a></td>`;
+
+        window.crossfieldRetailerData = retailerData;
+        window.crossfieldAnomalies = anomalies;
+        window.crossfieldEditableCols = new Set(data.editable_columns || []);
+        window.crossfieldNormalReviews = data.normal_reviews || {};
+        window.crossfieldPendingEdits = {};
+
+        // 현재 리테일러 데이터 갱신
+        if (currentRetailer && retailerData[currentRetailer]) {
+            var rows = retailerData[currentRetailer].rows;
+            var items = retailerData[currentRetailer].items;
+            var editableCols = window.crossfieldEditableCols;
+            var normalReviews = window.crossfieldNormalReviews;
+
+            // 동적 컬럼
+            var excludeKeys = ['id', 'item', 'account_name', 'page_type'];
+            var dynamicKeys = [];
+            if (rows.length > 0) {
+                Object.keys(rows[0]).forEach(function(key) {
+                    if (!excludeKeys.includes(key)) dynamicKeys.push(key);
+                });
+            }
+            var urlKey = dynamicKeys.find(function(k) { return k === 'product_url'; });
+            var otherKeys = dynamicKeys.filter(function(k) { return k !== 'product_url'; });
+
+            var tableRows = rows.map(function(row, idx) {
+                var r = { _no: idx + 1, id: row.id || '-', item: row.item || '-', page_type: row.page_type || '-' };
+                otherKeys.forEach(function(key) {
+                    r[key] = row[key] !== null && row[key] !== undefined ? String(row[key]) : '-';
+                });
+                if (urlKey) {
+                    var url = safeUrl(row[urlKey]);
+                    r['product_url'] = url ? '<a href="' + esc(url) + '" target="_blank" style="color:#1976d2;">링크</a>' : '-';
+                }
+                r._rowId = row.id;
+                var dateCol = (window.crossfieldProductLine || 'tv').toUpperCase() === 'HHP' ? 'crawl_strdatetime' : 'crawl_datetime';
+                r._rowDate = (row[dateCol] || '').substring(0, 10);
+                return r;
+            });
+
+            var st = window._cfDetailState;
+            if (st) {
+                st.allData = tableRows;
+                st.filteredData = null;
+                st.editableCols = editableCols;
+                st.normalReviews = normalReviews;
+                st.sortState = [];
+
+                // 타이틀 업데이트
+                var titleEl = document.querySelector('.inline-detail-title');
+                var daysLabel = days > 1 ? ' / ' + days + '일치' : '';
+                var ruleNameDisplay = window.crossfieldRuleName || '';
+                if (titleEl) titleEl.textContent = ruleNameDisplay + ' (' + rows.length + '건' + daysLabel + ')';
+
+                // 아이템 목록 갱신
+                var retailerSafe = currentRetailer.replace(/[^a-zA-Z0-9]/g, '');
+                var itemListEl = document.getElementById('item-list-' + retailerSafe);
+                if (itemListEl) itemListEl.textContent = items.join(', ');
+                var toggleHeader = document.querySelector('.item-toggle-header');
+                if (toggleHeader) {
+                    var arrow = toggleHeader.querySelector('.toggle-arrow');
+                    var arrowText = arrow ? arrow.textContent : '▸';
+                    toggleHeader.innerHTML = '<span class="toggle-arrow">' + arrowText + '</span> Item 목록 (' + items.length + '개)';
+                }
+
+                _cfRebuildTable();
+            }
+        } else {
+            if (tableArea) tableArea.innerHTML = '<p>해당 리테일러의 데이터가 없습니다.</p>';
+        }
+    } catch (err) {
+        console.error('reloadCfDays error:', err);
+        if (tableArea) tableArea.innerHTML = '<p style="color:red;">데이터 로드 실패</p>';
+    }
+}
+
+// ============================================================
+// 크로스필드 셀 수정 / 정상 처리
+// ============================================================
+
+function _cfBindEditEvents() {
+    var container = document.querySelector('#cf-detail-table-area') || document.querySelector('.inline-detail-body') || document.querySelector('.app-modal-body');
+    if (!container) return;
+    var tableEl = container.querySelector('table');
+    if (!tableEl) return;
+
+    // 중복 바인딩 방지
+    if (tableEl._cfEditBound) return;
+    tableEl._cfEditBound = true;
+
+    // 클릭: 셀 선택 또는 정상처리/취소 바
+    tableEl.addEventListener('click', function(e) {
+        var td = e.target.closest('td[data-editable]');
+        var reviewTd = !td ? e.target.closest('td[data-row-id]') : null;
+        var normalTd = (!td && !reviewTd) ? e.target.closest('td.cell-normal') : null;
+        var prev = tableEl.querySelector('.cell-selected');
+        if (prev) prev.classList.remove('cell-selected');
+        _cfHideReviewBar();
+        if (td) {
+            td.classList.add('cell-selected');
+            window._cfSelectedCell = td;
+            _cfShowReviewBar(td, 'normal');
+        } else if (reviewTd) {
+            reviewTd.classList.add('cell-selected');
+            window._cfSelectedCell = null;
+            _cfShowReviewBar(reviewTd, 'normal');
+        } else if (normalTd) {
+            window._cfSelectedCell = null;
+            _cfShowReviewBar(normalTd, 'revert');
+        } else {
+            window._cfSelectedCell = null;
+        }
+    });
+
+    // 테이블 외부 클릭 시 선택 해제
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#cf-detail-table-area') && !e.target.closest('#cf-review-bar')) {
+            var sel = tableEl.querySelector('.cell-selected');
+            if (sel) sel.classList.remove('cell-selected');
+            window._cfSelectedCell = null;
+            _cfHideReviewBar();
+        }
+    });
+
+    // Ctrl+V 붙여넣기
+    document.addEventListener('paste', function(e) {
+        var td = window._cfSelectedCell;
+        if (!td || !td.dataset.editable || document.querySelector('.cell-edit-overlay')) return;
+        e.preventDefault();
+        var pastedText = (e.clipboardData || window.clipboardData).getData('text').trim();
+        _cfApplyEdit(td, pastedText);
+    });
+
+    // 더블클릭: 직접 입력 모드
+    tableEl.addEventListener('dblclick', function(e) {
+        var td = e.target.closest('td[data-editable]');
+        if (!td || document.querySelector('.cell-edit-overlay')) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        var oldText = td.textContent.trim();
+        if (oldText === '-') oldText = '';
+
+        var rect = td.getBoundingClientRect();
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'cell-edit-overlay';
+        input.value = oldText;
+        input.style.cssText = 'position:fixed;z-index:9999;'
+            + 'left:' + rect.left + 'px;top:' + rect.top + 'px;'
+            + 'width:' + rect.width + 'px;height:' + rect.height + 'px;';
+        document.body.appendChild(input);
+        setTimeout(function() { input.focus(); input.select(); }, 0);
+
+        var committed = false;
+        function commit() {
+            if (committed) return;
+            committed = true;
+            var newVal = input.value.trim();
+            input.remove();
+            if (newVal === oldText) return;
+            _cfApplyEdit(td, newVal);
+        }
+
+        input.addEventListener('keydown', function(ev) {
+            if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+            if (ev.key === 'Escape') { committed = true; input.remove(); }
+        });
+        input.addEventListener('blur', commit);
+    });
+}
+
+function _cfApplyEdit(td, newVal) {
+    var rowId = td.dataset.rowId;
+    var colName = td.dataset.col;
+    var oldText = td.textContent.trim();
+    if (oldText === '-') oldText = '';
+    if (newVal === oldText) return;
+    _cfHideReviewBar();
+    td.textContent = newVal || '-';
+    td.classList.add('cell-pending');
+    var editKey = rowId + '_' + colName;
+    var pendingEdits = window.crossfieldPendingEdits || {};
+    var prev = pendingEdits[editKey];
+    pendingEdits[editKey] = {
+        table_name: window.crossfieldTableName,
+        row_id: parseInt(rowId),
+        column_name: colName,
+        new_value: newVal,
+        _oldValue: prev ? prev._oldValue : oldText,
+        crawl_date: window.crossfieldDate || '',
+        td: td
+    };
+    window.crossfieldPendingEdits = pendingEdits;
+    _cfUpdateSaveButton();
+}
+
+function _cfUpdateSaveButton() {
+    var container = document.querySelector('#cf-detail-table-area') || document.querySelector('.inline-detail-body') || document.querySelector('.app-modal-body');
+    if (!container) return;
+    var wrap = document.getElementById('cf-edit-actions');
+    var pendingEdits = window.crossfieldPendingEdits || {};
+    var count = Object.keys(pendingEdits).length;
+    if (count === 0) {
+        if (wrap) wrap.remove();
+        return;
+    }
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.id = 'cf-edit-actions';
+        wrap.className = 'detail-edit-actions';
+        var infoSpan = document.createElement('span');
+        infoSpan.id = 'cf-edit-info';
+        infoSpan.className = 'edit-actions-info';
+        var btnGroup = document.createElement('div');
+        btnGroup.style.cssText = 'display:flex;gap:8px;';
+        var btnCancel = document.createElement('button');
+        btnCancel.className = 'btn-cancel-edits';
+        btnCancel.textContent = '취소';
+        btnCancel.addEventListener('click', _cfCancelAllEdits);
+        var btnSave = document.createElement('button');
+        btnSave.id = 'cf-btn-save';
+        btnSave.className = 'btn-save-edits';
+        btnSave.addEventListener('click', _cfSaveAllEdits);
+        btnGroup.appendChild(btnCancel);
+        btnGroup.appendChild(btnSave);
+        wrap.appendChild(infoSpan);
+        wrap.appendChild(btnGroup);
+        var actionBar = document.getElementById('cf-detail-action-bar');
+        if (actionBar) {
+            actionBar.appendChild(wrap);
+        } else {
+            var tableEl = container.querySelector('table');
+            if (tableEl) tableEl.parentNode.insertBefore(wrap, tableEl);
+        }
+    }
+    document.getElementById('cf-edit-info').textContent = count + '건 변경됨';
+    document.getElementById('cf-btn-save').textContent = '저장';
+}
+
+function _cfCancelAllEdits() {
+    var edits = window.crossfieldPendingEdits || {};
+    Object.keys(edits).forEach(function(k) {
+        var edit = edits[k];
+        if (edit.td) {
+            edit.td.classList.remove('cell-pending');
+            var origVal = edit._oldValue;
+            edit.td.textContent = (origVal === null || origVal === undefined || origVal === '') ? '-' : origVal;
+        }
+    });
+    window.crossfieldPendingEdits = {};
+    _cfUpdateSaveButton();
+}
+
+function _cfSaveAllEdits() {
+    var edits = window.crossfieldPendingEdits || {};
+    var keys = Object.keys(edits);
+    if (keys.length === 0) return;
+
+    _cfShowMemoDialog(function(memo) {
+        _cfDoSaveEdits(memo);
+    });
+}
+
+function _cfDoSaveEdits(memo) {
+    var edits = window.crossfieldPendingEdits || {};
+    var keys = Object.keys(edits);
+    if (keys.length === 0) return;
+
+    var btn = document.getElementById('cf-btn-save');
+    if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+
+    var ruleId = (window._cfDetailState && window._cfDetailState._ruleId) || window.crossfieldRuleId || null;
+
+    var requests = keys.map(function(k) {
+        var edit = edits[k];
+        return fetch('/dx/layer3/api/update-cell/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({
+                table_name: edit.table_name,
+                row_id: edit.row_id,
+                column_name: edit.column_name,
+                new_value: edit.new_value,
+                crawl_date: edit.crawl_date,
+                memo: memo || '',
+                rule_id: ruleId
+            })
+        }).then(function(r) { return r.json(); }).then(function(res) {
+            return { key: k, success: res.success, error: res.error };
+        }).catch(function() {
+            return { key: k, success: false, error: '네트워크 오류' };
+        });
+    });
+
+    Promise.all(requests).then(function(results) {
+        var successCount = 0;
+        var failCount = 0;
+        results.forEach(function(r) {
+            var edit = edits[r.key];
+            if (r.success) {
+                successCount++;
+                if (edit.td) {
+                    edit.td.classList.remove('cell-pending');
+                    edit.td.classList.add('cell-saved');
+                    setTimeout(function() { edit.td.classList.remove('cell-saved'); }, 1500);
+                }
+                delete edits[r.key];
             } else {
-                html += '<td>-</td>';
+                failCount++;
+            }
+        });
+        if (successCount > 0) showToast(successCount + '건 저장 완료', 'success');
+        if (failCount > 0) showToast(failCount + '건 저장 실패', 'error');
+        _cfUpdateSaveButton();
+    });
+}
+
+// 수정 저장용 메모 다이얼로그
+function _cfShowMemoDialog(callback) {
+    var overlay = document.createElement('div');
+    overlay.className = 'memo-dialog-overlay';
+    overlay.innerHTML = '<div class="memo-dialog">'
+        + '<div class="memo-dialog-title">수정 메모</div>'
+        + '<textarea class="memo-dialog-input" placeholder="수정 사유 입력 (선택사항)" rows="3"></textarea>'
+        + '<div class="memo-dialog-buttons">'
+        + '<button class="memo-dialog-cancel">취소</button>'
+        + '<button class="memo-dialog-confirm">확인</button>'
+        + '</div></div>';
+    document.body.appendChild(overlay);
+    setTimeout(function() { overlay.classList.add('show'); }, 10);
+    var textarea = overlay.querySelector('.memo-dialog-input');
+    textarea.focus();
+    function closeDlg() {
+        overlay.classList.remove('show');
+        setTimeout(function() { overlay.remove(); }, 200);
+    }
+    overlay.querySelector('.memo-dialog-cancel').addEventListener('click', closeDlg);
+    overlay.querySelector('.memo-dialog-confirm').addEventListener('click', function() {
+        var memo = textarea.value.trim();
+        closeDlg();
+        callback(memo);
+    });
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) closeDlg();
+    });
+}
+
+// ==================== 정상 처리 ====================
+function _cfShowReviewBar(td, mode) {
+    _cfHideReviewBar();
+    var bar = document.createElement('div');
+    bar.id = 'cf-review-bar';
+    bar.className = 'null-review-bar';
+    var colName = td.dataset.col || '';
+    var rowId = td.dataset.rowId || '';
+    var infoText = mode === 'revert'
+        ? (colName + ' (ID: ' + rowId + ') — 정상 처리됨')
+        : (colName + ' (ID: ' + rowId + ') — 이상치');
+    var info = document.createElement('span');
+    info.className = 'null-review-info';
+    info.textContent = infoText;
+    var btn = document.createElement('button');
+    btn.className = mode === 'revert' ? 'btn-null-revert' : 'btn-null-normal';
+    btn.textContent = mode === 'revert' ? '정상 취소' : '정상 처리';
+    btn.addEventListener('click', function() {
+        if (mode === 'revert') {
+            _cfSubmitReview(td, 'reverted', '', '');
+        } else {
+            _cfShowReviewDialog(function(reason, memo) {
+                _cfSubmitReview(td, 'normal', memo, reason);
+            });
+        }
+    });
+    bar.appendChild(info);
+    bar.appendChild(btn);
+    var actionBar = document.getElementById('cf-detail-action-bar');
+    if (actionBar) {
+        actionBar.appendChild(bar);
+    } else {
+        var container = document.querySelector('#cf-detail-table-area') || document.querySelector('.inline-detail-body');
+        if (container) {
+            var tableEl = container.querySelector('table');
+            if (tableEl) tableEl.parentNode.insertBefore(bar, tableEl);
+        }
+    }
+}
+
+function _cfHideReviewBar() {
+    var bar = document.getElementById('cf-review-bar');
+    if (bar) bar.remove();
+}
+
+// 정상 처리 다이얼로그 (이유 선택 필수 + 메모 선택)
+function _cfShowReviewDialog(callback) {
+    var overlay = document.createElement('div');
+    overlay.className = 'memo-dialog-overlay';
+    overlay.innerHTML = '<div class="memo-dialog">'
+        + '<div class="memo-dialog-title">정상 처리</div>'
+        + '<div class="memo-dialog-field"><label class="memo-dialog-label">이유 <span style="color:#dc2626;">*</span></label>'
+        + '<select class="memo-dialog-select" id="cf-review-reason-select"><option value="">불러오는 중...</option></select></div>'
+        + '<div class="memo-dialog-field"><label class="memo-dialog-label">메모</label>'
+        + '<textarea class="memo-dialog-input" placeholder="메모 입력 (선택사항)" rows="3"></textarea></div>'
+        + '<div class="memo-dialog-buttons">'
+        + '<button class="memo-dialog-cancel">취소</button>'
+        + '<button class="memo-dialog-confirm">확인</button>'
+        + '</div></div>';
+    document.body.appendChild(overlay);
+    setTimeout(function() { overlay.classList.add('show'); }, 10);
+
+    // 이유 목록 조회
+    fetch('/dx/layer3/api/review-reasons/?check_type=cross_field')
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            var sel = document.getElementById('cf-review-reason-select');
+            if (!sel) return;
+            var reasons = res.reasons || [];
+            if (reasons.length === 0) {
+                var reasonField = sel.closest('.memo-dialog-field');
+                if (reasonField) reasonField.style.display = 'none';
+            } else {
+                sel.innerHTML = '<option value="">-- 선택 --</option>';
+                reasons.forEach(function(r) {
+                    var opt = document.createElement('option');
+                    opt.value = r.text;
+                    opt.textContent = r.text;
+                    sel.appendChild(opt);
+                });
+            }
+        })
+        .catch(function() {
+            var sel = document.getElementById('cf-review-reason-select');
+            if (sel) sel.innerHTML = '<option value="">로딩 실패</option>';
+        });
+
+    var textarea = overlay.querySelector('.memo-dialog-input');
+    function closeDlg() {
+        overlay.classList.remove('show');
+        setTimeout(function() { overlay.remove(); }, 200);
+    }
+    overlay.querySelector('.memo-dialog-cancel').addEventListener('click', closeDlg);
+    overlay.querySelector('.memo-dialog-confirm').addEventListener('click', function() {
+        var selEl = document.getElementById('cf-review-reason-select');
+        var reasonField = selEl ? selEl.closest('.memo-dialog-field') : null;
+        var reasonHidden = reasonField && reasonField.style.display === 'none';
+        var reason = reasonHidden ? '' : (selEl ? selEl.value : '');
+        var memo = textarea.value.trim();
+        if (!reasonHidden && !reason) { showToast('이유를 선택해주세요', 'error'); return; }
+        closeDlg();
+        callback(reason, memo);
+    });
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) closeDlg();
+    });
+}
+
+function _cfSubmitReview(td, status, memo, reason) {
+    var rowId = td.dataset.rowId || (td.dataset.normalKey && td.dataset.normalKey.split('_')[0]);
+    var colName = td.dataset.col || (td.dataset.normalKey && td.dataset.normalKey.split('_').slice(1).join('_'));
+    if (!rowId || !colName) return;
+
+    var retailerVal = window._cfCurrentRetailer || '';
+    var ruleId = (window._cfDetailState && window._cfDetailState._ruleId) || window.crossfieldRuleId || null;
+
+    fetch('/dx/layer3/api/review/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify({
+            table_name: window.crossfieldTableName,
+            record_id: parseInt(rowId),
+            column_name: colName,
+            status: status,
+            memo: memo || '',
+            reason: reason || '',
+            crawl_date: window.crossfieldDate || '',
+            retailer: retailerVal,
+            rule_id: ruleId
+        })
+    }).then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.success) {
+            _cfHideReviewBar();
+            if (status === 'normal') {
+                var nrKey = rowId + '_' + colName;
+                if (!window.crossfieldNormalReviews) window.crossfieldNormalReviews = {};
+                window.crossfieldNormalReviews[nrKey] = { memo: memo, reason: reason, created_id: '', created_at: '' };
+                // _cfDetailState.normalReviews도 동일 참조이므로 자동 갱신
+                showToast('정상 처리 완료', 'success');
+            } else {
+                var nrKey2 = rowId + '_' + colName;
+                if (window.crossfieldNormalReviews) delete window.crossfieldNormalReviews[nrKey2];
+                showToast('정상 처리 취소됨', 'success');
+            }
+            // 테이블 재렌더링 (정상 처리 행 제외 + 건수 갱신)
+            _cfSortAndRender();
+        } else {
+            showToast(res.error || '처리 실패', 'error');
+        }
+    }).catch(function() {
+        showToast('네트워크 오류', 'error');
+    });
+}
+
+// 규칙 요약 카드 건수 갱신 (정상 처리 반영, 리테일러 목록→규칙 요약으로 돌아갈 때)
+function _cfUpdateRuleCardCount() {
+    var ruleId = window.crossfieldRuleId;
+    var retailerData = window.crossfieldRetailerData;
+    var normalReviews = window.crossfieldNormalReviews || {};
+    var editableCols = window.crossfieldEditableCols || new Set();
+    if (!ruleId || !retailerData) return;
+
+    // 현재 규칙의 실제 활성 건수 계산
+    var activeCount = 0;
+    Object.keys(retailerData).forEach(function(retailer) {
+        retailerData[retailer].rows.forEach(function(row) {
+            var rowId = row.id;
+            if (!rowId) { activeCount++; return; }
+            var hasNormal = false;
+            editableCols.forEach(function(col) {
+                if (normalReviews[rowId + '_' + col]) hasNormal = true;
+            });
+            if (!hasNormal) activeCount++;
+        });
+    });
+
+    // 해당 규칙 카드의 건수 갱신
+    var card = document.querySelector('.rule-summary-card[data-rule-id="' + ruleId + '"]');
+    if (card) {
+        var countEl = card.querySelector('.rule-count');
+        if (countEl) {
+            countEl.textContent = activeCount + '건';
+            countEl.className = 'rule-count' + (activeCount === 0 ? ' zero' : '');
+        }
+    }
+
+    // 전체 타이틀 건수 갱신 (모든 규칙 카드의 건수 합산)
+    var totalActive = 0;
+    document.querySelectorAll('.rule-summary-card[data-rule-id] .rule-count').forEach(function(el) {
+        var num = parseInt(el.textContent) || 0;
+        totalActive += num;
+    });
+    var headerEl = document.querySelector('.rule-summary-section-header span');
+    if (headerEl) {
+        headerEl.textContent = headerEl.textContent.replace(/\(\d+건\)/, '(' + totalActive + '건)');
+    }
+}
+
+// 리테일러 카드 + 상위 타이틀 건수 갱신 (정상 처리 반영)
+function _cfUpdateRetailerCounts() {
+    var retailerData = window.crossfieldRetailerData;
+    var normalReviews = window.crossfieldNormalReviews || {};
+    var editableCols = window.crossfieldEditableCols || new Set();
+    if (!retailerData || editableCols.size === 0) return;
+
+    var totalActive = 0;
+    Object.keys(retailerData).forEach(function(retailer) {
+        var rows = retailerData[retailer].rows;
+        var activeCount = rows.filter(function(row) {
+            var rowId = row.id;
+            if (!rowId) return true;
+            var hasNormal = false;
+            editableCols.forEach(function(col) {
+                if (normalReviews[rowId + '_' + col]) hasNormal = true;
+            });
+            return !hasNormal;
+        }).length;
+        totalActive += activeCount;
+
+        // 리테일러 카드 건수 갱신
+        var card = document.querySelector('.rule-summary-card[data-retailer="' + retailer + '"]');
+        if (card) {
+            var countEl = card.querySelector('.rule-count');
+            if (countEl) {
+                countEl.textContent = activeCount + '건';
+                countEl.className = 'rule-count' + (activeCount === 0 ? ' zero' : '');
             }
         }
-        html += '</tr>';
     });
 
-    html += '</tbody></table></div>';
-
-    // 타이틀: 검증항목 : productLine retailer (건수)
-    const productLineDisplay = (window.crossfieldProductLine || 'HHP').toUpperCase();
-    const ruleNameDisplay = window.crossfieldRuleName || '';
-    const titleText = `${ruleNameDisplay} : ${productLineDisplay} ${retailer} (${rows.length}건)`;
-
-    if (inline) {
-        ViewStack.push(`
-            <div class="inline-detail">
-                <button class="btn-back" onclick="ViewStack.pop()">← 뒤로가기</button>
-                <div class="inline-detail-title">${titleText}</div>
-                <div class="inline-detail-body">${html}</div>
-            </div>
-        `);
-    } else {
-        // 현재 모달 제목 저장 (뒤로가기용)
-        window.crossfieldCurrentTitle = AppModal.getTitle('detail');
-        AppModal.setTitle('detail', titleText);
-        AppModal.setBody('detail', html);
+    // 상위 타이틀 건수 갱신
+    var headerEl = document.querySelector('.rule-summary-section-header span');
+    if (headerEl) {
+        headerEl.textContent = headerEl.textContent.replace(/\(\d+건\)/, '(' + totalActive + '건)');
     }
 }
 
@@ -1675,6 +2601,8 @@ ORDER BY item, ${dateCol};`;
 function backToRetailerList() {
     if (isCrossFieldInline()) {
         ViewStack.pop();
+        // pop 후 리테일러 카드 건수 갱신
+        setTimeout(_cfUpdateRetailerCounts, 0);
         return;
     }
     if (window.crossfieldRetailerData && window.crossfieldCurrentTitle) {

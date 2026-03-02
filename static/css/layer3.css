@@ -9,6 +9,7 @@
 
 .l3-content {
     flex: 1;
+    min-width: 0;
     padding: 24px 28px;
 }
 
@@ -21,8 +22,80 @@
     font-size: 18px;
     font-weight: 700;
     color: var(--text-primary);
-    margin: 8px 0 20px;
 }
+
+.inline-detail-date {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+/* Layer2 스타일 상세 뷰 */
+.inline-detail-view {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    padding: 24px;
+}
+
+.inline-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.inline-detail-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.detail-view-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-height: 0;
+    flex: 1;
+}
+
+/* Item 토글 */
+.item-toggle-section { margin-bottom: 12px; }
+.item-toggle-header {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    cursor: pointer; padding: 6px 10px; border-radius: 6px;
+    transition: background 0.15s;
+}
+.item-toggle-header:hover { background: var(--bg-secondary); color: var(--text-primary); }
+.item-toggle-header .toggle-arrow { font-size: 11px; display: inline-block; width: 12px; }
+.item-toggle-content {
+    margin-top: 8px; padding: 12px; background: #fef2f2;
+    border: 1px solid #fecaca; border-radius: 8px;
+}
+.item-toggle-content .item-copy-title { color: #dc2626; }
+.item-toggle-content .btn-copy { background: #dc2626; }
+.item-toggle-content .btn-copy:hover { background: #b91c1c; }
+.item-toggle-content .item-copy-content { background: #fee2e2; border-color: #fecaca; color: #991b1b; max-height: 120px; }
+
+.item-copy-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.item-copy-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.item-copy-content {
+    font-size: 12px; font-family: 'Consolas', 'Monaco', monospace;
+    color: #374151; word-break: break-all; line-height: 1.5;
+    padding: 8px; background: white; border-radius: 4px;
+    border: 1px solid #e5e7eb; max-height: 80px; overflow-y: auto;
+}
+.btn-copy {
+    padding: 4px 10px; font-size: 11px;
+    background: #3b82f6; color: white; border: none;
+    border-radius: 4px; cursor: pointer; transition: background 0.2s;
+}
+.btn-copy:hover { background: #2563eb; }
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(4px); }
@@ -594,12 +667,30 @@
     color: #c62828;
 }
 
+/* 검증 유형별 요약 — 흰색 래퍼 섹션 */
+.rule-summary-section {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.rule-summary-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
 /* 검증 유형별 요약 카드 */
 .rule-summary-container {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    margin-bottom: 20px;
 }
 
 .rule-summary-card {
@@ -607,7 +698,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    background: white;
+    background: #f8f9fa;
     border: 1px solid var(--border-color);
     border-radius: 8px;
     cursor: pointer;
@@ -999,5 +1090,257 @@
     font-size: 12px;
     color: #666;
     font-family: monospace;
+}
+
+/* ============================================================
+ * 셀 수정 / 정상 처리
+ * ============================================================ */
+.cell-edit-overlay {
+    padding: 4px 6px;
+    border: 2px solid var(--layer-color);
+    border-radius: 0;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fff;
+    outline: none;
+    box-sizing: border-box;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+td.cell-selected {
+    outline: 2px solid var(--layer-color, #6366f1);
+    outline-offset: -2px;
+}
+
+td.cell-pending {
+    background: #fef3c7 !important;
+    border-bottom: 2px solid #f59e0b !important;
+}
+
+td.cell-saved {
+    background: #dcfce7 !important;
+    transition: background 0.3s;
+}
+
+.detail-edit-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 16px;
+    background: #fef9e7;
+    border: 1px solid #f0d78c;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.edit-actions-info {
+    font-size: 13px;
+    font-weight: 600;
+    color: #b45309;
+}
+
+.btn-save-edits {
+    padding: 6px 16px;
+    background: var(--layer-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn-save-edits:hover { opacity: 0.85; }
+.btn-save-edits:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-cancel-edits {
+    padding: 6px 16px;
+    background: white;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-cancel-edits:hover { background: var(--bg-primary); color: var(--text-primary); }
+
+td.cell-normal {
+    background: #f3f4f6 !important;
+    color: #6b7280;
+    cursor: pointer;
+}
+
+td.cell-normal:hover {
+    background: #e5e7eb !important;
+}
+
+.normal-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 5px;
+    margin-left: 4px;
+    background: #d1d5db;
+    color: #374151;
+    border-radius: 3px;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.null-review-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 16px;
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.null-review-info {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d4ed8;
+}
+
+.btn-null-normal {
+    padding: 5px 14px;
+    background: #6b7280;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn-null-normal:hover { opacity: 0.85; }
+
+.btn-null-revert {
+    padding: 5px 14px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn-null-revert:hover { opacity: 0.85; }
+
+.memo-dialog-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.memo-dialog-overlay.show { opacity: 1; }
+
+.memo-dialog {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    width: 400px;
+    max-width: 90%;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.memo-dialog-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+}
+
+.memo-dialog-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.memo-dialog-input:focus { border-color: var(--layer-color); }
+
+.memo-dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.memo-dialog-cancel {
+    padding: 8px 18px;
+    background: white;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.memo-dialog-cancel:hover { background: var(--bg-primary); }
+
+.memo-dialog-confirm {
+    padding: 8px 18px;
+    background: var(--layer-color, #6366f1);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.memo-dialog-confirm:hover { opacity: 0.85; }
+
+.memo-dialog-field {
+    margin-bottom: 12px;
+}
+
+.memo-dialog-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.memo-dialog-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    background: white;
+    box-sizing: border-box;
+}
+
+.memo-dialog-select:focus { border-color: var(--layer-color); }
+
+td[data-editable] {
+    cursor: text;
+}
+
+td[data-editable]:hover {
+    background: #f0f9ff;
 }
 

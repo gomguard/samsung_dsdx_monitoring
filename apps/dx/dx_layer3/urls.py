@@ -29,4 +29,9 @@ urlpatterns = [
     path('api/field-missing-detail-by-field/', api_views.field_missing_detail_by_field, name='api_field_missing_detail_by_field'),
     path('api/crossfield-rules/', api_views.crossfield_rules, name='api_crossfield_rules'),
     path('api/category-rules/', api_views.category_rules, name='api_category_rules'),
+
+    # 셀 수정 / 정상 처리 API
+    path('api/update-cell/', api_views.update_cell, name='api_update_cell'),
+    path('api/review/', api_views.review, name='api_review'),
+    path('api/review-reasons/', api_views.review_reasons, name='api_review_reasons'),
 ]
