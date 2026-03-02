@@ -1,0 +1,667 @@
+{% extends 'layer4/base_layer4.html' %}
+{% load static %}
+
+{% block page_title %}마감 상세{% endblock %}
+
+{% block layer4_css %}
+<style>
+    .cl-detail-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+    .cl-detail-info {
+        display: flex;
+        gap: 24px;
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+    .cl-detail-info span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .cl-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .cl-summary-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--border-color);
+    }
+    .cl-summary-card .label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+    }
+    .cl-summary-card .value {
+        font-size: 22px;
+        font-weight: 700;
+    }
+
+    /* 탭 */
+    .cl-tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 16px;
+        border-bottom: 2px solid var(--border-color);
+    }
+    .cl-tab {
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        background: none;
+        border-top: none;
+        border-left: none;
+        border-right: none;
+    }
+    .cl-tab:hover { color: var(--text-primary); }
+    .cl-tab.active {
+        color: var(--layer-color);
+        border-bottom-color: var(--layer-color);
+    }
+    .cl-tab-panel { display: none; }
+    .cl-tab-panel.active { display: block; }
+
+
+    .badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    .badge-ok { background: #d1fae5; color: #065f46; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-critical { background: #fee2e2; color: #991b1b; }
+    .badge-null { background: #fee2e2; color: #991b1b; }
+
+    .cl-empty-state {
+        text-align: center;
+        padding: 48px;
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+
+    /* 이슈 섹션 */
+    .cl-issue-panel {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-top: none;
+        border-radius: 0 0 12px 12px;
+        padding: 20px;
+    }
+    .cl-issue-card {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 16px 20px;
+        margin-bottom: 10px;
+    }
+    .cl-issue-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    .cl-issue-card-title {
+        font-size: 14px;
+        font-weight: 600;
+    }
+    .cl-issue-card-actions {
+        display: flex;
+        gap: 4px;
+    }
+    .cl-issue-field {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+    }
+    .cl-issue-field strong {
+        color: var(--text-primary);
+        margin-left: 4px;
+    }
+
+    /* 이슈 모달 */
+    .cl-issue-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+    .cl-issue-modal-overlay.active { display: flex; }
+    .cl-issue-modal {
+        background: white;
+        border-radius: 12px;
+        padding: 28px 32px;
+        width: 560px;
+        max-width: 90vw;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    }
+    .cl-issue-modal h3 {
+        font-size: 17px;
+        font-weight: 700;
+        margin: 0 0 20px 0;
+    }
+    .cl-issue-form-row {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    .cl-issue-form-group {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+    }
+    .cl-issue-form-group label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+    }
+    .cl-issue-form-group input,
+    .cl-issue-form-group textarea {
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-size: 13px;
+        font-family: inherit;
+    }
+    .cl-issue-form-group textarea {
+        resize: vertical;
+        min-height: 60px;
+    }
+    .cl-issue-form-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        margin-top: 16px;
+    }
+</style>
+{% endblock %}
+
+{% block layer4_content %}
+<div class="cl-detail-toolbar">
+    <span id="backLinkContainer"></span>
+    <div class="cl-detail-info" id="checkInfo"></div>
+</div>
+
+<div class="cl-summary-grid">
+    <div class="cl-summary-card">
+        <div class="label" id="expectedLabel">예상 건수</div>
+        <div class="value" id="expectedCount">-</div>
+    </div>
+    <div class="cl-summary-card">
+        <div class="label" id="actualLabel">실제 건수</div>
+        <div class="value" id="actualCount">-</div>
+    </div>
+    <div class="cl-summary-card">
+        <div class="label" id="rateLabel">수집률</div>
+        <div class="value" id="rateValue">-</div>
+    </div>
+    <div class="cl-summary-card">
+        <div class="label">상태</div>
+        <div class="value" id="statusValue">-</div>
+    </div>
+</div>
+
+<div class="cl-tabs">
+    <button class="cl-tab active" data-tab="detail" onclick="switchTab('detail')">수집 상세</button>
+    <button class="cl-tab" data-tab="issues" onclick="switchTab('issues')">수집 이슈 <span id="issueCountBadge"></span></button>
+</div>
+
+<div class="cl-tab-panel active" id="tabDetail">
+    <div id="detailTableContainer">
+        <div class="cl-empty-state">데이터를 불러오는 중...</div>
+    </div>
+</div>
+
+<div class="cl-tab-panel" id="tabIssues">
+    <div class="cl-issue-panel">
+        <div id="issueList"></div>
+    </div>
+</div>
+
+<div class="cl-issue-modal-overlay" id="issueModal">
+    <div class="cl-issue-modal">
+        <h3 id="issueModalTitle">이슈 입력</h3>
+        <div class="cl-issue-form-row">
+            <div class="cl-issue-form-group" style="flex:2"><label>제목 *</label><input type="text" id="issueTitle"></div>
+            <div class="cl-issue-form-group"><label>일시</label><input type="text" id="issueDate" placeholder="예: 2026.02.26 오전 수집분"></div>
+        </div>
+        <div class="cl-issue-form-row">
+            <div class="cl-issue-form-group"><label>현상</label><textarea id="issueSymptom"></textarea></div>
+        </div>
+        <div class="cl-issue-form-row">
+            <div class="cl-issue-form-group"><label>원인</label><textarea id="issueCause"></textarea></div>
+        </div>
+        <div class="cl-issue-form-row">
+            <div class="cl-issue-form-group"><label>조치</label><textarea id="issueAction"></textarea></div>
+        </div>
+        <div class="cl-issue-form-row" id="issueResolvedRow">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;">
+                <input type="checkbox" id="issueResolved" style="width:15px;height:15px;cursor:pointer;">
+                이미 확인된 이슈
+            </label>
+        </div>
+        <div class="cl-issue-form-actions" id="issueFormActions"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block layer4_js %}
+<script src="{% static 'js/dx/dx_layer4/layer4-all.js' %}?v=1"></script>
+<script>
+var SECTION_NAMES = {
+    retail: 'Retail',
+    sentiment: '감성분석',
+    youtube: 'YouTube',
+    market_trend: 'Market Trend',
+    market_competitor: 'Market Competitor',
+    market_competitor_event: 'Competitor Event',
+    market_demand: '수요증감율',
+    market_promotion: 'Promotion'
+};
+
+var DETAIL_COLUMNS = [
+    { key: 'category', label: '카테고리', group: true },
+    { key: 'retailer', label: '리테일러', group: true },
+    { key: 'time_slot', label: '시간대' },
+    { key: 'item_name', label: '항목' },
+    { key: 'expected_count', label: '예상', numeric: true },
+    { key: 'actual_count', label: '실제', numeric: true },
+    { key: 'rate', label: '비율', numeric: true },
+    { key: 'status', label: '상태', center: true }
+];
+
+function getParams() {
+    var params = new URLSearchParams(window.location.search);
+    return { date: params.get('date') || '', section: params.get('section') || '' };
+}
+
+function switchTab(tab) {
+    document.querySelectorAll('.cl-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.cl-tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    document.querySelector('.cl-tab[data-tab="' + tab + '"]').classList.add('active');
+    document.getElementById(tab === 'detail' ? 'tabDetail' : 'tabIssues').classList.add('active');
+}
+
+function clEscapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function loadDetail() {
+    var p = getParams();
+    if (!p.date || !p.section) {
+        document.getElementById('detailTableContainer').innerHTML = '<div class="cl-empty-state">날짜와 섹션 정보가 필요합니다.</div>';
+        return;
+    }
+
+    var backEl = document.querySelector('#backLinkContainer a');
+    if (backEl) backEl.href = '/dx/layer4/check-log/?date=' + p.date;
+
+    try {
+        var response = await fetch('/dx/layer4/api/check/status/?date=' + p.date + '&layer=1&detail=1');
+        var result = await response.json();
+        if (!response.ok || !result.success) {
+            document.getElementById('detailTableContainer').innerHTML = '<div class="cl-empty-state">' + clEscapeHtml(result.error || '조회 실패') + '</div>';
+            return;
+        }
+
+        var sec = result.sections[p.section];
+        if (!sec) {
+            document.getElementById('detailTableContainer').innerHTML = '<div class="cl-empty-state">해당 섹션의 검수 데이터가 없습니다.</div>';
+            return;
+        }
+
+        renderSummary(sec);
+        renderDetailTable(sec.details || []);
+    } catch (e) {
+        document.getElementById('detailTableContainer').innerHTML = '<div class="cl-empty-state">시스템 오류가 발생했습니다.</div>';
+    }
+}
+
+function renderSummary(sec) {
+    document.getElementById('expectedCount').textContent = (sec.expected_count || 0).toLocaleString();
+    document.getElementById('actualCount').textContent = (sec.actual_count || 0).toLocaleString();
+
+    var rateEl = document.getElementById('rateValue');
+    rateEl.textContent = (sec.rate || 0) + '%';
+    rateEl.style.color = sec.rate >= 100 ? 'var(--color-ok)' : (sec.rate >= 90 ? '#d97706' : 'var(--color-critical)');
+
+    var statusEl = document.getElementById('statusValue');
+    statusEl.textContent = sec.status || '-';
+    statusEl.style.color = sec.status === 'OK' ? 'var(--color-ok)' : (sec.status === 'WARNING' ? '#d97706' : 'var(--color-critical)');
+
+    var infoHtml = '';
+    if (sec.created_id) {
+        var timeStr = sec.updated_at
+            ? new Date(sec.updated_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })
+            : new Date(sec.created_at).toLocaleString('ko-KR', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+        var who = sec.updated_id || sec.created_id;
+        infoHtml += '<span>확인자: <strong>' + clEscapeHtml(who) + '</strong></span>';
+        infoHtml += '<span>확인시간: <strong>' + timeStr + '</strong></span>';
+    }
+    if (sec.memo) {
+        infoHtml += '<span>메모: <strong>' + clEscapeHtml(sec.memo) + '</strong></span>';
+    }
+    document.getElementById('checkInfo').innerHTML = infoHtml;
+}
+
+var detailTable = null;
+
+function renderDetailTable(details) {
+    var container = document.getElementById('detailTableContainer');
+
+    if (!details || details.length === 0) {
+        container.innerHTML = '<div class="cl-empty-state">상세 데이터가 없습니다.</div>';
+        return;
+    }
+
+    // 정렬: 카테고리 → 리테일러 → 시간대
+    details.sort(function(a, b) {
+        var cmp = (a.category || '').localeCompare(b.category || '');
+        if (cmp !== 0) return cmp;
+        cmp = (a.retailer || '').localeCompare(b.retailer || '');
+        if (cmp !== 0) return cmp;
+        return (a.time_slot || '').localeCompare(b.time_slot || '');
+    });
+
+    var visibleCols = DETAIL_COLUMNS.filter(function(col) {
+        if (col.numeric) return true;
+        return details.some(function(d) { return d[col.key] && d[col.key] !== ''; });
+    });
+
+    // rowspan 계산 (group 컬럼)
+    var groupCols = visibleCols.filter(function(c) { return c.group; }).map(function(c) { return c.key; });
+    var rowspans = [];
+    for (var i = 0; i < details.length; i++) {
+        rowspans[i] = {};
+        groupCols.forEach(function(key) { rowspans[i][key] = 0; });
+    }
+    groupCols.forEach(function(key, colIdx) {
+        var i = 0;
+        while (i < details.length) {
+            var j = i + 1;
+            while (j < details.length) {
+                var same = true;
+                for (var k = 0; k <= colIdx; k++) {
+                    if ((details[j][groupCols[k]] || '') !== (details[i][groupCols[k]] || '')) { same = false; break; }
+                }
+                if (!same) break;
+                j++;
+            }
+            rowspans[i][key] = j - i;
+            for (var r = i + 1; r < j; r++) { rowspans[r][key] = 0; }
+            i = j;
+        }
+    });
+
+    var columns = visibleCols.map(function(col) {
+        return { key: col.key, label: col.label, align: 'center' };
+    });
+    columns.push({ key: '_issue', label: '이슈', width: 60, align: 'center' });
+
+    container.innerHTML = '';
+    detailTable = new CommonTable(container, {
+        variant: 'detail',
+        columns: columns,
+        resize: false,
+        card: true,
+        vlines: true
+    });
+    detailTable.render();
+
+    detailTable.renderBody(details, function(d, idx) {
+        var html = '<tr>';
+        visibleCols.forEach(function(col) {
+            var val = d[col.key];
+            var cs = 'text-align:center;';
+            if (col.group && groupCols.indexOf(col.key) !== -1) {
+                if (rowspans[idx][col.key] === 0) return;
+                var rs = rowspans[idx][col.key] > 1 ? ' rowspan="' + rowspans[idx][col.key] + '"' : '';
+                html += '<td' + rs + ' style="' + cs + 'vertical-align:middle;">' + clEscapeHtml(val || '-') + '</td>';
+            } else if (col.key === 'status') {
+                var cls = val === 'OK' ? 'badge-ok' : (val === 'WARNING' ? 'badge-warning' : 'badge-critical');
+                html += '<td style="' + cs + '"><span class="badge ' + cls + '">' + clEscapeHtml(val || '-') + '</span></td>';
+            } else if (col.key === 'rate') {
+                html += '<td style="' + cs + '">' + (val || 0) + '%</td>';
+            } else if (col.numeric) {
+                html += '<td style="' + cs + '">' + ((val || 0).toLocaleString ? (val || 0).toLocaleString() : val) + '</td>';
+            } else {
+                html += '<td style="' + cs + '">' + clEscapeHtml(val || '-') + '</td>';
+            }
+        });
+        if (d.issue_id) {
+            html += '<td class="ct-nc" style="text-align:center;font-size:12px;color:var(--text-secondary);">등록됨</td>';
+        } else {
+            var rowData = JSON.stringify(d).replace(/"/g, '&quot;');
+            html += '<td class="ct-nc" style="text-align:center;">' + AppButton.iconHtml('plus', 'openIssueFormFromRow(' + rowData + ')', { color: 'purple', size: 'sm' }) + '</td>';
+        }
+        html += '</tr>';
+        return html;
+    });
+}
+
+// ============================================================
+// 수집 이슈 CRUD
+// ============================================================
+
+var _editingIssueId = null;
+var _currentDetailId = null;
+
+async function loadIssues() {
+    var p = getParams();
+    if (!p.date || !p.section) return;
+
+    try {
+        var res = await fetch('/dx/layer4/api/collection-issues/?date=' + p.date + '&section=' + p.section);
+        var result = await res.json();
+        if (!result.success) return;
+        renderIssueList(result.items || []);
+    } catch (e) {
+        console.error('loadIssues error:', e);
+    }
+}
+
+function renderIssueList(items) {
+    var el = document.getElementById('issueList');
+    var badge = document.getElementById('issueCountBadge');
+    var openCount = items.filter(function(i) { return i.resolution_status !== 'resolved'; }).length;
+    badge.textContent = items.length > 0 ? '(' + items.length + ')' : '';
+
+    if (!items.length) {
+        el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-secondary);font-size:13px;">등록된 이슈가 없습니다.</div>';
+        return;
+    }
+
+    var html = '';
+    items.forEach(function(item) {
+        var isResolved = item.resolution_status === 'resolved';
+        html += '<div class="cl-issue-card" style="' + (isResolved ? 'opacity:0.7;' : '') + '">';
+        html += '<div class="cl-issue-card-header">';
+        var statusBadge = isResolved
+            ? '<span class="badge badge-ok" style="font-size:11px;margin-right:8px;">해결</span>'
+            : '<span class="badge badge-critical" style="font-size:11px;margin-right:8px;">미해결</span>';
+        html += '<span class="cl-issue-card-title">' + statusBadge + clEscapeHtml(item.title) + '</span>';
+        html += '<div class="cl-issue-card-actions">';
+        if (!isResolved) {
+            html += AppButton.html('정상처리', 'resolveIssue(' + item.id + ')', { style: 'save', size: 'xs' });
+        }
+        html += AppButton.iconHtml('edit', 'openIssueForm(' + JSON.stringify(item).replace(/"/g, '&quot;') + ')', { color: 'blue', size: 'sm', title: '수정' });
+        html += AppButton.iconHtml('delete', 'deleteIssue(' + item.id + ')', { color: 'red', size: 'sm', title: '삭제' });
+        html += '</div>';
+        html += '</div>';
+        if (item.issue_date) html += '<div class="cl-issue-field">일시:<strong>' + clEscapeHtml(item.issue_date) + '</strong></div>';
+        if (item.symptom) html += '<div class="cl-issue-field">현상:<strong>' + clEscapeHtml(item.symptom) + '</strong></div>';
+        if (item.cause) html += '<div class="cl-issue-field">원인:<strong>' + clEscapeHtml(item.cause) + '</strong></div>';
+        if (item.action) html += '<div class="cl-issue-field">조치:<strong>' + clEscapeHtml(item.action) + '</strong></div>';
+        if (isResolved && item.resolution_memo) html += '<div class="cl-issue-field">처리사유:<strong>' + clEscapeHtml(item.resolution_memo) + '</strong></div>';
+        html += '</div>';
+    });
+    el.innerHTML = html;
+}
+
+function openIssueFormFromRow(rowData) {
+    var p = getParams();
+    var parts = [];
+    if (rowData.category) parts.push(rowData.category);
+    if (rowData.retailer) parts.push(rowData.retailer);
+    if (rowData.item_name) parts.push(rowData.item_name);
+    var title = parts.join(' ');
+
+    var issueDate = '';
+    if (p.date) {
+        issueDate = p.date.replace(/-/g, '.');
+        if (rowData.time_slot) issueDate += ' ' + rowData.time_slot + ' 수집분';
+    }
+
+    _currentDetailId = rowData.detail_id || null;
+    openIssueForm({ title: title, issue_date: issueDate });
+}
+
+function openIssueForm(issue) {
+    _editingIssueId = issue ? issue.id : null;
+    if (_editingIssueId) _currentDetailId = null;
+
+    document.getElementById('issueModalTitle').textContent = _editingIssueId ? '이슈 수정' : '이슈 입력';
+    document.getElementById('issueTitle').value = issue ? (issue.title || '') : '';
+    document.getElementById('issueDate').value = issue ? (issue.issue_date || '') : '';
+    document.getElementById('issueSymptom').value = issue ? (issue.symptom || '') : '';
+    document.getElementById('issueCause').value = issue ? (issue.cause || '') : '';
+    document.getElementById('issueAction').value = issue ? (issue.action || '') : '';
+
+    // 이미 해결됨 체크박스: 신규 등록 시만 표시, 수정 시 숨김
+    document.getElementById('issueResolvedRow').style.display = _editingIssueId ? 'none' : '';
+    document.getElementById('issueResolved').checked = false;
+
+    document.getElementById('issueModal').classList.add('active');
+    document.getElementById('issueTitle').focus();
+}
+
+function closeIssueForm() {
+    _editingIssueId = null;
+    _currentDetailId = null;
+    document.getElementById('issueModal').classList.remove('active');
+}
+
+async function saveIssue() {
+    var p = getParams();
+    var title = document.getElementById('issueTitle').value.trim();
+    if (!title) {
+        showToast('제목을 입력해주세요.', 'warning');
+        return;
+    }
+
+    var body = {
+        crawl_date: p.date,
+        section: p.section,
+        title: title,
+        issue_date: document.getElementById('issueDate').value.trim(),
+        symptom: document.getElementById('issueSymptom').value.trim(),
+        cause: document.getElementById('issueCause').value.trim(),
+        action: document.getElementById('issueAction').value.trim(),
+    };
+    if (_editingIssueId) body.id = _editingIssueId;
+    if (_currentDetailId) body.detail_id = _currentDetailId;
+    if (!_editingIssueId && document.getElementById('issueResolved').checked) {
+        body.already_resolved = true;
+    }
+
+    try {
+        var res = await fetch('/dx/layer4/api/collection-issues/save/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify(body)
+        });
+        var result = await res.json();
+        if (result.success) {
+            showToast(_editingIssueId ? '이슈가 수정되었습니다.' : '이슈가 등록되었습니다.', 'success');
+            closeIssueForm();
+            loadIssues();
+            loadDetail();
+        } else {
+            showToast(result.error || '저장 실패', 'error');
+        }
+    } catch (e) {
+        showToast('시스템 오류가 발생했습니다.', 'error');
+    }
+}
+
+async function deleteIssue(id) {
+    var confirmed = await showConfirm('이 이슈를 삭제하시겠습니까?');
+    if (!confirmed) return;
+
+    try {
+        var res = await fetch('/dx/layer4/api/collection-issues/delete/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ id: id })
+        });
+        var result = await res.json();
+        if (result.success) {
+            showToast('이슈가 삭제되었습니다.', 'success');
+            loadIssues();
+            loadDetail();
+        } else {
+            showToast(result.error || '삭제 실패', 'error');
+        }
+    } catch (e) {
+        showToast('시스템 오류가 발생했습니다.', 'error');
+    }
+}
+
+async function resolveIssue(id) {
+    var result = await showConfirm('이 이슈를 정상처리하시겠습니까?', 'info', {
+        input: { placeholder: '처리 사유 (선택)' }
+    });
+    if (!result.confirmed) return;
+
+    try {
+        var res = await fetch('/dx/layer4/api/collection-issues/resolve/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ id: id, resolution_memo: result.value || '' })
+        });
+        var data = await res.json();
+        if (data.success) {
+            showToast('정상처리되었습니다.', 'success');
+            loadIssues();
+        } else {
+            showToast(data.error || '처리 실패', 'error');
+        }
+    } catch (e) {
+        showToast('시스템 오류가 발생했습니다.', 'error');
+    }
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('issueModal').classList.contains('active')) closeIssueForm();
+});
+
+window.onload = function() {
+    AppButton('#backLinkContainer', '마감기록', null, { icon: 'back', style: 'back', size: 'md', href: '/dx/layer4/check-log/' });
+    document.getElementById('issueFormActions').innerHTML =
+        AppButton.html('취소', 'closeIssueForm()', { style: 'cancel', size: 'sm' }) +
+        AppButton.html('저장', 'saveIssue()', { style: 'save', size: 'sm' });
+    loadDetail();
+    loadIssues();
+};
+</script>
+{% endblock %}

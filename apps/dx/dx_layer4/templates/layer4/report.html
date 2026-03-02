@@ -1,0 +1,33 @@
+{% extends 'layer4/base_layer4.html' %}
+{% load static %}
+
+{% block page_title %}보고서{% endblock %}
+
+{% block layer4_content %}
+<!-- 보고서 컨트롤 -->
+<div class="l4-report-controls">
+    <div class="l4-report-tabs">
+        <button class="l4-tab active" data-tab="detail" onclick="switchReportTab('detail')">상세 보고서</button>
+        <button class="l4-tab" data-tab="summary" onclick="switchReportTab('summary')">한줄 요약</button>
+    </div>
+    <button class="app-btn app-btn-sm app-btn-outline" onclick="copyReport()">📋 복사</button>
+</div>
+
+<!-- 보고서 영역 -->
+<div class="l4-report-area">
+    <div id="report-detail" class="l4-report-content">
+        <div class="l4-empty-state">
+            <p>날짜를 선택하고 조회 버튼을 클릭하세요.</p>
+        </div>
+    </div>
+    <div id="report-summary" class="l4-report-content" style="display:none;">
+        <div class="l4-empty-state">
+            <p>날짜를 선택하고 조회 버튼을 클릭하세요.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block layer4_js %}
+<script src="{% static 'js/dx/dx_layer4/layer4-all.js' %}?v=1"></script>
+{% endblock %}

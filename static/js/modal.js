@@ -3,7 +3,7 @@
  *
  * 사용법:
  *   // 생성 (페이지 초기화 시 1회)
- *   AppModal.create('detail', { style: 'wide' });
+ *   AppModal.create('detail', { style: 'wide', closeOnOverlay: true });
  *
  *   // 열기/닫기
  *   AppModal.open('detail');
@@ -18,6 +18,7 @@
  *   const bodyEl = AppModal.getBody('detail');  // DOM element 반환
  *
  * 스타일 옵션: 'wide' | 'extra-wide' | 'form' | 'compact'
+ * closeOnOverlay: true → 오버레이(배경) 클릭 시 모달 닫기 (기본값: false)
  */
 const AppModal = (() => {
     const instances = {};
@@ -27,6 +28,7 @@ const AppModal = (() => {
         if (instances[id]) return instances[id];
 
         const style = (options && options.style) || 'wide';
+        const closeOnOverlay = (options && options.closeOnOverlay) || false;
 
         const overlay = document.createElement('div');
         overlay.id = 'modal-' + id;
@@ -41,10 +43,12 @@ const AppModal = (() => {
                 '<div class="app-modal__body"></div>' +
             '</div>';
 
-        // 오버레이 클릭 시 닫기
-        overlay.addEventListener('click', function (e) {
-            if (e.target === overlay) close(id);
-        });
+        // 오버레이 클릭 시 닫기 (옵션)
+        if (closeOnOverlay) {
+            overlay.addEventListener('click', function (e) {
+                if (e.target === overlay) close(id);
+            });
+        }
 
         // X 버튼 클릭 시 닫기
         overlay.querySelector('.app-modal__close').addEventListener('click', function () {

@@ -1,0 +1,755 @@
+{% extends 'accounts/admin_base.html' %}
+{% load static %}
+
+{% block title %}형식 검증 관리 - 관리자{% endblock %}
+
+{% block admin_css %}
+<style>
+/* 페이지 헤더 */
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+.admin-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+.admin-title-sub { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+
+/* 배지 */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.badge-type { background: var(--bg-secondary); color: var(--text-secondary); }
+.badge-active { background: #dcfce7; color: #16a34a; cursor: pointer; }
+.badge-inactive { background: #fee2e2; color: #dc2626; cursor: pointer; }
+
+/* 탭 */
+.type-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0;
+}
+.type-tab {
+    padding: 8px 16px;
+    border: none;
+    background: none;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+}
+.type-tab:hover { color: var(--text-primary); }
+.type-tab.active {
+    color: #7c3aed;
+    border-bottom-color: #7c3aed;
+    font-weight: 600;
+}
+
+/* 탭 패널 */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* 흰색 카드 섹션 */
+.card-section {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    overflow-x: auto;
+}
+
+/* 비활성 행 */
+.ct tbody tr.inactive { opacity: 0.5; }
+
+/* 상태 도트 */
+.status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+.status-dot.active { background: #22c55e; }
+.status-dot.inactive { background: #ef4444; }
+
+
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div>
+    <div class="admin-header">
+        <div>
+            <h1 class="admin-title">형식 검증 관리</h1>
+            <p class="admin-title-sub">형식 검증 규칙, 템플릿, 설정을 관리합니다</p>
+        </div>
+    </div>
+
+    <!-- 탭 -->
+    <div class="type-tabs">
+        <button class="type-tab active" data-tab="rules" onclick="switchTab(this)">규칙</button>
+        <button class="type-tab" data-tab="templates" onclick="switchTab(this)">템플릿</button>
+        <button class="type-tab" data-tab="config" onclick="switchTab(this)">설정</button>
+    </div>
+
+    <!-- ==================== 규칙 탭 ==================== -->
+    <div class="tab-panel active" id="panel-rules">
+        <div id="filterBarArea"></div>
+        <div id="buttonBarArea"></div>
+        <div class="card-section" id="ruleTableArea"></div>
+    </div>
+
+    <!-- ==================== 템플릿 탭 ==================== -->
+    <div class="tab-panel" id="panel-templates">
+        <div id="tmplFilterBarArea"></div>
+        <div id="tmplButtonBarArea"></div>
+        <div class="card-section">
+        <table class="ct ct-grid" id="tmplTable">
+            <colgroup>
+                <col style="width:40px">
+                <col style="width:45px">
+                <col style="width:160px">
+                <col style="width:250px">
+                <col style="width:120px">
+                <col style="width:300px">
+                <col style="width:55px">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th style="text-align:center"><input type="checkbox" id="tmplCheckAll"></th>
+                    <th style="text-align:center">No</th>
+                    <th>이름</th>
+                    <th>설명</th>
+                    <th>check_type</th>
+                    <th>pattern</th>
+                    <th style="text-align:center">상태</th>
+                </tr>
+            </thead>
+            <tbody id="tmplBody">
+                <tr><td colspan="7" style="text-align:center; padding:30px; color:var(--text-secondary)">로딩 중...</td></tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <!-- ==================== 설정 탭 ==================== -->
+    <div class="tab-panel" id="panel-config">
+        <div id="cfgFilterBarArea"></div>
+        <div id="cfgButtonBarArea"></div>
+        <div class="card-section">
+        <table class="ct ct-grid" id="cfgTable">
+            <colgroup>
+                <col style="width:40px">
+                <col style="width:45px">
+                <col style="width:180px">
+                <col style="width:500px">
+                <col style="width:55px">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th style="text-align:center"><input type="checkbox" id="cfgCheckAll"></th>
+                    <th style="text-align:center">No</th>
+                    <th>테이블명</th>
+                    <th>display_columns</th>
+                    <th style="text-align:center">상태</th>
+                </tr>
+            </thead>
+            <tbody id="cfgBody">
+                <tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-secondary)">로딩 중...</td></tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+// ========== 탭 전환 ==========
+function switchTab(el) {
+    document.querySelectorAll('.type-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+    el.classList.add('active');
+    document.getElementById('panel-' + el.dataset.tab).classList.add('active');
+    if (el.dataset.tab === 'templates' && !tmplLoaded) loadTemplates();
+    if (el.dataset.tab === 'config' && !cfgLoaded) loadConfigs();
+}
+
+// ========== 규칙 탭 ==========
+var RULES_DATA = [
+    {% for row in rows %}
+    { id: {{ row.id }}, table_name: '{{ row.table_name|escapejs }}', column_name: '{{ row.column_name|escapejs }}', account_name: '{{ row.account_name|escapejs }}', template_name: '{{ row.template_name|default:""|escapejs }}', forbidden_chars: '{{ row.forbidden_chars|default:""|escapejs }}', error_message: '{{ row.error_message|default:""|escapejs }}', is_active: {{ row.is_active|yesno:"true,false" }} },
+    {% endfor %}
+];
+
+var filterBar = new FilterBar('#filterBarArea', {
+    sticky: false,
+    controls: [
+        { type: 'select', key: 'searchField', options: [
+            { value: '', label: '검색항목' },
+            { value: 'columnName', label: '컬럼명' },
+            { value: 'templateName', label: '템플릿' },
+        ] },
+        { type: 'input', key: 'filterSearch', placeholder: '검색어 입력',
+          onEnter: function() { applyFilter(); } },
+        { type: 'select', key: 'filterTable', options: [
+            { value: '', label: '전체 테이블' },
+            { value: 'tv_retail_com', label: 'tv_retail_com' },
+            { value: 'hhp_retail_com', label: 'hhp_retail_com' },
+            { value: 'youtube_videos', label: 'youtube_videos' },
+            { value: 'youtube_collection_logs', label: 'youtube_collection_logs' },
+            { value: 'youtube_comments', label: 'youtube_comments' },
+            { value: 'market_trend', label: 'market_trend' },
+            { value: 'market_comp_product', label: 'market_comp_product' },
+            { value: 'market_comp_event', label: 'market_comp_event' },
+            { value: 'openai_forecast_results', label: 'openai_forecast_results' },
+        ] },
+        { type: 'select', key: 'filterRetailer', options: [
+            { value: '', label: '전체 리테일러' },
+            {% for ret in retailers %}
+            { value: '{{ ret }}', label: '{{ ret }}' },
+            {% endfor %}
+        ] },
+        { type: 'select', key: 'filterActive', options: [
+            { value: '', label: '전체 상태' },
+            { value: 'true', label: '활성' },
+            { value: 'false', label: '비활성' },
+        ] },
+    ],
+    onSearch: function() { applyFilter(); },
+    onReset: function() { applyFilter(); }
+}).render();
+
+new ButtonBar('#buttonBarArea', {
+    align: 'between',
+    margin: '0 0 12px 0',
+    buttons: [
+        { id: 'btnAdd', label: '추가', style: 'save', size: 'fb', padding: '8px 12px', position: 'left', onClick: function() { saveFilterState(); location.href = '/accounts/admin/format-rules/create/'; } },
+        { id: 'btnEdit', label: '수정', style: 'outline', size: 'fb', padding: '8px 12px', position: 'left', onClick: function() { editSelected(); } },
+        { id: 'btnDelete', label: '삭제', style: 'danger', size: 'fb', padding: '8px 12px', position: 'right', onClick: function() { deleteSelected(); } },
+    ]
+}).render();
+
+// CommonTable
+var ruleTable = new CommonTable('#ruleTableArea', {
+    variant: 'grid',
+    columns: [
+        { key: '_chk', label: '', width: 40, align: 'center' },
+        { key: '_no', label: 'No', width: 55, align: 'center' },
+        { key: 'table_name', label: '테이블', width: 140, sortable: true },
+        { key: 'column_name', label: '컬럼명', width: 140, sortable: true },
+        { key: 'account_name', label: '리테일러', width: 90, sortable: true, align: 'center' },
+        { key: 'template_name', label: '템플릿', width: 110, sortable: true },
+        { key: 'error_message', label: '에러메시지', width: 200 },
+        { key: 'is_active', label: '상태', width: 55, align: 'center' },
+    ],
+    showTotalCount: true,
+    onSort: function(key, order) { handleSort(key, order); }
+});
+ruleTable.render();
+
+// 헤더 커스터마이즈
+(function() {
+    var ths = ruleTable.getTable().querySelectorAll('thead th');
+    ths[0].innerHTML = '<input type="checkbox" id="checkAll">';
+    if (ruleTable.countEl) ruleTable.countEl.style.borderTop = '1px solid var(--border-color)';
+})();
+
+// 행 렌더링
+function truncStr(s, max) {
+    if (!s) return '-';
+    return s.length > max ? s.substring(0, max - 1) + '…' : s;
+}
+
+function renderRuleRow(item, idx) {
+    return '<tr' + (item.is_active ? '' : ' class="inactive"') + ' style="cursor:pointer" ' +
+        'ondblclick="saveFilterState(); location.href=\'/accounts/admin/format-rules/' + item.id + '/update/\'" ' +
+        'data-id="' + item.id + '" ' +
+        'data-table-name="' + esc(item.table_name) + '" ' +
+        'data-column-name="' + esc(item.column_name) + '" ' +
+        'data-account-name="' + esc(item.account_name) + '" ' +
+        'data-template-name="' + esc(item.template_name) + '" ' +
+        'data-active="' + item.is_active + '">' +
+        '<td class="ct-nc" style="text-align:center"><input type="checkbox" class="row-check" value="' + item.id + '"></td>' +
+        '<td class="col-no" style="text-align:center"></td>' +
+        '<td>' + esc(item.table_name) + '</td>' +
+        '<td><strong>' + esc(item.column_name) + '</strong></td>' +
+        '<td style="text-align:center">' + esc(item.account_name) + '</td>' +
+        '<td><span class="badge badge-type">' + esc(item.template_name || '-') + '</span></td>' +
+        '<td>' + truncStr(item.error_message, 30) + '</td>' +
+        '<td class="ct-nc" style="text-align:center"><span class="status-dot ' + (item.is_active ? 'active' : 'inactive') + '" onclick="event.stopPropagation(); toggleRule(' + item.id + ')"></span></td>' +
+        '</tr>';
+}
+
+ruleTable.renderBody(RULES_DATA, renderRuleRow);
+
+// 정렬
+function handleSort(key, order) {
+    RULES_DATA.sort(function(a, b) {
+        var va = String(a[key] || '').toLowerCase();
+        var vb = String(b[key] || '').toLowerCase();
+        if (va < vb) return order === 'asc' ? -1 : 1;
+        if (va > vb) return order === 'asc' ? 1 : -1;
+        return 0;
+    });
+    ruleTable.renderBody(RULES_DATA, renderRuleRow);
+    _applyFilter();
+    updateTotalCount();
+    if (pager) pager.reset();
+}
+
+// 필터 상태 저장
+function saveFilterState() {
+    var params = new URLSearchParams();
+    var tbl = filterBar.getValue('filterTable');
+    var ret = filterBar.getValue('filterRetailer');
+    var act = filterBar.getValue('filterActive');
+    var search = filterBar.getValue('filterSearch');
+    var field = filterBar.getValue('searchField');
+    if (tbl) params.set('tbl', tbl);
+    if (ret) params.set('ret', ret);
+    if (act) params.set('act', act);
+    if (search) params.set('q', search);
+    if (field) params.set('field', field);
+    if (pager && pager.getCurrentPage() > 1) params.set('pg', pager.getCurrentPage());
+    sessionStorage.setItem('fr_filter', params.toString());
+}
+
+// 필터 적용 (내부)
+function _applyFilter() {
+    var tbl = filterBar.getValue('filterTable');
+    var ret = filterBar.getValue('filterRetailer');
+    var act = filterBar.getValue('filterActive');
+    var field = filterBar.getValue('searchField');
+    var search = (filterBar.getValue('filterSearch') || '').toLowerCase();
+    var tbody = ruleTable.getTable().querySelector('tbody');
+
+    tbody.querySelectorAll('tr').forEach(function(row) {
+        var show = true;
+        if (tbl && row.dataset.tableName !== tbl) show = false;
+        if (ret && row.dataset.accountName !== ret) show = false;
+        if (act === 'true' && row.dataset.active !== 'true') show = false;
+        if (act === 'false' && row.dataset.active !== 'false') show = false;
+        if (search) {
+            if (field) {
+                show = show && (row.dataset[field] || '').toLowerCase().includes(search);
+            } else {
+                show = show && (
+                    (row.dataset.columnName || '').toLowerCase().includes(search) ||
+                    (row.dataset.templateName || '').toLowerCase().includes(search)
+                );
+            }
+        }
+        if (show) row.removeAttribute('data-filtered');
+        else row.setAttribute('data-filtered', 'hidden');
+    });
+    document.getElementById('checkAll').checked = false;
+    tbody.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = false; });
+    saveFilterState();
+}
+
+function applyFilter() {
+    _applyFilter();
+    updateTotalCount();
+    if (pager) pager.reset();
+}
+
+function updateTotalCount() {
+    var el = ruleTable.countEl;
+    if (!el) return;
+    var tbody = ruleTable.getTable().querySelector('tbody');
+    var filtered = Array.from(tbody.querySelectorAll('tr')).filter(function(r) {
+        return r.getAttribute('data-filtered') !== 'hidden';
+    }).length;
+    var total = RULES_DATA.length;
+    if (filtered === total) {
+        el.innerHTML = '총 <strong>' + total + '</strong>건';
+    } else {
+        el.innerHTML = '총 <strong>' + total + '</strong>건 (필터 적용: <strong>' + filtered + '</strong>건)';
+    }
+}
+
+// 체크박스
+document.getElementById('checkAll').addEventListener('change', function() {
+    var checked = this.checked;
+    var tbody = ruleTable.getTable().querySelector('tbody');
+    tbody.querySelectorAll('tr:not([data-filtered]) .row-check').forEach(function(cb) { cb.checked = checked; });
+});
+
+function getSelectedRows() {
+    var rows = [];
+    ruleTable.getTable().querySelectorAll('tbody .row-check:checked').forEach(function(cb) { rows.push(cb.closest('tr')); });
+    return rows;
+}
+
+function editSelected() {
+    var rows = getSelectedRows();
+    if (rows.length === 0) { showToast('수정할 항목을 선택하세요.', 'warn'); return; }
+    if (rows.length > 1) { showToast('수정은 1개 항목만 선택하세요.', 'warn'); return; }
+    saveFilterState();
+    location.href = '/accounts/admin/format-rules/' + rows[0].dataset.id + '/update/';
+}
+
+function deleteSelected() {
+    var rows = getSelectedRows();
+    if (rows.length === 0) { showToast('삭제할 항목을 선택하세요.', 'warn'); return; }
+    var ids = rows.map(function(r) { return r.dataset.id; });
+    showConfirm(ids.length + '개 항목을 삭제하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        var promises = ids.map(function(id) {
+            return fetch('/accounts/admin/format-rules/' + id + '/delete/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+            }).then(function(r) { return r.json(); });
+        });
+        Promise.all(promises).then(function(results) {
+            var failed = results.filter(function(r) { return !r.success; });
+            if (failed.length > 0) showToast(failed.length + '개 삭제 실패', 'error');
+            reloadWithFilter();
+        });
+    });
+}
+
+function reloadWithFilter() {
+    var params = new URLSearchParams();
+    var tbl = filterBar.getValue('filterTable');
+    var ret = filterBar.getValue('filterRetailer');
+    var act = filterBar.getValue('filterActive');
+    var search = filterBar.getValue('filterSearch');
+    if (tbl) params.set('tbl', tbl);
+    if (ret) params.set('ret', ret);
+    if (act) params.set('act', act);
+    if (search) params.set('q', search);
+    var qs = params.toString();
+    location.href = location.pathname + (qs ? '?' + qs : '');
+}
+
+function toggleRule(id) {
+    showConfirm('상태를 변경하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        fetch('/accounts/admin/format-rules/' + id + '/toggle/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.success) reloadWithFilter();
+            else showToast(res.error, 'error');
+        });
+    });
+}
+
+// 필터 복원
+(function() {
+    var params = new URLSearchParams(location.search);
+    var fromForm = /\/format-rules\/(create\/|\d+\/update\/)/.test(document.referrer);
+    if (!params.toString() && fromForm) {
+        var saved = sessionStorage.getItem('fr_filter');
+        if (saved) params = new URLSearchParams(saved);
+    }
+    if (!fromForm && !params.toString()) {
+        sessionStorage.removeItem('fr_filter');
+        filterBar.setValue('filterActive', '');
+        filterBar.setValue('filterTable', '');
+        filterBar.setValue('filterRetailer', '');
+        filterBar.setValue('searchField', '');
+        filterBar.setValue('filterSearch', '');
+        return;
+    }
+    if (params.get('field')) filterBar.setValue('searchField', params.get('field'));
+    if (params.get('tbl')) filterBar.setValue('filterTable', params.get('tbl'));
+    if (params.get('ret')) filterBar.setValue('filterRetailer', params.get('ret'));
+    if (params.get('act')) filterBar.setValue('filterActive', params.get('act'));
+    if (params.get('q')) filterBar.setValue('filterSearch', params.get('q'));
+    window._restorePage = parseInt(params.get('pg')) || 0;
+})();
+
+// 페이지네이션
+var pager = enablePagination(ruleTable.getTable().querySelector('tbody'), {
+    perPage: 15,
+    showInfo: false,
+    deferRender: true,
+    onRender: function(visibleRows, start) {
+        visibleRows.forEach(function(row, i) {
+            var noCell = row.querySelector('.col-no');
+            if (noCell) noCell.textContent = start + i + 1;
+        });
+    }
+});
+
+// 초기 필터 적용 + 페이지네이션 시작
+applyFilter();
+if (window._restorePage > 1) pager.goTo(window._restorePage);
+
+
+// ========== 템플릿 탭 ==========
+var tmplLoaded = false;
+var tmplData = [];
+
+var tmplFilterBar = new FilterBar('#tmplFilterBarArea', {
+    sticky: false,
+    controls: [
+        { type: 'select', key: 'tmplSearchField', options: [
+            { value: '', label: '검색항목' },
+            { value: 'name', label: '이름' },
+            { value: 'check_type', label: 'check_type' },
+        ] },
+        { type: 'input', key: 'tmplSearch', placeholder: '검색어 입력',
+          onEnter: function() { applyTmplFilter(); } },
+        { type: 'select', key: 'tmplActive', options: [
+            { value: '', label: '전체 상태' },
+            { value: 'true', label: '활성' },
+            { value: 'false', label: '비활성' },
+        ] },
+    ],
+    onSearch: function() { applyTmplFilter(); },
+    onReset: function() { applyTmplFilter(); }
+}).render();
+
+new ButtonBar('#tmplButtonBarArea', {
+    align: 'between',
+    margin: '0 0 12px 0',
+    buttons: [
+        { id: 'btnTmplAdd', label: '추가', style: 'save', size: 'fb', padding: '8px 12px', position: 'left', onClick: function() { location.href = '/accounts/admin/format-templates/new/'; } },
+        { id: 'btnTmplEdit', label: '수정', style: 'outline', size: 'fb', padding: '8px 12px', position: 'left', onClick: function() { editTmplSelected(); } },
+        { id: 'btnTmplDelete', label: '삭제', style: 'danger', size: 'fb', padding: '8px 12px', position: 'right', onClick: function() { deleteTmplSelected(); } },
+    ]
+}).render();
+
+document.getElementById('tmplCheckAll').addEventListener('change', function() {
+    var checked = this.checked;
+    document.querySelectorAll('#tmplBody .row-check').forEach(function(cb) { cb.checked = checked; });
+});
+
+function loadTemplates() {
+    fetch('/accounts/admin/format-templates/api/list/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            tmplLoaded = true;
+            tmplData = data.rows || [];
+            applyTmplFilter();
+        })
+        .catch(function() {
+            document.getElementById('tmplBody').innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-secondary)">로딩 실패</td></tr>';
+        });
+}
+
+function applyTmplFilter() {
+    var field = tmplFilterBar.getValue('tmplSearchField');
+    var search = (tmplFilterBar.getValue('tmplSearch') || '').toLowerCase();
+    var act = tmplFilterBar.getValue('tmplActive');
+    var filtered = tmplData.filter(function(t) {
+        if (act === 'true' && !t.is_active) return false;
+        if (act === 'false' && t.is_active) return false;
+        if (search) {
+            if (field) {
+                return (t[field] || '').toLowerCase().includes(search);
+            }
+            return (t.name || '').toLowerCase().includes(search) ||
+                   (t.check_type || '').toLowerCase().includes(search);
+        }
+        return true;
+    });
+    renderTemplates(filtered);
+}
+
+function renderTemplates(data) {
+    var tbody = document.getElementById('tmplBody');
+    if (!data || !data.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text-secondary)">' + (tmplData.length ? '검색 결과가 없습니다' : '등록된 템플릿이 없습니다') + '</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.map(function(t, i) {
+        var cls = t.is_active ? '' : 'inactive';
+        return '<tr class="' + cls + '" style="cursor:pointer" ondblclick="location.href=\'/accounts/admin/format-templates/' + t.id + '/edit/\'" data-id="' + t.id + '">' +
+            '<td class="ct-nc" style="text-align:center"><input type="checkbox" class="row-check" value="' + t.id + '"></td>' +
+            '<td style="text-align:center">' + (i + 1) + '</td>' +
+            '<td>' + esc(t.name) + '</td>' +
+            '<td>' + esc(t.description || '-') + '</td>' +
+            '<td>' + esc(t.check_type || '-') + '</td>' +
+            '<td>' + esc(t.pattern || '-') + '</td>' +
+            '<td class="ct-nc" style="text-align:center">' +
+                '<span class="status-dot ' + (t.is_active ? 'active' : 'inactive') + '" onclick="event.stopPropagation(); toggleTemplate(' + t.id + ')"></span>' +
+            '</td></tr>';
+    }).join('');
+    document.getElementById('tmplCheckAll').checked = false;
+}
+
+function editTmplSelected() {
+    var checked = document.querySelectorAll('#tmplBody .row-check:checked');
+    if (checked.length === 0) { showToast('수정할 항목을 선택하세요.', 'warn'); return; }
+    if (checked.length > 1) { showToast('수정은 1개 항목만 선택하세요.', 'warn'); return; }
+    location.href = '/accounts/admin/format-templates/' + checked[0].value + '/edit/';
+}
+
+function deleteTmplSelected() {
+    var checked = document.querySelectorAll('#tmplBody .row-check:checked');
+    if (checked.length === 0) { showToast('삭제할 항목을 선택하세요.', 'warn'); return; }
+    var ids = Array.from(checked).map(function(cb) { return cb.value; });
+    showConfirm(ids.length + '개 템플릿을 삭제하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        var promises = ids.map(function(id) {
+            return fetch('/accounts/admin/format-templates/api/' + id + '/delete/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+            }).then(function(r) { return r.json(); });
+        });
+        Promise.all(promises).then(function(results) {
+            var failed = results.filter(function(r) { return !r.success; });
+            if (failed.length > 0) showToast(failed.length + '개 삭제 실패', 'error');
+            loadTemplates();
+        });
+    });
+}
+
+function toggleTemplate(id) {
+    showConfirm('상태를 변경하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        fetch('/accounts/admin/format-templates/api/' + id + '/toggle/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.success) loadTemplates();
+            else showToast(res.error, 'error');
+        });
+    });
+}
+
+
+// ========== 설정 탭 ==========
+var cfgLoaded = false;
+var cfgData = [];
+
+var cfgFilterBar = new FilterBar('#cfgFilterBarArea', {
+    sticky: false,
+    controls: [
+        { type: 'select', key: 'cfgSearchField', options: [
+            { value: '', label: '검색항목' },
+            { value: 'table_name', label: '테이블명' },
+            { value: 'display_columns', label: 'display_columns' },
+        ] },
+        { type: 'input', key: 'cfgSearch', placeholder: '검색어 입력',
+          onEnter: function() { applyCfgFilter(); } },
+        { type: 'select', key: 'cfgActive', options: [
+            { value: '', label: '전체 상태' },
+            { value: 'true', label: '활성' },
+            { value: 'false', label: '비활성' },
+        ] },
+    ],
+    onSearch: function() { applyCfgFilter(); },
+    onReset: function() { applyCfgFilter(); }
+}).render();
+
+new ButtonBar('#cfgButtonBarArea', {
+    align: 'between',
+    margin: '0 0 12px 0',
+    buttons: [
+        { id: 'btnCfgAdd', label: '추가', style: 'save', size: 'fb', padding: '8px 12px', position: 'left', onClick: function() { location.href = '/accounts/admin/format-config/new/'; } },
+        { id: 'btnCfgEdit', label: '수정', style: 'outline', size: 'fb', padding: '8px 12px', position: 'left', onClick: function() { editCfgSelected(); } },
+        { id: 'btnCfgDelete', label: '삭제', style: 'danger', size: 'fb', padding: '8px 12px', position: 'right', onClick: function() { deleteCfgSelected(); } },
+    ]
+}).render();
+
+document.getElementById('cfgCheckAll').addEventListener('change', function() {
+    var checked = this.checked;
+    document.querySelectorAll('#cfgBody .row-check').forEach(function(cb) { cb.checked = checked; });
+});
+
+function loadConfigs() {
+    fetch('/accounts/admin/format-config/api/list/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            cfgLoaded = true;
+            cfgData = data.rows || [];
+            applyCfgFilter();
+        })
+        .catch(function() {
+            document.getElementById('cfgBody').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-secondary)">로딩 실패</td></tr>';
+        });
+}
+
+function applyCfgFilter() {
+    var field = cfgFilterBar.getValue('cfgSearchField');
+    var search = (cfgFilterBar.getValue('cfgSearch') || '').toLowerCase();
+    var act = cfgFilterBar.getValue('cfgActive');
+    var filtered = cfgData.filter(function(c) {
+        if (act === 'true' && !c.is_active) return false;
+        if (act === 'false' && c.is_active) return false;
+        if (search) {
+            if (field) {
+                return (c[field] || '').toLowerCase().includes(search);
+            }
+            return (c.table_name || '').toLowerCase().includes(search) ||
+                   (c.display_columns || '').toLowerCase().includes(search);
+        }
+        return true;
+    });
+    renderConfigs(filtered);
+}
+
+function renderConfigs(data) {
+    var tbody = document.getElementById('cfgBody');
+    if (!data || !data.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text-secondary)">' + (cfgData.length ? '검색 결과가 없습니다' : '등록된 설정이 없습니다') + '</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.map(function(c, i) {
+        var cls = c.is_active ? '' : 'inactive';
+        return '<tr class="' + cls + '" style="cursor:pointer" ondblclick="location.href=\'/accounts/admin/format-config/' + c.id + '/edit/\'" data-id="' + c.id + '">' +
+            '<td class="ct-nc" style="text-align:center"><input type="checkbox" class="row-check" value="' + c.id + '"></td>' +
+            '<td style="text-align:center">' + (i + 1) + '</td>' +
+            '<td>' + esc(c.table_name) + '</td>' +
+            '<td>' + esc(c.display_columns || '-') + '</td>' +
+            '<td class="ct-nc" style="text-align:center">' +
+                '<span class="status-dot ' + (c.is_active ? 'active' : 'inactive') + '"></span>' +
+            '</td></tr>';
+    }).join('');
+    document.getElementById('cfgCheckAll').checked = false;
+}
+
+function editCfgSelected() {
+    var checked = document.querySelectorAll('#cfgBody .row-check:checked');
+    if (checked.length === 0) { showToast('수정할 항목을 선택하세요.', 'warn'); return; }
+    if (checked.length > 1) { showToast('수정은 1개 항목만 선택하세요.', 'warn'); return; }
+    location.href = '/accounts/admin/format-config/' + checked[0].value + '/edit/';
+}
+
+function deleteCfgSelected() {
+    var checked = document.querySelectorAll('#cfgBody .row-check:checked');
+    if (checked.length === 0) { showToast('삭제할 항목을 선택하세요.', 'warn'); return; }
+    var ids = Array.from(checked).map(function(cb) { return cb.value; });
+    showConfirm(ids.length + '개 설정을 삭제하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        var promises = ids.map(function(id) {
+            return fetch('/accounts/admin/format-config/api/' + id + '/delete/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+            }).then(function(r) { return r.json(); });
+        });
+        Promise.all(promises).then(function(results) {
+            var failed = results.filter(function(r) { return !r.success; });
+            if (failed.length > 0) showToast(failed.length + '개 삭제 실패', 'error');
+            loadConfigs();
+        });
+    });
+}
+
+enableColumnResize('#tmplTable');
+enableColumnResize('#cfgTable');
+
+// URL 파라미터로 탭 복원 (?tab=templates / ?tab=config)
+(function() {
+    var tabParam = new URLSearchParams(location.search).get('tab');
+    if (tabParam) {
+        var tabBtn = document.querySelector('.type-tab[data-tab="' + tabParam + '"]');
+        if (tabBtn) switchTab(tabBtn);
+    }
+})();
+</script>
+{% endblock %}

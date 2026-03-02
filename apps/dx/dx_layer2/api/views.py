@@ -6,17 +6,18 @@ Layer 2 API: 형식/NULL 검증 (Formatting & Null Validation)
 
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import get_dx_connection
+from apps.common.db import get_dx_connection, dx_table
 from apps.common.response import safe_error, log_error
 from apps.common.params import parse_date
 from apps.common.retail_columns import (
     get_null_check_query_parts, get_null_detail_query_parts, get_null_check_columns,
     validate_field, get_duplicate_key_columns, get_duplicate_check_query,
-    load_format_rules, get_retailer_list, get_retail_duplicate_keys,
+    build_format_error_sql, build_per_field_error_sql, get_retailer_list, get_retail_duplicate_keys,
     get_null_check_config, get_null_display_columns, get_null_query_columns,
     get_null_check_where_condition, get_null_check_date_column,
     get_check_name_by_table, get_check_names_by_table, get_null_check_columns_for_category,
-    get_all_categories, get_check_names_by_category, get_category_config
+    get_all_categories, get_check_names_by_category, get_category_config,
+    load_retail_columns, get_editable_columns
 )
 
 
@@ -24,7 +25,7 @@ from apps.common.retail_columns import (
 VALID_TABLES_FORMAT = {'tv_retail', 'hhp_retail', 'youtube_logs', 'youtube_videos', 'youtube_comments', 'youtube', 'market'}
 VALID_TABLES_ANOMALY = {'tv_retail', 'hhp_retail', 'youtube_videos', 'youtube_logs', 'market_trend', 'market_product', 'market_event'}
 VALID_TABLES_RETAILER = {'TV Retail', 'HHP Retail'}
-VALID_TABLES_RULES = {'tv_retail_com', 'hhp_retail_com', 'youtube_videos', 'market_trend', 'market_comp_product', 'market_comp_event', 'openai_forecast_results'}
+VALID_TABLES_RULES = {'tv_retail_com', 'hhp_retail_com', 'youtube_collection_logs', 'youtube_videos', 'youtube_comments', 'market_trend', 'market_comp_product', 'market_comp_event', 'openai_forecast_results'}
 
 
 # 상태 기준: 0건 = OK, 1~10건 = WARNING, 10건 초과 = CRITICAL
@@ -39,12 +40,12 @@ def get_status(issue_count):
 
 def validate_tv_field(field_name, value, account_name='Amazon'):
     """TV Retail 필드별 형식 검증. 오류 시 메시지 반환, 정상이면 None (CSV 기반)"""
-    return validate_field('tv_retail_com', field_name, value, account_name)
+    return validate_field('tv_retail_com', field_name, value, account_name, product_line='TV')
 
 
 def validate_hhp_field(field_name, value, account_name='Amazon'):
     """HHP Retail 필드별 형식 검증. 오류 시 메시지 반환, 정상이면 None (CSV 기반)"""
-    return validate_field('hhp_retail_com', field_name, value, account_name)
+    return validate_field('hhp_retail_com', field_name, value, account_name, product_line='HHP')
 
 
 def layer_stats(request):
@@ -180,10 +181,26 @@ def layer_stats(request):
                                 if col_name not in all_cat_fields:
                                     all_cat_fields.append(col_name)
 
+                            # 정상 처리(normal) 건수 차감
+                            try:
+                                cursor.execute("""
+                                    SELECT column_name, COUNT(*) FROM monitoring_corrections
+                                    WHERE table_name = %s AND crawl_date = %s
+                                      AND correction_type = 'null_check' AND status = 'normal'
+                                    GROUP BY column_name
+                                """, (query_parts['table_name'], str(target_date)))
+                                for nc_row in cursor.fetchall():
+                                    nc_col, nc_count = nc_row[0], nc_row[1]
+                                    if nc_col in fields_detail:
+                                        fields_detail[nc_col] = max(0, fields_detail[nc_col] - nc_count)
+                                        total_null_count = max(0, total_null_count - nc_count)
+                            except Exception:
+                                pass
+
                             cat_retailers.append({
                                 'retailer': retailer_name,
                                 'total': total,
-                                'records_with_null': total_null_count,  # 필드별 NULL 합산
+                                'records_with_null': total_null_count,  # 필드별 NULL 합산 (정상건 차감)
                                 'status': get_status(total_null_count),
                                 'fields_detail': fields_detail
                             })
@@ -446,119 +463,35 @@ def layer_stats(request):
         })
         total_format_issues += hhp_format_issue_total
 
-        # YouTube 형식 검증 (Logs, Videos, Comments 통합)
-        # Logs 형식 검증
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total,
-                COUNT(CASE WHEN l.keyword IS NOT NULL AND l.keyword NOT IN (SELECT keyword FROM youtube_keywords WHERE status = 'active') THEN 1 END) as invalid_keyword,
-                COUNT(CASE WHEN l.status IS NOT NULL AND l.status NOT IN ('failed', 'completed') THEN 1 END) as invalid_status,
-                COUNT(CASE WHEN videos_collected IS NOT NULL AND videos_collected < 0 THEN 1 END) as invalid_videos_collected,
-                COUNT(CASE WHEN comments_collected IS NOT NULL AND comments_collected < 0 THEN 1 END) as invalid_comments_collected
-            FROM youtube_collection_logs l
-            WHERE DATE(l.started_at) = %s
-        """, (target_date,))
-        yt_log_format_row = cursor.fetchone()
-        # None 값을 0으로 변환하여 합산
-        yt_log_format_issues = sum(v or 0 for v in yt_log_format_row[1:5]) if yt_log_format_row else 0
-
-        # Videos 형식 검증
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total,
-                COUNT(CASE WHEN v.keyword IS NOT NULL AND v.keyword NOT IN (SELECT keyword FROM youtube_keywords WHERE status = 'active') THEN 1 END) as invalid_keyword,
-                COUNT(CASE WHEN published_at IS NOT NULL AND created_at IS NOT NULL AND published_at > created_at THEN 1 END) as invalid_published_at,
-                COUNT(CASE WHEN channel_custom_url IS NOT NULL AND channel_custom_url != '' AND LEFT(channel_custom_url, 1) != '@' THEN 1 END) as invalid_channel_url,
-                COUNT(CASE WHEN channel_subscriber_count IS NOT NULL AND channel_subscriber_count < 0 THEN 1 END) as invalid_subscriber_count,
-                COUNT(CASE WHEN channel_video_count IS NOT NULL AND channel_video_count < 0 THEN 1 END) as invalid_video_count,
-                COUNT(CASE WHEN view_count IS NOT NULL AND view_count < 0 THEN 1 END) as invalid_view_count,
-                COUNT(CASE WHEN like_count IS NOT NULL AND like_count < 0 THEN 1 END) as invalid_like_count,
-                COUNT(CASE WHEN comment_count IS NOT NULL AND comment_count < 0 THEN 1 END) as invalid_comment_count,
-                COUNT(CASE WHEN category IS NOT NULL AND category NOT IN ('TV', 'HHP') THEN 1 END) as invalid_category,
-                COUNT(CASE WHEN engagement_rate IS NOT NULL AND engagement_rate < 2.0 THEN 1 END) as invalid_engagement_rate,
-                COUNT(CASE WHEN product_sentiment_score IS NOT NULL AND (product_sentiment_score < -5.0 OR product_sentiment_score > 5.0) THEN 1 END) as invalid_sentiment_score
-            FROM youtube_videos v
-            WHERE DATE(created_at) = %s
-        """, (target_date,))
-        yt_video_format_row = cursor.fetchone()
-        # None 값을 0으로 변환하여 합산
-        yt_video_format_issues = sum(v or 0 for v in yt_video_format_row[1:12]) if yt_video_format_row else 0
-
-        # Comments 형식 검증
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total,
-                COUNT(CASE WHEN c.video_id IS NOT NULL AND c.video_id NOT IN (SELECT video_id FROM youtube_videos) THEN 1 END) as invalid_video_id,
-                COUNT(CASE WHEN comment_type IS NOT NULL AND comment_type NOT IN ('top_level', 'reply') THEN 1 END) as invalid_comment_type,
-                COUNT(CASE WHEN parent_comment_id IS NOT NULL AND parent_comment_id != '' AND comment_type = 'top_level' THEN 1 END) as invalid_parent_comment,
-                COUNT(CASE WHEN like_count IS NOT NULL AND like_count < 0 THEN 1 END) as invalid_like_count,
-                COUNT(CASE WHEN reply_count IS NOT NULL AND reply_count < 0 THEN 1 END) as invalid_reply_count,
-                COUNT(CASE WHEN published_at IS NOT NULL AND created_at IS NOT NULL AND published_at > created_at THEN 1 END) as invalid_published_at
-            FROM youtube_comments c
-            WHERE DATE(created_at) = %s
-        """, (target_date,))
-        yt_comment_format_row = cursor.fetchone()
-        # None 값을 0으로 변환하여 합산
-        yt_comment_format_issues = sum(v or 0 for v in yt_comment_format_row[1:7]) if yt_comment_format_row else 0
-
-        # YouTube 통합 (리테일러 형태로) - 순서: Logs, Videos, Comments
-        yt_total_format_issues = yt_log_format_issues + yt_video_format_issues + yt_comment_format_issues
-
-        # 안전한 인덱스 접근 헬퍼 함수
-        def safe_get(row, idx, default=0):
-            if row is None or idx >= len(row):
-                return default
-            return row[idx] if row[idx] is not None else default
-
-        yt_total_format_checked = safe_get(yt_log_format_row, 0) + safe_get(yt_video_format_row, 0) + safe_get(yt_comment_format_row, 0)
-
-        youtube_format_retailers = [
-            {
-                'retailer': 'Logs',
-                'total': safe_get(yt_log_format_row, 0),
-                'issue_count': yt_log_format_issues,
-                'status': get_status(yt_log_format_issues),
-                'fields_detail': {
-                    'keyword 비활성': safe_get(yt_log_format_row, 1),
-                    'status 값 오류': safe_get(yt_log_format_row, 2),
-                    'videos_collected 음수': safe_get(yt_log_format_row, 3),
-                    'comments_collected 음수': safe_get(yt_log_format_row, 4)
-                }
-            },
-            {
-                'retailer': 'Videos',
-                'total': safe_get(yt_video_format_row, 0),
-                'issue_count': yt_video_format_issues,
-                'status': get_status(yt_video_format_issues),
-                'fields_detail': {
-                    'keyword 비활성': safe_get(yt_video_format_row, 1),
-                    'published_at > created_at': safe_get(yt_video_format_row, 2),
-                    'channel_url @누락': safe_get(yt_video_format_row, 3),
-                    'subscriber_count 음수': safe_get(yt_video_format_row, 4),
-                    'video_count 음수': safe_get(yt_video_format_row, 5),
-                    'view_count 음수': safe_get(yt_video_format_row, 6),
-                    'like_count 음수': safe_get(yt_video_format_row, 7),
-                    'comment_count 음수': safe_get(yt_video_format_row, 8),
-                    'category 오류': safe_get(yt_video_format_row, 9),
-                    'engagement_rate < 2.0': safe_get(yt_video_format_row, 10),
-                    'sentiment 범위 오류': safe_get(yt_video_format_row, 11)
-                }
-            },
-            {
-                'retailer': 'Comments',
-                'total': safe_get(yt_comment_format_row, 0),
-                'issue_count': yt_comment_format_issues,
-                'status': get_status(yt_comment_format_issues),
-                'fields_detail': {
-                    'video_id 참조 오류': safe_get(yt_comment_format_row, 1),
-                    'comment_type 오류': safe_get(yt_comment_format_row, 2),
-                    'parent_comment 오류': safe_get(yt_comment_format_row, 3),
-                    'like_count 음수': safe_get(yt_comment_format_row, 4),
-                    'reply_count 음수': safe_get(yt_comment_format_row, 5),
-                    'published_at > created_at': safe_get(yt_comment_format_row, 6)
-                }
-            }
+        # YouTube 형식 검증 — 규칙 테이블 기반 (Logs, Videos, Comments)
+        yt_tables = [
+            ('youtube_collection_logs', 'Logs', 'started_at'),
+            ('youtube_videos', 'Videos', 'created_at'),
+            ('youtube_comments', 'Comments', 'created_at'),
         ]
+        yt_total_format_issues = 0
+        yt_total_format_checked = 0
+        youtube_format_retailers = []
+
+        for yt_table, yt_retailer, yt_date_col in yt_tables:
+            cursor.execute(f"SELECT COUNT(*) FROM {yt_table} WHERE DATE({yt_date_col}) = %s", (target_date,))
+            yt_total = cursor.fetchone()[0] or 0
+
+            error_where = build_format_error_sql(yt_table, 'ALL', yt_retailer)
+            if error_where != 'FALSE':
+                cursor.execute(f"SELECT COUNT(*) FROM {yt_table} WHERE DATE({yt_date_col}) = %s AND ({error_where})", (target_date,))
+                yt_issues = cursor.fetchone()[0] or 0
+            else:
+                yt_issues = 0
+
+            yt_total_format_checked += yt_total
+            yt_total_format_issues += yt_issues
+            youtube_format_retailers.append({
+                'retailer': yt_retailer,
+                'total': yt_total,
+                'issue_count': yt_issues,
+                'status': get_status(yt_issues),
+            })
 
         format_validation['tables'].append({
             'table': 'youtube',
@@ -570,130 +503,37 @@ def layer_stats(request):
         })
         total_format_issues += yt_total_format_issues
 
-        # Market 형식 검증 (Trend, Comp Product, Comp Event)
+        # Market 형식 검증 — 규칙 테이블 기반 (Trend, Comp Product, Comp Event, Forecast)
         try:
-            # market_trend 형식 검증
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN keyword IS NOT NULL AND keyword != '' AND keyword NOT IN (SELECT keyword FROM market_mst WHERE analysis_type = 'trend') THEN 1 END) as invalid_keyword,
-                    COUNT(CASE WHEN total_article_number IS NOT NULL AND total_article_number < 0 THEN 1 END) as invalid_total_article_number,
-                    COUNT(CASE WHEN calendar_week IS NOT NULL AND calendar_week != '' AND calendar_week !~ '^W(0[1-9]|[1-4][0-9]|5[0-2])$' THEN 1 END) as invalid_calendar_week
-                FROM market_trend
-                WHERE DATE(crawl_at_local_time) = %s
-            """, (target_date,))
-            market_trend_format_row = cursor.fetchone()
-            market_trend_format_issues = sum(v or 0 for v in market_trend_format_row[1:4]) if market_trend_format_row else 0
-
-            # market_comp_product 형식 검증
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN samsung_series_name IS NOT NULL AND samsung_series_name != '' AND samsung_series_name NOT IN (SELECT keyword FROM market_mst WHERE analysis_type = 'competitor' AND content_type = 'samsung') THEN 1 END) as invalid_samsung_series,
-                    COUNT(CASE WHEN comp_brand IS NOT NULL AND comp_brand != '' AND comp_brand NOT IN (SELECT keyword FROM market_mst WHERE analysis_type = 'competitor' AND content_type = 'comp') THEN 1 END) as invalid_comp_brand,
-                    COUNT(CASE WHEN calender_week IS NOT NULL AND calender_week != '' AND LOWER(calender_week) !~ '^w([1-9]|[1-4][0-9]|5[0-2])$' THEN 1 END) as invalid_calender_week,
-                    COUNT(CASE WHEN category IS NOT NULL AND category != '' AND category NOT IN ('TV', 'HHP') THEN 1 END) as invalid_category
-                FROM market_comp_product
-                WHERE DATE(created_at) = %s
-            """, (target_date,))
-            market_comp_product_format_row = cursor.fetchone()
-            market_comp_product_format_issues = sum(v or 0 for v in market_comp_product_format_row[1:5]) if market_comp_product_format_row else 0
-
-            # market_comp_event 형식 검증 - 최신 배치 기준 comp_brand, comp_series_name 검증
-            cursor.execute("""
-                WITH latest_batch AS (
-                    SELECT comp_brand, comp_series_name FROM market_comp_product
-                    WHERE batch_id = (SELECT MAX(batch_id) FROM market_comp_product WHERE DATE(created_at) <= %s)
-                )
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN e.comp_brand IS NOT NULL AND e.comp_brand != '' AND e.comp_brand NOT IN (SELECT comp_brand FROM latest_batch) THEN 1 END) as invalid_comp_brand,
-                    COUNT(CASE WHEN e.comp_sku_name IS NOT NULL AND e.comp_sku_name != '' AND e.comp_sku_name NOT IN (SELECT comp_series_name FROM latest_batch) THEN 1 END) as invalid_comp_sku_name,
-                    COUNT(CASE WHEN e.calender_week IS NOT NULL AND e.calender_week != '' AND LOWER(e.calender_week) !~ '^w([1-9]|[1-4][0-9]|5[0-2])$' THEN 1 END) as invalid_calender_week,
-                    COUNT(CASE WHEN e.category IS NOT NULL AND e.category != '' AND e.category NOT IN ('TV', 'HHP') THEN 1 END) as invalid_category
-                FROM market_comp_event e
-                WHERE DATE(e.created_at) = %s
-            """, (target_date, target_date))
-            market_comp_event_format_row = cursor.fetchone()
-            market_comp_event_format_issues = sum(v or 0 for v in market_comp_event_format_row[1:5]) if market_comp_event_format_row else 0
-
-            # openai_forecast_results 형식 검증
-            cursor.execute("""
-                SELECT
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN product_name IS NOT NULL AND product_name != '' AND product_name NOT IN (SELECT product_name FROM openai_keywords WHERE is_active = true) THEN 1 END) as invalid_product_name,
-                    COUNT(CASE WHEN event IS NOT NULL AND event != '' AND REPLACE(LOWER(event), ' ', '_') NOT IN (SELECT LOWER(REPLACE(event_name, ' ', '_')) FROM openai_event_mst WHERE is_active = true) THEN 1 END) as invalid_event,
-                    COUNT(CASE WHEN metric_type IS NOT NULL AND metric_type != '' AND metric_type != 'Forecasted_NA_sales_change' THEN 1 END) as invalid_metric_type,
-                    COUNT(CASE WHEN event_offset IS NOT NULL AND (event_offset < 0 OR event_offset > 9) THEN 1 END) as invalid_event_offset,
-                    COUNT(CASE WHEN event_value IS NOT NULL AND event_value::text !~ '^-?[0-9]+\.?[0-9]*$' THEN 1 END) as invalid_event_value_format,
-                    COUNT(CASE WHEN event_value IS NOT NULL AND (event_value < -50 OR event_value > 100) THEN 1 END) as invalid_event_value_range,
-                    COUNT(CASE WHEN week IS NOT NULL AND week != '' AND week !~ '^w[0-9]{1,2}$' THEN 1 END) as invalid_week,
-                    COUNT(CASE WHEN crawled_at IS NOT NULL AND crawled_at::text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN 1 END) as invalid_crawled_at
-                FROM openai_forecast_results
-                WHERE DATE(crawled_at) = %s
-            """, (target_date,))
-            forecast_format_row = cursor.fetchone()
-            forecast_format_issues = sum(v or 0 for v in forecast_format_row[1:9]) if forecast_format_row else 0
-
-            market_total_format_checked = (market_trend_format_row[0] if market_trend_format_row else 0) + \
-                                           (market_comp_product_format_row[0] if market_comp_product_format_row else 0) + \
-                                           (market_comp_event_format_row[0] if market_comp_event_format_row else 0) + \
-                                           (forecast_format_row[0] if forecast_format_row else 0)
-            market_total_format_issues = market_trend_format_issues + market_comp_product_format_issues + market_comp_event_format_issues + forecast_format_issues
-
-            market_format_retailers = [
-                {
-                    'retailer': 'Trend',
-                    'total': market_trend_format_row[0] if market_trend_format_row else 0,
-                    'issue_count': market_trend_format_issues,
-                    'status': get_status(market_trend_format_issues),
-                    'fields_detail': {
-                        'keyword 미등록': market_trend_format_row[1] if market_trend_format_row else 0,
-                        'total_article_number 음수': market_trend_format_row[2] if market_trend_format_row else 0,
-                        'calendar_week 형식 오류': market_trend_format_row[3] if market_trend_format_row else 0
-                    }
-                },
-                {
-                    'retailer': 'Comp Product',
-                    'total': market_comp_product_format_row[0] if market_comp_product_format_row else 0,
-                    'issue_count': market_comp_product_format_issues,
-                    'status': get_status(market_comp_product_format_issues),
-                    'fields_detail': {
-                        'samsung_series_name 미등록': market_comp_product_format_row[1] if market_comp_product_format_row else 0,
-                        'comp_brand 미등록': market_comp_product_format_row[2] if market_comp_product_format_row else 0,
-                        'calender_week 형식 오류': market_comp_product_format_row[3] if market_comp_product_format_row else 0,
-                        'category 값 오류': market_comp_product_format_row[4] if market_comp_product_format_row else 0
-                    }
-                },
-                {
-                    'retailer': 'Comp Event',
-                    'total': market_comp_event_format_row[0] if market_comp_event_format_row else 0,
-                    'issue_count': market_comp_event_format_issues,
-                    'status': get_status(market_comp_event_format_issues),
-                    'fields_detail': {
-                        'comp_brand 미등록': market_comp_event_format_row[1] if market_comp_event_format_row else 0,
-                        'comp_sku_name 미등록': market_comp_event_format_row[2] if market_comp_event_format_row else 0,
-                        'calender_week 형식 오류': market_comp_event_format_row[3] if market_comp_event_format_row else 0,
-                        'category 값 오류': market_comp_event_format_row[4] if market_comp_event_format_row else 0
-                    }
-                },
-                {
-                    'retailer': 'Forecast',
-                    'total': forecast_format_row[0] if forecast_format_row else 0,
-                    'issue_count': forecast_format_issues,
-                    'status': get_status(forecast_format_issues),
-                    'fields_detail': {
-                        'product_name 미등록': forecast_format_row[1] if forecast_format_row else 0,
-                        'event 미등록': forecast_format_row[2] if forecast_format_row else 0,
-                        'metric_type 값 오류': forecast_format_row[3] if forecast_format_row else 0,
-                        'event_offset 범위 오류 (0~9)': forecast_format_row[4] if forecast_format_row else 0,
-                        'event_value 형식 오류': forecast_format_row[5] if forecast_format_row else 0,
-                        'event_value 범위 오류 (-50~100%)': forecast_format_row[6] if forecast_format_row else 0,
-                        'week 형식 오류': forecast_format_row[7] if forecast_format_row else 0,
-                        'crawled_at 형식 오류': forecast_format_row[8] if forecast_format_row else 0
-                    }
-                }
+            market_tables = [
+                ('market_trend', 'Trend', 'crawl_at_local_time'),
+                ('market_comp_product', 'Comp Product', 'created_at'),
+                ('market_comp_event', 'Comp Event', 'created_at'),
+                ('openai_forecast_results', 'Forecast', 'crawled_at'),
             ]
+            market_total_format_issues = 0
+            market_total_format_checked = 0
+            market_format_retailers = []
+
+            for mkt_table, mkt_retailer, mkt_date_col in market_tables:
+                cursor.execute(f"SELECT COUNT(*) FROM {mkt_table} WHERE DATE({mkt_date_col}) = %s", (target_date,))
+                mkt_total = cursor.fetchone()[0] or 0
+
+                error_where = build_format_error_sql(mkt_table, 'ALL', mkt_retailer)
+                if error_where != 'FALSE':
+                    cursor.execute(f"SELECT COUNT(*) FROM {mkt_table} WHERE DATE({mkt_date_col}) = %s AND ({error_where})", (target_date,))
+                    mkt_issues = cursor.fetchone()[0] or 0
+                else:
+                    mkt_issues = 0
+
+                market_total_format_checked += mkt_total
+                market_total_format_issues += mkt_issues
+                market_format_retailers.append({
+                    'retailer': mkt_retailer,
+                    'total': mkt_total,
+                    'issue_count': mkt_issues,
+                    'status': get_status(mkt_issues),
+                })
 
             format_validation['tables'].append({
                 'table': 'market',
@@ -999,6 +839,10 @@ def null_detail(request):
     if category not in get_all_categories():
         return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
     retailer = request.GET.get('retailer')
+    try:
+        days = max(1, int(request.GET.get('days', 1)))
+    except (ValueError, TypeError):
+        days = 1
 
     next_date = target_date + timedelta(days=1)
 
@@ -1100,8 +944,47 @@ def null_detail(request):
         cursor.execute(query, params)
         rows = cursor.fetchall()
 
+        # retail + days > 1: 오류 item 추출 후 N일치 확장 조회
+        if category in retail_categories and days > 1 and rows:
+            item_idx = select_cols.index('item') if 'item' in select_cols else None
+            if item_idx is not None:
+                error_items = list(set(r[item_idx] for r in rows if r[item_idx]))
+                if error_items:
+                    start_date = target_date - timedelta(days=days - 1)
+                    placeholders = ', '.join(['%s'] * len(error_items))
+                    expand_query = f"""
+                        SELECT {', '.join(select_cols)}
+                        FROM {actual_table}
+                        WHERE {date_col}::timestamp >= %s AND {date_col}::timestamp < %s
+                          AND account_name = %s
+                          AND item IN ({placeholders})
+                        ORDER BY item, {date_col}
+                    """
+                    expand_params = [str(start_date), str(next_date), retailer] + error_items
+                    cursor.execute(expand_query, expand_params)
+                    rows = cursor.fetchall()
+
         # 컬럼 인덱스 매핑
         col_index = {col: idx for idx, col in enumerate(select_cols)}
+
+        # 정상 처리(normal) 건 조회
+        normal_set = set()
+        normal_reviews = {}
+        cursor.execute("""
+            SELECT record_id, column_name, memo, created_id, created_at, reason
+            FROM monitoring_corrections
+            WHERE table_name = %s AND crawl_date = %s
+              AND correction_type = 'null_check' AND status = 'normal'
+        """, (actual_table, str(target_date)))
+        for nr_row in cursor.fetchall():
+            nr_key = (nr_row[0], nr_row[1])
+            normal_set.add(nr_key)
+            normal_reviews[f"{nr_row[0]}_{nr_row[1]}"] = {
+                'memo': nr_row[2],
+                'created_id': nr_row[3],
+                'created_at': nr_row[4].strftime('%Y-%m-%d %H:%M:%S') if nr_row[4] else None,
+                'reason': nr_row[5]
+            }
 
         results = []
         for row in rows:
@@ -1115,9 +998,12 @@ def null_detail(request):
                     else:
                         record_data[col_name] = val
 
-            # null_fields 계산
+            # null_fields 계산 (정상 처리 건 제외)
+            record_id = record_data.get('id')
             null_fields = []
             for col_name in all_null_check_cols:
+                if record_id and (record_id, col_name) in normal_set:
+                    continue
                 idx = col_index.get(col_name)
                 if idx is not None:
                     val = row[idx]
@@ -1147,12 +1033,25 @@ def null_detail(request):
             if query_cols:
                 query_config[null_col] = query_cols
 
+        # 리테일러 전체 수집항목 컬럼 (컬럼 선택 드롭다운용) + 수정 가능 컬럼
+        all_retail_cols = []
+        editable_cols = []
+        if category in retail_categories and retailer:
+            product_line = 'tv' if category == 'tv_retail' else 'hhp'
+            retail_cols_data = load_retail_columns()
+            all_retail_cols = retail_cols_data.get(product_line, {}).get(retailer, [])
+            editable_cols = get_editable_columns(product_line, retailer)
+
         cursor.close()
         conn.close()
         return JsonResponse({
             'results': results,
+            'select_cols': all_retail_cols,
+            'editable_cols': editable_cols,
+            'actual_table': actual_table,
             'display_config': display_config,
             'query_config': query_config,
+            'normal_reviews': normal_reviews,
             'date_column': date_col,
             'date': str(target_date)
         })
@@ -1170,42 +1069,23 @@ def format_detail(request):
     if table not in VALID_TABLES_FORMAT:
         return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
     retailer = request.GET.get('retailer')
+    try:
+        days = max(1, int(request.GET.get('days', 1)))
+    except (ValueError, TypeError):
+        days = 1
 
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
 
         results = []
+        select_cols = []
+        column_names = []
         next_date = target_date + timedelta(days=1)
 
-        # TV Retail 형식 오류 상세 조회 - validate_tv_field 함수 사용 (layer_stats와 동일)
+        # TV Retail 형식 오류 상세 조회 - SQL 조건으로 오류 행 직접 필터링
         if table == 'tv_retail':
-            # layer_stats와 동일한 쿼리로 모든 필드 조회
-            query = """
-                SELECT
-                    id, crawl_datetime, account_name, item, page_type, product_url,
-                    main_rank, bsr_rank, final_sku_price, original_sku_price,
-                    count_of_reviews, star_rating, count_of_star_ratings,
-                    detailed_review_content,
-                    number_of_units_purchased_past_month, available_quantity_for_purchase,
-                    sku_popularity, retailer_membership_discounts,
-                    rank_1, rank_2, summarized_review_content,
-                    savings, offer, retailer_sku_name_similar, recommendation_intent,
-                    number_of_ppl_purchased_yesterday, number_of_ppl_added_to_carts, discount_type
-                FROM tv_retail_com
-                WHERE crawl_datetime::timestamp >= %s AND crawl_datetime::timestamp < %s
-            """
-            params = [str(target_date), str(next_date)]
-
-            if retailer:
-                query += " AND account_name = %s"
-                params.append(retailer)
-
-            query += " ORDER BY account_name, crawl_datetime LIMIT 500"
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
-
-            # 전체 필드 목록 (layer_stats와 동일)
+            select_cols = ['id', 'item', 'crawl_datetime', 'product_url']
             all_fields = [
                 'item', 'page_type', 'product_url', 'main_rank', 'bsr_rank',
                 'final_sku_price', 'original_sku_price',
@@ -1217,69 +1097,62 @@ def format_detail(request):
                 'savings', 'offer', 'retailer_sku_name_similar', 'recommendation_intent',
                 'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts', 'discount_type'
             ]
+            column_names = ['id', 'crawl_datetime'] + all_fields
 
-            for row in rows:
-                errors = []
-                record_id = row[0]
-                crawl_dt = row[1]
-                account_name = row[2]
-                item = row[3]
-                product_url = row[5]
+            # 형식 규칙 → SQL WHERE 조건 변환
+            error_where = build_format_error_sql('tv_retail_com', 'TV', retailer)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"[format_detail] TV error_where SQL: {error_where[:2000]}")
 
-                # row[3]부터 시작 (row[0]=id, row[1]=crawl_datetime, row[2]=account_name)
-                values = list(row[3:])
-
-                for field, value in zip(all_fields, values):
-                    error = validate_tv_field(field, value, account_name)
-                    if error:
-                        errors.append({
-                            'field': field,
-                            'value': str(value)[:50] if value else '',
-                            'rule': error.split(':')[0] if ':' in error else error,
-                            'reason': error.split(':')[1].strip() if ':' in error else error
-                        })
-
-                if errors:
-                    results.append({
-                        'id': record_id,
-                        'item': item,
-                        'crawl_datetime': str(crawl_dt) if crawl_dt else None,
-                        'product_url': product_url,
-                        'errors': errors
-                    })
-
-        # HHP Retail 형식 오류 상세 조회 - validate_hhp_field 함수 사용 (layer_stats와 동일)
-        elif table == 'hhp_retail':
-            # hhp_item_mst에서 유효한 item 목록 조회 (참조 무결성 검증용)
-            cursor.execute("SELECT DISTINCT item FROM hhp_item_mst")
-            hhp_valid_items = set(row[0] for row in cursor.fetchall())
-
-            # layer_stats와 동일한 쿼리로 모든 필드 조회
-            query = """
+            query = f"""
                 SELECT
-                    id, crawl_strdatetime, account_name, item, page_type, product_url,
-                    main_rank, bsr_rank, trend_rank, final_sku_price, original_sku_price,
-                    count_of_reviews, star_rating, count_of_star_ratings,
-                    detailed_review_content, trade_in, sku_status,
-                    number_of_units_purchased_past_month, available_quantity_for_purchase,
-                    sku_popularity, retailer_membership_discounts,
-                    rank_1, rank_2, summarized_review_content,
-                    savings, offer, retailer_sku_name_similar, recommendation_intent,
-                    number_of_ppl_purchased_yesterday, number_of_ppl_added_to_carts, discount_type
-                FROM hhp_retail_com
-                WHERE crawl_strdatetime::timestamp >= %s AND crawl_strdatetime::timestamp < %s
+                    id, crawl_datetime, account_name, {', '.join(all_fields)}
+                FROM tv_retail_com
+                WHERE crawl_datetime::timestamp >= %s AND crawl_datetime::timestamp < %s
             """
             params = [str(target_date), str(next_date)]
-
             if retailer:
                 query += " AND account_name = %s"
                 params.append(retailer)
+            query += f" AND ({error_where})"
+            query += " ORDER BY account_name, crawl_datetime"
 
-            query += " ORDER BY account_name, crawl_strdatetime LIMIT 500"
+            logger.warning(f"[format_detail] TV full query: {query[:3000]}")
             cursor.execute(query, params)
-            rows = cursor.fetchall()
+            for row in cursor.fetchall():
+                record_id = row[0]
+                crawl_dt = row[1]
+                account_name = row[2]
+                values = list(row[3:])
 
-            # HHP 전용 필드 목록 (layer_stats와 동일 - trend_rank, trade_in, sku_status 포함)
+                record = {'id': record_id, 'crawl_datetime': str(crawl_dt) if crawl_dt else None}
+                for field, value in zip(all_fields, values):
+                    record[field] = str(value) if value is not None else None
+
+                # 오류 행 내 개별 필드 오류 식별 (Python 검증, 소수 행만 대상)
+                error_fields = []
+                error_details = {}
+                for field, value in zip(all_fields, values):
+                    error = validate_tv_field(field, value, account_name)
+                    if error:
+                        error_fields.append(field)
+                        error_details[field] = {
+                            'rule': error.split(':')[0] if ':' in error else error,
+                            'reason': error.split(':')[1].strip() if ':' in error else error
+                        }
+
+                if error_fields:
+                    record['error_fields'] = error_fields
+                    record['error_details'] = error_details
+                    results.append(record)
+
+        # HHP Retail 형식 오류 상세 조회 - SQL 조건으로 오류 행 직접 필터링
+        elif table == 'hhp_retail':
+            select_cols = ['id', 'item', 'crawl_datetime', 'product_url']
+            cursor.execute("SELECT DISTINCT item FROM hhp_item_mst")
+            hhp_valid_items = set(row[0] for row in cursor.fetchall())
+
             hhp_fields = [
                 'item', 'page_type', 'product_url', 'main_rank', 'bsr_rank', 'trend_rank',
                 'final_sku_price', 'original_sku_price',
@@ -1291,603 +1164,413 @@ def format_detail(request):
                 'savings', 'offer', 'retailer_sku_name_similar', 'recommendation_intent',
                 'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts', 'discount_type'
             ]
+            column_names = ['id', 'crawl_datetime'] + hhp_fields
 
-            for row in rows:
-                errors = []
+            # 형식 규칙 → SQL WHERE 조건 변환 + item 참조 무결성 체크
+            error_where = build_format_error_sql('hhp_retail_com', 'HHP', retailer)
+            item_check = "item IS NOT NULL AND TRIM(item::text) != '' AND item NOT IN (SELECT DISTINCT item FROM hhp_item_mst)"
+            full_error_where = f"({error_where}) OR ({item_check})"
+
+            query = f"""
+                SELECT
+                    id, crawl_strdatetime, account_name, {', '.join(hhp_fields)}
+                FROM hhp_retail_com
+                WHERE crawl_strdatetime::timestamp >= %s AND crawl_strdatetime::timestamp < %s
+            """
+            params = [str(target_date), str(next_date)]
+            if retailer:
+                query += " AND account_name = %s"
+                params.append(retailer)
+            query += f" AND ({full_error_where})"
+            query += " ORDER BY account_name, crawl_strdatetime"
+
+            cursor.execute(query, params)
+            for row in cursor.fetchall():
                 record_id = row[0]
                 crawl_dt = row[1]
                 account_name = row[2]
-                item = row[3]
-                product_url = row[5]
-
-                # row[3]부터 시작 (row[0]=id, row[1]=crawl_strdatetime, row[2]=account_name)
                 values = list(row[3:])
 
+                record = {'id': record_id, 'crawl_datetime': str(crawl_dt) if crawl_dt else None}
+                for field, value in zip(hhp_fields, values):
+                    record[field] = str(value) if value is not None else None
+
+                # 오류 행 내 개별 필드 오류 식별 (Python 검증, 소수 행만 대상)
+                error_fields = []
+                error_details = {}
                 for field, value in zip(hhp_fields, values):
                     error = validate_hhp_field(field, value, account_name)
                     if error:
-                        errors.append({
-                            'field': field,
-                            'value': str(value)[:50] if value else '',
+                        error_fields.append(field)
+                        error_details[field] = {
                             'rule': error.split(':')[0] if ':' in error else error,
                             'reason': error.split(':')[1].strip() if ':' in error else error
-                        })
+                        }
 
-                # 참조 무결성 검증: item이 hhp_item_mst에 존재하는지 (layer_stats와 동일)
+                item = values[0]  # hhp_fields[0] = 'item'
                 if item and item not in hhp_valid_items:
-                    errors.append({
-                        'field': 'item (참조 무결성)',
-                        'value': str(item)[:50] if item else '',
+                    error_fields.append('item')
+                    error_details['item'] = {
                         'rule': '참조 무결성',
                         'reason': '마스터 테이블에 등록되지 않은 item'
-                    })
+                    }
 
-                if errors:
-                    results.append({
-                        'id': record_id,
-                        'item': item,
-                        'crawl_datetime': str(crawl_dt) if crawl_dt else None,
-                        'product_url': product_url,
-                        'errors': errors
-                    })
+                if error_fields:
+                    record['error_fields'] = error_fields
+                    record['error_details'] = error_details
+                    results.append(record)
 
-        # YouTube 테이블 형식 오류 상세 조회
+        # YouTube 형식 오류 상세 조회 — 규칙 테이블 기반
         elif table == 'youtube_logs' or (table == 'youtube' and retailer == 'Logs'):
-            # 먼저 active 키워드 목록 조회
-            cursor.execute("SELECT keyword FROM youtube_keywords WHERE status = 'active'")
-            active_keywords = set(row[0] for row in cursor.fetchall())
+            db_table = 'youtube_collection_logs'
+            account_name = 'Logs'
+            date_col = 'started_at'
+            all_fields = ['keyword', 'status', 'videos_collected', 'comments_collected', 'started_at']
+            column_names = ['id'] + all_fields
 
-            # 형식 오류가 있는 로그 조회
-            cursor.execute("""
-                SELECT l.id, l.keyword, l.status, l.videos_collected, l.comments_collected, l.started_at
-                FROM youtube_collection_logs l
-                WHERE DATE(l.started_at) = %s
-                  AND (
-                      (l.keyword IS NOT NULL AND l.keyword NOT IN (SELECT keyword FROM youtube_keywords WHERE status = 'active'))
-                      OR (l.status IS NOT NULL AND l.status NOT IN ('failed', 'completed'))
-                      OR (l.videos_collected IS NOT NULL AND l.videos_collected < 0)
-                      OR (l.comments_collected IS NOT NULL AND l.comments_collected < 0)
-                  )
-                ORDER BY l.started_at DESC
-                LIMIT 50
-            """, (target_date,))
-            rows = cursor.fetchall()
-            for row in rows:
-                errors = []
-                # keyword가 active 키워드 목록에 없으면 오류
-                if row[1] and row[1] not in active_keywords:
-                    errors.append({
-                        'field': 'keyword',
-                        'value': str(row[1])[:50],
-                        'rule': 'active 키워드만 허용',
-                        'reason': '비활성 키워드 사용'
-                    })
-                if row[2] and row[2] not in ('failed', 'completed'):
-                    errors.append({
-                        'field': 'status',
-                        'value': str(row[2]),
-                        'rule': 'failed 또는 completed',
-                        'reason': f'허용되지 않은 값: {row[2]}'
-                    })
-                if row[3] is not None and row[3] < 0:
-                    errors.append({
-                        'field': 'videos_collected',
-                        'value': str(row[3]),
-                        'rule': '0 이상',
-                        'reason': '음수값'
-                    })
-                if row[4] is not None and row[4] < 0:
-                    errors.append({
-                        'field': 'comments_collected',
-                        'value': str(row[4]),
-                        'rule': '0 이상',
-                        'reason': '음수값'
-                    })
-                # 오류가 있을 때만 결과에 추가
-                if errors:
-                    results.append({
-                        'id': row[0],
-                        'keyword': row[1],
-                        'status': row[2],
-                        'videos_collected': row[3],
-                        'comments_collected': row[4],
-                        'started_at': str(row[5]) if row[5] else None,
-                        'errors': errors
-                    })
+            error_where = build_format_error_sql(db_table, 'ALL', account_name)
+            field_checks = build_per_field_error_sql(db_table, 'ALL', account_name)
+
+            if error_where != 'FALSE':
+                case_cols = [f"CASE WHEN {fc['cond']} THEN 1 ELSE 0 END" for fc in field_checks]
+                select_parts = 'id, ' + ', '.join(all_fields + case_cols) if case_cols else 'id, ' + ', '.join(all_fields)
+
+                cursor.execute(f"""
+                    SELECT {select_parts}
+                    FROM {db_table}
+                    WHERE DATE({date_col}) = %s AND ({error_where})
+                    ORDER BY {date_col} DESC
+                """, (target_date,))
+                for row in cursor.fetchall():
+                    record = {'id': row[0]}
+                    values = list(row[1:len(all_fields)+1])
+                    err_flags = list(row[len(all_fields)+1:])
+
+                    for field, value in zip(all_fields, values):
+                        record[field] = str(value) if value is not None else None
+
+                    error_fields = []
+                    error_details = {}
+                    for i, fc in enumerate(field_checks):
+                        if i < len(err_flags) and err_flags[i] == 1:
+                            error_fields.append(fc['field'])
+                            error_details[fc['field']] = {
+                                'rule': fc['field'],
+                                'reason': fc['error'] or f"{fc['field']} 형식 오류"
+                            }
+
+                    record['error_fields'] = error_fields
+                    record['error_details'] = error_details
+                    results.append(record)
 
         elif table == 'youtube_videos' or (table == 'youtube' and retailer == 'Videos'):
-            # youtube_videos 테이블은 id 컬럼이 없고 video_id가 PK
-            cursor.execute("""
-                SELECT v.video_id, v.keyword, v.channel_custom_url, v.category,
-                       v.engagement_rate, v.product_sentiment_score, v.published_at, v.created_at,
-                       v.channel_subscriber_count, v.channel_video_count, v.view_count, v.like_count, v.comment_count
-                FROM youtube_videos v
-                WHERE DATE(v.created_at) = %s
-                  AND (
-                      (v.keyword IS NOT NULL AND v.keyword NOT IN (SELECT keyword FROM youtube_keywords WHERE status = 'active'))
-                      OR (v.published_at IS NOT NULL AND v.created_at IS NOT NULL AND v.published_at > v.created_at)
-                      OR (v.channel_custom_url IS NOT NULL AND v.channel_custom_url != '' AND LEFT(v.channel_custom_url, 1) != '@')
-                      OR (v.category IS NOT NULL AND v.category NOT IN ('TV', 'HHP'))
-                      OR (v.engagement_rate IS NOT NULL AND v.engagement_rate < 2.0)
-                      OR (v.product_sentiment_score IS NOT NULL AND (v.product_sentiment_score < -5.0 OR v.product_sentiment_score > 5.0))
-                      OR (v.channel_subscriber_count IS NOT NULL AND v.channel_subscriber_count < 0)
-                      OR (v.channel_video_count IS NOT NULL AND v.channel_video_count < 0)
-                      OR (v.view_count IS NOT NULL AND v.view_count < 0)
-                      OR (v.like_count IS NOT NULL AND v.like_count < 0)
-                      OR (v.comment_count IS NOT NULL AND v.comment_count < 0)
-                  )
-                ORDER BY v.created_at DESC
-                LIMIT 50
-            """, (target_date,))
-            rows = cursor.fetchall()
-            # row[0]=video_id, row[1]=keyword, row[2]=channel_custom_url, row[3]=category,
-            # row[4]=engagement_rate, row[5]=product_sentiment_score, row[6]=published_at, row[7]=created_at,
-            # row[8]=channel_subscriber_count, row[9]=channel_video_count, row[10]=view_count, row[11]=like_count, row[12]=comment_count
-            for row in rows:
-                errors = []
-                if row[2] and not row[2].startswith('@'):
-                    errors.append({
-                        'field': 'channel_custom_url',
-                        'value': str(row[2])[:50],
-                        'rule': '@로 시작',
-                        'reason': '@ 누락'
-                    })
-                if row[3] and row[3] not in ('TV', 'HHP'):
-                    errors.append({
-                        'field': 'category',
-                        'value': str(row[3]),
-                        'rule': 'TV 또는 HHP',
-                        'reason': f'허용되지 않은 값: {row[3]}'
-                    })
-                if row[4] is not None and row[4] < 2.0:
-                    errors.append({
-                        'field': 'engagement_rate',
-                        'value': str(row[4]),
-                        'rule': '2.0 이상',
-                        'reason': '기준치 미달'
-                    })
-                if row[5] is not None and (row[5] < -5.0 or row[5] > 5.0):
-                    errors.append({
-                        'field': 'product_sentiment_score',
-                        'value': str(row[5]),
-                        'rule': '-5.0 ~ 5.0 범위',
-                        'reason': '범위 초과'
-                    })
-                if row[6] and row[7] and row[6] > row[7]:
-                    errors.append({
-                        'field': 'published_at',
-                        'value': str(row[6])[:19],
-                        'rule': 'published_at <= created_at',
-                        'reason': '수집일보다 미래의 발행일'
-                    })
-                # 음수 검사 (요약 쿼리와 동일)
-                if row[8] is not None and row[8] < 0:
-                    errors.append({
-                        'field': 'channel_subscriber_count',
-                        'value': str(row[8]),
-                        'rule': '0 이상',
-                        'reason': '음수값'
-                    })
-                if row[9] is not None and row[9] < 0:
-                    errors.append({
-                        'field': 'channel_video_count',
-                        'value': str(row[9]),
-                        'rule': '0 이상',
-                        'reason': '음수값'
-                    })
-                if row[10] is not None and row[10] < 0:
-                    errors.append({
-                        'field': 'view_count',
-                        'value': str(row[10]),
-                        'rule': '0 이상',
-                        'reason': '음수값'
-                    })
-                if row[11] is not None and row[11] < 0:
-                    errors.append({
-                        'field': 'like_count',
-                        'value': str(row[11]),
-                        'rule': '0 이상',
-                        'reason': '음수값'
-                    })
-                if row[12] is not None and row[12] < 0:
-                    errors.append({
-                        'field': 'comment_count',
-                        'value': str(row[12]),
-                        'rule': '0 이상',
-                        'reason': '음수값'
-                    })
-                if errors:
-                    results.append({
-                        'id': row[0],  # video_id를 id로 사용
-                        'video_id': row[0],
-                        'keyword': row[1],
-                        'channel_custom_url': row[2],
-                        'category': row[3],
-                        'engagement_rate': float(row[4]) if row[4] else None,
-                        'product_sentiment_score': float(row[5]) if row[5] else None,
-                        'errors': errors
-                    })
+            db_table = 'youtube_videos'
+            account_name = 'Videos'
+            date_col = 'created_at'
+            all_fields = ['video_id', 'keyword', 'channel_custom_url', 'category',
+                          'engagement_rate', 'product_sentiment_score', 'published_at', 'created_at',
+                          'channel_subscriber_count', 'channel_video_count', 'view_count', 'like_count', 'comment_count']
+            column_names = ['id'] + all_fields
+
+            error_where = build_format_error_sql(db_table, 'ALL', account_name)
+            field_checks = build_per_field_error_sql(db_table, 'ALL', account_name)
+
+            if error_where != 'FALSE':
+                case_cols = [f"CASE WHEN {fc['cond']} THEN 1 ELSE 0 END" for fc in field_checks]
+                select_parts = ', '.join(all_fields + case_cols) if case_cols else ', '.join(all_fields)
+
+                cursor.execute(f"""
+                    SELECT {select_parts}
+                    FROM {db_table}
+                    WHERE DATE({date_col}) = %s AND ({error_where})
+                    ORDER BY {date_col} DESC
+                """, (target_date,))
+                for row in cursor.fetchall():
+                    values = list(row[:len(all_fields)])
+                    err_flags = list(row[len(all_fields):])
+
+                    record = {'id': values[0]}  # video_id as id
+                    for field, value in zip(all_fields, values):
+                        if field in ('engagement_rate', 'product_sentiment_score'):
+                            record[field] = float(value) if value is not None else None
+                        elif field in ('published_at', 'created_at'):
+                            record[field] = str(value)[:19] if value else None
+                        else:
+                            record[field] = str(value) if value is not None else None
+
+                    error_fields = []
+                    error_details = {}
+                    for i, fc in enumerate(field_checks):
+                        if i < len(err_flags) and err_flags[i] == 1:
+                            error_fields.append(fc['field'])
+                            error_details[fc['field']] = {
+                                'rule': fc['field'],
+                                'reason': fc['error'] or f"{fc['field']} 형식 오류"
+                            }
+
+                    record['error_fields'] = error_fields
+                    record['error_details'] = error_details
+                    results.append(record)
 
         elif table == 'youtube_comments' or (table == 'youtube' and retailer == 'Comments'):
-            # 각 레코드별 오류 검증 플래그를 SQL에서 직접 계산
+            db_table = 'youtube_comments'
+            account_name = 'Comments'
+            date_col = 'created_at'
+            all_fields = ['video_id', 'comment_type', 'parent_comment_id', 'like_count', 'reply_count', 'published_at', 'created_at']
+            column_names = ['id'] + all_fields
+
+            error_where = build_format_error_sql(db_table, 'ALL', account_name)
+            field_checks = build_per_field_error_sql(db_table, 'ALL', account_name)
+
+            if error_where != 'FALSE':
+                case_cols = [f"CASE WHEN {fc['cond']} THEN 1 ELSE 0 END" for fc in field_checks]
+                select_parts = 'comment_id, ' + ', '.join(all_fields + case_cols) if case_cols else 'comment_id, ' + ', '.join(all_fields)
+
+                cursor.execute(f"""
+                    SELECT {select_parts}
+                    FROM {db_table}
+                    WHERE DATE({date_col}) = %s AND ({error_where})
+                    ORDER BY comment_id DESC
+                """, (target_date,))
+                for row in cursor.fetchall():
+                    record = {'id': row[0]}
+                    values = list(row[1:len(all_fields)+1])
+                    err_flags = list(row[len(all_fields)+1:])
+
+                    for field, value in zip(all_fields, values):
+                        if field in ('published_at', 'created_at'):
+                            record[field] = str(value)[:19] if value else None
+                        else:
+                            record[field] = str(value) if value is not None else None
+
+                    error_fields = []
+                    error_details = {}
+                    for i, fc in enumerate(field_checks):
+                        if i < len(err_flags) and err_flags[i] == 1:
+                            error_fields.append(fc['field'])
+                            error_details[fc['field']] = {
+                                'rule': fc['field'],
+                                'reason': fc['error'] or f"{fc['field']} 형식 오류"
+                            }
+
+                    record['error_fields'] = error_fields
+                    record['error_details'] = error_details
+                    results.append(record)
+
+        # Market 형식 오류 상세 조회 — 규칙 테이블 기반
+        elif table == 'market' and retailer in ('Trend', 'Comp Product', 'Comp Event', 'Forecast'):
+            market_config = {
+                'Trend': ('market_trend', 'crawl_at_local_time', ['keyword', 'total_article_number', 'calendar_week', 'crawl_at_local_time']),
+                'Comp Product': ('market_comp_product', 'created_at', ['samsung_series_name', 'comp_brand', 'calender_week', 'category', 'created_at']),
+                'Comp Event': ('market_comp_event', 'created_at', ['comp_brand', 'comp_sku_name', 'calender_week', 'category', 'created_at']),
+                'Forecast': ('openai_forecast_results', 'crawled_at', ['product_name', 'event', 'metric_type', 'event_offset', 'event_value', 'week', 'crawled_at']),
+            }
+            db_table, date_col, all_fields = market_config[retailer]
+            account_name = retailer
+            column_names = ['id'] + all_fields
+
+            error_where = build_format_error_sql(db_table, 'ALL', account_name)
+            field_checks = build_per_field_error_sql(db_table, 'ALL', account_name)
+
+            if error_where != 'FALSE':
+                case_cols = [f"CASE WHEN {fc['cond']} THEN 1 ELSE 0 END" for fc in field_checks]
+                select_parts = 'id, ' + ', '.join(all_fields + case_cols) if case_cols else 'id, ' + ', '.join(all_fields)
+
+                cursor.execute(f"""
+                    SELECT {select_parts}
+                    FROM {db_table}
+                    WHERE DATE({date_col}) = %s AND ({error_where})
+                    ORDER BY {date_col} DESC
+                """, (target_date,))
+                for row in cursor.fetchall():
+                    record = {'id': row[0]}
+                    values = list(row[1:len(all_fields)+1])
+                    err_flags = list(row[len(all_fields)+1:])
+
+                    for field, value in zip(all_fields, values):
+                        record[field] = str(value) if value is not None else None
+
+                    error_fields = []
+                    error_details = {}
+                    for i, fc in enumerate(field_checks):
+                        if i < len(err_flags) and err_flags[i] == 1:
+                            error_fields.append(fc['field'])
+                            error_details[fc['field']] = {
+                                'rule': fc['field'],
+                                'reason': fc['error'] or f"{fc['field']} 형식 오류"
+                            }
+
+                    record['error_fields'] = error_fields
+                    record['error_details'] = error_details
+                    results.append(record)
+
+        # retail + days > 1: 오류 item으로 N일치 확장 재조회
+        if days > 1 and table in ('tv_retail', 'hhp_retail') and results:
+            error_items = list(set(r['item'] for r in results if r.get('item')))
+            if error_items:
+                start_date = target_date - timedelta(days=days - 1)
+                placeholders = ', '.join(['%s'] * len(error_items))
+                results = []
+
+                if table == 'tv_retail':
+                    query = f"""
+                        SELECT
+                            id, crawl_datetime, account_name, item, page_type, product_url,
+                            main_rank, bsr_rank, final_sku_price, original_sku_price,
+                            count_of_reviews, star_rating, count_of_star_ratings,
+                            detailed_review_content,
+                            number_of_units_purchased_past_month, available_quantity_for_purchase,
+                            sku_popularity, retailer_membership_discounts,
+                            rank_1, rank_2, summarized_review_content,
+                            savings, offer, retailer_sku_name_similar, recommendation_intent,
+                            number_of_ppl_purchased_yesterday, number_of_ppl_added_to_carts, discount_type
+                        FROM tv_retail_com
+                        WHERE crawl_datetime::timestamp >= %s AND crawl_datetime::timestamp < %s
+                          AND account_name = %s AND item IN ({placeholders})
+                        ORDER BY item, crawl_datetime
+                    """
+                    expand_params = [str(start_date), str(next_date), retailer] + error_items
+                    cursor.execute(query, expand_params)
+                    rows = cursor.fetchall()
+                    all_fields = [
+                        'item', 'page_type', 'product_url', 'main_rank', 'bsr_rank',
+                        'final_sku_price', 'original_sku_price',
+                        'count_of_reviews', 'star_rating', 'count_of_star_ratings',
+                        'detailed_review_content',
+                        'number_of_units_purchased_past_month', 'available_quantity_for_purchase',
+                        'sku_popularity', 'retailer_membership_discounts',
+                        'rank_1', 'rank_2', 'summarized_review_content',
+                        'savings', 'offer', 'retailer_sku_name_similar', 'recommendation_intent',
+                        'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts', 'discount_type'
+                    ]
+                    for row in rows:
+                        record_id = row[0]
+                        crawl_dt = row[1]
+                        account_name = row[2]
+                        values = list(row[3:])
+
+                        record = {'id': record_id, 'crawl_datetime': str(crawl_dt) if crawl_dt else None}
+                        for field, value in zip(all_fields, values):
+                            record[field] = str(value) if value is not None else None
+
+                        error_fields = []
+                        error_details = {}
+                        for field, value in zip(all_fields, values):
+                            error = validate_tv_field(field, value, account_name)
+                            if error:
+                                error_fields.append(field)
+                                error_details[field] = {
+                                    'rule': error.split(':')[0] if ':' in error else error,
+                                    'reason': error.split(':')[1].strip() if ':' in error else error
+                                }
+                        record['error_fields'] = error_fields
+                        record['error_details'] = error_details
+                        results.append(record)
+
+                elif table == 'hhp_retail':
+                    query = f"""
+                        SELECT
+                            id, crawl_strdatetime, account_name, item, page_type, product_url,
+                            main_rank, bsr_rank, trend_rank, final_sku_price, original_sku_price,
+                            count_of_reviews, star_rating, count_of_star_ratings,
+                            detailed_review_content, trade_in, sku_status,
+                            number_of_units_purchased_past_month, available_quantity_for_purchase,
+                            sku_popularity, retailer_membership_discounts,
+                            rank_1, rank_2, summarized_review_content,
+                            savings, offer, retailer_sku_name_similar, recommendation_intent,
+                            number_of_ppl_purchased_yesterday, number_of_ppl_added_to_carts, discount_type
+                        FROM hhp_retail_com
+                        WHERE crawl_strdatetime::timestamp >= %s AND crawl_strdatetime::timestamp < %s
+                          AND account_name = %s AND item IN ({placeholders})
+                        ORDER BY item, crawl_strdatetime
+                    """
+                    expand_params = [str(start_date), str(next_date), retailer] + error_items
+                    cursor.execute(query, expand_params)
+                    rows = cursor.fetchall()
+                    hhp_fields = [
+                        'item', 'page_type', 'product_url', 'main_rank', 'bsr_rank', 'trend_rank',
+                        'final_sku_price', 'original_sku_price',
+                        'count_of_reviews', 'star_rating', 'count_of_star_ratings',
+                        'detailed_review_content', 'trade_in', 'sku_status',
+                        'number_of_units_purchased_past_month', 'available_quantity_for_purchase',
+                        'sku_popularity', 'retailer_membership_discounts',
+                        'rank_1', 'rank_2', 'summarized_review_content',
+                        'savings', 'offer', 'retailer_sku_name_similar', 'recommendation_intent',
+                        'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts', 'discount_type'
+                    ]
+                    for row in rows:
+                        record_id = row[0]
+                        crawl_dt = row[1]
+                        account_name = row[2]
+                        values = list(row[3:])
+
+                        record = {'id': record_id, 'crawl_datetime': str(crawl_dt) if crawl_dt else None}
+                        for field, value in zip(hhp_fields, values):
+                            record[field] = str(value) if value is not None else None
+
+                        error_fields = []
+                        error_details = {}
+                        for field, value in zip(hhp_fields, values):
+                            error = validate_hhp_field(field, value, account_name)
+                            if error:
+                                error_fields.append(field)
+                                error_details[field] = {
+                                    'rule': error.split(':')[0] if ':' in error else error,
+                                    'reason': error.split(':')[1].strip() if ':' in error else error
+                                }
+                        record['error_fields'] = error_fields
+                        record['error_details'] = error_details
+                        results.append(record)
+
+        # 수정 가능 컬럼 + actual_table 설정
+        editable_cols = []
+        actual_table = ''
+        if table in ('tv_retail', 'hhp_retail') and retailer:
+            product_line = 'tv' if table == 'tv_retail' else 'hhp'
+            actual_table = 'tv_retail_com' if table == 'tv_retail' else 'hhp_retail_com'
+            editable_cols = get_editable_columns(product_line, retailer)
+        elif table in ('youtube_logs',) or (table == 'youtube' and retailer == 'Logs'):
+            actual_table = 'youtube_collection_logs'
+        elif table in ('youtube_videos',) or (table == 'youtube' and retailer == 'Videos'):
+            actual_table = 'youtube_videos'
+        elif table in ('youtube_comments',) or (table == 'youtube' and retailer == 'Comments'):
+            actual_table = 'youtube_comments'
+        elif table == 'market' and retailer:
+            market_table_map = {
+                'Trend': 'market_trend',
+                'Comp Product': 'market_comp_product',
+                'Comp Event': 'market_comp_event',
+                'Forecast': 'openai_forecast_results',
+            }
+            actual_table = market_table_map.get(retailer, '')
+
+        # 형식 검증 정상 처리 건 조회
+        normal_reviews = {}
+        if actual_table:
             cursor.execute("""
-                SELECT c.comment_id, c.video_id, c.comment_type, c.parent_comment_id, c.like_count, c.reply_count,
-                       c.published_at, c.created_at,
-                       CASE WHEN c.video_id IS NOT NULL AND c.video_id NOT IN (SELECT video_id FROM youtube_videos) THEN 1 ELSE 0 END as video_id_invalid,
-                       CASE WHEN c.comment_type IS NOT NULL AND c.comment_type NOT IN ('top_level', 'reply') THEN 1 ELSE 0 END as comment_type_invalid,
-                       CASE WHEN c.parent_comment_id IS NOT NULL AND c.parent_comment_id != '' AND c.comment_type = 'top_level' THEN 1 ELSE 0 END as parent_invalid,
-                       CASE WHEN c.like_count IS NOT NULL AND c.like_count < 0 THEN 1 ELSE 0 END as like_count_invalid,
-                       CASE WHEN c.reply_count IS NOT NULL AND c.reply_count < 0 THEN 1 ELSE 0 END as reply_count_invalid,
-                       CASE WHEN c.published_at IS NOT NULL AND c.created_at IS NOT NULL AND c.published_at > c.created_at THEN 1 ELSE 0 END as published_at_invalid
-                FROM youtube_comments c
-                WHERE DATE(c.created_at) = %s
-                  AND (
-                      (c.video_id IS NOT NULL AND c.video_id NOT IN (SELECT video_id FROM youtube_videos))
-                      OR (c.comment_type IS NOT NULL AND c.comment_type NOT IN ('top_level', 'reply'))
-                      OR (c.parent_comment_id IS NOT NULL AND c.parent_comment_id != '' AND c.comment_type = 'top_level')
-                      OR (c.like_count IS NOT NULL AND c.like_count < 0)
-                      OR (c.reply_count IS NOT NULL AND c.reply_count < 0)
-                      OR (c.published_at IS NOT NULL AND c.created_at IS NOT NULL AND c.published_at > c.created_at)
-                  )
-                ORDER BY c.comment_id DESC
-            """, (target_date,))
-            rows = cursor.fetchall()
+                SELECT record_id, column_name, memo, created_id, created_at, reason
+                FROM monitoring_corrections
+                WHERE table_name = %s AND crawl_date = %s
+                  AND correction_type = 'format_check' AND status = 'normal'
+            """, (actual_table, str(target_date)))
+            for nr_row in cursor.fetchall():
+                normal_reviews[f"{nr_row[0]}_{nr_row[1]}"] = {
+                    'memo': nr_row[2],
+                    'created_id': nr_row[3],
+                    'created_at': nr_row[4].strftime('%Y-%m-%d %H:%M:%S') if nr_row[4] else None,
+                    'reason': nr_row[5]
+                }
 
-            for row in rows:
-                errors = []
-                # row[8] ~ row[13]: 각 검증 플래그
-                if row[8] == 1:  # video_id_invalid
-                    errors.append({
-                        'field': 'video_id',
-                        'value': str(row[1])[:50],
-                        'rule': 'youtube_videos 참조',
-                        'reason': '존재하지 않는 video_id'
-                    })
-                if row[9] == 1:  # comment_type_invalid
-                    errors.append({
-                        'field': 'comment_type',
-                        'value': str(row[2]),
-                        'rule': 'top_level 또는 reply',
-                        'reason': f'허용되지 않은 값: {row[2]}'
-                    })
-                if row[10] == 1:  # parent_invalid
-                    errors.append({
-                        'field': 'parent_comment_id',
-                        'value': str(row[3])[:50],
-                        'rule': 'top_level은 빈값',
-                        'reason': 'top_level인데 parent 존재'
-                    })
-                if row[11] == 1:  # like_count_invalid
-                    errors.append({
-                        'field': 'like_count',
-                        'value': str(row[4]),
-                        'rule': '0 이상',
-                        'reason': '음수값'
-                    })
-                if row[12] == 1:  # reply_count_invalid
-                    errors.append({
-                        'field': 'reply_count',
-                        'value': str(row[5]),
-                        'rule': '0 이상',
-                        'reason': '음수값'
-                    })
-                if row[13] == 1:  # published_at_invalid
-                    errors.append({
-                        'field': 'published_at',
-                        'value': str(row[6])[:19],
-                        'rule': 'published_at <= created_at',
-                        'reason': '수집일보다 미래의 발행일'
-                    })
-
-                if errors:
-                    results.append({
-                        'id': row[0],
-                        'video_id': row[1],
-                        'comment_type': row[2],
-                        'parent_comment_id': row[3],
-                        'like_count': row[4],
-                        'reply_count': row[5],
-                        'errors': errors
-                    })
-
-        elif table == 'market' and retailer == 'Trend':
-            # market_trend 형식 오류 조회
-            cursor.execute("SELECT keyword FROM market_mst WHERE analysis_type = 'trend'")
-            valid_keywords = set(row[0] for row in cursor.fetchall())
-
-            cursor.execute("""
-                SELECT id, keyword, total_article_number, calendar_week, crawl_at_local_time,
-                       CASE WHEN keyword IS NOT NULL AND keyword != '' THEN 1 ELSE 0 END as has_keyword,
-                       CASE WHEN total_article_number IS NOT NULL THEN 1 ELSE 0 END as has_total,
-                       CASE WHEN calendar_week IS NOT NULL AND calendar_week != '' THEN 1 ELSE 0 END as has_week
-                FROM market_trend
-                WHERE DATE(crawl_at_local_time) = %s
-                  AND (
-                      (keyword IS NOT NULL AND keyword != '')
-                      OR (total_article_number IS NOT NULL AND total_article_number < 0)
-                      OR (calendar_week IS NOT NULL AND calendar_week != '' AND calendar_week !~ '^W(0[1-9]|[1-4][0-9]|5[0-2])$')
-                  )
-                ORDER BY crawl_at_local_time DESC
-            """, (target_date,))
-            rows = cursor.fetchall()
-
-            for row in rows:
-                errors = []
-                keyword = row[1]
-                total_article = row[2]
-                cal_week = row[3]
-
-                # keyword가 market_mst에 없으면 오류
-                if keyword and keyword not in valid_keywords:
-                    errors.append({
-                        'field': 'keyword',
-                        'value': str(keyword)[:50],
-                        'rule': 'market_mst 등록 키워드',
-                        'reason': '미등록 키워드'
-                    })
-                # total_article_number 음수
-                if total_article is not None and total_article < 0:
-                    errors.append({
-                        'field': 'total_article_number',
-                        'value': str(total_article),
-                        'rule': '0 이상',
-                        'reason': '음수값'
-                    })
-                # calendar_week 형식 오류 (W01~W52)
-                import re as re_module
-                if cal_week and not re_module.match(r'^W(0[1-9]|[1-4][0-9]|5[0-2])$', cal_week):
-                    errors.append({
-                        'field': 'calendar_week',
-                        'value': str(cal_week),
-                        'rule': 'W01 ~ W52',
-                        'reason': '형식 오류'
-                    })
-
-                if errors:
-                    results.append({
-                        'id': row[0],
-                        'keyword': keyword,
-                        'total_article_number': total_article,
-                        'calendar_week': cal_week,
-                        'errors': errors
-                    })
-
-        elif table == 'market' and retailer == 'Comp Product':
-            # market_comp_product 형식 오류 조회
-            cursor.execute("SELECT keyword FROM market_mst WHERE analysis_type = 'competitor' AND content_type = 'samsung'")
-            valid_samsung = set(row[0] for row in cursor.fetchall())
-            cursor.execute("SELECT keyword FROM market_mst WHERE analysis_type = 'competitor' AND content_type = 'comp'")
-            valid_comp = set(row[0] for row in cursor.fetchall())
-
-            cursor.execute("""
-                SELECT id, samsung_series_name, comp_brand, calender_week, category, created_at
-                FROM market_comp_product
-                WHERE DATE(created_at) = %s
-                  AND (
-                      (samsung_series_name IS NOT NULL AND samsung_series_name != '')
-                      OR (comp_brand IS NOT NULL AND comp_brand != '')
-                      OR (calender_week IS NOT NULL AND calender_week != '' AND LOWER(calender_week) !~ '^w([1-9]|[1-4][0-9]|5[0-2])$')
-                      OR (category IS NOT NULL AND category != '' AND category NOT IN ('TV', 'HHP'))
-                  )
-                ORDER BY created_at DESC
-            """, (target_date,))
-            rows = cursor.fetchall()
-
-            for row in rows:
-                errors = []
-                samsung_name = row[1]
-                comp_brand = row[2]
-                cal_week = row[3]
-                category = row[4]
-
-                if samsung_name and samsung_name not in valid_samsung:
-                    errors.append({
-                        'field': 'samsung_series_name',
-                        'value': str(samsung_name)[:50],
-                        'rule': 'market_mst 등록',
-                        'reason': '미등록 시리즈'
-                    })
-                if comp_brand and comp_brand not in valid_comp:
-                    errors.append({
-                        'field': 'comp_brand',
-                        'value': str(comp_brand)[:50],
-                        'rule': 'market_mst 등록',
-                        'reason': '미등록 브랜드'
-                    })
-                import re as re_module
-                if cal_week and not re_module.match(r'^[wW]([1-9]|[1-4][0-9]|5[0-2])$', cal_week):
-                    errors.append({
-                        'field': 'calender_week',
-                        'value': str(cal_week),
-                        'rule': 'w1 ~ w52',
-                        'reason': '형식 오류'
-                    })
-                if category and category not in ('TV', 'HHP'):
-                    errors.append({
-                        'field': 'category',
-                        'value': str(category),
-                        'rule': 'TV 또는 HHP',
-                        'reason': '허용되지 않은 값'
-                    })
-
-                if errors:
-                    results.append({
-                        'id': row[0],
-                        'samsung_series_name': samsung_name,
-                        'comp_brand': comp_brand,
-                        'calender_week': cal_week,
-                        'category': category,
-                        'errors': errors
-                    })
-
-        elif table == 'market' and retailer == 'Comp Event':
-            # market_comp_event 형식 오류 조회 - 최신 배치 기준
-            cursor.execute("""
-                SELECT comp_brand, comp_series_name FROM market_comp_product
-                WHERE batch_id = (SELECT MAX(batch_id) FROM market_comp_product WHERE DATE(created_at) <= %s)
-            """, (target_date,))
-            latest_batch = cursor.fetchall()
-            valid_comp_brands = set(row[0] for row in latest_batch if row[0])
-            valid_comp_skus = set(row[1] for row in latest_batch if row[1])
-
-            cursor.execute("""
-                SELECT id, comp_brand, comp_sku_name, calender_week, category, created_at
-                FROM market_comp_event
-                WHERE DATE(created_at) = %s
-                  AND (
-                      (comp_brand IS NOT NULL AND comp_brand != '')
-                      OR (comp_sku_name IS NOT NULL AND comp_sku_name != '')
-                      OR (calender_week IS NOT NULL AND calender_week != '' AND LOWER(calender_week) !~ '^w([1-9]|[1-4][0-9]|5[0-2])$')
-                      OR (category IS NOT NULL AND category != '' AND category NOT IN ('TV', 'HHP'))
-                  )
-                ORDER BY created_at DESC
-            """, (target_date,))
-            rows = cursor.fetchall()
-
-            for row in rows:
-                errors = []
-                comp_brand = row[1]
-                comp_sku = row[2]
-                cal_week = row[3]
-                category = row[4]
-
-                if comp_brand and comp_brand not in valid_comp_brands:
-                    errors.append({
-                        'field': 'comp_brand',
-                        'value': str(comp_brand)[:50],
-                        'rule': 'market_comp_product 참조',
-                        'reason': '미등록 브랜드'
-                    })
-                if comp_sku and comp_sku not in valid_comp_skus:
-                    errors.append({
-                        'field': 'comp_sku_name',
-                        'value': str(comp_sku)[:50],
-                        'rule': 'market_comp_product 참조',
-                        'reason': '미등록 SKU'
-                    })
-                import re as re_module
-                if cal_week and not re_module.match(r'^[wW]([1-9]|[1-4][0-9]|5[0-2])$', cal_week):
-                    errors.append({
-                        'field': 'calender_week',
-                        'value': str(cal_week),
-                        'rule': 'w1 ~ w52',
-                        'reason': '형식 오류'
-                    })
-                if category and category not in ('TV', 'HHP'):
-                    errors.append({
-                        'field': 'category',
-                        'value': str(category),
-                        'rule': 'TV 또는 HHP',
-                        'reason': '허용되지 않은 값'
-                    })
-
-                if errors:
-                    results.append({
-                        'id': row[0],
-                        'comp_brand': comp_brand,
-                        'comp_sku_name': comp_sku,
-                        'calender_week': cal_week,
-                        'category': category,
-                        'errors': errors
-                    })
-
-        elif table == 'market' and retailer == 'Forecast':
-            # openai_forecast_results 형식 오류 조회
-            cursor.execute("SELECT product_name FROM openai_keywords WHERE is_active = true")
-            valid_products = set(row[0] for row in cursor.fetchall())
-            cursor.execute("SELECT LOWER(REPLACE(event_name, ' ', '_')) FROM openai_event_mst WHERE is_active = true")
-            valid_events = set(row[0] for row in cursor.fetchall())
-
-            cursor.execute("""
-                SELECT id, product_name, event, metric_type, event_offset, event_value, week, crawled_at
-                FROM openai_forecast_results
-                WHERE DATE(crawled_at) = %s
-                  AND (
-                      (product_name IS NOT NULL AND product_name != '')
-                      OR (event IS NOT NULL AND event != '')
-                      OR (metric_type IS NOT NULL AND metric_type != '' AND metric_type != 'Forecasted_NA_sales_change')
-                      OR (event_offset IS NOT NULL AND (event_offset < 0 OR event_offset > 9))
-                      OR (event_value IS NOT NULL AND event_value::text !~ '^-?[0-9]+\.?[0-9]*$')
-                      OR (week IS NOT NULL AND week != '' AND week !~ '^w[0-9]{1,2}$')
-                      OR (crawled_at IS NOT NULL AND crawled_at::text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-                  )
-                ORDER BY crawled_at DESC
-                LIMIT 100
-            """, (target_date,))
-            rows = cursor.fetchall()
-
-            import re as re_module
-            for row in rows:
-                errors = []
-                product_name = row[1]
-                event = row[2]
-                metric_type = row[3]
-                event_offset = row[4]
-                event_value = row[5]
-                week = row[6]
-                crawled_at = row[7]
-
-                if product_name and product_name not in valid_products:
-                    errors.append({
-                        'field': 'product_name',
-                        'value': str(product_name)[:50],
-                        'rule': 'openai_keywords 등록',
-                        'reason': '미등록 제품'
-                    })
-                if event and event.lower().replace(' ', '_') not in valid_events:
-                    errors.append({
-                        'field': 'event',
-                        'value': str(event)[:50],
-                        'rule': 'openai_event_mst 등록',
-                        'reason': '미등록 이벤트'
-                    })
-                if metric_type and metric_type != 'Forecasted_NA_sales_change':
-                    errors.append({
-                        'field': 'metric_type',
-                        'value': str(metric_type)[:50],
-                        'rule': 'Forecasted_NA_sales_change',
-                        'reason': '허용되지 않은 값'
-                    })
-                if event_offset is not None and (event_offset < 0 or event_offset > 9):
-                    errors.append({
-                        'field': 'event_offset',
-                        'value': str(event_offset),
-                        'rule': '0 ~ 9',
-                        'reason': '범위 초과'
-                    })
-                if event_value is not None and not re_module.match(r'^-?[0-9]+\.?[0-9]*$', str(event_value)):
-                    errors.append({
-                        'field': 'event_value',
-                        'value': str(event_value)[:30],
-                        'rule': '숫자 형식',
-                        'reason': '형식 오류'
-                    })
-                if week and not re_module.match(r'^w[0-9]{1,2}$', week):
-                    errors.append({
-                        'field': 'week',
-                        'value': str(week),
-                        'rule': 'w + 숫자',
-                        'reason': '형식 오류'
-                    })
-                if crawled_at and not re_module.match(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$', str(crawled_at)):
-                    errors.append({
-                        'field': 'crawled_at',
-                        'value': str(crawled_at)[:20],
-                        'rule': 'YYYY-MM-DD',
-                        'reason': '형식 오류'
-                    })
-
-                if errors:
-                    results.append({
-                        'id': row[0],
-                        'product_name': product_name,
-                        'event': event,
-                        'metric_type': metric_type,
-                        'event_offset': event_offset,
-                        'event_value': event_value,
-                        'week': week,
-                        'errors': errors
-                    })
+        # 정상 처리된 필드는 error_fields에서 제외 (null_detail의 normal_set 패턴)
+        if normal_reviews:
+            normal_set = set(normal_reviews.keys())
+            for record in results:
+                if 'error_fields' in record:
+                    record_id = record.get('id')
+                    record['error_fields'] = [
+                        f for f in record['error_fields']
+                        if f"{record_id}_{f}" not in normal_set
+                    ]
 
         cursor.close()
         conn.close()
@@ -1896,6 +1579,10 @@ def format_detail(request):
             'date': str(target_date),
             'table': table,
             'retailer': retailer,
+            'column_names': column_names,
+            'editable_cols': editable_cols,
+            'actual_table': actual_table,
+            'normal_reviews': normal_reviews,
             'results': results
         })
 
@@ -1913,6 +1600,10 @@ def anomaly_detail(request):
         return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
     retailer = request.GET.get('retailer', '')
     try:
+        days = max(1, int(request.GET.get('days', 1)))
+    except (ValueError, TypeError):
+        days = 1
+    try:
         page = max(1, int(request.GET.get('page', 1)))
         page_size = min(int(request.GET.get('page_size', 50)), 200)
     except (ValueError, TypeError):
@@ -1926,8 +1617,10 @@ def anomaly_detail(request):
 
         duplicates = []
         total_groups = 0
+        select_cols = {'group': [], 'record': []}
 
         if table == 'tv_retail':
+            select_cols = {'group': ['item', 'retailer', 'period', 'dup_count', 'reason'], 'record': ['id', 'product_url', 'crawl_datetime', 'page_type', 'main_rank', 'bsr_rank']}
             # 전체 그룹 수
             cursor.execute("""
                 SELECT COUNT(*) FROM (
@@ -1994,6 +1687,7 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'hhp_retail':
+            select_cols = {'group': ['item', 'retailer', 'period', 'dup_count', 'reason'], 'record': ['id', 'product_url', 'crawl_datetime', 'page_type', 'rank']}
             cursor.execute("""
                 SELECT COUNT(*) FROM (
                     SELECT item, account_name,
@@ -2067,6 +1761,7 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'youtube_videos':
+            select_cols = {'group': ['video_id', 'keyword', 'dup_count', 'reason'], 'record': ['id', 'title', 'created_at']}
             cursor.execute("""
                 SELECT COUNT(*) FROM (
                     SELECT video_id, keyword
@@ -2122,6 +1817,7 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'youtube_logs':
+            select_cols = {'group': ['keyword', 'category', 'dup_count', 'reason'], 'record': ['id', 'created_at']}
             cursor.execute("""
                 SELECT COUNT(*) FROM (
                     SELECT k.keyword, k.category
@@ -2176,6 +1872,7 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'market_trend':
+            select_cols = {'group': ['keyword', 'dup_count', 'reason'], 'record': ['id', 'total_article_number', 'created_at']}
             cursor.execute("""
                 SELECT COUNT(*) FROM (
                     SELECT keyword
@@ -2227,6 +1924,7 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'market_product':
+            select_cols = {'group': ['batch_id', 'samsung_series_name', 'comp_brand', 'comp_series_name', 'dup_count', 'reason'], 'record': ['id', 'created_at']}
             cursor.execute("""
                 SELECT COUNT(*) FROM (
                     SELECT batch_id, samsung_series_name, comp_brand, comp_series_name
@@ -2283,6 +1981,7 @@ def anomaly_detail(request):
             duplicates = list(dup_groups.values())
 
         elif table == 'market_event':
+            select_cols = {'group': ['batch_id', 'comp_brand', 'comp_sku_name', 'dup_count', 'reason'], 'record': ['id', 'created_at']}
             cursor.execute("""
                 SELECT COUNT(*) FROM (
                     SELECT batch_id, comp_brand, comp_sku_name
@@ -2336,6 +2035,14 @@ def anomaly_detail(request):
 
             duplicates = list(dup_groups.values())
 
+        # 수정 가능 컬럼
+        editable_cols = []
+        actual_table = ''
+        if table in ('tv_retail', 'hhp_retail') and retailer:
+            product_line = 'tv' if table == 'tv_retail' else 'hhp'
+            actual_table = 'tv_retail_com' if table == 'tv_retail' else 'hhp_retail_com'
+            editable_cols = get_editable_columns(product_line, retailer)
+
         cursor.close()
         conn.close()
 
@@ -2345,6 +2052,9 @@ def anomaly_detail(request):
             'date': str(target_date),
             'table': table,
             'retailer': retailer,
+            'select_cols': select_cols,
+            'editable_cols': editable_cols,
+            'actual_table': actual_table,
             'results': {
                 'duplicates': duplicates,
                 'total_groups': total_groups,
@@ -2355,6 +2065,260 @@ def anomaly_detail(request):
         })
 
     except Exception as e:
+        return safe_error(e)
+
+
+# ============================================================
+# 중복 데이터 정리 (Duplicate Cleanup)
+# ============================================================
+
+# 테이블별 중복 키 / 날짜 컬럼 / 오전오후 구분 매핑
+_DUP_TABLE_CONFIG = {
+    'tv_retail': {
+        'actual': 'tv_retail_com',
+        'dup_keys': 'item, account_name',
+        'date_col': 'crawl_datetime',
+        'use_period': True,
+        'retailer_col': 'account_name',
+    },
+    'hhp_retail': {
+        'actual': 'hhp_retail_com',
+        'dup_keys': 'item, account_name',
+        'date_col': 'crawl_strdatetime',
+        'use_period': True,
+        'retailer_col': 'account_name',
+    },
+    'youtube_videos': {
+        'actual': 'youtube_videos',
+        'dup_keys': 'video_id, keyword',
+        'date_col': 'created_at',
+        'use_period': False,
+        'retailer_col': None,
+    },
+    'youtube_logs': {
+        'actual': 'youtube_collection_logs',
+        'dup_keys': None,  # JOIN 필요 — 별도 처리
+        'date_col': 'started_at',
+        'use_period': False,
+        'retailer_col': None,
+    },
+    'market_trend': {
+        'actual': 'market_trend',
+        'dup_keys': 'keyword',
+        'date_col': 'crawl_at_local_time',
+        'use_period': False,
+        'retailer_col': None,
+    },
+    'market_product': {
+        'actual': 'market_comp_product',
+        'dup_keys': 'batch_id, samsung_series_name, comp_brand, comp_series_name',
+        'date_col': 'created_at',
+        'use_period': False,
+        'retailer_col': None,
+    },
+    'market_event': {
+        'actual': 'market_comp_event',
+        'dup_keys': 'batch_id, comp_brand, comp_sku_name',
+        'date_col': 'created_at',
+        'use_period': False,
+        'retailer_col': None,
+    },
+}
+
+
+def _build_dup_delete_query(table, retailer=''):
+    """
+    중복 그룹에서 최신 1건만 남기고 삭제할 대상의 id + row_to_json 을 조회하는 쿼리를 생성.
+    반환: (sql, params)  — sql에는 %s 플레이스홀더, params는 (target_date,) 기준으로 외부에서 결합
+    """
+    cfg = _DUP_TABLE_CONFIG.get(table)
+    if not cfg:
+        return None, None
+
+    actual = cfg['actual']
+    date_col = cfg['date_col']
+    dup_keys = cfg['dup_keys']
+    use_period = cfg['use_period']
+    retailer_col = cfg['retailer_col']
+
+    # youtube_logs는 JOIN이 필요하므로 별도 처리
+    if table == 'youtube_logs':
+        sql = f"""
+            SELECT sub.id, row_to_json(sub.*) as record_data FROM (
+                SELECT l.*, k.keyword as _kw, k.category as _cat,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY k.keyword, k.category
+                           ORDER BY l.{date_col} DESC
+                       ) as rn
+                FROM {actual} l
+                JOIN youtube_keywords k ON l.keyword_id = k.id
+                WHERE DATE(l.{date_col}) = %s
+            ) sub
+            WHERE sub.rn > 1
+        """
+        return sql, None  # params: (target_date,)
+
+    # 오전/오후 구분이 필요한 경우
+    period_expr = ''
+    partition_extra = ''
+    if use_period:
+        period_expr = f"CASE WHEN EXTRACT(HOUR FROM {date_col}::timestamp) < 12 THEN 'AM' ELSE 'PM' END"
+        partition_extra = f', {period_expr}'
+
+    # 리테일러 필터
+    retailer_where = ''
+    if retailer_col and retailer:
+        retailer_where = f"AND {retailer_col} = %s"
+
+    sql = f"""
+        SELECT sub.id, sub.record_data FROM (
+            SELECT t.id, row_to_json(t.*) as record_data,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY {dup_keys}{partition_extra}
+                       ORDER BY {date_col} DESC
+                   ) as rn
+            FROM {actual} t
+            WHERE DATE({date_col}::timestamp) = %s
+              {retailer_where}
+        ) sub
+        WHERE sub.rn > 1
+    """
+    return sql, retailer_where
+
+
+def duplicate_cleanup(request):
+    """
+    중복 데이터 정리 API
+    POST → 체크박스로 선택한 id 목록을 백업 후 삭제
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    import json as json_mod
+    try:
+        data = json_mod.loads(request.body)
+    except (json_mod.JSONDecodeError, ValueError):
+        return JsonResponse({'error': '잘못된 요청 형식'}, status=400)
+
+    table = data.get('table', '')
+    if table not in _DUP_TABLE_CONFIG:
+        return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
+
+    ids = data.get('ids', [])
+    if not ids:
+        return JsonResponse({'error': '삭제할 항목을 선택해주세요.'}, status=400)
+
+    # id를 정수로 변환
+    try:
+        delete_ids = [int(i) for i in ids]
+    except (ValueError, TypeError):
+        return JsonResponse({'error': '잘못된 ID 형식'}, status=400)
+
+    cfg = _DUP_TABLE_CONFIG[table]
+    actual_table = cfg['actual']
+    dup_keys = cfg['dup_keys'] or 'keyword_id'
+    use_period = cfg.get('use_period', False)
+    date_col = cfg.get('date_col', '')
+    backup_table = 'monitoring_duplicate_deletes'
+
+    # 백업용 날짜 (필수 아님)
+    target_date = parse_date(data.get('date')) or None
+
+    username = request.user.username if request.user.is_authenticated else ''
+    now = datetime.now()
+
+    conn = None
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        # 1. 삭제 대상 전체 행 조회 (백업용)
+        id_placeholders = ', '.join(['%s'] * len(delete_ids))
+        cursor.execute(
+            f"SELECT id, row_to_json(t.*) as record_data FROM {actual_table} t WHERE id IN ({id_placeholders})",
+            delete_ids
+        )
+        rows = cursor.fetchall()
+
+        if not rows:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'success': True, 'deleted_count': 0, 'message': '해당 레코드가 존재하지 않습니다.'})
+
+        # item 식별용 컬럼 (dup_keys 첫 번째 키)
+        item_col = dup_keys.split(',')[0].strip() if dup_keys else None
+
+        # 2. 백업 INSERT + corrections 이력 저장
+        for row in rows:
+            record_id = row[0]
+            record_data = row[1]
+
+            if isinstance(record_data, str):
+                record_json = record_data
+                record_dict = json_mod.loads(record_data)
+            else:
+                record_json = json_mod.dumps(record_data, default=str)
+                record_dict = record_data
+
+            # 백업 (dup_group_key: 중복 판별 기준 컬럼명 + period 실제값)
+            if use_period:
+                date_val = str(record_dict.get(date_col, ''))
+                try:
+                    hour = int(date_val[11:13])
+                    period_label = '오전' if hour < 12 else '오후'
+                except (ValueError, IndexError):
+                    period_label = ''
+                group_key_meta = dup_keys + ', period(' + period_label + ')'
+            else:
+                group_key_meta = dup_keys
+            cursor.execute(f"""
+                INSERT INTO {backup_table}
+                    (source_table, record_id, record_data, dup_group_key, crawl_date, deleted_by, deleted_at)
+                VALUES (%s, %s, %s::jsonb, %s, %s, %s, %s)
+            """, (
+                actual_table, record_id, record_json,
+                group_key_meta, target_date, username, now
+            ))
+
+            # corrections 이력
+            item_col_name = dup_keys.split(',')[0].strip() if dup_keys else None
+            item_value = str(record_dict.get(item_col_name, '')) if item_col_name else ''
+            retailer_col = cfg.get('retailer_col')
+            retailer_value = str(record_dict.get(retailer_col, '')) if retailer_col else ''
+            cursor.execute("""
+                INSERT INTO monitoring_corrections
+                    (layer, correction_type, table_name, record_id,
+                     crawl_date, created_id, created_at, status, memo, retailer, item)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                2, 'duplicate_check', actual_table, record_id,
+                target_date, username, now, 'corrected', '중복 삭제', retailer_value,
+                item_value or None
+            ))
+
+        # 4. DELETE
+        fetched_ids = [row[0] for row in rows]
+        del_placeholders = ', '.join(['%s'] * len(fetched_ids))
+        cursor.execute(f"DELETE FROM {actual_table} WHERE id IN ({del_placeholders})", fetched_ids)
+
+        deleted_count = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({
+            'success': True,
+            'deleted_count': deleted_count,
+            'backup_table': backup_table,
+        })
+
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+                conn.close()
+            except Exception:
+                pass
         return safe_error(e)
 
 
@@ -2874,242 +2838,218 @@ def retailer_detail(request):
 
 
 def get_tv_format_errors(cursor, table_name, date_field, target_date, retailer):
-    """TV 형식 오류 데이터 조회"""
+    """TV 형식 오류 데이터 조회 - validate_tv_field 기반 (대시보드 카운트와 동일 로직)"""
     errors = []
 
-    # main_rank 검증 (1-400 범위)
+    all_fields = [
+        'item', 'page_type', 'product_url', 'main_rank', 'bsr_rank',
+        'final_sku_price', 'original_sku_price',
+        'count_of_reviews', 'star_rating', 'count_of_star_ratings',
+        'detailed_review_content',
+        'number_of_units_purchased_past_month', 'available_quantity_for_purchase',
+        'sku_popularity', 'retailer_membership_discounts',
+        'rank_1', 'rank_2', 'summarized_review_content',
+        'savings', 'offer', 'retailer_sku_name_similar', 'recommendation_intent',
+        'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts', 'discount_type'
+    ]
+
     cursor.execute(f"""
-        SELECT id, item, main_rank, {date_field}
+        SELECT
+            id, item, {date_field}, product_url,
+            item, page_type, product_url, main_rank, bsr_rank,
+            final_sku_price, original_sku_price,
+            count_of_reviews, star_rating, count_of_star_ratings,
+            detailed_review_content,
+            number_of_units_purchased_past_month, available_quantity_for_purchase,
+            sku_popularity, retailer_membership_discounts,
+            rank_1, rank_2, summarized_review_content,
+            savings, offer, retailer_sku_name_similar, recommendation_intent,
+            number_of_ppl_purchased_yesterday, number_of_ppl_added_to_carts, discount_type
         FROM {table_name}
         WHERE DATE({date_field}::timestamp) = %s
           AND account_name = %s
-          AND main_rank IS NOT NULL
-          AND main_rank != ''
-          AND (
-              NOT main_rank ~ '^[0-9]+$'
-              OR CAST(main_rank AS INTEGER) < 1
-              OR CAST(main_rank AS INTEGER) > 400
-          )
-        LIMIT 50
+        ORDER BY id
     """, (target_date, retailer))
 
     for row in cursor.fetchall():
-        errors.append({
-            'id': row[0],
-            'item': row[1],
-            'error_field': 'main_rank',
-            'error_value': str(row[2]),
-            'collected_at': str(row[3]) if row[3] else None
-        })
+        record_id = row[0]
+        item = row[1]
+        crawl_dt = row[2]
+        product_url = row[3]
+        values = list(row[4:])
 
-    # star_rating 검증 (0.0-5.0)
-    cursor.execute(f"""
-        SELECT id, item, star_rating, {date_field}
-        FROM {table_name}
-        WHERE DATE({date_field}::timestamp) = %s
-          AND account_name = %s
-          AND star_rating IS NOT NULL
-          AND star_rating != ''
-          AND (
-              NOT star_rating ~ '^[0-9]+(\\.[0-9]+)?$'
-              OR CAST(star_rating AS NUMERIC) < 0
-              OR CAST(star_rating AS NUMERIC) > 5
-          )
-        LIMIT 50
-    """, (target_date, retailer))
+        row_errors = []
+        for field, value in zip(all_fields, values):
+            error = validate_tv_field(field, value, retailer)
+            if error:
+                row_errors.append(field)
 
-    for row in cursor.fetchall():
-        errors.append({
-            'id': row[0],
-            'item': row[1],
-            'error_field': 'star_rating',
-            'error_value': str(row[2]),
-            'collected_at': str(row[3]) if row[3] else None
-        })
+        if row_errors:
+            errors.append({
+                'id': record_id,
+                'item': item,
+                'error_field': ', '.join(row_errors),
+                'error_value': ', '.join(row_errors),
+                'collected_at': str(crawl_dt) if crawl_dt else None
+            })
 
     return errors
 
 
 def get_hhp_format_errors(cursor, table_name, date_field, target_date, retailer):
-    """HHP 형식 오류 데이터 조회"""
+    """HHP 형식 오류 데이터 조회 - validate_hhp_field 기반 (대시보드 카운트와 동일 로직)"""
     errors = []
 
-    # main_rank 검증 (1-300 범위)
+    hhp_fields = [
+        'item', 'page_type', 'product_url', 'main_rank', 'bsr_rank', 'trend_rank',
+        'final_sku_price', 'original_sku_price',
+        'count_of_reviews', 'star_rating', 'count_of_star_ratings',
+        'detailed_review_content', 'trade_in', 'sku_status',
+        'number_of_units_purchased_past_month', 'available_quantity_for_purchase',
+        'sku_popularity', 'retailer_membership_discounts',
+        'rank_1', 'rank_2', 'summarized_review_content',
+        'savings', 'offer', 'retailer_sku_name_similar', 'recommendation_intent',
+        'number_of_ppl_purchased_yesterday', 'number_of_ppl_added_to_carts', 'discount_type'
+    ]
+
     cursor.execute(f"""
-        SELECT id, item, main_rank, {date_field}
+        SELECT
+            id, item, {date_field}, product_url,
+            item, page_type, product_url, main_rank, bsr_rank, trend_rank,
+            final_sku_price, original_sku_price,
+            count_of_reviews, star_rating, count_of_star_ratings,
+            detailed_review_content, trade_in, sku_status,
+            number_of_units_purchased_past_month, available_quantity_for_purchase,
+            sku_popularity, retailer_membership_discounts,
+            rank_1, rank_2, summarized_review_content,
+            savings, offer, retailer_sku_name_similar, recommendation_intent,
+            number_of_ppl_purchased_yesterday, number_of_ppl_added_to_carts, discount_type
         FROM {table_name}
         WHERE DATE({date_field}::timestamp) = %s
           AND account_name = %s
-          AND main_rank IS NOT NULL
-          AND main_rank != ''
-          AND (
-              NOT main_rank ~ '^[0-9]+$'
-              OR CAST(main_rank AS INTEGER) < 1
-              OR CAST(main_rank AS INTEGER) > 300
-          )
-        LIMIT 50
+        ORDER BY id
     """, (target_date, retailer))
 
     for row in cursor.fetchall():
-        errors.append({
-            'id': row[0],
-            'item': row[1],
-            'error_field': 'main_rank',
-            'error_value': str(row[2]),
-            'collected_at': str(row[3]) if row[3] else None
-        })
+        record_id = row[0]
+        item = row[1]
+        crawl_dt = row[2]
+        product_url = row[3]
+        values = list(row[4:])
 
-    # star_rating 검증 (0.0-5.0)
-    cursor.execute(f"""
-        SELECT id, item, star_rating, {date_field}
-        FROM {table_name}
-        WHERE DATE({date_field}::timestamp) = %s
-          AND account_name = %s
-          AND star_rating IS NOT NULL
-          AND star_rating != ''
-          AND (
-              NOT star_rating ~ '^[0-9]+(\\.[0-9]+)?$'
-              OR CAST(star_rating AS NUMERIC) < 0
-              OR CAST(star_rating AS NUMERIC) > 5
-          )
-        LIMIT 50
-    """, (target_date, retailer))
+        row_errors = []
+        for field, value in zip(hhp_fields, values):
+            error = validate_hhp_field(field, value, retailer)
+            if error:
+                row_errors.append(field)
 
-    for row in cursor.fetchall():
-        errors.append({
-            'id': row[0],
-            'item': row[1],
-            'error_field': 'star_rating',
-            'error_value': str(row[2]),
-            'collected_at': str(row[3]) if row[3] else None
-        })
+        if row_errors:
+            errors.append({
+                'id': record_id,
+                'item': item,
+                'error_field': ', '.join(row_errors),
+                'error_value': ', '.join(row_errors),
+                'collected_at': str(crawl_dt) if crawl_dt else None
+            })
 
     return errors
 
 
 def format_rules(request):
-    """형식검증 규칙 조회 API - CSV 기반"""
+    """형식검증 규칙 조회 API - DB 기반 (신규 테이블)"""
     table_name = request.GET.get('table', 'tv_retail_com')
     if table_name not in VALID_TABLES_RULES:
         return JsonResponse({'error': '잘못된 테이블 파라미터'}, status=400)
     retailer = request.GET.get('retailer', 'Amazon')
 
-    # 테이블명 → product_line 매핑
-    table_to_product = {
-        'tv_retail_com': 'TV',
-        'hhp_retail_com': 'HHP',
-    }
-    product_line = table_to_product.get(table_name, 'ALL')
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        tbl_rules = dx_table('monitoring_format_rules')
+        tbl_templates = dx_table('monitoring_format_templates')
 
-    rules_data = load_format_rules()
-    result = []
+        cursor.execute(f"""
+            SELECT r.column_name, t.check_type, t.pattern,
+                   r.rule_value, r.extra_allowed,
+                   r.error_message
+            FROM {tbl_rules} r
+            LEFT JOIN {tbl_templates} t ON r.template_id = t.id
+            WHERE r.table_name = %s AND r.account_name = %s
+              AND r.is_active = TRUE AND r.is_del = FALSE
+              AND (t.id IS NULL OR t.is_active = TRUE)
+            ORDER BY r.column_name
+        """, (table_name, retailer))
 
-    if table_name not in rules_data:
+        cols = [desc[0] for desc in cursor.description]
+        rows = [dict(zip(cols, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        log_error(e, 'db')
         return JsonResponse({'rules': []})
 
-    table_rules = rules_data[table_name]
+    result = []
+    for row in rows:
+        check_type = row.get('check_type') or ''
+        pattern = row.get('pattern') or ''
+        rule_value = row.get('rule_value') or ''
+        extra_allowed = row.get('extra_allowed') or ''
+        error_message = row.get('error_message') or ''
 
-    # 해당 product_line 규칙 수집
-    if product_line in table_rules:
-        for column_name, column_rules in table_rules[product_line].items():
-            result.extend(_format_rules_for_display(column_name, column_rules, retailer))
+        patterns = []
+        description = ''
 
-    # ALL 규칙도 추가 (product_line이 ALL이 아닌 경우)
-    if product_line != 'ALL' and 'ALL' in table_rules:
-        for column_name, column_rules in table_rules['ALL'].items():
-            result.extend(_format_rules_for_display(column_name, column_rules, retailer))
+        # 메인 검증 규칙 (template 기반)
+        if check_type:
+            if check_type in ('regex', 'regex_clean'):
+                patterns.append(pattern)
+                description = error_message or _get_description_for_type(check_type, pattern, [])
+            elif check_type == 'range':
+                parts = rule_value.split('~')
+                if len(parts) == 2:
+                    patterns.append(f'{parts[0]} ~ {parts[1]}')
+                    description = error_message or f'{parts[0]}~{parts[1]} 범위 정수'
+            elif check_type == 'range_float':
+                parts = rule_value.split('~')
+                if len(parts) == 2:
+                    patterns.append(f'{parts[0]} ~ {parts[1]}')
+                    description = error_message or f'{parts[0]}~{parts[1]} 범위'
+            elif check_type == 'enum':
+                allowed_list = [v.strip() for v in rule_value.split('|') if v.strip()] if rule_value else []
+                patterns.append(' | '.join(allowed_list))
+                description = error_message or '허용값만'
+            elif check_type == 'starts_with':
+                patterns.append(f'"{rule_value}..."')
+                description = error_message or f'{rule_value}로 시작'
+            elif check_type == 'separator_count':
+                parts = rule_value.split('~')
+                if len(parts) == 2:
+                    patterns.append(f'{parts[0]} 구분자 {parts[1]}개')
+                    description = error_message or f'{parts[0]} 구분자 {parts[1]}개 필요'
+            elif check_type == 'fk_check':
+                patterns.append(f'참조: {rule_value}')
+                description = error_message or 'FK 참조 검증'
+            elif check_type == 'min':
+                patterns.append(f'>= {rule_value}')
+                description = error_message or f'{rule_value} 이상'
 
-    # 필드명 기준 정렬 및 중복 제거
-    seen = set()
-    unique_result = []
-    for rule in result:
-        key = (rule['field'], rule['description'])
-        if key not in seen:
-            seen.add(key)
-            unique_result.append(rule)
+        # extra_allowed 표시
+        if extra_allowed:
+            allowed_list = [v.strip() for v in extra_allowed.split('|') if v.strip()]
+            for val in allowed_list:
+                patterns.append(f'"{val}"')
+
+        if patterns:
+            result.append({
+                'field': row['column_name'],
+                'description': description or '형식 검증',
+                'pattern': '\n'.join(patterns)
+            })
 
     # 필드명 알파벳순 정렬
-    unique_result.sort(key=lambda x: x['field'])
+    result.sort(key=lambda x: x['field'])
 
-    return JsonResponse({'rules': unique_result})
-
-
-def _format_rules_for_display(column_name, column_rules, retailer):
-    """CSV 규칙을 프론트엔드 표시용 형식으로 변환"""
-    result = []
-
-    # 리테일러별 규칙과 common 규칙 분리
-    retailer_rules = [r for r in column_rules if r['retailer'] == retailer]
-    common_rules = [r for r in column_rules if r['retailer'] == 'common']
-
-    # 규칙 병합하여 표시
-    patterns = []
-    description = ''
-
-    # common 규칙에서 기본 description 추출
-    for rule in common_rules:
-        rule_type = rule['type']
-        rule_value = rule['rule']
-        allowed = rule['allowed']
-        error_msg = rule.get('error', '')
-
-        if rule_type == 'regex':
-            patterns.append(rule_value)
-            description = error_msg or _get_description_for_type(rule_type, rule_value, allowed)
-        elif rule_type == 'regex_clean':
-            patterns.append(rule_value)
-            clean_type = allowed[0] if allowed else ''
-            description = error_msg or f'숫자 ({clean_type.replace("_", ", ")} 허용)'
-        elif rule_type == 'range':
-            parts = rule_value.split('~')
-            patterns.append(f'{parts[0]} ~ {parts[1]}')
-            description = error_msg or f'{parts[0]}~{parts[1]} 범위 정수'
-        elif rule_type == 'range_float':
-            parts = rule_value.split('~')
-            patterns.append(f'{parts[0]} ~ {parts[1]}')
-            description = error_msg or f'{parts[0]}~{parts[1]} 범위'
-        elif rule_type == 'enum':
-            patterns.append(' | '.join(allowed))
-            description = error_msg or '허용값만'
-        elif rule_type == 'starts_with':
-            patterns.append(f'"{rule_value}..."')
-            description = error_msg or f'{rule_value}로 시작'
-        elif rule_type == 'separator_count':
-            parts = rule_value.split('~')
-            patterns.append(f'{parts[0]} 구분자 {parts[1]}개')
-            description = error_msg or f'{parts[0]} 구분자 {parts[1]}개 필요'
-        elif rule_type == 'fk_check':
-            # FK 참조 검증 (예: market_mst.keyword|analysis_type=competitor)
-            patterns.append(f'참조: {rule_value}')
-            description = error_msg or 'FK 참조 검증'
-        elif rule_type == 'min':
-            patterns.append(f'>= {rule_value}')
-            description = error_msg or f'{rule_value} 이상'
-
-    # 리테일러별 allowed_values 추가
-    for rule in retailer_rules:
-        if rule['type'] == 'allowed_values' and rule['allowed']:
-            for val in rule['allowed']:
-                patterns.append(f'"{val}"')
-            if not description:
-                description = '허용값만'
-        elif rule['type'] == 'starts_with':
-            patterns.append(f'"{rule["rule"]}..."')
-            if not description:
-                description = f'{rule["rule"]}로 시작'
-        elif rule['type'] == 'regex':
-            patterns.append(rule['rule'])
-            if not description:
-                description = _get_description_for_type('regex', rule['rule'], rule['allowed'])
-
-    if patterns:
-        result.append({
-            'field': column_name,
-            'description': description or '형식 검증',
-            'pattern': '\n'.join(patterns)
-        })
-
-    return result
+    return JsonResponse({'rules': result})
 
 
 def _get_description_for_type(rule_type, rule_value, allowed):
@@ -3126,3 +3066,232 @@ def _get_description_for_type(rule_type, rule_value, allowed):
         else:
             return '정규식 패턴'
     return '형식 검증'
+
+
+# ============================================================
+# 셀 수정 API
+# ============================================================
+
+VALID_TABLES_UPDATE = {
+    'tv_retail_com', 'hhp_retail_com',
+    'youtube_collection_logs', 'youtube_videos', 'youtube_comments',
+    'market_trend', 'market_comp_product', 'market_comp_event', 'openai_forecast_results',
+}
+
+
+def update_cell(request):
+    """셀 값 수정 API (POST)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+
+    import json
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': '잘못된 요청 형식'}, status=400)
+
+    table_name = body.get('table_name', '')
+    row_id = body.get('row_id')
+    column_name = body.get('column_name', '')
+    new_value = body.get('new_value')
+    crawl_date = body.get('crawl_date')
+    correction_type = body.get('correction_type', 'null')
+    # correction_type 화이트리스트 검증
+    valid_correction_types = {'null': 'null_check', 'format': 'format_check', 'duplicate': 'duplicate_check'}
+    correction_type_value = valid_correction_types.get(correction_type, 'null_check')
+
+    # 필수 파라미터 검증
+    if not all([table_name, row_id, column_name]):
+        return JsonResponse({'error': '필수 파라미터 누락'}, status=400)
+
+    # 테이블 화이트리스트 검증
+    if table_name not in VALID_TABLES_UPDATE:
+        return JsonResponse({'error': '수정 불가능한 테이블'}, status=400)
+
+    # 컬럼명 안전성 검증 (영문, 숫자, 언더스코어만)
+    import re
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', column_name):
+        return JsonResponse({'error': '잘못된 컬럼명'}, status=400)
+
+    # is_editable 검증
+    product_line = 'tv' if table_name == 'tv_retail_com' else 'hhp'
+    # retailer는 row에서 조회
+    conn = None
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        # 기존 값 + retailer + item 조회
+        cursor.execute(
+            f"SELECT {column_name}, account_name, item FROM {table_name} WHERE id = %s",
+            (row_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'error': '해당 레코드가 없습니다'}, status=404)
+
+        old_value = row[0]
+        retailer = row[1]
+        item_value = str(row[2]) if row[2] else ''
+
+        # editable 컬럼 확인
+        editable_cols = get_editable_columns(product_line, retailer)
+        if column_name not in editable_cols:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'error': f'{column_name} 컬럼은 수정할 수 없습니다'}, status=403)
+
+        # 값이 같으면 스킵
+        old_str = str(old_value) if old_value is not None else ''
+        new_str = str(new_value) if new_value is not None else ''
+        if old_str == new_str:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'success': True, 'message': '변경 없음'})
+
+        # UPDATE 실행
+        update_value = new_value if new_value != '' else None
+        cursor.execute(
+            f"UPDATE {table_name} SET {column_name} = %s WHERE id = %s",
+            (update_value, row_id)
+        )
+
+        # monitoring_corrections에 이력 저장
+        now = datetime.now()
+        user_id = request.user.username if request.user.is_authenticated else 'anonymous'
+        memo = body.get('memo', '') or None
+        cursor.execute("""
+            INSERT INTO monitoring_corrections
+                (layer, correction_type, table_name, record_id, column_name,
+                 old_value, new_value, crawl_date, created_id, created_at, status, memo, retailer, item)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            2, correction_type_value, table_name, row_id, column_name,
+            str(old_value) if old_value is not None else None,
+            str(new_value) if new_value is not None else None,
+            crawl_date, user_id, now, 'corrected', memo, retailer, item_value or None
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'old_value': old_str, 'new_value': new_str})
+
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+                conn.close()
+            except Exception:
+                pass
+        return safe_error(e)
+
+
+def review_reasons(request):
+    """정상 처리 이유 목록 조회 API (GET) — 코드 상수에서 반환"""
+    from apps.common.constants import get_reasons
+    check_type = request.GET.get('check_type', 'null_check')
+    reasons = [{'text': r} for r in get_reasons(check_type)]
+    return JsonResponse({'success': True, 'reasons': reasons})
+
+
+def null_review(request):
+    """NULL 검증 정상 처리 / 취소 API (POST)"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST only'}, status=405)
+
+    import json
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'error': '잘못된 요청 형식'}, status=400)
+
+    table_name = body.get('table_name', '')
+    record_id = body.get('record_id')
+    column_name = body.get('column_name', '')
+    status = body.get('status', '')  # 'normal' or 'reverted'
+    memo = body.get('memo', '')
+    reason = body.get('reason', '')  # 사유 텍스트
+    crawl_date = body.get('crawl_date')
+    correction_type = body.get('correction_type', 'null')
+    retailer = body.get('retailer', '')
+
+    valid_correction_types = {'null': 'null_check', 'format': 'format_check', 'duplicate': 'duplicate_check'}
+    correction_type_value = valid_correction_types.get(correction_type, 'null_check')
+
+    if not all([table_name, record_id, column_name, status]):
+        return JsonResponse({'error': '필수 파라미터 누락'}, status=400)
+
+    # 정상 처리 시 이유 필수
+    if status == 'normal' and not reason:
+        return JsonResponse({'error': '이유 선택은 필수입니다'}, status=400)
+
+    if status not in ('normal', 'reverted'):
+        return JsonResponse({'error': '잘못된 status 값'}, status=400)
+
+    if table_name not in VALID_TABLES_UPDATE:
+        return JsonResponse({'error': '허용되지 않는 테이블'}, status=400)
+
+    import re
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', column_name):
+        return JsonResponse({'error': '잘못된 컬럼명'}, status=400)
+
+    conn = None
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        # 현재 값 + item 조회 (리테일 테이블이면 item 컬럼도 조회)
+        is_retail = table_name in ('tv_retail_com', 'hhp_retail_com')
+        if is_retail:
+            cursor.execute(
+                f"SELECT {column_name}, item FROM {table_name} WHERE id = %s",
+                (record_id,)
+            )
+        else:
+            cursor.execute(
+                f"SELECT {column_name} FROM {table_name} WHERE id = %s",
+                (record_id,)
+            )
+        row = cursor.fetchone()
+        if not row:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'error': '해당 레코드가 없습니다'}, status=404)
+
+        old_value = row[0]
+        item_value = str(row[1]) if is_retail and row[1] else None
+        now = datetime.now()
+        user_id = request.user.username if request.user.is_authenticated else 'anonymous'
+
+        # monitoring_corrections에 이력 저장 (실제 데이터는 수정하지 않음)
+        cursor.execute("""
+            INSERT INTO monitoring_corrections
+                (layer, correction_type, table_name, record_id, column_name,
+                 old_value, new_value, crawl_date, created_id, created_at, status, memo, reason, retailer, item)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            2, correction_type_value, table_name, record_id, column_name,
+            str(old_value) if old_value is not None else None,
+            None,
+            crawl_date, user_id, now, status, memo or None,
+            reason or None, retailer or None, item_value
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'status': status})
+
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+                conn.close()
+            except Exception:
+                pass
+        return safe_error(e)

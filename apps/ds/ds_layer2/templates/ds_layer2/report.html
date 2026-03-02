@@ -2311,7 +2311,7 @@ function generateReportContent(fileSizeHistory) {
     const issueCount = issueRetailers.length;
     const issueDataCount = reportData.total_anomalies;
     const rerunRetailers = reportData.daily_reports.filter(r => r.rerun_count > 0);
-    const issueLines = buildIssueLines();
+    const { anomalyLines, shortfallLines } = buildIssueLines();
 
     // 파일질라 상태 판단
     let fileStatusText = '정상';
@@ -2363,7 +2363,16 @@ function generateReportContent(fileSizeHistory) {
     // 요약 테이블
     html += `<h3 ${S.h3}>요약</h3>`;
     html += `<table ${S.table}>`;
-    html += `<tr><td ${S.tdLabel}>수집현황</td><td ${S.td}><span ${S.ok}>정상</span> (${totalRetailers}개 리테일러 100% 완료)</td></tr>`;
+    const lowRetailers = reportData.daily_reports.filter(r => {
+        const fc = r.final_batch_count || 0;
+        const ex = r.expected_count || fc;
+        return ex > 0 && fc < ex;
+    });
+    const okCount = totalRetailers - lowRetailers.length;
+    const collectStatus = lowRetailers.length > 0
+        ? `<span ${S.ok}>정상 ${okCount}건</span> / <span ${S.issue}>미달 ${lowRetailers.length}건</span> (${lowRetailers.map(r => r.retailer).join(', ')})`
+        : `<span ${S.ok}>정상</span> (${totalRetailers}개 리테일러 100% 완료)`;
+    html += `<tr><td ${S.tdLabel}>수집현황</td><td ${S.td}>${collectStatus}</td></tr>`;
     html += `<tr><td ${S.tdLabel}>재실행</td><td ${S.td}>${rerunCount > 0 ? '<span ' + S.warn + '>' + rerunCount + '건</span>' : '0건'}</td></tr>`;
     html += `<tr><td ${S.tdLabel}>데이터 품질</td><td ${S.td}><span style="${qualityStyle}">${qualityText}</span></td></tr>`;
     html += `<tr><td ${S.tdLabel}>파일질라</td><td ${S.td}><span style="${fileStatusStyle}">${fileStatusText}</span></td></tr>`;
@@ -2380,13 +2389,18 @@ function generateReportContent(fileSizeHistory) {
     }
 
     // 이슈 내용
-    if (issueLines.length > 0) {
+    if (shortfallLines.length > 0 || anomalyLines.length > 0) {
         html += `<h3 ${S.h3}>이슈 내용</h3>`;
-        html += `<ul>`;
-        issueLines.forEach(line => {
-            html += `<li>${line}</li>`;
-        });
-        html += `</ul>`;
+        if (shortfallLines.length > 0) {
+            html += `<p style="font-weight:600;margin:8px 0 4px;">수집 미달</p><ul>`;
+            shortfallLines.forEach(line => { html += `<li>${line}</li>`; });
+            html += `</ul>`;
+        }
+        if (anomalyLines.length > 0) {
+            html += `<p style="font-weight:600;margin:8px 0 4px;">이상치</p><ul>`;
+            anomalyLines.forEach(line => { html += `<li>${line}</li>`; });
+            html += `</ul>`;
+        }
     }
 
     // 수집 상세
@@ -2396,24 +2410,30 @@ function generateReportContent(fileSizeHistory) {
         const finalCount = r.final_batch_count || 0;
         const expected = r.expected_count || finalCount;
         const rate = expected > 0 ? Math.round(finalCount / expected * 100) : 100;
-        const rateStyle = rate < 100 ? S.warn : '';
-        html += `<tr>`;
+        const isLow = rate < 100;
+        const trStyle = isLow ? ' style="background:#fee2e2;"' : '';
+        html += `<tr${trStyle}>`;
         html += `<td ${S.td}>${r.retailer}</td>`;
         html += `<td ${S.tdR}>${finalCount.toLocaleString()}</td>`;
         html += `<td ${S.tdR}>${expected.toLocaleString()}</td>`;
-        html += `<td ${S.tdR}>${rateStyle ? '<span ' + rateStyle + '>' + rate + '%</span>' : rate + '%'}</td>`;
+        html += `<td ${S.tdR}>${isLow ? '<span ' + S.issue + '>' + rate + '%</span>' : rate + '%'}</td>`;
         html += `</tr>`;
     });
     html += `</tbody></table>`;
 
     // 특이사항
     html += `<h3 ${S.h3}>특이사항</h3>`;
-    if (issueLines.length > 0) {
-        html += `<ul>`;
-        issueLines.forEach(line => {
-            html += `<li>${line}</li>`;
-        });
-        html += `</ul>`;
+    if (shortfallLines.length > 0 || anomalyLines.length > 0) {
+        if (shortfallLines.length > 0) {
+            html += `<p style="font-weight:600;margin:8px 0 4px;">수집 미달</p><ul>`;
+            shortfallLines.forEach(line => { html += `<li>${line}</li>`; });
+            html += `</ul>`;
+        }
+        if (anomalyLines.length > 0) {
+            html += `<p style="font-weight:600;margin:8px 0 4px;">이상치</p><ul>`;
+            anomalyLines.forEach(line => { html += `<li>${line}</li>`; });
+            html += `</ul>`;
+        }
     } else {
         html += `<p>없음</p>`;
     }
@@ -2476,7 +2496,8 @@ function isZeroPriceValue(val) {
 }
 
 function buildIssueLines() {
-    const lines = [];
+    const anomalyLines = [];
+    const shortfallLines = [];
 
     // 리테일러별로 이상치 그룹화
     const byRetailer = {};
@@ -2491,15 +2512,14 @@ function buildIssueLines() {
         if (d.memo) dailyMemo[d.retailer] = d.memo;
     });
 
-    // 각 리테일러별로 한 줄 생성 (daily_reports 순서 = sort_order 순서)
     const retailerOrder = reportData.daily_reports.map(d => d.retailer);
+
+    // 이상치 라인
     retailerOrder.filter(retailer => byRetailer[retailer]).forEach(retailer => {
         const anomalies = byRetailer[retailer];
-        const typeCount = {};  // 유형별 건수
-        const memoCount = {};  // 이상치 메모별 건수
+        const typeCount = {};
 
         anomalies.forEach(a => {
-            // 이상치 유형 결정
             const nullFields = [];
             let isZeroPrice = false;
 
@@ -2521,29 +2541,32 @@ function buildIssueLines() {
             } else {
                 typeStr = a.error_type || 'unknown';
             }
-
-            // 유형별 카운트
             typeCount[typeStr] = (typeCount[typeStr] || 0) + 1;
-
-            // 이상치 메모별 카운트
-            const memo = a.memo || '';
-            if (memo) {
-                memoCount[memo] = (memoCount[memo] || 0) + 1;
-            }
         });
 
-        // 유형 부분: "retailprice 0원 4건, retailprice null 7건"
         const typeParts = Object.entries(typeCount).map(([t, c]) => `${t} ${c}건`);
-
-        // 메모 부분 구성 - 현황테이블 메모만 사용
         let line = `${retailer}    ${typeParts.join(', ')}`;
         if (dailyMemo[retailer]) {
             line += ` : ${dailyMemo[retailer]}`;
         }
-        lines.push(line);
+        anomalyLines.push(line);
     });
 
-    return lines;
+    // 미달 라인
+    reportData.daily_reports.forEach(r => {
+        const fc = r.final_batch_count || 0;
+        const ex = r.expected_count || fc;
+        if (ex > 0 && fc < ex) {
+            const rate = Math.round(fc / ex * 100);
+            let line = `${r.retailer}    ${fc.toLocaleString()} / ${ex.toLocaleString()} (${rate}%)`;
+            if (dailyMemo[r.retailer]) {
+                line += ` : ${dailyMemo[r.retailer]}`;
+            }
+            shortfallLines.push(line);
+        }
+    });
+
+    return { anomalyLines, shortfallLines };
 }
 
 // 모달 외부 클릭 시 닫기

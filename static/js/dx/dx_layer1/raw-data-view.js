@@ -35,8 +35,7 @@ class RawDataView {
         this.state = {
             data: [],
             columns: [],
-            sortColumn: null,
-            sortDirection: null,
+            sortColumns: [],
             originalData: [],
             filteredData: null,
             hiddenColumns: new Set(),
@@ -89,8 +88,7 @@ class RawDataView {
         this.state = {
             data: [],
             columns: [],
-            sortColumn: null,
-            sortDirection: null,
+            sortColumns: [],
             originalData: [],
             filteredData: null,
             hiddenColumns: new Set(),
@@ -143,8 +141,7 @@ class RawDataView {
                     return a[0] - b[0];
                 });
                 self.state.originalData = self.state.data.slice();
-                self.state.sortColumn = 0;
-                self.state.sortDirection = 'asc';
+                self.state.sortColumns = [{ colIndex: 0, direction: 'asc' }];
 
                 countEl.innerHTML = '총 <strong>' + esc(String(result.total_count)) + '</strong>건' + (result.total_count > 500 ? ' (최대 500건 표시)' : '');
 
@@ -180,15 +177,18 @@ class RawDataView {
             columns: columns,
             vlines: true,
             padding: '10px 12px',
-            onSort: function(key, order) {
-                self.handleSort(parseInt(key));
+            multiSort: true,
+            onSort: function(sortCols) {
+                self.handleSort(sortCols);
             }
         });
         this.table.render();
         this.enableHeaderDrag();
 
-        if (this.state.sortColumn !== null) {
-            this.table.setSort(String(this.state.sortColumn), this.state.sortDirection);
+        if (this.state.sortColumns.length > 0) {
+            this.table.setSortColumns(this.state.sortColumns.map(function(s) {
+                return { key: String(s.colIndex), order: s.direction };
+            }));
         }
 
         this.pager = new Pagination('#rawDataPagination', {
@@ -234,48 +234,52 @@ class RawDataView {
 
     // ── 정렬 ──────────────────────────────────────────────
 
-    handleSort(colIndex) {
-        if (this.state.sortColumn === colIndex) {
-            if (this.state.sortDirection === 'asc') {
-                this.state.sortDirection = 'desc';
-            } else {
-                this.state.sortColumn = null;
-                this.state.sortDirection = null;
-                this.state.data = this.state.originalData.slice();
-                this.table.setSort(null, null);
-                if (this.state.filteredData) this.applyFilter();
-                this.renderPage(1);
-                return;
-            }
-        } else {
-            this.state.sortColumn = colIndex;
-            this.state.sortDirection = 'asc';
-        }
-
-        var dir = this.state.sortDirection;
-        this.state.data.sort(function(a, b) {
-            var valA = a[colIndex], valB = b[colIndex];
-            var aIsNull = (valA === null || valA === undefined || valA === '');
-            var bIsNull = (valB === null || valB === undefined || valB === '');
-            if (aIsNull && bIsNull) return 0;
-            if (aIsNull) return 1;
-            if (bIsNull) return -1;
-            var numA = parseFloat(valA), numB = parseFloat(valB);
-            if (!isNaN(numA) && !isNaN(numB)) return dir === 'asc' ? numA - numB : numB - numA;
-            var strA = String(valA).toLowerCase(), strB = String(valB).toLowerCase();
-            return dir === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+    /**
+     * 다중 정렬 처리
+     * CommonTable의 onSort 콜백에서 [{ key, order }] 배열을 받음
+     */
+    handleSort(sortCols) {
+        // CommonTable에서 전달받은 상태를 state에 동기화
+        this.state.sortColumns = sortCols.map(function(s) {
+            return { colIndex: parseInt(s.key), direction: s.order };
         });
 
-        this.table.setSort(String(colIndex), dir);
+        if (this.state.sortColumns.length === 0) {
+            this.state.data = this.state.originalData.slice();
+        } else {
+            var cols = this.state.sortColumns;
+            this.state.data.sort(function(a, b) {
+                for (var i = 0; i < cols.length; i++) {
+                    var colIndex = cols[i].colIndex;
+                    var dir = cols[i].direction;
+                    var valA = a[colIndex], valB = b[colIndex];
+                    var aIsNull = (valA === null || valA === undefined || valA === '');
+                    var bIsNull = (valB === null || valB === undefined || valB === '');
+                    if (aIsNull && bIsNull) continue;
+                    if (aIsNull) return 1;
+                    if (bIsNull) return -1;
+                    var numA = parseFloat(valA), numB = parseFloat(valB);
+                    if (!isNaN(numA) && !isNaN(numB)) {
+                        var diff = dir === 'asc' ? numA - numB : numB - numA;
+                        if (diff !== 0) return diff;
+                        continue;
+                    }
+                    var strA = String(valA).toLowerCase(), strB = String(valB).toLowerCase();
+                    var cmp = dir === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
+                    if (cmp !== 0) return cmp;
+                }
+                return 0;
+            });
+        }
+
         if (this.state.filteredData) this.applyFilter();
         this.renderPage(1);
     }
 
     resetSort() {
-        this.state.sortColumn = null;
-        this.state.sortDirection = null;
+        this.state.sortColumns = [];
         this.state.data = this.state.originalData.slice();
-        if (this.table) this.table.setSort(null, null);
+        if (this.table) this.table.setSortColumns([]);
         if (this.state.filteredData) this.applyFilter();
         this.renderPage(1);
     }

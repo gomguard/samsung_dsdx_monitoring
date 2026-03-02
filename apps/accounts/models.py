@@ -36,9 +36,9 @@ class UserProfile(models.Model):
         return f'{self.user.username} 프로필'
 
     def increment_failed_attempts(self):
-        """로그인 실패 횟수 증가, 5회 이상이면 계정 잠금"""
+        """로그인 실패 횟수 증가, 5회 이상이면 계정 잠금 (superuser 제외)"""
         self.failed_login_attempts += 1
-        if self.failed_login_attempts >= 5:
+        if self.failed_login_attempts >= 5 and not self.user.is_superuser:
             self.is_locked = True
             self.locked_at = timezone.now()
         self.save()

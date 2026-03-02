@@ -36,6 +36,28 @@ urlpatterns = [
     path('admin/null-checks/<int:check_id>/delete/', views.null_checks_delete, name='null_checks_delete'),
     path('admin/null-checks/<int:check_id>/toggle/', views.null_checks_toggle, name='null_checks_toggle'),
 
+    # 관리자 페이지 - 형식 검증 관리
+    path('admin/format-rules/', views.format_rules, name='format_rules'),
+    path('admin/format-rules/create/', views.format_rules_create, name='format_rules_create'),
+    path('admin/format-rules/<int:rule_id>/update/', views.format_rules_update, name='format_rules_update'),
+    path('admin/format-rules/<int:rule_id>/delete/', views.format_rules_delete, name='format_rules_delete'),
+    path('admin/format-rules/<int:rule_id>/toggle/', views.format_rules_toggle, name='format_rules_toggle'),
+
+    # 형식 검증 - 템플릿
+    path('admin/format-templates/new/', views.format_template_edit, name='format_template_new'),
+    path('admin/format-templates/<int:tmpl_id>/edit/', views.format_template_edit, name='format_template_edit'),
+    path('admin/format-templates/api/list/', views.format_templates_list, name='format_templates_list'),
+    path('admin/format-templates/api/save/', views.format_templates_save, name='format_templates_save'),
+    path('admin/format-templates/api/<int:tmpl_id>/delete/', views.format_templates_delete, name='format_templates_delete'),
+    path('admin/format-templates/api/<int:tmpl_id>/toggle/', views.format_templates_toggle, name='format_templates_toggle'),
+
+    # 형식 검증 - 설정
+    path('admin/format-config/new/', views.format_config_edit, name='format_config_new'),
+    path('admin/format-config/<int:config_id>/edit/', views.format_config_edit, name='format_config_edit'),
+    path('admin/format-config/api/list/', views.format_config_list, name='format_config_list'),
+    path('admin/format-config/api/save/', views.format_config_save, name='format_config_save'),
+    path('admin/format-config/api/<int:config_id>/delete/', views.format_config_delete, name='format_config_delete'),
+
     # 관리자 페이지 - DS 스케줄 설정
     path('admin/schedule-settings/', views.schedule_settings, name='schedule_settings'),
     path('admin/schedule-settings/create/', views.schedule_settings_create, name='schedule_settings_create'),

@@ -46,6 +46,13 @@
     width: fit-content;
 }
 
+.fb-plain {
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
 .fb-left,
 .fb-right {
     display: flex;
@@ -149,4 +156,93 @@
 .fb-toggle {
     display: flex;
     gap: 10px;
+}
+
+/* ============================================================
+   컬럼 선택 드롭다운
+   ============================================================ */
+.fb-col-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    z-index: 1000;
+    min-width: 220px;
+    max-height: 420px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.fb-col-actions {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.fb-col-list {
+    overflow-y: auto;
+    max-height: 360px;
+    padding: 4px 0;
+}
+
+.fb-col-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    cursor: default;
+    font-size: 13px;
+    white-space: nowrap;
+    color: var(--text-primary);
+    transition: background .1s;
+}
+
+.fb-col-item:hover {
+    background: #f1f5f9;
+}
+
+.fb-col-item.dragging {
+    opacity: .4;
+    background: #e2e8f0;
+}
+
+.fb-col-item.drag-over {
+    border-top: 2px solid var(--layer-color, #7c3aed);
+    margin-top: -2px;
+}
+
+.fb-col-item.col-fixed {
+    opacity: .85;
+}
+
+.fb-col-item input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.fb-col-item input[type="checkbox"]:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+.fb-col-item .drag-handle {
+    cursor: grab;
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1;
+    user-select: none;
+}
+
+.fb-col-item .drag-handle:active {
+    cursor: grabbing;
+}
+
+.fb-col-item.col-fixed .drag-handle {
+    cursor: default;
+    opacity: .35;
 }

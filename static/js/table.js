@@ -14,13 +14,17 @@
  *       - variant: 'detail' | 'admin' | 'list'
  *       - columns: [{ key, label, width, sortable, align }]
  *       - resize: true/false (기본 true)
+ *       - reorder: true/false (기본 false) — 헤더 드래그로 열 이동
+ *       - fixedColumns: ['_no'] — 이동 불가 컬럼 키 배열
+ *       - onReorder: (newColumns) => {} — 열 이동 후 콜백
  *       - rowHeight: 행 콘텐츠 높이 px (미지정 시 CSS 기본값)
  *       - padding: 셀 패딩 문자열 (예: '8px 16px', 미지정 시 CSS 기본값)
  *       - onSort: (key, order) => {}
  *     메서드:
- *       - render(): thead 생성 + 리사이즈 적용
+ *       - render(): thead 생성 + 리사이즈/리오더 적용
  *       - renderBody(rows, renderRow): tbody 업데이트
  *       - getTable(): table 엘리먼트 반환
+ *       - getColumns(): 현재 컬럼 순서 반환
  *
  * [페이지네이션]
  * - enablePagination(tbodySelector, options)
@@ -67,15 +71,24 @@ class CommonTable {
             variant: 'detail',
             columns: [],
             resize: true,
+            reorder: false,
+            fixedColumns: [],
+            onReorder: null,
             vlines: false,
+            rounded: false,
+            bordered: false,
+            section: false,
+            card: false,
             rowHeight: null,
             padding: null,
             onSort: null,
             showTotalCount: false,
             ...options
         };
+        this.multiSort = options.multiSort || false;
         this.sortKey = null;
         this.sortOrder = null;
+        this.sortColumns = [];  // 다중 정렬: [{ key, order }] 순서 배열
         this.tableEl = null;
         this.countEl = null;
     }
@@ -88,7 +101,7 @@ class CommonTable {
         const { variant, columns, resize, rowHeight, padding } = this.options;
 
         const table = document.createElement('table');
-        table.className = `ct ct-${variant}${this.options.vlines ? ' ct-vlines' : ''}`;
+        table.className = `ct ct-${variant}${this.options.vlines ? ' ct-vlines' : ''}${this.options.bordered ? ' ct-bordered' : ''}${this.options.rounded ? ' ct-rounded' : ''}`;
         if (rowHeight) table.style.setProperty('--ct-row-height', rowHeight + 'px');
         if (padding) table.style.setProperty('--ct-padding', padding);
 
@@ -124,8 +137,17 @@ class CommonTable {
         // tbody (빈 상태)
         table.appendChild(document.createElement('tbody'));
 
+        if (this.options.card) this.container.classList.add('card');
         this.container.innerHTML = '';
-        this.container.appendChild(table);
+
+        if (this.options.section) {
+            const sectionEl = document.createElement('div');
+            sectionEl.className = 'ct-section';
+            this.container.appendChild(sectionEl);
+            sectionEl.appendChild(table);
+        } else {
+            this.container.appendChild(table);
+        }
         this.tableEl = table;
 
         // col width가 th 텍스트보다 좁으면 자동 보정
@@ -157,16 +179,36 @@ class CommonTable {
         // 셀 클릭 → 셀 하이라이트 + 텍스트 선택 (Ctrl+C 복사용)
         let selectedTd = null;
         table.addEventListener('click', (e) => {
+            if (e.target.closest('input, textarea, select')) return;
             const td = e.target.closest('td');
             if (!td || td.classList.contains('ct-nc')) return;
             if (selectedTd) selectedTd.classList.remove('ct-selected');
             td.classList.add('ct-selected');
             selectedTd = td;
-            const selection = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(td);
-            selection.removeAllRanges();
-            selection.addRange(range);
+            const copyText = td.dataset.copyText;
+            if (copyText !== undefined) {
+                // data-copy-text가 있으면 숨겨진 텍스트 노드로 선택
+                let span = td.querySelector('.ct-copy-helper');
+                if (!span) {
+                    span = document.createElement('span');
+                    span.className = 'ct-copy-helper';
+                    span.style.cssText = 'position:absolute;left:-9999px;';
+                    td.style.position = 'relative';
+                    td.appendChild(span);
+                }
+                span.textContent = copyText;
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(span);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            } else {
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(td);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
         });
         document.addEventListener('click', (e) => {
             if (selectedTd && !table.contains(e.target)) {
@@ -184,6 +226,7 @@ class CommonTable {
         });
 
         if (resize) enableColumnResize(table);
+        if (this.options.reorder) this._enableReorder();
 
         return this;
     }
@@ -215,34 +258,188 @@ class CommonTable {
     setSort(key, order) {
         this.sortKey = key;
         this.sortOrder = order;
+        if (!this.multiSort) {
+            this._updateSortUI();
+        }
+    }
+
+    /**
+     * 다중 정렬 상태 외부에서 설정
+     * @param {Array} columns - [{ key, order }]
+     */
+    setSortColumns(columns) {
+        this.sortColumns = (columns || []).slice();
         this._updateSortUI();
     }
 
     _handleSort(key, thEl) {
-        if (this.sortKey === key) {
-            this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+        if (this.multiSort) {
+            this._handleMultiSort(key);
         } else {
-            this.sortKey = key;
-            this.sortOrder = 'asc';
+            if (this.sortKey === key) {
+                this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortKey = key;
+                this.sortOrder = 'asc';
+            }
+            this._updateSortUI();
+            if (this.options.onSort) {
+                this.options.onSort(this.sortKey, this.sortOrder);
+            }
+        }
+    }
+
+    _handleMultiSort(key) {
+        var idx = -1;
+        for (var i = 0; i < this.sortColumns.length; i++) {
+            if (this.sortColumns[i].key === key) { idx = i; break; }
+        }
+        if (idx >= 0) {
+            if (this.sortColumns[idx].order === 'asc') {
+                this.sortColumns[idx].order = 'desc';
+            } else {
+                this.sortColumns.splice(idx, 1);
+            }
+        } else {
+            this.sortColumns.push({ key: key, order: 'asc' });
         }
         this._updateSortUI();
         if (this.options.onSort) {
-            this.options.onSort(this.sortKey, this.sortOrder);
+            this.options.onSort(this.sortColumns.slice());
         }
     }
 
     _updateSortUI() {
+        if (!this.tableEl) return;
         const ths = this.tableEl.querySelectorAll('th.sortable');
         ths.forEach(th => {
             th.classList.remove('asc', 'desc');
-            if (th.dataset.sortKey === this.sortKey) {
-                th.classList.add(this.sortOrder);
-            }
+            th.removeAttribute('data-sort-order');
         });
+        if (this.multiSort) {
+            var showOrder = this.sortColumns.length > 1;
+            this.sortColumns.forEach((col, idx) => {
+                const th = this.tableEl.querySelector('th[data-sort-key="' + col.key + '"]');
+                if (th) {
+                    th.classList.add(col.order);
+                    if (showOrder) th.setAttribute('data-sort-order', idx + 1);
+                }
+            });
+        } else {
+            ths.forEach(th => {
+                if (th.dataset.sortKey === this.sortKey) {
+                    th.classList.add(this.sortOrder);
+                }
+            });
+        }
     }
 
     getTable() {
         return this.tableEl;
+    }
+
+    getColumns() {
+        return this.options.columns.slice();
+    }
+
+    /**
+     * 헤더 드래그로 열 이동
+     * fixedColumns에 포함된 열은 드래그 불가
+     */
+    _enableReorder() {
+        const self = this;
+        const table = this.tableEl;
+        const thead = table.querySelector('thead');
+        const ths = thead.querySelectorAll('th');
+        const fixed = new Set(this.options.fixedColumns || []);
+        let dragSrc = null;
+
+        ths.forEach(th => {
+            const colIdx = parseInt(th.dataset.colIdx);
+            const colKey = this.options.columns[colIdx]?.key;
+            if (fixed.has(colKey)) return;
+
+            th.draggable = true;
+            th.classList.add('ct-reorderable');
+
+            th.addEventListener('dragstart', e => {
+                dragSrc = th;
+                th.classList.add('ct-th-dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', '');
+            });
+
+            th.addEventListener('dragend', () => {
+                th.classList.remove('ct-th-dragging');
+                ths.forEach(t => t.classList.remove('ct-th-drag-left', 'ct-th-drag-right'));
+                dragSrc = null;
+            });
+
+            th.addEventListener('dragover', e => {
+                if (!dragSrc || dragSrc === th) return;
+                const targetKey = self.options.columns[parseInt(th.dataset.colIdx)]?.key;
+                if (fixed.has(targetKey)) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                const rect = th.getBoundingClientRect();
+                const midX = rect.left + rect.width / 2;
+                th.classList.remove('ct-th-drag-left', 'ct-th-drag-right');
+                th.classList.add(e.clientX < midX ? 'ct-th-drag-left' : 'ct-th-drag-right');
+            });
+
+            th.addEventListener('dragleave', () => {
+                th.classList.remove('ct-th-drag-left', 'ct-th-drag-right');
+            });
+
+            th.addEventListener('drop', e => {
+                e.preventDefault();
+                if (!dragSrc || dragSrc === th) return;
+
+                const fromIdx = parseInt(dragSrc.dataset.colIdx);
+                const toIdx = parseInt(th.dataset.colIdx);
+                const rect = th.getBoundingClientRect();
+                const insertAfter = e.clientX >= rect.left + rect.width / 2;
+
+                // columns 배열 재정렬
+                const cols = self.options.columns;
+                const moved = cols.splice(fromIdx, 1)[0];
+                let newPos = cols.indexOf(cols[toIdx > fromIdx ? toIdx - 1 : toIdx]);
+                if (newPos === -1) newPos = toIdx > fromIdx ? toIdx - 1 : toIdx;
+                if (insertAfter) newPos++;
+                cols.splice(newPos, 0, moved);
+
+                // DOM 재정렬: colgroup, thead, tbody 모든 행
+                const colgroup = table.querySelector('colgroup');
+                const colEls = Array.from(colgroup.querySelectorAll('col'));
+                const movedCol = colEls.splice(fromIdx, 1)[0];
+                colEls.splice(newPos, 0, movedCol);
+                colgroup.innerHTML = '';
+                colEls.forEach(c => colgroup.appendChild(c));
+
+                const headerRow = thead.querySelector('tr');
+                const thEls = Array.from(headerRow.querySelectorAll('th'));
+                const movedTh = thEls.splice(fromIdx, 1)[0];
+                thEls.splice(newPos, 0, movedTh);
+                headerRow.innerHTML = '';
+                thEls.forEach((t, i) => { t.dataset.colIdx = i; headerRow.appendChild(t); });
+
+                const tbody = table.querySelector('tbody');
+                Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+                    const tds = Array.from(tr.children);
+                    if (tds.length <= fromIdx) return;
+                    const movedTd = tds.splice(fromIdx, 1)[0];
+                    tds.splice(newPos, 0, movedTd);
+                    tr.innerHTML = '';
+                    tds.forEach(td => tr.appendChild(td));
+                });
+
+                ths.forEach(t => t.classList.remove('ct-th-drag-left', 'ct-th-drag-right'));
+
+                if (self.options.onReorder) {
+                    self.options.onReorder(self.options.columns.slice());
+                }
+            });
+        });
     }
 }
 

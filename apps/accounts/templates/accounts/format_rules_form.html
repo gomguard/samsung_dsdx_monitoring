@@ -1,0 +1,287 @@
+{% extends 'accounts/admin_base.html' %}
+{% load static %}
+
+{% block title %}{% if mode == 'create' %}규칙 추가{% else %}규칙 수정{% endif %} - 형식 검증 관리{% endblock %}
+
+{% block admin_css %}
+<style>
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+.admin-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+.admin-title-sub { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+
+.card-section {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.nc-form .form-group { margin-bottom: 20px; }
+.nc-form .form-group label {
+    display: block; font-size: 13px; font-weight: 600;
+    color: var(--text-secondary); margin-bottom: 6px;
+}
+.nc-form .form-group input,
+.nc-form .form-group select,
+.nc-form .form-group textarea {
+    width: 100%; padding: 10px 14px;
+    border: 1px solid var(--border-color); border-radius: 8px;
+    font-size: 14px; background: var(--bg-primary); color: var(--text-primary);
+    box-sizing: border-box;
+}
+.nc-form .form-group input:focus,
+.nc-form .form-group select:focus,
+.nc-form .form-group textarea:focus {
+    outline: none; border-color: var(--page-color);
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+.nc-form .form-group textarea { resize: vertical; font-family: inherit; line-height: 1.5; }
+.nc-form .form-hint { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 4px; opacity: 0.7; }
+.nc-form .form-row { display: flex; gap: 20px; }
+.nc-form .form-row .form-group { flex: 1; }
+.nc-form .form-checkbox { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+.nc-form .form-checkbox input[type="checkbox"] { width: 18px; height: 18px; }
+.nc-form .form-checkbox label { font-size: 14px; color: var(--text-primary); margin-bottom: 0; }
+.nc-form .form-actions { display: flex; justify-content: flex-end; margin-top: 32px; }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div>
+    <div class="admin-header">
+        <div>
+            <h1 class="admin-title">{% if mode == 'create' %}규칙 추가{% else %}규칙 수정{% endif %}</h1>
+            <p class="admin-title-sub">형식 검증 규칙 정보를 입력합니다</p>
+        </div>
+    </div>
+
+    <div id="buttonBarArea"></div>
+
+    <div class="card-section">
+        <div class="nc-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>테이블명 *</label>
+                    <select id="formTableName">
+                        <option value="tv_retail_com" {% if row.table_name == 'tv_retail_com' %}selected{% endif %}>tv_retail_com</option>
+                        <option value="hhp_retail_com" {% if row.table_name == 'hhp_retail_com' %}selected{% endif %}>hhp_retail_com</option>
+                        <option value="youtube_videos" {% if row.table_name == 'youtube_videos' %}selected{% endif %}>youtube_videos</option>
+                        <option value="youtube_collection_logs" {% if row.table_name == 'youtube_collection_logs' %}selected{% endif %}>youtube_collection_logs</option>
+                        <option value="youtube_comments" {% if row.table_name == 'youtube_comments' %}selected{% endif %}>youtube_comments</option>
+                        <option value="market_trend" {% if row.table_name == 'market_trend' %}selected{% endif %}>market_trend</option>
+                        <option value="market_comp_product" {% if row.table_name == 'market_comp_product' %}selected{% endif %}>market_comp_product</option>
+                        <option value="market_comp_event" {% if row.table_name == 'market_comp_event' %}selected{% endif %}>market_comp_event</option>
+                        <option value="openai_forecast_results" {% if row.table_name == 'openai_forecast_results' %}selected{% endif %}>openai_forecast_results</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>리테일러 *</label>
+                    <select id="formAccountName">
+                        <option value="ALL" {% if row.account_name == 'ALL' %}selected{% endif %}>ALL</option>
+                        <option value="Amazon" {% if row.account_name == 'Amazon' %}selected{% endif %}>Amazon</option>
+                        <option value="Bestbuy" {% if row.account_name == 'Bestbuy' %}selected{% endif %}>Bestbuy</option>
+                        <option value="Walmart" {% if row.account_name == 'Walmart' %}selected{% endif %}>Walmart</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>컬럼명 *</label>
+                    <input type="text" id="formColumnName" placeholder="예: final_sku_price" value="{{ row.column_name|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label>템플릿</label>
+                    <select id="formTemplateId" onchange="onTemplateChange()">
+                        <option value="">선택 안 함</option>
+                        {% for t in templates %}
+                        <option value="{{ t.id }}" data-check-type="{{ t.check_type }}" data-pattern="{{ t.pattern|default:'' }}" {% if row.template_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group" id="ruleValueGroup">
+                <label>rule_value</label>
+                <input type="text" id="formRuleValue" placeholder="" value="{{ row.rule_value|default:'' }}">
+                <span class="form-hint" id="ruleValueHint">템플릿에 따라 입력값이 달라집니다</span>
+            </div>
+
+            <div class="form-group">
+                <label>extra_allowed (예외 허용값)</label>
+                <textarea id="formExtraAllowed" rows="3" placeholder="예: No featured offers available|Currently unavailable.">{{ row.extra_allowed|default:'' }}</textarea>
+                <span class="form-hint">파이프(|)로 구분하여 입력. 이 값들은 형식 검증을 건너뜁니다</span>
+            </div>
+
+            <div class="form-group">
+                <label>forbidden_chars (금지 문자열)</label>
+                <input type="text" id="formForbiddenChars" placeholder="예: {|}" value="{{ row.forbidden_chars|default:'' }}">
+                <span class="form-hint">파이프(|)로 구분. 값에 이 문자열이 포함되면 즉시 오류</span>
+            </div>
+
+            <div class="form-group">
+                <label>에러메시지</label>
+                <input type="text" id="formErrorMessage" placeholder="예: 가격 형식 오류" value="{{ row.error_message|default:'' }}">
+                <span class="form-hint">비워두면 기본 메시지 사용</span>
+            </div>
+
+            <div class="form-checkbox">
+                <input type="checkbox" id="formIsActive" {% if row.is_active or mode == 'create' %}checked{% endif %}>
+                <label for="formIsActive">활성</label>
+            </div>
+
+            <div class="form-actions">
+                <button class="app-btn app-btn-fb app-btn-save" onclick="saveRule()">저장</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+var MODE = '{{ mode }}';
+var RULE_ID = '{{ row.id|default:"" }}';
+
+// ========== ButtonBar ==========
+new ButtonBar('#buttonBarArea', {
+    align: 'left',
+    margin: '0 0 16px 0',
+    buttons: [
+        { id: 'btnBack', label: '← 목록', style: 'back', size: 'fb', onClick: function() { goBackToList(); } },
+    ]
+}).render();
+
+// ========== 템플릿 선택 시 동적 UI ==========
+var RULE_VALUE_CONFIG = {
+    range: { placeholder: '예: 1~100', hint: '최소~최대 (정수 범위)', show: true },
+    range_float: { placeholder: '예: 0.0~9999.99', hint: '최소~최대 (실수 범위)', show: true },
+    starts_with: { placeholder: '예: http', hint: '접두사 문자열', show: true },
+    enum: { placeholder: '예: main|bsr|trend', hint: '파이프(|)로 구분한 허용값 목록', show: true },
+    min: { placeholder: '예: 0', hint: '최소값', show: true },
+    separator_count: { placeholder: '예: |||~3', hint: '구분자~개수', show: true },
+    fk_check: { placeholder: '예: youtube_keywords.keyword|status=active', hint: '참조테이블.컬럼|조건 (조건은 선택)', show: true },
+    date_compare: { placeholder: '예: <=created_at', hint: '비교연산자+대상컬럼 (예: <=created_at)', show: true },
+    conditional_empty: { placeholder: '예: comment_type=top_level', hint: '조건컬럼=조건값 (해당 시 빈값이어야 함)', show: true },
+};
+
+function onTemplateChange() {
+    var sel = document.getElementById('formTemplateId');
+    var opt = sel.options[sel.selectedIndex];
+    var checkType = opt.getAttribute('data-check-type') || '';
+    var cfg = RULE_VALUE_CONFIG[checkType];
+    var group = document.getElementById('ruleValueGroup');
+    var input = document.getElementById('formRuleValue');
+    var hint = document.getElementById('ruleValueHint');
+
+    if (cfg && cfg.show) {
+        group.style.display = '';
+        input.placeholder = cfg.placeholder;
+        hint.textContent = cfg.hint;
+    } else if (checkType && checkType.startsWith('regex')) {
+        var hasPattern = (opt.getAttribute('data-pattern') || '').trim();
+        if (hasPattern) {
+            group.style.display = 'none';
+            input.value = '';
+        } else {
+            group.style.display = '';
+            input.placeholder = '정규식 패턴 입력 (예: ^\\d+%)';
+            hint.textContent = '이 템플릿은 패턴이 없으므로 직접 정규식을 입력합니다';
+        }
+    } else {
+        group.style.display = '';
+        input.placeholder = '';
+        hint.textContent = '템플릿에 따라 입력값이 달라집니다';
+    }
+}
+
+// 초기 로드 시 반영
+onTemplateChange();
+
+// ========== 원본 데이터 (수정 시 변경 감지용) ==========
+var _originalData = null;
+{% if mode == 'update' and row %}
+_originalData = {
+    table_name: '{{ row.table_name|escapejs }}',
+    column_name: '{{ row.column_name|escapejs }}',
+    account_name: '{{ row.account_name|escapejs }}',
+    template_id: '{{ row.template_id|default:""|escapejs }}',
+    rule_value: '{{ row.rule_value|default:""|escapejs }}',
+    extra_allowed: '{{ row.extra_allowed|default:""|escapejs }}',
+    forbidden_chars: '{{ row.forbidden_chars|default:""|escapejs }}',
+    error_message: '{{ row.error_message|default:""|escapejs }}',
+    is_active: {{ row.is_active|yesno:"true,false" }},
+};
+{% endif %}
+
+function saveRule() {
+    var data = {
+        table_name: document.getElementById('formTableName').value,
+        column_name: document.getElementById('formColumnName').value.trim(),
+        account_name: document.getElementById('formAccountName').value,
+        template_id: document.getElementById('formTemplateId').value || null,
+        rule_value: document.getElementById('formRuleValue').value.trim(),
+        extra_allowed: document.getElementById('formExtraAllowed').value.trim(),
+        forbidden_chars: document.getElementById('formForbiddenChars').value.trim(),
+        error_message: document.getElementById('formErrorMessage').value.trim(),
+        is_active: document.getElementById('formIsActive').checked,
+    };
+
+    if (!data.column_name || !data.account_name) {
+        showToast('컬럼명, 리테일러는 필수입니다.', 'warn');
+        return;
+    }
+
+    if (MODE === 'update' && _originalData) {
+        var hasChange = Object.keys(data).some(function(k) {
+            if (typeof data[k] === 'boolean') return data[k] !== _originalData[k];
+            return String(data[k] || '') !== String(_originalData[k] || '');
+        });
+        if (!hasChange) {
+            showToast('변경된 데이터가 없습니다.', 'info');
+            return;
+        }
+    }
+
+    var url = MODE === 'update'
+        ? '/accounts/admin/format-rules/' + RULE_ID + '/update/'
+        : '/accounts/admin/format-rules/create/';
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(function(r) {
+        if (!r.ok) return r.text().then(function(t) { throw new Error('서버 ' + r.status + ': ' + t.substring(0, 200)); });
+        return r.json();
+    })
+    .then(function(res) {
+        if (res.success) {
+            showToast(res.message || '저장되었습니다.', 'success');
+            if (MODE === 'create' && res.id) {
+                MODE = 'update';
+                RULE_ID = res.id;
+                history.replaceState(null, '', '/accounts/admin/format-rules/' + res.id + '/update/');
+                document.querySelector('.admin-title').textContent = '규칙 수정';
+            }
+            _originalData = JSON.parse(JSON.stringify(data));
+        } else {
+            showToast(res.error || '오류가 발생했습니다.', 'error');
+        }
+    })
+    .catch(function(err) { showToast('요청 오류: ' + err.message, 'error'); });
+}
+
+function goBackToList() {
+    var saved = sessionStorage.getItem('fr_filter');
+    location.href = '/accounts/admin/format-rules/' + (saved ? '?' + saved : '');
+}
+</script>
+{% endblock %}

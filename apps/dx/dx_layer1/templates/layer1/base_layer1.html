@@ -170,8 +170,14 @@
     .check-badge-inline { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; }
     .btn-check-confirm { padding: 4px 14px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg-secondary); color: var(--text-secondary); transition: all 0.15s; flex-shrink: 0; }
     .btn-check-confirm:hover { border-color: var(--page-color); color: var(--page-color); background: var(--bg-primary); }
+    .btn-check-confirm.step2 { color: var(--page-color); border-color: var(--page-color); }
+    .btn-check-confirm.step2:hover { background: var(--page-color); color: white; }
     .btn-check-confirm.checked { background: var(--page-color); color: white; border-color: var(--page-color); }
     .btn-check-confirm.checked:hover { opacity: 0.85; }
+    .btn-check-confirm.completed { background: var(--color-ok); color: white; border-color: var(--color-ok); }
+    .btn-check-confirm.completed:hover { opacity: 0.85; }
+    .btn-check-confirm.cancel { background: white; color: var(--text-secondary); border-color: #d1d5db; font-size: 11px; padding: 4px 10px; }
+    .btn-check-confirm.cancel:hover { border-color: var(--color-critical); color: var(--color-critical); }
 
     /* Threshold */
     .threshold-info { background: white; border-radius: 12px; padding: 16px 24px; border: 1px solid var(--border-color); margin-bottom: 24px; }
@@ -573,14 +579,14 @@ function flattenCheckToDetails(sectionType, check) {
             break;
         case 'youtube':
             (check.categories || []).forEach(function(cat) {
-                details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'log_count',
+                details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'Log',
                     expected_count: cat.expected || 0, actual_count: cat.log_count || 0,
                     rate: cat.rate || 0, status: cat.status });
-                details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'video_count',
+                details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'Video',
                     expected_count: cat.avg_7day || 0, actual_count: cat.video_count || 0,
                     rate: cat.avg_7day > 0 ? Math.round(cat.video_count / cat.avg_7day * 1000) / 10 : 0,
                     status: cat.status });
-                details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'comment_count',
+                details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'Comment',
                     expected_count: 0, actual_count: cat.comment_count || 0, rate: 0, status: cat.status });
             });
             break;
@@ -591,12 +597,6 @@ function flattenCheckToDetails(sectionType, check) {
                         expected_count: item.expected || 0, actual_count: item.collected || 0,
                         rate: item.rate || 0, status: item.status });
                 });
-                if (cat.keyword_coverage) {
-                    var kc = cat.keyword_coverage;
-                    details.push({ category: cat.name, time_slot: '', retailer: '', item_name: 'keyword_coverage',
-                        expected_count: kc.registered || 0, actual_count: kc.collected || 0,
-                        rate: kc.rate || 0, status: kc.status || cat.status });
-                }
             });
             break;
         case 'market_competitor':
@@ -605,12 +605,6 @@ function flattenCheckToDetails(sectionType, check) {
                 details.push({ category: cat.category, time_slot: '', retailer: '', item_name: 'collected',
                     expected_count: cat.expected || 0, actual_count: cat.collected || 0,
                     rate: cat.rate || 0, status: cat.status });
-                if (cat.keyword_coverage) {
-                    var kc2 = cat.keyword_coverage;
-                    details.push({ category: cat.category, time_slot: '', retailer: '', item_name: 'keyword_coverage',
-                        expected_count: kc2.combo_expected || 0, actual_count: kc2.combo_collected || 0,
-                        rate: kc2.combo_rate || 0, status: cat.status });
-                }
             });
             break;
         case 'market_demand':
@@ -637,52 +631,70 @@ async function loadCheckStatus(dateStr) {
     return await response.json();
 }
 
-async function saveCheck(sectionType) {
+async function saveCheck(sectionType, step) {
+    step = step || 1;
     if (!currentStatsData || !currentStatsData.checks) return;
 
     var check = currentStatsData.checks.find(function(c) { return c.check_type === sectionType; });
     if (!check) { showToast('해당 섹션 데이터가 없습니다.', 'error'); return; }
 
-    var result = await showConfirm(check.name + ' 검수를 확인 처리하시겠습니까?', 'info', {
-        input: { placeholder: '메모 (선택)' }
-    });
-    if (!result.confirmed) return;
+    var confirmMsg = step === 2
+        ? check.name + ' 검수를 최종 완료하시겠습니까?'
+        : check.name + ' 검수를 확인 처리하시겠습니까?';
+
+    var options = step === 1 ? { input: { placeholder: '메모 (선택)' } } : {};
+    var result = await showConfirm(confirmMsg, step === 2 ? 'warning' : 'info', options);
+    var confirmed = typeof result === 'object' ? result.confirmed : result;
+    var memo = typeof result === 'object' ? (result.value || '') : '';
+    if (!confirmed) return;
 
     try {
+        // 수요증감율 1차 확인: 부족 키워드 스냅샷 포함
+        var keywords = [];
+        if (sectionType === 'market_demand' && step === 1) {
+            try {
+                var missingResp = await fetch('/dx/layer1/api/market-demand-missing/?category=all&date=' + getSelectedDate());
+                var missingData = await missingResp.json();
+                keywords = missingData.missing_keywords || [];
+            } catch (e) { /* 키워드 조회 실패해도 확인은 진행 */ }
+        }
+
+        var sectionData = { section: sectionType,
+            expected_count: check.expected || check.expected_min || check.target || 0,
+            actual_count: check.actual || 0, rate: check.rate || 0, status: check.status,
+            details: flattenCheckToDetails(sectionType, check), memo: memo };
+        if (keywords.length > 0) sectionData.keywords = keywords;
+
         var response = await fetch('/dx/layer1/api/check/save/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            body: JSON.stringify({
-                date: getSelectedDate(), layer: 1,
-                sections: [{ section: sectionType,
-                    expected_count: check.expected || check.expected_min || check.target || 0,
-                    actual_count: check.actual || 0, rate: check.rate || 0, status: check.status,
-                    details: flattenCheckToDetails(sectionType, check), memo: result.value || '' }]
-            })
+            body: JSON.stringify({ date: getSelectedDate(), layer: 1, step: step, sections: [sectionData] })
         });
         var saveData = await response.json();
         if (!response.ok || !saveData.success) { showToast(saveData.error || '저장 중 오류가 발생했습니다.', 'error'); return; }
-        showToast('확인 완료', 'success');
+        showToast(step === 2 ? '완료 처리됨' : '확인 완료', 'success');
         loadAllData();
     } catch (e) { showToast('시스템 오류가 발생했습니다.', 'error'); }
 }
 
-async function deleteCheck(sectionType) {
-    var result = await showConfirm('확인을 취소하시겠습니까?', 'warning', {
-        input: { placeholder: '취소 사유를 입력하세요 (필수)' }
-    });
+async function deleteCheck(sectionType, step) {
+    step = step || 0;
+    var confirmMsg = step === 2 ? '완료를 취소하시겠습니까?' : '확인을 취소하시겠습니까?';
+
+    var result = await showConfirm(confirmMsg, 'warning', { input: { placeholder: '취소 사유를 입력하세요 (필수)' } });
     if (!result.confirmed) return;
     if (!result.value) { showToast('취소 사유를 입력해주세요.', 'warning'); return; }
+    var deleteMemo = result.value;
 
     try {
         var response = await fetch('/dx/layer1/api/check/delete/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            body: JSON.stringify({ date: getSelectedDate(), layer: 1, section: sectionType, delete_memo: result.value })
+            body: JSON.stringify({ date: getSelectedDate(), layer: 1, section: sectionType, step: step, delete_memo: deleteMemo })
         });
         var data = await response.json();
-        if (!response.ok || !data.success) { showToast(data.error || '삭제 중 오류가 발생했습니다.', 'error'); return; }
-        showToast('확인 취소됨', 'info');
+        if (!response.ok || !data.success) { showToast(data.error || '취소 중 오류가 발생했습니다.', 'error'); return; }
+        showToast(step === 2 ? '완료 취소됨' : '확인 취소됨', 'info');
         loadAllData();
     } catch (e) { showToast('시스템 오류가 발생했습니다.', 'error'); }
 }
@@ -705,18 +717,45 @@ function updateConfirmedCount() {
 }
 
 function getCheckBadgeHtml(sectionType) {
+    var check = null;
+    if (currentStatsData && currentStatsData.checks) {
+        check = currentStatsData.checks.find(function(c) { return c.check_type === sectionType; });
+    }
+    var isFullRate = check && check.rate >= 100 && sectionType !== 'retail';
+
     if (!currentCheckStatus || !currentCheckStatus.sections) {
-        return '<button class="btn-check-confirm" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\')" title="확인">확인</button>';
+        if (isFullRate) {
+            return '<button class="btn-check-confirm step2" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\', 2)" title="완료">완료</button>';
+        }
+        return '<button class="btn-check-confirm" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\', 1)" title="1차 확인">확인</button>';
     }
     var sec = currentCheckStatus.sections[sectionType];
     if (!sec) {
-        return '<button class="btn-check-confirm" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\')" title="확인">확인</button>';
+        if (isFullRate) {
+            return '<button class="btn-check-confirm step2" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\', 2)" title="완료">완료</button>';
+        }
+        return '<button class="btn-check-confirm" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\', 1)" title="1차 확인">확인</button>';
     }
+
     var timeStr = sec.updated_at
         ? new Date(sec.updated_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'})
         : new Date(sec.created_at).toLocaleString('ko-KR', {month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
     var who = sec.updated_id || sec.created_id || '';
-    return '<button class="btn-check-confirm checked" onclick="event.stopPropagation(); deleteCheck(\'' + sectionType + '\')" title="' + esc(who) + ' ' + timeStr + '">확인됨 ✓</button>';
+
+    if (sec.confirm_step === 2) {
+        // 2차 완료됨
+        return '<button class="btn-check-confirm completed" onclick="event.stopPropagation(); deleteCheck(\'' + sectionType + '\', 2)" title="' + esc(who) + ' ' + timeStr + '">완료 ✓</button>';
+    }
+    if (sec.confirm_step === 1) {
+        // 1차 확인됨: [취소] + [완료]
+        return '<button class="btn-check-confirm cancel" onclick="event.stopPropagation(); deleteCheck(\'' + sectionType + '\')" title="확인 취소">취소</button>'
+             + '<button class="btn-check-confirm checked" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\', 2)" title="' + esc(who) + ' ' + timeStr + '">완료</button>';
+    }
+    // confirm_step=0 (기존 레거시): 미확인처럼 처리
+    if (isFullRate) {
+        return '<button class="btn-check-confirm step2" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\', 2)" title="완료">완료</button>';
+    }
+    return '<button class="btn-check-confirm" onclick="event.stopPropagation(); saveCheck(\'' + sectionType + '\', 1)" title="1차 확인">확인</button>';
 }
 
 function addCheckBadges() {

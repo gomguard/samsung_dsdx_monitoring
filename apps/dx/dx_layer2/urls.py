@@ -16,6 +16,10 @@ urlpatterns = [
     path('api/format-detail/', api_views.format_detail, name='api_format_detail'),
     path('api/anomaly-detail/', api_views.anomaly_detail, name='api_anomaly_detail'),
     path('api/format-rules/', api_views.format_rules, name='api_format_rules'),
+    path('api/update-cell/', api_views.update_cell, name='api_update_cell'),
+    path('api/null-review/', api_views.null_review, name='api_null_review'),
+    path('api/review-reasons/', api_views.review_reasons, name='api_review_reasons'),
+    path('api/duplicate-cleanup/', api_views.duplicate_cleanup, name='api_duplicate_cleanup'),
     # DS APIs
     path('api/ds/stats/', api_views.ds_layer_stats, name='api_ds_stats'),
 ]

@@ -370,7 +370,8 @@ def layer_stats(request):
                 cursor.execute("""
                     SELECT t.retailer, r.expected_count, r.total_count,
                            r.anomaly_total, r.anomaly_title_null, r.anomaly_image_null,
-                           r.anomaly_partial_null, r.anomaly_price_zero
+                           r.anomaly_partial_null, r.anomaly_price_zero,
+                           r.final_batch_count
                     FROM ssd_crawl_db.ds_monitoring_report_daily r
                     JOIN ssd_crawl_db.ds_monitoring_targets t ON r.retailer_id = t.retailer_id
                     WHERE r.crawl_date = %s AND r.is_del = 0
@@ -382,9 +383,12 @@ def layer_stats(request):
                     a_partial_null = row[6] or 0
                     a_price_zero = row[7] or 0
                     a_imageurl_invalid = max(0, anomaly_total - a_title_null - a_price_zero - a_partial_null)
+                    snap_total = row[2] or 0
+                    snap_final = row[8] or 0
                     closed_data[row[0]] = {
                         'expected_count': row[1] or 0,
-                        'total': row[2] or 0,
+                        'total': snap_total,
+                        'final_batch_count': snap_final,
                         'title_null': a_title_null,
                         'imageurl_null': a_image_null,
                         'null_union': a_title_null,
@@ -392,7 +396,8 @@ def layer_stats(request):
                         'price_zero': a_price_zero,
                         'partial_null': a_partial_null,
                         'all_null': 0,
-                        'valid': max(0, (row[2] or 0) - anomaly_total),
+                        'valid': max(0, snap_total - anomaly_total),
+                        'valid_final': max(0, snap_final - anomaly_total),
                         'error_count': anomaly_total,
                     }
         except:
@@ -418,7 +423,13 @@ def layer_stats(request):
             # 마감된 날짜 + 현황 데이터 있음 → 스냅샷 사용 (실시간 쿼리 생략)
             if is_closed and retailer in closed_data:
                 snap = closed_data[retailer]
-                total = snap['total']
+                # batch_view에 따라 전체/최종 배치 건수 선택
+                if batch_view == 'final' and snap['final_batch_count'] != snap['total']:
+                    total = snap['final_batch_count']
+                    valid = snap['valid_final']
+                else:
+                    total = snap['total']
+                    valid = snap['valid']
                 expected_count = snap['expected_count']
                 title_null = snap['title_null']
                 imageurl_null = snap['imageurl_null']
@@ -427,7 +438,6 @@ def layer_stats(request):
                 price_zero = snap['price_zero']
                 partial_null = snap['partial_null']
                 all_null = snap['all_null']
-                valid = snap['valid']
                 error_count = snap['error_count']
 
                 # 상태 판정

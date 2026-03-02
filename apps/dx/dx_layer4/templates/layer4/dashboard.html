@@ -1,0 +1,71 @@
+{% extends 'layer4/base_layer4.html' %}
+{% load static %}
+
+{% block page_title %}대시보드{% endblock %}
+
+{% block layer4_content %}
+<!-- 요약 카드 -->
+<div class="summary-grid" id="l4-summary">
+    <div class="summary-card">
+        <div class="label">총 검수건</div>
+        <div class="value" id="stat-total">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">✏️ 수정</div>
+        <div class="value" id="stat-corrected" style="color:#3b82f6;">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">✅ 정상처리</div>
+        <div class="value" id="stat-normal" style="color:#10b981;">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">↩️ 취소</div>
+        <div class="value" id="stat-reverted" style="color:#ef4444;">-</div>
+    </div>
+</div>
+
+<!-- 검증유형별 현황 -->
+<div class="l4-section" id="type-section">
+    <h3 class="l4-section-title">검증유형별 현황</h3>
+    <div class="l4-type-grid" id="type-grid">
+        <div class="l4-type-card">
+            <div class="l4-type-header">🔍 NULL 검증</div>
+            <div class="l4-type-body" id="type-null_check">
+                <span class="l4-no-data">데이터 없음</span>
+            </div>
+        </div>
+        <div class="l4-type-card">
+            <div class="l4-type-header">📋 형식 검증</div>
+            <div class="l4-type-body" id="type-format_check">
+                <span class="l4-no-data">데이터 없음</span>
+            </div>
+        </div>
+        <div class="l4-type-card">
+            <div class="l4-type-header">🔄 중복 검증</div>
+            <div class="l4-type-body" id="type-duplicate_check">
+                <span class="l4-no-data">데이터 없음</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 원인별 현황 -->
+<div class="l4-section" id="reason-section">
+    <h3 class="l4-section-title">정상처리 원인별 현황</h3>
+    <div id="reason-container">
+        <span class="l4-no-data">데이터 없음</span>
+    </div>
+</div>
+
+<!-- 테이블별 현황 -->
+<div class="l4-section" id="table-section">
+    <h3 class="l4-section-title">테이블별 현황</h3>
+    <div id="table-container">
+        <span class="l4-no-data">데이터 없음</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block layer4_js %}
+<script src="{% static 'js/dx/dx_layer4/layer4-all.js' %}?v=1"></script>
+{% endblock %}

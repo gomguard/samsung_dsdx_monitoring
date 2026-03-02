@@ -1,0 +1,23 @@
+{% extends 'layer4/base_layer4.html' %}
+{% load static %}
+
+{% block page_title %}검수기록{% endblock %}
+
+{% block layer4_content %}
+<!-- 조회 필터바 -->
+<div id="corrections-filter-bar"></div>
+
+<!-- 검수기록 테이블 -->
+<div id="corrections-table-container">
+    <div class="l4-empty-state">
+        <p>날짜를 선택하고 조회 버튼을 클릭하세요.</p>
+    </div>
+</div>
+
+<!-- 페이지네이션 -->
+<div id="corrections-pagination"></div>
+{% endblock %}
+
+{% block layer4_js %}
+<script src="{% static 'js/dx/dx_layer4/layer4-all.js' %}?v=1"></script>
+{% endblock %}

@@ -2,6 +2,7 @@ from django.urls import path
 from django.shortcuts import redirect
 from . import views
 from .api import views as api_views
+from apps.dx.dx_layer4.api import views as layer4_api_views
 
 app_name = 'layer1'
 
@@ -16,7 +17,7 @@ urlpatterns = [
     path('market-competitor/', views.market_competitor, name='market_competitor'),
     path('market-competitor-event/', views.market_competitor_event, name='market_competitor_event'),
     path('market-promotion/', views.market_promotion, name='market_promotion'),
-    path('check-log/', lambda request: redirect('/dx/data/check-log/', permanent=True)),
+    path('check-log/', lambda request: redirect('/dx/layer4/check-log/', permanent=True)),
 
     # API
     path('api/stats/', api_views.layer_stats, name='api_stats'),
@@ -37,11 +38,11 @@ urlpatterns = [
     path('api/backup/', api_views.backup_retail_data, name='api_backup'),
     path('api/backup-status/', api_views.backup_status, name='api_backup_status'),
 
-    # Check Log API
-    path('api/check/status/', api_views.check_status, name='api_check_status'),
-    path('api/check/save/', api_views.check_save, name='api_check_save'),
-    path('api/check/delete/', api_views.check_delete, name='api_check_delete'),
-    path('api/check/log/', api_views.check_log_list, name='api_check_log_list'),
-    path('api/check/memo/', api_views.check_memo_update, name='api_check_memo_update'),
+    # Check Log API — 코드는 Layer 4에 있고, Layer 1 페이지 호환을 위해 URL 유지
+    path('api/check/status/', layer4_api_views.check_status, name='api_check_status'),
+    path('api/check/save/', layer4_api_views.check_save, name='api_check_save'),
+    path('api/check/delete/', layer4_api_views.check_delete, name='api_check_delete'),
+    path('api/check/log/', layer4_api_views.check_log_list, name='api_check_log_list'),
+    path('api/check/memo/', layer4_api_views.check_memo_update, name='api_check_memo_update'),
 
 ]

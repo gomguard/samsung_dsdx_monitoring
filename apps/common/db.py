@@ -7,9 +7,22 @@ from contextlib import contextmanager
 from django.conf import settings
 from config.config import DB_CONFIG, DB_CONFIG_V2
 
-# 공유 토큰 테이블명 (로컬: test_ 접두사)
-DX_SHARE_TOKEN_TABLE = 'test_monitoring_share_tokens' if settings.DEBUG else 'monitoring_share_tokens'
-DS_SHARE_TOKEN_TABLE = 'ssd_crawl_db.test_ds_monitoring_share_tokens' if settings.DEBUG else 'ssd_crawl_db.ds_monitoring_share_tokens'
+# 개발서버: test_ 접두사 → 운영 테이블과 분리
+def dx_table(name):
+    """DX(PostgreSQL) 모니터링 테이블명. 개발서버(DEBUG)면 test_ 접두사 추가."""
+    return f'test_{name}' if settings.DEBUG else name
+
+
+def ds_table(name):
+    """DS(MySQL) 모니터링 테이블명. 개발서버(DEBUG)면 test_ 접두사 추가."""
+    if settings.DEBUG:
+        return name.replace('ds_monitoring_', 'test_ds_monitoring_')
+    return name
+
+
+# 공유 토큰 테이블명 (기존 호환)
+DX_SHARE_TOKEN_TABLE = dx_table('monitoring_share_tokens')
+DS_SHARE_TOKEN_TABLE = ds_table('ssd_crawl_db.ds_monitoring_share_tokens')
 
 
 def get_dx_connection():

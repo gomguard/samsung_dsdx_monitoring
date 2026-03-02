@@ -12,8 +12,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from .models import UserProfile
-from apps.common.db import get_dx_connection, get_ds_connection
-from apps.common.retail_columns import reload_retail_columns, reload_missing_exclude_rules, reload_null_check_config
+from apps.common.db import get_dx_connection, get_ds_connection, dx_table
+from apps.common.retail_columns import reload_retail_columns, reload_missing_exclude_rules, reload_null_check_config, reload_format_rules
 from apps.common.targets import reload_targets, format_time
 from apps.common.dx_schedules import reload_schedules
 import json
@@ -23,6 +23,7 @@ from config.config import S3_CONFIG
 from apps.dx.dx_document.api.views import cleanup_orphan_files
 from apps.common.ds.id_generator import generate_ds_id
 from apps.common.response import safe_error, log_error
+from apps.common.constants import VALIDATION_TYPE_LABELS
 
 
 def is_admin(user):
@@ -326,7 +327,7 @@ def retail_columns(request):
         cursor.execute("""
             SELECT id, product_line, column_name, retailer, duplicate_key,
                    skip_missing_check, related_columns, is_active,
-                   created_id, updated_id, created_at, updated_at, memo
+                   created_id, updated_id, created_at, updated_at, memo, is_editable
             FROM monitoring_retail_columns
             WHERE is_del = false
             ORDER BY product_line, retailer, column_name
@@ -358,6 +359,7 @@ def retail_columns_create(request):
         retailer = data.get('retailer', '').strip().lower()
         duplicate_key = data.get('duplicate_key', False)
         skip_missing_check = data.get('skip_missing_check', False)
+        is_editable = data.get('is_editable', False)
         related_columns = data.get('related_columns', '').strip()
         is_active = data.get('is_active', True)
         memo = data.get('memo', '').strip()
@@ -371,11 +373,11 @@ def retail_columns_create(request):
         cursor.execute("""
             INSERT INTO monitoring_retail_columns
                 (product_line, column_name, retailer, duplicate_key, skip_missing_check,
-                 related_columns, is_active, created_id, updated_id, created_at, updated_at, memo)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 is_editable, related_columns, is_active, created_id, updated_id, created_at, updated_at, memo)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (product_line, column_name, retailer, duplicate_key, skip_missing_check,
-              related_columns or None, is_active, request.user.username, request.user.username, now, now, memo or None))
+              is_editable, related_columns or None, is_active, request.user.username, request.user.username, now, now, memo or None))
         new_id = cursor.fetchone()[0]
         conn.commit()
         cursor.close()
@@ -399,6 +401,7 @@ def retail_columns_update(request, column_id):
         retailer = data.get('retailer', '').strip().lower()
         duplicate_key = data.get('duplicate_key', False)
         skip_missing_check = data.get('skip_missing_check', False)
+        is_editable = data.get('is_editable', False)
         related_columns = data.get('related_columns', '').strip()
         is_active = data.get('is_active', True)
         memo = data.get('memo', '').strip()
@@ -412,12 +415,12 @@ def retail_columns_update(request, column_id):
         cursor.execute("""
             UPDATE monitoring_retail_columns
             SET product_line = %s, column_name = %s, retailer = %s,
-                duplicate_key = %s, skip_missing_check = %s,
+                duplicate_key = %s, skip_missing_check = %s, is_editable = %s,
                 related_columns = %s, is_active = %s,
                 updated_id = %s, updated_at = %s, memo = %s
             WHERE id = %s
         """, (product_line, column_name, retailer, duplicate_key, skip_missing_check,
-              related_columns or None, is_active, request.user.username, now, memo or None, column_id))
+              is_editable, related_columns or None, is_active, request.user.username, now, memo or None, column_id))
         conn.commit()
         cursor.close()
         conn.close()
@@ -679,6 +682,511 @@ def null_checks_toggle(request, check_id):
         reload_null_check_config()
         status = '활성화' if new_status else '비활성화'
         return JsonResponse({'success': True, 'is_active': new_status, 'message': f'NULL 검증 항목이 {status}되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+# ============================================================
+# 관리자 페이지 - 형식 검증 관리
+# ============================================================
+
+@login_required
+@user_passes_test(is_admin)
+def format_rules(request):
+    """형식 검증 관리 페이지 (규칙/템플릿/설정 탭)"""
+    tbl_rules = dx_table('monitoring_format_rules')
+    tbl_templates = dx_table('monitoring_format_templates')
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            SELECT r.id, r.table_name, r.column_name, r.account_name,
+                   r.template_id, t.name as template_name, t.check_type,
+                   r.rule_value, r.extra_allowed, r.forbidden_chars,
+                   r.error_message, r.is_active, r.created_id, r.created_at
+            FROM {tbl_rules} r
+            LEFT JOIN {tbl_templates} t ON r.template_id = t.id
+            WHERE r.is_del = false
+            ORDER BY r.table_name, r.column_name, r.account_name
+        """)
+        columns_desc = [desc[0] for desc in cursor.description]
+        rows = [dict(zip(columns_desc, row)) for row in cursor.fetchall()]
+
+        cursor.execute(f"""
+            SELECT id, name, check_type, pattern, is_active
+            FROM {tbl_templates}
+            ORDER BY id
+        """)
+        tcols = [desc[0] for desc in cursor.description]
+        templates = [dict(zip(tcols, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        rows = []
+        templates = []
+        log_error(e, 'db')
+
+    retailers = sorted(set(r['account_name'] for r in rows if r.get('account_name')))
+
+    context = {
+        'admin_menu': 'format_rules',
+        'rows': rows,
+        'templates': templates,
+        'retailers': retailers,
+    }
+    return render(request, 'accounts/format_rules.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+def format_rules_create(request):
+    """형식 검증 규칙 추가"""
+    tbl_rules = dx_table('monitoring_format_rules')
+    tbl_templates = dx_table('monitoring_format_templates')
+    if request.method == 'GET':
+        try:
+            conn = get_dx_connection()
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT id, name, check_type, pattern FROM {tbl_templates} WHERE is_active = true ORDER BY id")
+            tcols = [desc[0] for desc in cursor.description]
+            templates = [dict(zip(tcols, row)) for row in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            templates = []
+            log_error(e, 'db')
+        return render(request, 'accounts/format_rules_form.html', {
+            'admin_menu': 'format_rules',
+            'mode': 'create',
+            'row': None,
+            'templates': templates,
+        })
+    try:
+        data = json.loads(request.body)
+        table_name = data.get('table_name', '').strip()
+        column_name = data.get('column_name', '').strip()
+        account_name = data.get('account_name', '').strip()
+        template_id = data.get('template_id') or None
+        rule_value = data.get('rule_value', '').strip() or None
+        extra_allowed = data.get('extra_allowed', '').strip() or None
+        forbidden_chars = data.get('forbidden_chars', '').strip() or None
+        error_message = data.get('error_message', '').strip() or None
+        is_active = data.get('is_active', True)
+
+        if not table_name or not column_name or not account_name:
+            return JsonResponse({'success': False, 'error': 'table_name, column_name, account_name은 필수입니다.'})
+
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            INSERT INTO {tbl_rules}
+                (table_name, column_name, account_name, template_id,
+                 rule_value, extra_allowed, forbidden_chars, error_message,
+                 is_active, created_id, updated_id, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (table_name, column_name, account_name, template_id,
+              rule_value, extra_allowed, forbidden_chars, error_message,
+              is_active, request.user.username, request.user.username, now, now))
+        new_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        reload_format_rules()
+        return JsonResponse({'success': True, 'id': new_id, 'message': '규칙이 추가되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+def format_rules_update(request, rule_id):
+    """형식 검증 규칙 수정"""
+    tbl_rules = dx_table('monitoring_format_rules')
+    tbl_templates = dx_table('monitoring_format_templates')
+    if request.method == 'GET':
+        try:
+            conn = get_dx_connection()
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT id, table_name, column_name, account_name,
+                       template_id, rule_value, extra_allowed, forbidden_chars,
+                       error_message, is_active
+                FROM {tbl_rules}
+                WHERE id = %s AND is_del = false
+            """, (rule_id,))
+            cols = [desc[0] for desc in cursor.description]
+            result = cursor.fetchone()
+            if not result:
+                cursor.close()
+                conn.close()
+                return redirect('accounts:format_rules')
+            row = dict(zip(cols, result))
+
+            cursor.execute(f"SELECT id, name, check_type, pattern FROM {tbl_templates} WHERE is_active = true ORDER BY id")
+            tcols = [desc[0] for desc in cursor.description]
+            templates = [dict(zip(tcols, r)) for r in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            log_error(e, 'db')
+            return redirect('accounts:format_rules')
+        return render(request, 'accounts/format_rules_form.html', {
+            'admin_menu': 'format_rules',
+            'mode': 'update',
+            'row': row,
+            'templates': templates,
+        })
+    try:
+        data = json.loads(request.body)
+        table_name = data.get('table_name', '').strip()
+        column_name = data.get('column_name', '').strip()
+        account_name = data.get('account_name', '').strip()
+        template_id = data.get('template_id') or None
+        rule_value = data.get('rule_value', '').strip() or None
+        extra_allowed = data.get('extra_allowed', '').strip() or None
+        forbidden_chars = data.get('forbidden_chars', '').strip() or None
+        error_message = data.get('error_message', '').strip() or None
+        is_active = data.get('is_active', True)
+
+        if not table_name or not column_name or not account_name:
+            return JsonResponse({'success': False, 'error': 'table_name, column_name, account_name은 필수입니다.'})
+
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            UPDATE {tbl_rules}
+            SET table_name = %s, column_name = %s, account_name = %s,
+                template_id = %s, rule_value = %s,
+                extra_allowed = %s, forbidden_chars = %s, error_message = %s,
+                is_active = %s, updated_id = %s, updated_at = %s
+            WHERE id = %s
+        """, (table_name, column_name, account_name,
+              template_id, rule_value,
+              extra_allowed, forbidden_chars, error_message,
+              is_active, request.user.username, now, rule_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        reload_format_rules()
+        return JsonResponse({'success': True, 'message': '규칙이 수정되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def format_rules_delete(request, rule_id):
+    """형식 검증 규칙 삭제 (soft delete)"""
+    try:
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            UPDATE {dx_table('monitoring_format_rules')}
+            SET is_del = true, is_active = false, updated_id = %s, updated_at = %s
+            WHERE id = %s
+        """, (request.user.username, now, rule_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        reload_format_rules()
+        return JsonResponse({'success': True, 'message': '규칙이 삭제되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def format_rules_toggle(request, rule_id):
+    """형식 검증 규칙 활성/비활성 토글"""
+    try:
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            UPDATE {dx_table('monitoring_format_rules')}
+            SET is_active = NOT is_active, updated_id = %s, updated_at = %s
+            WHERE id = %s
+            RETURNING is_active
+        """, (request.user.username, now, rule_id))
+        new_status = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        reload_format_rules()
+        status = '활성화' if new_status else '비활성화'
+        return JsonResponse({'success': True, 'is_active': new_status, 'message': f'규칙이 {status}되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+# ── 형식 검증 템플릿 ──
+
+@login_required
+@user_passes_test(is_admin)
+def format_template_edit(request, tmpl_id=None):
+    """템플릿 추가/수정 폼 페이지"""
+    row = None
+    if tmpl_id:
+        try:
+            conn = get_dx_connection()
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT id, name, description, check_type, pattern, is_active
+                FROM {dx_table('monitoring_format_templates')}
+                WHERE id = %s
+            """, (tmpl_id,))
+            cols = [desc[0] for desc in cursor.description]
+            result = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            if result:
+                row = dict(zip(cols, result))
+            else:
+                return redirect('accounts:format_rules')
+        except Exception as e:
+            log_error(e, 'db')
+            return redirect('accounts:format_rules')
+    return render(request, 'accounts/format_templates_form.html', {
+        'admin_menu': 'format_rules',
+        'mode': 'update' if tmpl_id else 'create',
+        'row': row,
+    })
+
+
+@login_required
+@user_passes_test(is_admin)
+def format_templates_list(request):
+    """템플릿 목록 JSON"""
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            SELECT id, name, description, check_type, pattern, is_active, created_id, created_at
+            FROM {dx_table('monitoring_format_templates')}
+            ORDER BY id
+        """)
+        cols = [desc[0] for desc in cursor.description]
+        rows = [dict(zip(cols, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        for r in rows:
+            if r.get('created_at'):
+                r['created_at'] = r['created_at'].strftime('%Y-%m-%d %H:%M')
+        return JsonResponse({'success': True, 'rows': rows})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def format_templates_save(request):
+    """템플릿 추가/수정"""
+    try:
+        data = json.loads(request.body)
+        tmpl_id = data.get('id')
+        name = data.get('name', '').strip()
+        description = data.get('description', '').strip() or None
+        check_type = data.get('check_type', '').strip()
+        pattern = data.get('pattern', '').strip() or None
+        is_active = data.get('is_active', True)
+
+        if not name or not check_type:
+            return JsonResponse({'success': False, 'error': 'name, check_type은 필수입니다.'})
+
+        now = datetime.now()
+        tbl = dx_table('monitoring_format_templates')
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        if tmpl_id:
+            cursor.execute(f"""
+                UPDATE {tbl}
+                SET name = %s, description = %s, check_type = %s, pattern = %s,
+                    is_active = %s, updated_id = %s, updated_at = %s
+                WHERE id = %s
+            """, (name, description, check_type, pattern, is_active, request.user.username, now, tmpl_id))
+            msg = '템플릿이 수정되었습니다.'
+        else:
+            cursor.execute(f"""
+                INSERT INTO {tbl} (name, description, check_type, pattern, is_active, created_id, created_at, updated_id, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (name, description, check_type, pattern, is_active, request.user.username, now, request.user.username, now))
+            tmpl_id = cursor.fetchone()[0]
+            msg = '템플릿이 추가되었습니다.'
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return JsonResponse({'success': True, 'id': tmpl_id, 'message': msg})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def format_templates_delete(request, tmpl_id):
+    """템플릿 삭제"""
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM {dx_table('monitoring_format_templates')} WHERE id = %s", (tmpl_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return JsonResponse({'success': True, 'message': '템플릿이 삭제되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def format_templates_toggle(request, tmpl_id):
+    """템플릿 활성/비활성 토글"""
+    try:
+        now = datetime.now()
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            UPDATE {dx_table('monitoring_format_templates')}
+            SET is_active = NOT is_active, updated_id = %s, updated_at = %s
+            WHERE id = %s
+            RETURNING is_active
+        """, (request.user.username, now, tmpl_id))
+        new_status = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+        status = '활성화' if new_status else '비활성화'
+        return JsonResponse({'success': True, 'is_active': new_status, 'message': f'템플릿이 {status}되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+# ── 형식 검증 설정 ──
+
+@login_required
+@user_passes_test(is_admin)
+def format_config_edit(request, config_id=None):
+    """설정 추가/수정 폼 페이지"""
+    row = None
+    if config_id:
+        try:
+            conn = get_dx_connection()
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT id, table_name, display_columns, is_active
+                FROM {dx_table('monitoring_format_config')}
+                WHERE id = %s
+            """, (config_id,))
+            cols = [desc[0] for desc in cursor.description]
+            result = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            if result:
+                row = dict(zip(cols, result))
+            else:
+                return redirect('accounts:format_rules')
+        except Exception as e:
+            log_error(e, 'db')
+            return redirect('accounts:format_rules')
+    return render(request, 'accounts/format_config_form.html', {
+        'admin_menu': 'format_rules',
+        'mode': 'update' if config_id else 'create',
+        'row': row,
+    })
+
+@login_required
+@user_passes_test(is_admin)
+def format_config_list(request):
+    """설정 목록 JSON"""
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            SELECT id, table_name, display_columns, is_active, created_id, created_at
+            FROM {dx_table('monitoring_format_config')}
+            ORDER BY table_name
+        """)
+        cols = [desc[0] for desc in cursor.description]
+        rows = [dict(zip(cols, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        for r in rows:
+            if r.get('created_at'):
+                r['created_at'] = r['created_at'].strftime('%Y-%m-%d %H:%M')
+        return JsonResponse({'success': True, 'rows': rows})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def format_config_save(request):
+    """설정 추가/수정"""
+    try:
+        data = json.loads(request.body)
+        config_id = data.get('id')
+        table_name = data.get('table_name', '').strip()
+        display_columns = data.get('display_columns', '').strip()
+        is_active = data.get('is_active', True)
+
+        if not table_name:
+            return JsonResponse({'success': False, 'error': 'table_name은 필수입니다.'})
+
+        now = datetime.now()
+        tbl = dx_table('monitoring_format_config')
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        if config_id:
+            cursor.execute(f"""
+                UPDATE {tbl}
+                SET table_name = %s, display_columns = %s, is_active = %s,
+                    updated_id = %s, updated_at = %s
+                WHERE id = %s
+            """, (table_name, display_columns, is_active, request.user.username, now, config_id))
+            msg = '설정이 수정되었습니다.'
+        else:
+            cursor.execute(f"""
+                INSERT INTO {tbl} (table_name, display_columns, is_active, created_id, created_at, updated_id, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (table_name, display_columns, is_active, request.user.username, now, request.user.username, now))
+            config_id = cursor.fetchone()[0]
+            msg = '설정이 추가되었습니다.'
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return JsonResponse({'success': True, 'id': config_id, 'message': msg})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def format_config_delete(request, config_id):
+    """설정 삭제"""
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"DELETE FROM {dx_table('monitoring_format_config')} WHERE id = %s", (config_id,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return JsonResponse({'success': True, 'message': '설정이 삭제되었습니다.'})
     except Exception as e:
         return safe_error(e, success=False)
 
@@ -1926,8 +2434,10 @@ def ds_document_categories_toggle(request, category_id):
 @user_passes_test(is_admin)
 def category_rules(request):
     """카테고리 검증 규칙 관리 페이지"""
+    from apps.common.constants import VALIDATION_TYPE_LABELS
     context = {
         'admin_menu': 'category_rules',
+        'validation_type_labels': VALIDATION_TYPE_LABELS,
     }
     return render(request, 'accounts/category_rules.html', context)
 
@@ -1936,9 +2446,11 @@ def category_rules(request):
 @user_passes_test(is_admin)
 def category_rules_edit(request, rule_id=None):
     """카테고리 검증 규칙 추가/편집 페이지"""
+    from apps.common.constants import VALIDATION_TYPE_LABELS
     context = {
         'admin_menu': 'category_rules',
         'rule_id': rule_id,
+        'validation_type_labels': VALIDATION_TYPE_LABELS,
     }
     return render(request, 'accounts/category_rules_edit.html', context)
 

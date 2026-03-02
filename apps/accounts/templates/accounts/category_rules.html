@@ -161,6 +161,7 @@
     .rc-table .col-section { width: 140px; }
     .rc-table .col-table { width: 130px; }
     .rc-table .col-field { width: 110px; }
+    .rc-table .col-vtype { width: 110px; }
     .rc-table .col-threshold { width: 80px; }
     .rc-table .col-status { width: 60px; text-align: center; }
     .rc-table .col-actions { width: 50px; text-align: center; }
@@ -285,13 +286,14 @@
                         <th class="col-section">섹션</th>
                         <th class="col-table">테이블</th>
                         <th class="col-field">검증 필드</th>
+                        <th class="col-vtype">검증 유형</th>
                         <th class="col-threshold">범위</th>
                         <th class="col-status">활성</th>
                         <th class="col-actions">관리</th>
                     </tr>
                 </thead>
                 <tbody id="rulesBody">
-                    <tr><td colspan="9" class="loading-msg">로딩 중...</td></tr>
+                    <tr><td colspan="10" class="loading-msg">로딩 중...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -305,6 +307,12 @@ const TYPE_LABELS = {
     category_spec: '카테고리별 특성',
     crossfield: '크로스 필드',
     timeseries: '시계열 이상치'
+};
+
+const VTYPE_LABELS = {
+    {% for code, label in validation_type_labels.items %}
+    '{{ code }}': '{{ label }}',
+    {% endfor %}
 };
 
 let currentType = '';
@@ -329,7 +337,7 @@ async function loadRules() {
 
         if (data.error) {
             document.getElementById('rulesBody').innerHTML =
-                `<tr><td colspan="9" class="loading-msg">${esc(data.error)}</td></tr>`;
+                `<tr><td colspan="10" class="loading-msg">${esc(data.error)}</td></tr>`;
             return;
         }
 
@@ -355,7 +363,7 @@ async function loadRules() {
         renderTable(data.rules || []);
     } catch (e) {
         document.getElementById('rulesBody').innerHTML =
-            `<tr><td colspan="9" class="loading-msg">데이터 로딩 실패</td></tr>`;
+            `<tr><td colspan="10" class="loading-msg">데이터 로딩 실패</td></tr>`;
     }
 }
 
@@ -367,7 +375,7 @@ function renderTable(rules) {
     document.getElementById('statActive').textContent = rules.filter(r => r.is_active).length;
 
     if (!rules.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="loading-msg">등록된 규칙이 없습니다</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="loading-msg">등록된 규칙이 없습니다</td></tr>';
         return;
     }
 
@@ -381,6 +389,7 @@ function renderTable(rules) {
             <td class="col-section"><span class="category-badge">${esc(r.section_name || r.section_code)}</span></td>
             <td class="col-table">${esc(r.table_name)}</td>
             <td class="col-field">${esc(r.field1 || '-')}</td>
+            <td class="col-vtype">${esc(VTYPE_LABELS[r.validation_type] || r.validation_type || '-')}</td>
             <td class="col-threshold">${esc(r.threshold || '-')}</td>
             <td class="col-status">
                 <span class="status-dot ${r.is_active ? 'active' : 'inactive'}"></span>

@@ -5,349 +5,78 @@
 
 {% block admin_css %}
 <style>
-    .admin-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 24px;
-    }
+/* 페이지 헤더 */
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+.admin-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+.admin-title-sub { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
 
-    .admin-title {
-        font-size: 24px;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
+/* 흰색 카드 섹션 */
+.card-section {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    overflow-x: auto;
+}
 
-    .admin-title-sub {
-        font-size: 14px;
-        color: var(--text-secondary);
-        margin-top: 4px;
-    }
+/* 비활성 행 */
+.ct tbody tr.inactive { opacity: 0.5; }
 
-    .btn-add {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 10px 20px;
-        background: #7c3aed;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background 0.2s;
-    }
+/* 상태 도트 */
+.status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+.status-dot.active { background: #22c55e; }
+.status-dot.inactive { background: #ef4444; }
 
-    .btn-add:hover { background: #6d28d9; }
-    .btn-add svg { width: 18px; height: 18px; }
+/* 배지 */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.badge-type { background: var(--bg-secondary); color: var(--text-secondary); }
 
-    /* 필터 */
-    .filter-section {
-        display: flex;
-        gap: 12px;
-        margin-bottom: 20px;
-        align-items: center;
-    }
+/* 헤더 토글 필터 */
+.ct thead th.toggle-filter { cursor: pointer; user-select: none; position: relative; }
+.ct thead th.toggle-filter:hover { background: var(--bg-secondary); }
+.ct thead th.toggle-active { background: #dbeafe; color: #1d4ed8; }
+.ct thead th.toggle-active::after { content: ' ✓'; font-size: 11px; }
 
-    .filter-select, .filter-search {
-        padding: 8px 12px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        font-size: 13px;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-    }
-
-    .filter-select { min-width: 120px; }
-    .filter-search { min-width: 200px; }
-
-    /* 통계 */
-    .stats-row {
-        display: flex;
-        gap: 16px;
-        margin-bottom: 20px;
-    }
-
-    .stat-chip {
-        padding: 6px 14px;
-        background: var(--bg-secondary);
-        border-radius: 20px;
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-
-    .stat-chip strong {
-        color: var(--text-primary);
-        margin-left: 4px;
-    }
-
-    /* 테이블 */
-    .table-wrapper {
-        overflow-x: auto;
-    }
-
-    .rc-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-        table-layout: fixed;
-    }
-
-    .rc-table thead th {
-        background: var(--bg-secondary);
-        padding: 10px 12px;
-        text-align: left;
-        font-weight: 600;
-        color: var(--text-secondary);
-        border-bottom: 2px solid var(--border-color);
-        border-right: 1px solid var(--border-color);
-        white-space: nowrap;
-    }
-
-    .rc-table thead th:last-child {
-        border-right: none;
-    }
-
-    /* 컬럼 너비 고정 */
-    .rc-table .col-no { width: 45px; text-align: center; }
-    .rc-table .col-category { width: 70px; }
-    .rc-table .col-name { width: 200px; }
-    .rc-table .col-retailer { width: 90px; }
-    .rc-table .col-dupkey { width: 65px; text-align: center; }
-    .rc-table .col-skip { width: 75px; text-align: center; }
-    .rc-table .col-related { width: 160px; }
-    .rc-table .col-status { width: 65px; }
-    .rc-table .col-updater { width: 80px; }
-    .rc-table .col-date { width: 130px; }
-    .rc-table .col-actions { width: 140px; }
-
-    .rc-table tbody td {
-        padding: 8px 12px;
-        border-bottom: 1px solid var(--border-color);
-        border-right: 1px solid var(--border-color);
-        color: var(--text-primary);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .rc-table tbody td:last-child {
-        border-right: none;
-    }
-
-    .rc-table tbody td.col-dupkey,
-    .rc-table tbody td.col-skip {
-        text-align: center;
-    }
-
-    .rc-table tbody tr:hover {
-        background: rgba(139, 92, 246, 0.03);
-    }
-
-    .rc-table tbody tr.inactive {
-        opacity: 0.5;
-    }
-
-    /* 인라인 편집 모드 */
-    .rc-table tbody tr.editing {
-        background: rgba(139, 92, 246, 0.06);
-        opacity: 1;
-    }
-
-    .rc-table tbody tr.editing td {
-        padding: 4px 6px;
-    }
-
-    .inline-input {
-        width: 100%;
-        padding: 4px 8px;
-        border: 1px solid #7c3aed;
-        border-radius: 4px;
-        font-size: 13px;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        box-sizing: border-box;
-    }
-
-    .inline-select {
-        padding: 4px 6px;
-        border: 1px solid #7c3aed;
-        border-radius: 4px;
-        font-size: 13px;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        width: 100%;
-        box-sizing: border-box;
-    }
-
-    .inline-checkbox {
-        width: 16px;
-        height: 16px;
-        cursor: pointer;
-    }
-
-    /* 배지 */
-    .badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: 500;
-    }
-
-    .badge-tv, .badge-hhp, .badge-amazon, .badge-bestbuy, .badge-walmart,
-    .badge-active, .badge-inactive, .badge-yes {
-        background: none;
-        color: var(--text-primary);
-        padding: 0;
-    }
-
-    /* 액션 버튼 */
-    .action-buttons {
-        display: flex;
-        gap: 4px;
-    }
-
-    .btn-action {
-        padding: 4px 10px;
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        background: var(--bg-primary);
-        color: var(--text-secondary);
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: 500;
-        transition: all 0.2s;
-        white-space: nowrap;
-    }
-
-    .btn-action:hover { background: var(--bg-secondary); }
-    .btn-action.btn-edit:hover { color: #3b82f6; border-color: #3b82f6; }
-    .btn-action.btn-toggle:hover { color: #f59e0b; border-color: #f59e0b; }
-    .btn-action.btn-delete:hover { color: #ef4444; border-color: #ef4444; }
-
-    .btn-action.btn-save {
-        background: #7c3aed;
-        color: white;
-        border-color: #7c3aed;
-    }
-    .btn-action.btn-save:hover { background: #6d28d9; }
-
-    .btn-action.btn-cancel {
-        color: var(--text-secondary);
-    }
-
-    /* 모달 (추가용만) */
-    .modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .modal-overlay.show { display: flex; }
-
-    .modal {
-        background: var(--bg-primary);
-        border-radius: 12px;
-        padding: 28px;
-        width: 500px;
-        max-width: 90vw;
-        max-height: 80vh;
-        overflow-y: auto;
-    }
-
-    .modal-title {
-        font-size: 18px;
-        font-weight: 600;
-        margin-bottom: 20px;
-        color: var(--text-primary);
-    }
-
-    .form-group { margin-bottom: 16px; }
-
-    .form-group label {
-        display: block;
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--text-secondary);
-        margin-bottom: 4px;
-    }
-
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-        width: 100%;
-        padding: 8px 12px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        font-size: 14px;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        box-sizing: border-box;
-    }
-
-    .form-group textarea {
-        resize: vertical;
-        font-family: inherit;
-        line-height: 1.5;
-    }
-
-    .form-hint {
-        display: block;
-        font-size: 12px;
-        color: var(--text-secondary);
-        margin-top: 4px;
-        opacity: 0.7;
-    }
-
-    .form-group-inline {
-        display: flex;
-        gap: 16px;
-    }
-
-    .form-group-inline .form-group { flex: 1; }
-
-    .form-checkbox {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 12px;
-    }
-
-    .form-checkbox input[type="checkbox"] { width: 16px; height: 16px; }
-
-    .form-checkbox label {
-        font-size: 14px;
-        color: var(--text-primary);
-        margin-bottom: 0;
-    }
-
-    .modal-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-        margin-top: 24px;
-    }
-
-    .btn-modal {
-        padding: 8px 20px;
-        border-radius: 6px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        border: none;
-        transition: all 0.2s;
-    }
-
-    .btn-modal-primary { background: #7c3aed; color: white; }
-    .btn-modal-primary:hover { background: #6d28d9; }
-    .btn-modal-cancel { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-color); }
-    .btn-modal-cancel:hover { background: var(--bg-primary); }
+/* 모달 폼 */
+.form-group { margin-bottom: 16px; }
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    box-sizing: border-box;
+}
+.form-group textarea { resize: vertical; font-family: inherit; line-height: 1.5; }
+.form-hint { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 4px; opacity: 0.7; }
+.form-group-inline { display: flex; gap: 16px; }
+.form-group-inline .form-group { flex: 1; }
+.form-checkbox { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.form-checkbox input[type="checkbox"] { width: 16px; height: 16px; }
+.form-checkbox label { font-size: 14px; color: var(--text-primary); margin-bottom: 0; }
 </style>
 {% endblock %}
 
@@ -358,285 +87,374 @@
             <h1 class="admin-title">수집항목 관리</h1>
             <p class="admin-title-sub">리테일러별 수집 컬럼을 관리합니다</p>
         </div>
-        <button class="btn-add" onclick="openAddModal()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            항목 추가
-        </button>
     </div>
 
-    <!-- 통계 -->
-    <div class="stats-row">
-        <span class="stat-chip">전체<strong id="statTotal">{{ rows|length }}</strong></span>
-        <span class="stat-chip">TV<strong id="statTv">0</strong></span>
-        <span class="stat-chip">HHP<strong id="statHhp">0</strong></span>
-        <span class="stat-chip">활성<strong id="statActive">0</strong></span>
-    </div>
-
-    <!-- 필터 -->
-    <div class="filter-section">
-        <select class="filter-select" id="filterProductLine" onchange="applyFilter()">
-            <option value="">전체 카테고리</option>
-            <option value="tv">TV</option>
-            <option value="hhp">HHP</option>
-        </select>
-        <select class="filter-select" id="filterRetailer" onchange="applyFilter()">
-            <option value="">전체 리테일러</option>
-            <option value="amazon">Amazon</option>
-            <option value="bestbuy">Bestbuy</option>
-            <option value="walmart">Walmart</option>
-        </select>
-        <select class="filter-select" id="filterSkip" onchange="applyFilter()">
-            <option value="">누락스킵 전체</option>
-            <option value="true">스킵 Y</option>
-            <option value="false">스킵 N</option>
-        </select>
-        <select class="filter-select" id="filterActive" onchange="applyFilter()">
-            <option value="">전체 상태</option>
-            <option value="true">활성</option>
-            <option value="false">비활성</option>
-        </select>
-        <input class="filter-search" id="filterSearch" placeholder="컬럼명 검색..." oninput="applyFilter()">
-    </div>
-
-    <!-- 테이블 -->
-    <div class="table-wrapper">
-        <table class="rc-table">
-            <thead>
-                <tr>
-                    <th class="col-no">No</th>
-                    <th class="col-category">카테고리</th>
-                    <th class="col-retailer">리테일러</th>
-                    <th class="col-name">컬럼명</th>
-                    <th class="col-dupkey">중복키</th>
-                    <th class="col-skip">누락스킵</th>
-                    <th class="col-related">조회용 컬럼</th>
-                    <th class="col-status">상태</th>
-                    <th class="col-updater">수정자</th>
-                    <th class="col-date">수정일</th>
-                    <th class="col-actions">관리</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody">
-                {% for row in rows %}
-                <tr ondblclick="openEditModal(this)" style="cursor:pointer"
-                    data-id="{{ row.id }}"
-                    data-product-line="{{ row.product_line }}"
-                    data-column-name="{{ row.column_name }}"
-                    data-retailer="{{ row.retailer }}"
-                    data-duplicate-key="{{ row.duplicate_key }}"
-                    data-skip-missing="{{ row.skip_missing_check }}"
-                    data-related="{{ row.related_columns|default:'' }}"
-                    data-active="{{ row.is_active }}"
-                    data-memo="{{ row.memo|default:'' }}"
-                    class="{% if not row.is_active %}inactive{% endif %}">
-                    <td class="col-no">{{ forloop.counter }}</td>
-                    <td class="col-category"><span class="badge badge-{{ row.product_line }}">{{ row.product_line|upper }}</span></td>
-                    <td class="col-retailer"><span class="badge badge-{{ row.retailer }}">{{ row.retailer }}</span></td>
-                    <td class="col-name"><strong>{{ row.column_name }}</strong></td>
-                    <td class="col-dupkey">{% if row.duplicate_key %}<span class="badge badge-yes">Y</span>{% endif %}</td>
-                    <td class="col-skip">{% if row.skip_missing_check %}<span class="badge badge-yes">Y</span>{% endif %}</td>
-                    <td class="col-related" title="{{ row.related_columns|default:'' }}">{{ row.related_columns|default:'-' }}</td>
-                    <td class="col-status">
-                        <span class="badge {% if row.is_active %}badge-active{% else %}badge-inactive{% endif %}">
-                            {% if row.is_active %}활성{% else %}비활성{% endif %}
-                        </span>
-                    </td>
-                    <td class="col-updater">{{ row.updated_id|default:'-' }}</td>
-                    <td class="col-date">{% if row.updated_at %}{{ row.updated_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
-                    <td class="col-actions">
-                        <div class="action-buttons">
-                            <button class="btn-action btn-edit" onclick="openEditModal(this.closest('tr'))">수정</button>
-                            <button class="btn-action btn-delete" onclick="deleteColumn({{ row.id }})">삭제</button>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- 추가/수정 모달 -->
-<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal">
-        <h2 class="modal-title" id="modalTitle">항목 추가</h2>
-        <input type="hidden" id="editId" value="">
-
-        <div class="form-group-inline">
-            <div class="form-group">
-                <label>카테고리 *</label>
-                <select id="formProductLine">
-                    <option value="tv">TV</option>
-                    <option value="hhp">HHP</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>리테일러 *</label>
-                <select id="formRetailer">
-                    <option value="amazon">Amazon</option>
-                    <option value="bestbuy">Bestbuy</option>
-                    <option value="walmart">Walmart</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label>컬럼명 *</label>
-            <input type="text" id="formColumnName" placeholder="예: screen_size">
-        </div>
-
-        <div class="form-group">
-            <label>조회용 컬럼</label>
-            <input type="text" id="formRelatedColumns" placeholder="예: retailer_sku_name|screen_size">
-            <span class="form-hint">여러 컬럼은 | 로 구분하여 입력하세요</span>
-        </div>
-
-        <div class="form-group">
-            <label>메모</label>
-            <textarea id="formMemo" rows="3" placeholder="메모를 입력하세요"></textarea>
-        </div>
-
-        <div class="form-checkbox">
-            <input type="checkbox" id="formDuplicateKey">
-            <label for="formDuplicateKey">중복검증 키</label>
-        </div>
-
-        <div class="form-checkbox">
-            <input type="checkbox" id="formSkipMissing">
-            <label for="formSkipMissing">누락검사 스킵</label>
-        </div>
-
-        <div class="form-checkbox">
-            <input type="checkbox" id="formIsActive" checked>
-            <label for="formIsActive">활성</label>
-        </div>
-
-        <div class="modal-actions">
-            <button class="btn-modal btn-modal-cancel" onclick="closeModal()">취소</button>
-            <button class="btn-modal btn-modal-primary" onclick="saveColumn()">저장</button>
-        </div>
-    </div>
+    <div id="filterBarArea"></div>
+    <div id="buttonBarArea"></div>
+    <div class="card-section" id="tableArea"></div>
 </div>
 {% endblock %}
 
 {% block admin_js %}
 <script>
-// 통계 업데이트
-function updateStats() {
-    const rows = document.querySelectorAll('#tableBody tr');
-    let total = rows.length, tv = 0, hhp = 0, active = 0;
-    rows.forEach(r => {
-        if (r.dataset.productLine === 'tv') tv++;
-        if (r.dataset.productLine === 'hhp') hhp++;
-        if (r.dataset.active === 'True' || r.dataset.active === 'true') active++;
+// ========== 데이터 ==========
+var DATA = [
+    {% for row in rows %}
+    { id: {{ row.id }}, product_line: '{{ row.product_line|escapejs }}', column_name: '{{ row.column_name|escapejs }}', retailer: '{{ row.retailer|escapejs }}', duplicate_key: {{ row.duplicate_key|yesno:"true,false" }}, skip_missing_check: {{ row.skip_missing_check|yesno:"true,false" }}, is_editable: {{ row.is_editable|yesno:"true,false" }}, related_columns: '{{ row.related_columns|default:""|escapejs }}', is_active: {{ row.is_active|yesno:"true,false" }}, updated_id: '{{ row.updated_id|default:""|escapejs }}', updated_at: '{{ row.updated_at|date:"Y-m-d H:i"|default:""|escapejs }}', memo: '{{ row.memo|default:""|escapejs }}' },
+    {% endfor %}
+];
+
+// ========== FilterBar ==========
+var filterBar = new FilterBar('#filterBarArea', {
+    sticky: false,
+    controls: [
+        { type: 'select', key: 'filterProductLine', options: [
+            { value: '', label: '전체 카테고리' },
+            { value: 'tv', label: 'TV' },
+            { value: 'hhp', label: 'HHP' },
+        ] },
+        { type: 'select', key: 'filterRetailer', options: [
+            { value: '', label: '전체 리테일러' },
+            { value: 'amazon', label: 'Amazon' },
+            { value: 'bestbuy', label: 'Bestbuy' },
+            { value: 'walmart', label: 'Walmart' },
+        ] },
+        { type: 'select', key: 'filterActive', options: [
+            { value: '', label: '전체 상태' },
+            { value: 'true', label: '활성' },
+            { value: 'false', label: '비활성' },
+        ] },
+        { type: 'input', key: 'filterSearch', placeholder: '컬럼명 검색',
+          onEnter: function() { applyFilter(); } },
+    ],
+    onSearch: function() { applyFilter(); },
+    onReset: function() { applyFilter(); }
+}).render();
+
+// ========== ButtonBar ==========
+new ButtonBar('#buttonBarArea', {
+    align: 'between',
+    margin: '0 0 12px 0',
+    buttons: [
+        { id: 'btnAdd', label: '추가', style: 'save', size: 'fb', padding: '8px 12px', position: 'left', onClick: function() { openAddModal(); } },
+        { id: 'btnEdit', label: '수정', style: 'outline', size: 'fb', padding: '8px 12px', position: 'left', onClick: function() { editSelected(); } },
+        { id: 'btnDelete', label: '삭제', style: 'danger', size: 'fb', padding: '8px 12px', position: 'right', onClick: function() { deleteSelected(); } },
+    ]
+}).render();
+
+// ========== CommonTable ==========
+var table = new CommonTable('#tableArea', {
+    variant: 'grid',
+    columns: [
+        { key: '_chk', label: '', width: 40, align: 'center' },
+        { key: '_no', label: 'No', width: 50, align: 'center' },
+        { key: 'product_line', label: '카테고리', width: 70, sortable: true, align: 'center' },
+        { key: 'retailer', label: '리테일러', width: 90, sortable: true, align: 'center' },
+        { key: 'column_name', label: '컬럼명', width: 180, sortable: true },
+        { key: 'duplicate_key', label: '중복키', width: 60, align: 'center' },
+        { key: 'skip_missing_check', label: '누락스킵', width: 70, align: 'center' },
+        { key: 'is_editable', label: '수정가능', width: 70, align: 'center' },
+        { key: 'is_active', label: '상태', width: 55, align: 'center' },
+    ],
+    showTotalCount: true,
+    onSort: function(key, order) { handleSort(key, order); }
+});
+table.render();
+
+// 헤더 체크박스
+(function() {
+    var ths = table.getTable().querySelectorAll('thead th');
+    ths[0].innerHTML = '<input type="checkbox" id="checkAll">';
+    if (table.countEl) table.countEl.style.borderTop = '1px solid var(--border-color)';
+})();
+
+// ========== 헤더 토글 필터 ==========
+var headerToggle = { duplicate_key: false, skip_missing_check: false, is_editable: false };
+var toggleColMap = { duplicate_key: 5, skip_missing_check: 6, is_editable: 7 };
+var toggleDataMap = { duplicate_key: 'dup', skip_missing_check: 'skip', is_editable: 'edit' };
+
+(function() {
+    var ths = table.getTable().querySelectorAll('thead th');
+    Object.keys(toggleColMap).forEach(function(key) {
+        var th = ths[toggleColMap[key]];
+        th.classList.add('toggle-filter');
+        th.title = '클릭하면 Y만 필터';
+        th.addEventListener('click', function() {
+            headerToggle[key] = !headerToggle[key];
+            th.classList.toggle('toggle-active', headerToggle[key]);
+            th.title = headerToggle[key] ? '클릭하면 필터 해제' : '클릭하면 Y만 필터';
+            applyFilter();
+        });
     });
-    document.getElementById('statTotal').textContent = total;
-    document.getElementById('statTv').textContent = tv;
-    document.getElementById('statHhp').textContent = hhp;
-    document.getElementById('statActive').textContent = active;
+})();
+
+// ========== 행 렌더링 ==========
+function renderRow(item, idx) {
+    return '<tr' + (item.is_active ? '' : ' class="inactive"') + ' style="cursor:pointer" ' +
+        'ondblclick="editById(' + item.id + ')" ' +
+        'data-id="' + item.id + '" ' +
+        'data-product-line="' + esc(item.product_line) + '" ' +
+        'data-column-name="' + esc(item.column_name) + '" ' +
+        'data-retailer="' + esc(item.retailer) + '" ' +
+        'data-related-columns="' + esc(item.related_columns) + '" ' +
+        'data-active="' + item.is_active + '" ' +
+        'data-dup="' + item.duplicate_key + '" ' +
+        'data-skip="' + item.skip_missing_check + '" ' +
+        'data-edit="' + item.is_editable + '">' +
+        '<td class="ct-nc" style="text-align:center"><input type="checkbox" class="row-check" value="' + item.id + '"></td>' +
+        '<td class="col-no" style="text-align:center"></td>' +
+        '<td style="text-align:center">' + esc(item.product_line).toUpperCase() + '</td>' +
+        '<td style="text-align:center">' + esc(item.retailer) + '</td>' +
+        '<td><strong>' + esc(item.column_name) + '</strong></td>' +
+        '<td class="ct-nc" style="text-align:center">' + (item.duplicate_key ? 'Y' : '') + '</td>' +
+        '<td class="ct-nc" style="text-align:center">' + (item.skip_missing_check ? 'Y' : '') + '</td>' +
+        '<td class="ct-nc" style="text-align:center">' + (item.is_editable ? 'Y' : '') + '</td>' +
+        '<td class="ct-nc" style="text-align:center"><span class="status-dot ' + (item.is_active ? 'active' : 'inactive') + '" onclick="event.stopPropagation(); toggleColumn(' + item.id + ')"></span></td>' +
+        '</tr>';
 }
 
-// 필터
-function applyFilter() {
-    const pl = document.getElementById('filterProductLine').value;
-    const ret = document.getElementById('filterRetailer').value;
-    const skip = document.getElementById('filterSkip').value;
-    const act = document.getElementById('filterActive').value;
-    const search = document.getElementById('filterSearch').value.toLowerCase();
+table.renderBody(DATA, renderRow);
 
-    document.querySelectorAll('#tableBody tr').forEach(row => {
-        let show = true;
+// ========== 정렬 ==========
+function handleSort(key, order) {
+    DATA.sort(function(a, b) {
+        var va = String(a[key] || '').toLowerCase();
+        var vb = String(b[key] || '').toLowerCase();
+        if (va < vb) return order === 'asc' ? -1 : 1;
+        if (va > vb) return order === 'asc' ? 1 : -1;
+        return 0;
+    });
+    table.renderBody(DATA, renderRow);
+    _applyFilter();
+    updateTotalCount();
+    if (pager) pager.reset();
+}
+
+// ========== 필터 ==========
+function saveFilterState() {
+    var params = new URLSearchParams();
+    var pl = filterBar.getValue('filterProductLine');
+    var ret = filterBar.getValue('filterRetailer');
+    var act = filterBar.getValue('filterActive');
+    var search = filterBar.getValue('filterSearch');
+    if (pl) params.set('pl', pl);
+    if (ret) params.set('ret', ret);
+    if (act) params.set('act', act);
+    if (search) params.set('q', search);
+    if (pager && pager.getCurrentPage() > 1) params.set('pg', pager.getCurrentPage());
+    sessionStorage.setItem('rc_filter', params.toString());
+}
+
+function _applyFilter() {
+    var pl = filterBar.getValue('filterProductLine');
+    var ret = filterBar.getValue('filterRetailer');
+    var act = filterBar.getValue('filterActive');
+    var search = (filterBar.getValue('filterSearch') || '').toLowerCase();
+    var tbody = table.getTable().querySelector('tbody');
+
+    tbody.querySelectorAll('tr').forEach(function(row) {
+        var show = true;
         if (pl && row.dataset.productLine !== pl) show = false;
         if (ret && row.dataset.retailer !== ret) show = false;
-        if (skip === 'true' && (row.dataset.skipMissing !== 'True' && row.dataset.skipMissing !== 'true')) show = false;
-        if (skip === 'false' && (row.dataset.skipMissing === 'True' || row.dataset.skipMissing === 'true')) show = false;
-        if (act === 'true' && (row.dataset.active !== 'True' && row.dataset.active !== 'true')) show = false;
-        if (act === 'false' && (row.dataset.active === 'True' || row.dataset.active === 'true')) show = false;
-        if (search && !row.dataset.columnName.toLowerCase().includes(search)) show = false;
-        if (show) {
-            row.removeAttribute('data-filtered');
-        } else {
-            row.setAttribute('data-filtered', 'hidden');
+        if (act === 'true' && row.dataset.active !== 'true') show = false;
+        if (act === 'false' && row.dataset.active !== 'false') show = false;
+        if (search) {
+            show = show && (row.dataset.columnName || '').toLowerCase().includes(search);
         }
+        if (headerToggle.duplicate_key && row.dataset.dup !== 'true') show = false;
+        if (headerToggle.skip_missing_check && row.dataset.skip !== 'true') show = false;
+        if (headerToggle.is_editable && row.dataset.edit !== 'true') show = false;
+        if (show) row.removeAttribute('data-filtered');
+        else row.setAttribute('data-filtered', 'hidden');
+    });
+    document.getElementById('checkAll').checked = false;
+    tbody.querySelectorAll('.row-check').forEach(function(cb) { cb.checked = false; });
+    saveFilterState();
+}
+
+function applyFilter() {
+    _applyFilter();
+    updateTotalCount();
+    if (pager) pager.reset();
+}
+
+function updateTotalCount() {
+    var el = table.countEl;
+    if (!el) return;
+    var tbody = table.getTable().querySelector('tbody');
+    var filtered = Array.from(tbody.querySelectorAll('tr')).filter(function(r) {
+        return r.getAttribute('data-filtered') !== 'hidden';
+    }).length;
+    var total = DATA.length;
+    if (filtered === total) {
+        el.innerHTML = '총 <strong>' + total + '</strong>건';
+    } else {
+        el.innerHTML = '총 <strong>' + total + '</strong>건 (필터 적용: <strong>' + filtered + '</strong>건)';
+    }
+}
+
+// ========== 체크박스 ==========
+document.getElementById('checkAll').addEventListener('change', function() {
+    var checked = this.checked;
+    var tbody = table.getTable().querySelector('tbody');
+    tbody.querySelectorAll('tr:not([data-filtered]) .row-check').forEach(function(cb) { cb.checked = checked; });
+});
+
+function getSelectedRows() {
+    var rows = [];
+    table.getTable().querySelectorAll('tbody .row-check:checked').forEach(function(cb) { rows.push(cb.closest('tr')); });
+    return rows;
+}
+
+// ========== CRUD ==========
+function editById(id) {
+    var item = DATA.find(function(d) { return d.id === id; });
+    if (item) openEditModal(item);
+}
+
+function editSelected() {
+    var rows = getSelectedRows();
+    if (rows.length === 0) { showToast('수정할 항목을 선택하세요.', 'warn'); return; }
+    if (rows.length > 1) { showToast('수정은 1개 항목만 선택하세요.', 'warn'); return; }
+    editById(parseInt(rows[0].dataset.id));
+}
+
+function deleteSelected() {
+    var rows = getSelectedRows();
+    if (rows.length === 0) { showToast('삭제할 항목을 선택하세요.', 'warn'); return; }
+    var ids = rows.map(function(r) { return r.dataset.id; });
+    showConfirm(ids.length + '개 항목을 삭제하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        var promises = ids.map(function(id) {
+            return fetch('/accounts/admin/retail-columns/' + id + '/delete/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+            }).then(function(r) { return r.json(); });
+        });
+        Promise.all(promises).then(function(results) {
+            var failed = results.filter(function(r) { return !r.success; });
+            if (failed.length > 0) showToast(failed.length + '개 삭제 실패', 'error');
+            reloadWithFilter();
+        });
     });
 }
 
-// CSRF
-function getCsrfToken() {
-    return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+function toggleColumn(id) {
+    showConfirm('상태를 변경하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        fetch('/accounts/admin/retail-columns/' + id + '/toggle/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.success) reloadWithFilter();
+            else showToast(res.error, 'error');
+        });
+    });
 }
 
-// ========== 모달 ==========
-let _originalData = null;
+function reloadWithFilter() {
+    var params = new URLSearchParams();
+    var pl = filterBar.getValue('filterProductLine');
+    var ret = filterBar.getValue('filterRetailer');
+    var act = filterBar.getValue('filterActive');
+    var search = filterBar.getValue('filterSearch');
+    if (pl) params.set('pl', pl);
+    if (ret) params.set('ret', ret);
+    if (act) params.set('act', act);
+    if (search) params.set('q', search);
+    var qs = params.toString();
+    location.href = location.pathname + (qs ? '?' + qs : '');
+}
+
+// ========== 모달 (AppModal) ==========
+var MODAL_ID = 'rc-form';
+AppModal.create(MODAL_ID, { style: 'form', closeOnOverlay: true });
+
+var _editId = null;
+var _originalData = null;
+
+function getModalBody() {
+    return '<div class="form-group-inline">' +
+        '<div class="form-group"><label>카테고리 *</label>' +
+        '<select id="formProductLine"><option value="tv">TV</option><option value="hhp">HHP</option></select></div>' +
+        '<div class="form-group"><label>리테일러 *</label>' +
+        '<select id="formRetailer"><option value="amazon">Amazon</option><option value="bestbuy">Bestbuy</option><option value="walmart">Walmart</option></select></div>' +
+        '</div>' +
+        '<div class="form-group"><label>컬럼명 *</label>' +
+        '<input type="text" id="formColumnName" placeholder="예: screen_size"></div>' +
+        '<div class="form-group"><label>조회용 컬럼</label>' +
+        '<input type="text" id="formRelatedColumns" placeholder="예: retailer_sku_name|screen_size">' +
+        '<span class="form-hint">여러 컬럼은 | 로 구분하여 입력하세요</span></div>' +
+        '<div class="form-group"><label>메모</label>' +
+        '<textarea id="formMemo" rows="3" placeholder="메모를 입력하세요"></textarea></div>' +
+        '<div class="form-checkbox"><input type="checkbox" id="formDuplicateKey"><label for="formDuplicateKey">중복검증 키</label></div>' +
+        '<div class="form-checkbox"><input type="checkbox" id="formSkipMissing"><label for="formSkipMissing">누락검사 스킵</label></div>' +
+        '<div class="form-checkbox"><input type="checkbox" id="formIsEditable"><label for="formIsEditable">수정 가능</label></div>' +
+        '<div class="form-checkbox"><input type="checkbox" id="formIsActive" checked><label for="formIsActive">활성</label></div>' +
+        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border-color)">' +
+        '<button type="button" class="fb-btn fb-btn--outline" onclick="AppModal.close(\'' + MODAL_ID + '\')">취소</button>' +
+        '<button type="button" class="fb-btn fb-btn--save" onclick="saveColumn()">저장</button>' +
+        '</div>';
+}
 
 function openAddModal() {
+    _editId = null;
     _originalData = null;
-    document.getElementById('modalTitle').textContent = '항목 추가';
-    document.getElementById('editId').value = '';
-    document.getElementById('formProductLine').value = 'tv';
-    document.getElementById('formRetailer').value = 'amazon';
-    document.getElementById('formColumnName').value = '';
-    document.getElementById('formRelatedColumns').value = '';
-    document.getElementById('formMemo').value = '';
-    document.getElementById('formDuplicateKey').checked = false;
-    document.getElementById('formSkipMissing').checked = false;
-    document.getElementById('formIsActive').checked = true;
-    document.getElementById('modalOverlay').classList.add('show');
+    AppModal.setTitle(MODAL_ID, '항목 추가');
+    AppModal.setBody(MODAL_ID, getModalBody());
+    AppModal.open(MODAL_ID);
 }
 
-function openEditModal(tr) {
-    const d = tr.dataset;
-    const isBoolTrue = v => v === 'True' || v === 'true';
-    document.getElementById('modalTitle').textContent = '항목 수정';
-    document.getElementById('editId').value = d.id;
-    document.getElementById('formProductLine').value = d.productLine;
-    document.getElementById('formRetailer').value = d.retailer;
-    document.getElementById('formColumnName').value = d.columnName;
-    document.getElementById('formRelatedColumns').value = d.related;
-    document.getElementById('formMemo').value = d.memo || '';
-    document.getElementById('formDuplicateKey').checked = isBoolTrue(d.duplicateKey);
-    document.getElementById('formSkipMissing').checked = isBoolTrue(d.skipMissing);
-    document.getElementById('formIsActive').checked = isBoolTrue(d.active);
+function openEditModal(item) {
+    _editId = item.id;
     _originalData = {
-        product_line: d.productLine,
-        column_name: d.columnName,
-        retailer: d.retailer,
-        duplicate_key: isBoolTrue(d.duplicateKey),
-        skip_missing_check: isBoolTrue(d.skipMissing),
-        related_columns: d.related || '',
-        memo: d.memo || '',
-        is_active: isBoolTrue(d.active),
+        product_line: item.product_line,
+        column_name: item.column_name,
+        retailer: item.retailer,
+        duplicate_key: item.duplicate_key,
+        skip_missing_check: item.skip_missing_check,
+        is_editable: item.is_editable,
+        related_columns: item.related_columns || '',
+        memo: item.memo || '',
+        is_active: item.is_active,
     };
-    document.getElementById('modalOverlay').classList.add('show');
-}
-
-function closeModal() {
-    document.getElementById('modalOverlay').classList.remove('show');
+    AppModal.setTitle(MODAL_ID, '항목 수정');
+    AppModal.setBody(MODAL_ID, getModalBody());
+    // 폼 값 채우기
+    document.getElementById('formProductLine').value = item.product_line;
+    document.getElementById('formRetailer').value = item.retailer;
+    document.getElementById('formColumnName').value = item.column_name;
+    document.getElementById('formRelatedColumns').value = item.related_columns || '';
+    document.getElementById('formMemo').value = item.memo || '';
+    document.getElementById('formDuplicateKey').checked = item.duplicate_key;
+    document.getElementById('formSkipMissing').checked = item.skip_missing_check;
+    document.getElementById('formIsEditable').checked = item.is_editable;
+    document.getElementById('formIsActive').checked = item.is_active;
+    AppModal.open(MODAL_ID);
 }
 
 function saveColumn() {
-    const editId = document.getElementById('editId').value;
-    const data = {
+    var data = {
         product_line: document.getElementById('formProductLine').value,
         column_name: document.getElementById('formColumnName').value.trim(),
         retailer: document.getElementById('formRetailer').value,
         duplicate_key: document.getElementById('formDuplicateKey').checked,
         skip_missing_check: document.getElementById('formSkipMissing').checked,
+        is_editable: document.getElementById('formIsEditable').checked,
         related_columns: document.getElementById('formRelatedColumns').value.trim(),
         memo: document.getElementById('formMemo').value.trim(),
         is_active: document.getElementById('formIsActive').checked,
     };
 
     if (!data.column_name) {
-        alert('컬럼명을 입력하세요.');
+        showToast('컬럼명을 입력하세요.', 'warn');
         return;
     }
 
-    if (editId && _originalData) {
-        const hasChange = Object.keys(data).some(k => {
+    if (_editId && _originalData) {
+        var hasChange = Object.keys(data).some(function(k) {
             if (typeof data[k] === 'boolean') return data[k] !== _originalData[k];
             return (data[k] || '') !== (_originalData[k] || '');
         });
@@ -646,8 +464,8 @@ function saveColumn() {
         }
     }
 
-    const url = editId
-        ? `/accounts/admin/retail-columns/${editId}/update/`
+    var url = _editId
+        ? '/accounts/admin/retail-columns/' + _editId + '/update/'
         : '/accounts/admin/retail-columns/create/';
 
     fetch(url, {
@@ -655,108 +473,55 @@ function saveColumn() {
         headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
-    .then(r => {
-        if (!r.ok) return r.text().then(t => { throw new Error('서버 ' + r.status + ': ' + t.substring(0, 200)); });
+    .then(function(r) {
+        if (!r.ok) return r.text().then(function(t) { throw new Error('서버 ' + r.status + ': ' + t.substring(0, 200)); });
         return r.json();
     })
-    .then(res => {
+    .then(function(res) {
         if (res.success) {
-            closeModal();
+            AppModal.close(MODAL_ID);
             reloadWithFilter();
         } else {
-            alert(res.error || '오류가 발생했습니다.');
+            showToast(res.error || '오류가 발생했습니다.', 'error');
         }
     })
-    .catch(err => alert('요청 오류: ' + err.message));
+    .catch(function(err) { showToast('요청 오류: ' + err.message, 'error'); });
 }
 
-// 필터 상태를 유지하며 새로고침
-function reloadWithFilter() {
-    const params = new URLSearchParams();
-    const pl = document.getElementById('filterProductLine').value;
-    const ret = document.getElementById('filterRetailer').value;
-    const skip = document.getElementById('filterSkip').value;
-    const act = document.getElementById('filterActive').value;
-    const search = document.getElementById('filterSearch').value;
-    if (pl) params.set('pl', pl);
-    if (ret) params.set('ret', ret);
-    if (skip) params.set('skip', skip);
-    if (act) params.set('act', act);
-    if (search) params.set('q', search);
-    if (pager && pager.getCurrentPage() > 1) params.set('page', pager.getCurrentPage());
-    const qs = params.toString();
-    location.href = location.pathname + (qs ? '?' + qs : '');
-}
-
-// 토글
-async function toggleColumn(id) {
-    if (!await showConfirm('상태를 변경하시겠습니까?')) return;
-    fetch(`/accounts/admin/retail-columns/${id}/toggle/`, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
-    })
-    .then(r => r.json())
-    .then(res => {
-        if (res.success) reloadWithFilter();
-        else showToast(res.error, 'error');
-    });
-}
-
-// 삭제
-async function deleteColumn(id) {
-    if (!await showConfirm('정말 삭제하시겠습니까?')) return;
-    fetch(`/accounts/admin/retail-columns/${id}/delete/`, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
-    })
-    .then(r => r.json())
-    .then(res => {
-        if (res.success) reloadWithFilter();
-        else showToast(res.error, 'error');
-    });
-}
-
-// URL 파라미터에서 필터 복원
+// ========== 필터 복원 ==========
 (function() {
-    const params = new URLSearchParams(location.search);
-    if (params.get('pl')) document.getElementById('filterProductLine').value = params.get('pl');
-    if (params.get('ret')) document.getElementById('filterRetailer').value = params.get('ret');
-    if (params.get('skip')) document.getElementById('filterSkip').value = params.get('skip');
-    if (params.get('act')) document.getElementById('filterActive').value = params.get('act');
-    if (params.get('q')) document.getElementById('filterSearch').value = params.get('q');
+    var params = new URLSearchParams(location.search);
+    if (!params.toString()) {
+        var saved = sessionStorage.getItem('rc_filter');
+        if (saved) params = new URLSearchParams(saved);
+    }
+    if (!params.toString()) {
+        return;
+    }
+    if (params.get('pl')) filterBar.setValue('filterProductLine', params.get('pl'));
+    if (params.get('ret')) filterBar.setValue('filterRetailer', params.get('ret'));
+    if (params.get('act')) filterBar.setValue('filterActive', params.get('act'));
+    if (params.get('q')) filterBar.setValue('filterSearch', params.get('q'));
+    window._restorePage = parseInt(params.get('pg')) || 0;
 })();
 
-// 초기화
-updateStats();
-enableColumnResize('.rc-table');
-const hasUrlParams = !!location.search;
-const pager = enablePagination('#tableBody', {
+// ========== 페이지네이션 ==========
+var pager = enablePagination(table.getTable().querySelector('tbody'), {
     perPage: 25,
-    deferRender: hasUrlParams,
+    showInfo: false,
+    deferRender: true,
     onRender: function(visibleRows, start) {
-        visibleRows.forEach((row, i) => {
-            const noCell = row.querySelector('.col-no');
-            if (noCell) noCell.textContent = i + 1;
+        visibleRows.forEach(function(row, i) {
+            var noCell = row.querySelector('.col-no');
+            if (noCell) noCell.textContent = start + i + 1;
         });
     }
 });
 
-// 필터 후 페이지네이션 갱신을 위해 applyFilter 재정의
-const _origApplyFilter = applyFilter;
-applyFilter = function() {
-    _origApplyFilter();
-    if (pager) pager.reset();
-};
+// 초기 필터 적용 + 페이지네이션 시작
+applyFilter();
+if (window._restorePage > 1) pager.goTo(window._restorePage);
 
-// URL 파라미터가 있으면 필터 적용 후 페이지 이동 (한 번만 렌더)
-if (hasUrlParams) {
-    _origApplyFilter();
-    const pageParam = new URLSearchParams(location.search).get('page');
-    if (pageParam && pager) {
-        pager.goTo(parseInt(pageParam));
-    } else {
-        pager.reset();
-    }
-}
+enableColumnResize('#tableArea .ct');
 </script>
 {% endblock %}

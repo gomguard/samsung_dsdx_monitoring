@@ -1,23 +1,23 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Layer 2: {{ layer.name }} - {% block page_title %}대시보드{% endblock %}{% endblock %}
+{% block title %}Layer 4: {{ layer.name }} - {% block page_title %}대시보드{% endblock %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/layer2.css' %}?v=1">
+<link rel="stylesheet" href="{% static 'css/layer4.css' %}?v=1">
 <style>
     :root { --layer-color: {{ layer.color|escapejs }}; --page-color: {{ layer.color|escapejs }}; }
 </style>
-{% block layer2_css %}{% endblock %}
+{% block layer4_css %}{% endblock %}
 {% endblock %}
 
 {% block content %}
-<div class="l2-layout">
+<div class="l4-layout">
     <!-- 사이드바 -->
     {% include 'includes/_sidebar.html' %}
 
     <!-- 콘텐츠 영역 -->
-    <div class="l2-content">
+    <div class="l4-content">
         {% if section == 'dashboard' %}
         <!-- Layer 헤더 (대시보드만) -->
         <div class="layer-header">
@@ -31,15 +31,10 @@
         </div>
         {% endif %}
 
-        <!-- 뒤로가기 (ViewStack 활성 시 표시) -->
-        <div id="viewstack-back-container" style="display:none; margin-bottom:12px;">
-            <button class="app-btn app-btn-md app-btn-back" onclick="ViewStack.pop()">&larr; 뒤로가기</button>
-        </div>
-
         <!-- 필터 영역 -->
         <div id="filter-bar-container"></div>
 
-        {% block layer2_content %}{% endblock %}
+        {% block layer4_content %}{% endblock %}
     </div>
 </div>
 
@@ -47,7 +42,7 @@
 
 {% block extra_js %}
 <script>
-    window.LAYER2 = {
+    window.LAYER4 = {
         color: '{{ layer.color|escapejs }}',
         section: '{{ section|escapejs }}',
         targetDate: '{{ target_date|default:""|escapejs }}',
@@ -70,11 +65,11 @@
             localStorage.setItem('monitoringSelectedDate', filterBar.getDate());
         }
 
-        var section = (window.LAYER2 && window.LAYER2.section) || 'dashboard';
+        var section = (window.LAYER4 && window.LAYER4.section) || 'dashboard';
         var controls = [];
 
         if (section !== 'dashboard') {
-            var sectionTitles = { null_validation: 'NULL 검증', format_validation: '형식 검증', anomaly_validation: '중복 검증' };
+            var sectionTitles = { corrections: '검수기록', report: '보고서' };
             controls.push({
                 type: 'custom',
                 html: '<div style="display:flex;align-items:center;gap:12px;"><span style="font-size:17px;font-weight:700;color:var(--layer-color);white-space:nowrap;line-height:1;">' + (sectionTitles[section] || '') + '</span><span style="width:2px;height:24px;background:#999;"></span></div>'
@@ -102,9 +97,6 @@
     function getSelectedDate() {
         return filterBar ? filterBar.getDate() : '';
     }
-
-    AppModal.create('l2-detail', { style: 'wide', closeOnOverlay: true });
-    AppModal.create('l2-rule', { style: 'wide', closeOnOverlay: true });
 </script>
-{% block layer2_js %}{% endblock %}
+{% block layer4_js %}{% endblock %}
 {% endblock %}

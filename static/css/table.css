@@ -59,6 +59,30 @@
 }
 
 /* ============================================================
+   헤더 드래그 열 이동 (reorder)
+   ============================================================ */
+.ct th.ct-reorderable {
+    cursor: grab;
+}
+
+.ct th.ct-reorderable:active {
+    cursor: grabbing;
+}
+
+.ct th.ct-th-dragging {
+    opacity: 0.4;
+    background: #e2e8f0;
+}
+
+.ct th.ct-th-drag-left {
+    box-shadow: inset 3px 0 0 0 var(--layer-color, #7c3aed);
+}
+
+.ct th.ct-th-drag-right {
+    box-shadow: inset -3px 0 0 0 var(--layer-color, #7c3aed);
+}
+
+/* ============================================================
    CommonTable 베이스 (.ct)
    ============================================================ */
 .ct {
@@ -138,13 +162,19 @@
 }
 
 .ct th.sortable.asc::after {
-    content: '▲';
+    content: '▲' attr(data-sort-order);
     color: #4338ca;
 }
 
 .ct th.sortable.desc::after {
-    content: '▼';
+    content: '▼' attr(data-sort-order);
     color: #4338ca;
+}
+
+.ct th.sortable.asc[data-sort-order]::after,
+.ct th.sortable.desc[data-sort-order]::after {
+    font-size: 11px;
+    letter-spacing: 1px;
 }
 
 /* ============================================================
@@ -216,6 +246,43 @@
 .ct.ct-vlines th:last-child,
 .ct.ct-vlines td:last-child {
     border-right: none;
+}
+
+/* ============================================================
+   Modifier: section (카드 배경 래퍼)
+   ============================================================ */
+.ct-section {
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* ============================================================
+   Modifier: bordered (외곽선만, 둥근 모서리 없음)
+   ============================================================ */
+.ct.ct-bordered {
+    border: 1px solid var(--border-color);
+}
+
+.ct.ct-bordered tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ============================================================
+   Modifier: rounded (외곽선 + 둥근 모서리)
+   ============================================================ */
+.ct.ct-rounded {
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ct.ct-rounded tbody tr:last-child td {
+    border-bottom: none;
 }
 
 /* ============================================================

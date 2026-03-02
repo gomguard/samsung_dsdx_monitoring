@@ -60,6 +60,22 @@
  * custom : { type: 'custom', html: '<div>...</div>' }
  *
  * ============================================================
+ * 컬럼 선택 (columnSelector 옵션)
+ * ============================================================
+ *
+ * new FilterBar('#el', {
+ *     controls: [...],
+ *     columnSelector: {
+ *         columns: [{key, label}, ...],          // 전체 컬럼 목록
+ *         fixed: ['id'],                          // 체크 해제/이동 불가
+ *         defaultVisible: ['id', 'item', ...],    // 기본 표시 (null → 전체)
+ *         onUpdate: function(visibleColumns) {}    // 변경 콜백
+ *     }
+ * }).render();
+ *
+ * bar.getVisibleColumns();   // 표시 순서대로 visible 컬럼 [{key, label}, ...]
+ *
+ * ============================================================
  */
 
 class FilterBar {
@@ -75,12 +91,20 @@ class FilterBar {
         this.elements = {};
         this._defaults = {};
         this.barEl = null;
+        this._colState = null;
+        this._colCloseHandler = null;
+        this._colDragItem = null;
+
+        if (options.columnSelector) {
+            this._initColState(options.columnSelector);
+        }
     }
 
     render() {
         const bar = document.createElement('div');
         bar.className = 'fb';
         if (this.options.sticky) bar.classList.add('fb-sticky');
+        if (this.options.plain) bar.classList.add('fb-plain');
         if (this.options.fit) bar.classList.add('fb-fit');
         if (this.options.padding) bar.style.padding = this.options.padding;
 
@@ -124,11 +148,21 @@ class FilterBar {
         bar.appendChild(left);
 
         // 우측 컨트롤
-        if (this.options.right && this.options.right.length > 0) {
+        var hasRight = (this.options.right && this.options.right.length > 0) || this._colState;
+        if (hasRight) {
             const right = document.createElement('div');
             right.className = 'fb-right';
             if (this.options.gap) right.style.gap = this.options.gap + 'px';
-            this.options.right.forEach(ctrl => {
+            // columnSelector 옵션이 있으면 '컬럼 선택' 버튼 먼저 추가
+            if (this._colState) {
+                var self = this;
+                var colBtn = this._createButton({
+                    label: '컬럼 선택', style: 'outline', size: 'fb',
+                    onClick: function() { self._toggleColDropdown(colBtn); }
+                });
+                right.appendChild(colBtn);
+            }
+            (this.options.right || []).forEach(ctrl => {
                 right.appendChild(this._createControl(ctrl));
             });
             bar.appendChild(right);
@@ -425,5 +459,266 @@ class FilterBar {
         }
         if (this.options.onReset) this.options.onReset();
         return this;
+    }
+
+    // ── 컬럼 선택 ─────────────────────────────────
+
+    _initColState(opt) {
+        var all = opt.columns || [];
+        var fixedKeys = opt.fixed || [];
+        var order = all.map(function(c) { return c.key; });
+        var hidden = new Set();
+
+        if (opt.defaultVisible) {
+            var dvSet = {};
+            opt.defaultVisible.forEach(function(k) { dvSet[k] = true; });
+            all.forEach(function(c) {
+                if (!dvSet[c.key] && fixedKeys.indexOf(c.key) < 0) {
+                    hidden.add(c.key);
+                }
+            });
+        }
+
+        this._colState = {
+            all: all,
+            fixed: fixedKeys,
+            order: order,
+            hidden: hidden,
+            onUpdate: opt.onUpdate || null
+        };
+    }
+
+    getVisibleColumns() {
+        if (!this._colState) return [];
+        var s = this._colState;
+        var colMap = {};
+        s.all.forEach(function(c) { colMap[c.key] = c; });
+        return s.order
+            .filter(function(k) { return !s.hidden.has(k); })
+            .map(function(k) { return colMap[k]; })
+            .filter(Boolean);
+    }
+
+    /**
+     * 외부에서 컬럼 순서 변경 (테이블 헤더 드래그 후 동기화용)
+     * @param {string[]} keyOrder - 새 순서의 key 배열
+     */
+    reorderColumns(keyOrder) {
+        if (!this._colState) return;
+        var s = this._colState;
+        var existing = new Set(s.order);
+        // keyOrder에 있는 것만 순서 적용, 나머지(fixed 등)는 원래 위치 유지
+        var newOrder = [];
+        var fixedSet = new Set(s.fixed || []);
+        // fixed 컬럼은 원래 순서대로 앞에
+        s.order.forEach(function(k) {
+            if (fixedSet.has(k)) newOrder.push(k);
+        });
+        // 나머지는 keyOrder 순서대로
+        keyOrder.forEach(function(k) {
+            if (existing.has(k) && !fixedSet.has(k)) newOrder.push(k);
+        });
+        // keyOrder에 없지만 원래 있던 컬럼 (혹시 누락 방지)
+        s.order.forEach(function(k) {
+            if (newOrder.indexOf(k) === -1) newOrder.push(k);
+        });
+        s.order = newOrder;
+    }
+
+    _toggleColDropdown(anchorBtn) {
+        var dropdownId = 'fb-col-dropdown';
+        var existing = document.getElementById(dropdownId);
+        if (existing) {
+            existing.remove();
+            this._removeColCloseHandler();
+            return;
+        }
+
+        var self = this;
+        var s = this._colState;
+        var colMap = {};
+        s.all.forEach(function(c) { colMap[c.key] = c; });
+
+        var dropdown = document.createElement('div');
+        dropdown.id = dropdownId;
+        dropdown.className = 'fb-col-dropdown';
+        dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
+
+        // 전체 선택/해제
+        var actions = document.createElement('div');
+        actions.className = 'fb-col-actions';
+        var btnAll = document.createElement('button');
+        btnAll.className = 'app-btn app-btn-sm app-btn-outline';
+        btnAll.textContent = '전체 선택';
+        btnAll.addEventListener('click', function() { self._setAllCols(true); });
+        var btnNone = document.createElement('button');
+        btnNone.className = 'app-btn app-btn-sm app-btn-outline';
+        btnNone.textContent = '전체 해제';
+        btnNone.addEventListener('click', function() { self._setAllCols(false); });
+        actions.appendChild(btnAll);
+        actions.appendChild(btnNone);
+        dropdown.appendChild(actions);
+
+        // 컬럼 목록
+        var list = document.createElement('div');
+        list.className = 'fb-col-list';
+
+        s.order.forEach(function(key) {
+            var col = colMap[key];
+            if (!col) return;
+            var isFixed = s.fixed.indexOf(key) >= 0;
+
+            var item = document.createElement('div');
+            item.className = 'fb-col-item' + (isFixed ? ' col-fixed' : '');
+            item.dataset.colKey = key;
+
+            // 드래그 핸들
+            var handle = document.createElement('span');
+            handle.className = 'drag-handle';
+            handle.textContent = '\u2807';
+            if (!isFixed) {
+                handle.draggable = true;
+            }
+            item.appendChild(handle);
+
+            // 체크박스
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = !s.hidden.has(key);
+            cb.disabled = isFixed;
+            cb.addEventListener('change', function() {
+                if (this.checked) {
+                    s.hidden.delete(key);
+                } else {
+                    s.hidden.add(key);
+                }
+                self._fireColUpdate();
+            });
+            item.appendChild(cb);
+
+            // 라벨
+            var label = document.createElement('span');
+            label.textContent = col.label;
+            item.appendChild(label);
+
+            list.appendChild(item);
+        });
+
+        dropdown.appendChild(list);
+
+        // 앵커에 붙이기
+        var anchor = anchorBtn.parentElement || anchorBtn;
+        anchor.style.position = 'relative';
+        anchor.appendChild(dropdown);
+
+        // 드래그 초기화
+        this._initColDrag(list);
+
+        // 외부 클릭 시 닫기
+        this._colCloseHandler = function(e) {
+            var dd = document.getElementById(dropdownId);
+            if (dd && !dd.contains(e.target) && !anchorBtn.contains(e.target)) {
+                dd.remove();
+                self._removeColCloseHandler();
+            }
+        };
+        setTimeout(function() { document.addEventListener('click', self._colCloseHandler); }, 0);
+    }
+
+    _setAllCols(visible) {
+        var s = this._colState;
+        s.hidden.clear();
+        if (!visible) {
+            s.order.forEach(function(key) {
+                if (s.fixed.indexOf(key) < 0) s.hidden.add(key);
+            });
+        }
+        var dd = document.getElementById('fb-col-dropdown');
+        if (dd) {
+            dd.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+                if (!cb.disabled) cb.checked = visible;
+            });
+        }
+        this._fireColUpdate();
+    }
+
+    _initColDrag(listEl) {
+        var self = this;
+        var items = listEl.querySelectorAll('.fb-col-item:not(.col-fixed)');
+
+        items.forEach(function(item) {
+            var handle = item.querySelector('.drag-handle');
+            if (!handle || !handle.draggable) return;
+
+            handle.addEventListener('dragstart', function(e) {
+                self._colDragItem = item;
+                item.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', '');
+            });
+
+            handle.addEventListener('dragend', function() {
+                item.classList.remove('dragging');
+                listEl.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
+                self._colDragItem = null;
+            });
+
+            item.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                if (self._colDragItem && self._colDragItem !== item && !item.classList.contains('col-fixed')) {
+                    listEl.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
+                    item.classList.add('drag-over');
+                }
+            });
+
+            item.addEventListener('dragleave', function() {
+                item.classList.remove('drag-over');
+            });
+
+            item.addEventListener('drop', function(e) {
+                e.preventDefault();
+                item.classList.remove('drag-over');
+                if (!self._colDragItem || self._colDragItem === item) return;
+                var fromKey = self._colDragItem.dataset.colKey;
+                var toKey = item.dataset.colKey;
+                self._reorderCol(fromKey, toKey);
+            });
+        });
+    }
+
+    _reorderCol(fromKey, toKey) {
+        var order = this._colState.order;
+        var fromPos = order.indexOf(fromKey);
+        var toPos = order.indexOf(toKey);
+        if (fromPos === -1 || toPos === -1) return;
+
+        order.splice(fromPos, 1);
+        toPos = order.indexOf(toKey);
+        order.splice(toPos, 0, fromKey);
+
+        // 드롭다운 닫기
+        var dd = document.getElementById('fb-col-dropdown');
+        if (dd) {
+            dd.remove();
+            this._removeColCloseHandler();
+        }
+        this._fireColUpdate();
+
+        // 드롭다운 다시 열기
+        var colBtn = this.barEl ? this.barEl.querySelector('.fb-right .app-btn:last-child') : null;
+        if (colBtn) this._toggleColDropdown(colBtn);
+    }
+
+    _fireColUpdate() {
+        if (this._colState && this._colState.onUpdate) {
+            this._colState.onUpdate(this.getVisibleColumns());
+        }
+    }
+
+    _removeColCloseHandler() {
+        if (this._colCloseHandler) {
+            document.removeEventListener('click', this._colCloseHandler);
+            this._colCloseHandler = null;
+        }
     }
 }
