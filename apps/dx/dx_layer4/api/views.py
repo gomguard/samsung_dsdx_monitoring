@@ -238,7 +238,7 @@ def report_data(request):
         cursor.execute("""
             SELECT section, expected_count, actual_count, rate, status, memo
             FROM monitoring_check_log
-            WHERE crawl_date = %s AND layer = 1 AND is_del = 0
+            WHERE crawl_date = %s AND layer = 1 AND is_del = 0 AND confirm_step = 2
             ORDER BY id
         """, (str(target_date),))
         collection_status = []
@@ -379,7 +379,7 @@ def report_data(request):
             LEFT JOIN hhp_item_mst m_hhp ON h.table_name = 'hhp_item_mst' AND h.item_id = m_hhp.id
             WHERE h.field_name = 'is_product'
               AND h.old_value = 'True' AND h.new_value = 'False'
-              AND DATE(h.changed_at) = %s
+              AND DATE(h.changed_at) = DATE(%s) + INTERVAL '1 day'
             ORDER BY h.table_name, h.changed_at
         """, (str(target_date),))
         excluded_items = []
@@ -503,9 +503,7 @@ def check_status(request):
 
         rows = cursor.fetchall()
         sections = {}
-        check_log_ids = []
         for row in rows:
-            check_log_ids.append(row[0])
             sections[row[1]] = {
                 'id': row[0],
                 'expected_count': row[2],
@@ -520,21 +518,26 @@ def check_status(request):
                 'confirm_step': row[11],
             }
 
+        check_log_ids = [sections[s]['id'] for s in sections]
         if include_detail and check_log_ids:
             placeholders = ','.join(['%s'] * len(check_log_ids))
             cursor.execute(f"""
-                SELECT id, section, category, time_slot, retailer,
-                       item_name, expected_count, actual_count, rate, status, issue_id
-                FROM monitoring_check_log_detail
-                WHERE check_log_id IN ({placeholders})
-                ORDER BY id
+                SELECT d.id, d.section, d.category, d.time_slot, d.retailer,
+                       d.item_name, d.expected_count, d.actual_count, d.rate, d.status,
+                       d.issue_id, d.confirm_step
+                FROM monitoring_check_log_detail d
+                WHERE d.check_log_id IN ({placeholders})
+                ORDER BY d.confirm_step, d.id
             """, check_log_ids)
             for dr in cursor.fetchall():
                 sec_key = dr[1]
+                step = dr[11]
                 if sec_key in sections:
-                    if 'details' not in sections[sec_key]:
-                        sections[sec_key]['details'] = []
-                    sections[sec_key]['details'].append({
+                    cur_step = sections[sec_key]['confirm_step']
+                    detail_key = 'details' if step == cur_step else 'details_step1'
+                    if detail_key not in sections[sec_key]:
+                        sections[sec_key][detail_key] = []
+                    sections[sec_key][detail_key].append({
                         'detail_id': dr[0],
                         'category': dr[2], 'time_slot': dr[3],
                         'retailer': dr[4], 'item_name': dr[5],

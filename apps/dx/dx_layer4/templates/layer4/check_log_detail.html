@@ -93,6 +93,29 @@
         font-size: 14px;
     }
 
+    /* 1차/2차 토글 */
+    .cl-step-toggle {
+        display: inline-flex;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .cl-step-btn {
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 500;
+        background: white;
+        color: var(--text-secondary);
+        border: none;
+        cursor: pointer;
+    }
+    .cl-step-btn:not(:last-child) { border-right: 1px solid var(--border-color); }
+    .cl-step-btn.active {
+        background: var(--layer-color);
+        color: white;
+    }
+    .cl-step-btn:hover:not(.active) { background: #f9fafb; }
+
     /* 이슈 섹션 */
     .cl-issue-panel {
         background: white;
@@ -226,6 +249,7 @@
 </div>
 
 <div class="cl-tab-panel active" id="tabDetail">
+    <div id="stepToggleContainer" style="display:none;margin-bottom:12px;"></div>
     <div id="detailTableContainer">
         <div class="cl-empty-state">데이터를 불러오는 중...</div>
     </div>
@@ -277,6 +301,8 @@ var SECTION_NAMES = {
     market_demand: '수요증감율',
     market_promotion: 'Promotion'
 };
+
+var _currentSection = null;  // loadDetail에서 저장
 
 var DETAIL_COLUMNS = [
     { key: 'category', label: '카테고리', group: true },
@@ -330,11 +356,35 @@ async function loadDetail() {
             return;
         }
 
+        _currentSection = sec;
         renderSummary(sec);
+        renderStepToggle(sec);
         renderDetailTable(sec.details || []);
     } catch (e) {
         document.getElementById('detailTableContainer').innerHTML = '<div class="cl-empty-state">시스템 오류가 발생했습니다.</div>';
     }
+}
+
+function renderStepToggle(sec) {
+    var container = document.getElementById('stepToggleContainer');
+    if (sec.confirm_step !== 2 || !sec.details_step1 || sec.details_step1.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    container.style.display = 'block';
+    container.innerHTML =
+        '<div class="cl-step-toggle">' +
+            '<button class="cl-step-btn" onclick="switchStep(1)">1차 확인</button>' +
+            '<button class="cl-step-btn active" onclick="switchStep(2)">2차 완료</button>' +
+        '</div>';
+}
+
+function switchStep(step) {
+    if (!_currentSection) return;
+    document.querySelectorAll('.cl-step-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    event.target.classList.add('active');
+    var details = step === 1 ? (_currentSection.details_step1 || []) : (_currentSection.details || []);
+    renderDetailTable(details);
 }
 
 function renderSummary(sec) {

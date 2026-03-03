@@ -2150,7 +2150,7 @@ function _cfBindEditEvents() {
             _cfShowReviewBar(td, 'normal');
         } else if (normalTd) {
             window._cfSelectedCell = null;
-            _cfShowReviewBar(normalTd, 'revert');
+            // cell-normal은 무시 (정상처리 완료된 셀)
         } else if (reviewTd) {
             reviewTd.classList.add('cell-selected');
             window._cfSelectedCell = null;
@@ -2403,23 +2403,17 @@ function _cfShowReviewBar(td, mode) {
     bar.className = 'null-review-bar';
     var colName = td.dataset.col || '';
     var rowId = td.dataset.rowId || '';
-    var infoText = mode === 'revert'
-        ? (colName + ' (ID: ' + rowId + ') — 정상 처리됨')
-        : (colName + ' (ID: ' + rowId + ') — 이상치');
+    var infoText = colName + ' (ID: ' + rowId + ') — 이상치';
     var info = document.createElement('span');
     info.className = 'null-review-info';
     info.textContent = infoText;
     var btn = document.createElement('button');
-    btn.className = mode === 'revert' ? 'btn-null-revert' : 'btn-null-normal';
-    btn.textContent = mode === 'revert' ? '정상 취소' : '정상 처리';
+    btn.className = 'btn-null-normal';
+    btn.textContent = '정상 처리';
     btn.addEventListener('click', function() {
-        if (mode === 'revert') {
-            _cfSubmitReview(td, 'reverted', '', '');
-        } else {
-            _cfShowReviewDialog(function(reason, memo) {
-                _cfSubmitReview(td, 'normal', memo, reason);
-            });
-        }
+        _cfShowReviewDialog(function(reason, memo) {
+            _cfSubmitReview(td, 'normal', memo, reason);
+        });
     });
     bar.appendChild(info);
     bar.appendChild(btn);
@@ -2529,17 +2523,10 @@ function _cfSubmitReview(td, status, memo, reason) {
     .then(function(res) {
         if (res.success) {
             _cfHideReviewBar();
-            if (status === 'normal') {
-                var nrKey = rowId + '_' + colName;
-                if (!window.crossfieldNormalReviews) window.crossfieldNormalReviews = {};
-                window.crossfieldNormalReviews[nrKey] = { memo: memo, reason: reason, created_id: '', created_at: '' };
-                // _cfDetailState.normalReviews도 동일 참조이므로 자동 갱신
-                showToast('정상 처리 완료', 'success');
-            } else {
-                var nrKey2 = rowId + '_' + colName;
-                if (window.crossfieldNormalReviews) delete window.crossfieldNormalReviews[nrKey2];
-                showToast('정상 처리 취소됨', 'success');
-            }
+            var nrKey = rowId + '_' + colName;
+            if (!window.crossfieldNormalReviews) window.crossfieldNormalReviews = {};
+            window.crossfieldNormalReviews[nrKey] = { memo: memo, reason: reason, created_id: '', created_at: '' };
+            showToast('정상 처리 완료', 'success');
             // 테이블 재렌더링 (정상 처리 행 제외 + 건수 갱신)
             _cfSortAndRender();
         } else {
@@ -4562,17 +4549,24 @@ function _fmBindEditEvents() {
         var prev = tableEl.querySelector('.cell-selected');
         if (prev) prev.classList.remove('cell-selected');
         _fmHideReviewBar();
+        // 현재 보고 있는 필드와 다른 컬럼은 정상처리 불가
+        var targetTd = td || reviewTd;
+        var colMatch = true;
+        if (targetTd && window._fmCurrentField) {
+            var clickedCol = targetTd.getAttribute('data-col');
+            if (clickedCol && clickedCol !== window._fmCurrentField) colMatch = false;
+        }
         if (td) {
             td.classList.add('cell-selected');
             window._fmSelectedCell = td;
-            _fmShowReviewBar(td, 'normal');
+            if (colMatch) _fmShowReviewBar(td, 'normal');
         } else if (normalTd) {
             window._fmSelectedCell = null;
-            _fmShowReviewBar(normalTd, 'revert');
+            // cell-normal은 무시 (정상처리 완료된 셀)
         } else if (reviewTd) {
             reviewTd.classList.add('cell-selected');
             window._fmSelectedCell = null;
-            _fmShowReviewBar(reviewTd, 'normal');
+            if (colMatch) _fmShowReviewBar(reviewTd, 'normal');
         } else {
             window._fmSelectedCell = null;
         }
@@ -4732,16 +4726,10 @@ function _fmShowReviewBar(td, mode) {
     var col = td.getAttribute('data-col');
     if (!rowId) return;
 
-    var html = '<div class="null-review-bar" id="fm-review-bar">';
-    if (mode === 'revert') {
-        var nk = td.getAttribute('data-normal-key');
-        html += '<span class="null-review-info">정상 처리를 취소하시겠습니까?</span>'
-            + '<button class="btn-null-revert" onclick="_fmSubmitReview(\'' + rowId + '\',\'' + esc(col) + '\',\'reverted\',\'\',\'\',\'' + (nk || '') + '\')">정상 취소</button>';
-    } else {
-        html += '<span class="null-review-info">' + esc(col) + ' (ID: ' + rowId + ')</span>'
-            + '<button class="btn-null-normal" onclick="_fmShowReviewDialog(\'' + rowId + '\',\'' + esc(col) + '\')">정상 처리</button>';
-    }
-    html += '</div>';
+    var html = '<div class="null-review-bar" id="fm-review-bar">'
+        + '<span class="null-review-info">' + esc(col) + ' (ID: ' + rowId + ')</span>'
+        + '<button class="btn-null-normal" onclick="_fmShowReviewDialog(\'' + rowId + '\',\'' + esc(col) + '\')">정상 처리</button>'
+        + '</div>';
     bar.innerHTML = html;
 }
 
@@ -4801,13 +4789,8 @@ window._fmSubmitReview = function(rowId, col, status, reason, memo, normalKey) {
         if (!data.success) { showToast(data.error || '처리 실패', 'error'); return; }
         var st = window._fmDetailState;
         var nk = rowId + '_' + col;
-        if (status === 'normal') {
-            st.normalReviews[nk] = { reason: reason, memo: memo, created_id: '' };
-            showToast('정상 처리 완료', 'success');
-        } else {
-            delete st.normalReviews[nk];
-            showToast('정상 취소 완료', 'success');
-        }
+        st.normalReviews[nk] = { reason: reason, memo: memo, created_id: '' };
+        showToast('정상 처리 완료', 'success');
         _fmHideReviewBar();
         _fmRenderPage(st.pager ? st.pager.currentPage || 1 : 1);
         setTimeout(function() { _fmBindEditEvents(); }, 100);

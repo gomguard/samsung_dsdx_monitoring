@@ -541,9 +541,7 @@ function _buildDetailTable() {
                 }
             } else if (nullTd) {
                 detailViewState.selectedCell = null;
-                if (nullTd.classList.contains('cell-normal')) {
-                    _showNullReviewBar(nullTd, 'revert');
-                }
+                // cell-normal은 무시 (정상처리 완료된 셀)
             } else {
                 detailViewState.selectedCell = null;
             }
@@ -777,23 +775,17 @@ function _showNullReviewBar(td, mode) {
     var colName = td.dataset.col || '';
     var rowId = td.dataset.rowId || '';
     var errLabel = detailViewState.type === 'format' ? '형식 오류' : 'NULL 오류';
-    var infoText = mode === 'revert'
-        ? (colName + ' (ID: ' + rowId + ') — 정상 처리됨')
-        : (colName + ' (ID: ' + rowId + ') — ' + errLabel);
+    var infoText = colName + ' (ID: ' + rowId + ') — ' + errLabel;
     var info = document.createElement('span');
     info.className = 'null-review-info';
     info.textContent = infoText;
     var btn = document.createElement('button');
-    btn.className = mode === 'revert' ? 'btn-null-revert' : 'btn-null-normal';
-    btn.textContent = mode === 'revert' ? '정상 취소' : '정상 처리';
+    btn.className = 'btn-null-normal';
+    btn.textContent = '정상 처리';
     btn.addEventListener('click', function() {
-        if (mode === 'revert') {
-            _submitNullReview(td, 'reverted', '', '');
-        } else {
-            _showReviewDialog(function(reason, memo) {
-                _submitNullReview(td, 'normal', memo, reason);
-            });
-        }
+        _showReviewDialog(function(reason, memo) {
+            _submitNullReview(td, 'normal', memo, reason);
+        });
     });
     bar.appendChild(info);
     bar.appendChild(btn);
@@ -944,25 +936,6 @@ function _submitNullReview(td, status, memo, reason) {
                 if (memo) tip += ' | 메모: ' + memo;
                 td.title = tip;
                 showToast('정상 처리 완료', 'success');
-            } else {
-                // 정상 취소 → normalReviews에서 제거 + 셀 스타일 복원
-                var nrKey2 = rowId + '_' + colName;
-                if (detailViewState.normalReviews) delete detailViewState.normalReviews[nrKey2];
-                td.className = 'null-value';
-                td.removeAttribute('data-normal-key');
-                var badge2 = td.querySelector('.normal-badge');
-                if (badge2) badge2.remove();
-                td.title = td.textContent.trim();
-                // editable 복원
-                var fakeRow = { id: parseInt(rowId), null_fields: [colName] };
-                if (detailViewState.type === 'format') fakeRow.error_fields = [colName];
-                var editAttr = _editableAttr(fakeRow, colName);
-                if (editAttr) {
-                    td.setAttribute('data-editable', 'true');
-                    td.setAttribute('data-row-id', rowId);
-                    td.setAttribute('data-col', colName);
-                }
-                showToast('정상 처리 취소됨', 'success');
             }
         } else {
             showToast(res.error || '처리 실패', 'error');

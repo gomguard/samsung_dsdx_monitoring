@@ -2853,6 +2853,22 @@ def field_missing_detection(request):
                     cursor.execute(null_count_query, (ret, target_date, *stats['missing_items']))
                     stats['today_null_rows'] = cursor.fetchone()[0] or 0
 
+            # 정상처리 건수 차감 (field_missing)
+            try:
+                cursor.execute("""
+                    SELECT column_name, COUNT(DISTINCT item) FROM monitoring_corrections
+                    WHERE layer = 3 AND correction_type = 'field_missing'
+                      AND table_name = %s AND crawl_date = %s AND retailer = %s
+                      AND status = 'normal'
+                    GROUP BY column_name
+                """, (table_name, str(target_date), ret))
+                for nr_row in cursor.fetchall():
+                    nr_col, nr_count = nr_row[0], nr_row[1]
+                    if nr_col in field_stats:
+                        field_stats[nr_col]['missing_count'] = max(0, field_stats[nr_col]['missing_count'] - nr_count)
+            except Exception:
+                pass
+
             # 결과 집계
             for col in columns_to_check:
                 stats = field_stats[col]
@@ -3235,7 +3251,7 @@ def field_missing_detail_by_field(request):
             default_display.append(field)
 
         # 전체 수집 컬럼 SELECT (컬럼 선택 기능용)
-        added = set()
+        added = {'id', date_column, 'item'}
         # 기본 표시 컬럼 먼저
         for col in default_display:
             select_cols.append(f'"{col}"')
@@ -3278,7 +3294,8 @@ def field_missing_detail_by_field(request):
 
         if not missing_items:
             # 누락 item이 없으면 빈 결과 반환
-            column_names = ['id', date_column, 'item'] + list(default_display) + [c for c in display_fields if c not in default_display] + ['product_url']
+            base_set = {'id', date_column, 'item', 'product_url'}
+            column_names = ['id', date_column, 'item'] + [c for c in default_display if c not in base_set] + [c for c in display_fields if c not in base_set and c not in set(default_display)] + ['product_url']
 
             cursor.close()
             conn.close()
@@ -3314,7 +3331,8 @@ def field_missing_detail_by_field(request):
         rows = cursor.fetchall()
 
         # 컬럼명 목록: select_cols와 동일한 순서
-        column_names = ['id', date_column, 'item'] + list(default_display) + [c for c in display_fields if c not in default_display] + ['product_url']
+        base_set = {'id', date_column, 'item', 'product_url'}
+        column_names = ['id', date_column, 'item'] + [c for c in default_display if c not in base_set] + [c for c in display_fields if c not in base_set and c not in set(default_display)] + ['product_url']
 
         # 데이터 변환
         all_data = []
@@ -3610,7 +3628,7 @@ def review_reasons(request):
 
 
 def review(request):
-    """크로스필드 정상 처리 / 취소 API (POST)"""
+    """크로스필드/누락필드 정상 처리 API (POST)"""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST only'}, status=405)
 
@@ -3627,7 +3645,6 @@ def review(request):
     memo = body.get('memo', '')
     reason = body.get('reason', '')
     crawl_date = body.get('crawl_date')
-    retailer = body.get('retailer', '')
     rule_id = body.get('rule_id')
     correction_type = body.get('correction_type', 'cross_field')
     if correction_type not in ('cross_field', 'field_missing'):
@@ -3636,11 +3653,12 @@ def review(request):
     if not all([table_name, record_id, column_name, status]):
         return JsonResponse({'error': '필수 파라미터 누락'}, status=400)
 
-    if status == 'normal' and not reason:
-        return JsonResponse({'error': '이유 선택은 필수입니다'}, status=400)
-
-    if status not in ('normal', 'reverted'):
+    # 정상 처리만 허용 (reverted 불가)
+    if status != 'normal':
         return JsonResponse({'error': '잘못된 status 값'}, status=400)
+
+    if not reason:
+        return JsonResponse({'error': '이유 선택은 필수입니다'}, status=400)
 
     if table_name not in VALID_TABLES_UPDATE:
         return JsonResponse({'error': '허용되지 않는 테이블'}, status=400)
@@ -3653,17 +3671,11 @@ def review(request):
         conn = get_dx_connection()
         cursor = conn.cursor()
 
-        is_retail = table_name in ('tv_retail_com', 'hhp_retail_com')
-        if is_retail:
-            cursor.execute(
-                f"SELECT {column_name}, item FROM {table_name} WHERE id = %s",
-                (record_id,)
-            )
-        else:
-            cursor.execute(
-                f"SELECT {column_name} FROM {table_name} WHERE id = %s",
-                (record_id,)
-            )
+        # 현재 값 + account_name + item 조회
+        cursor.execute(
+            f"SELECT {column_name}, account_name, item FROM {table_name} WHERE id = %s",
+            (record_id,)
+        )
         row = cursor.fetchone()
         if not row:
             cursor.close()
@@ -3671,7 +3683,20 @@ def review(request):
             return JsonResponse({'error': '해당 레코드가 없습니다'}, status=404)
 
         old_value = row[0]
-        item_value = str(row[1]) if is_retail and row[1] else None
+        retailer = row[1]
+        item_value = str(row[2]) if row[2] else None
+
+        # 중복 정상처리 체크
+        cursor.execute("""
+            SELECT id FROM monitoring_corrections
+            WHERE table_name = %s AND record_id = %s AND column_name = %s
+              AND correction_type = %s AND status = 'normal' AND crawl_date = %s
+        """, (table_name, record_id, column_name, correction_type, str(crawl_date)))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return JsonResponse({'error': '이미 정상처리된 항목입니다'}, status=400)
+
         now = datetime.now()
         user_id = request.user.username if request.user.is_authenticated else 'anonymous'
 

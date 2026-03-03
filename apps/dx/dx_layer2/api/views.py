@@ -617,10 +617,25 @@ def layer_stats(request):
 
         retailer_list = get_retailer_list()
         tv_dup_dict = get_duplicate_count('tv_retail_com', tv_date_col, tv_dup_keys, target_date, use_period=True, group_by_col='account_name')
+
+        # 중복검증 정상처리 건수 차감
+        tv_dup_normal = {}
+        try:
+            cursor.execute("""
+                SELECT retailer, COUNT(*) FROM monitoring_corrections
+                WHERE table_name = 'tv_retail_com' AND crawl_date = %s
+                  AND correction_type = 'duplicate_check' AND status = 'normal'
+                GROUP BY retailer
+            """, (str(target_date),))
+            for nr in cursor.fetchall():
+                tv_dup_normal[nr[0]] = nr[1]
+        except Exception:
+            pass
+
         tv_dup_retailers = []
         tv_dup_total = 0
         for retailer_name in retailer_list:
-            dup_count = tv_dup_dict.get(retailer_name, 0)
+            dup_count = max(0, tv_dup_dict.get(retailer_name, 0) - tv_dup_normal.get(retailer_name, 0))
             tv_dup_retailers.append({
                 'retailer': retailer_name,
                 'duplicate_groups': dup_count,
@@ -662,10 +677,25 @@ def layer_stats(request):
         hhp_total_records = cursor.fetchone()[0] or 0
 
         hhp_dup_dict = get_duplicate_count('hhp_retail_com', hhp_date_col, hhp_dup_keys, target_date, use_period=True, group_by_col='account_name')
+
+        # 중복검증 정상처리 건수 차감
+        hhp_dup_normal = {}
+        try:
+            cursor.execute("""
+                SELECT retailer, COUNT(*) FROM monitoring_corrections
+                WHERE table_name = 'hhp_retail_com' AND crawl_date = %s
+                  AND correction_type = 'duplicate_check' AND status = 'normal'
+                GROUP BY retailer
+            """, (str(target_date),))
+            for nr in cursor.fetchall():
+                hhp_dup_normal[nr[0]] = nr[1]
+        except Exception:
+            pass
+
         hhp_dup_retailers = []
         hhp_dup_total = 0
         for retailer_name in retailer_list:
-            dup_count = hhp_dup_dict.get(retailer_name, 0)
+            dup_count = max(0, hhp_dup_dict.get(retailer_name, 0) - hhp_dup_normal.get(retailer_name, 0))
             hhp_dup_retailers.append({
                 'retailer': retailer_name,
                 'duplicate_groups': dup_count,
@@ -3223,12 +3253,12 @@ def null_review(request):
     if not all([table_name, record_id, column_name, status]):
         return JsonResponse({'error': '필수 파라미터 누락'}, status=400)
 
-    # 정상 처리 시 이유 필수
-    if status == 'normal' and not reason:
-        return JsonResponse({'error': '이유 선택은 필수입니다'}, status=400)
-
-    if status not in ('normal', 'reverted'):
+    # 정상 처리만 허용 (reverted 불가)
+    if status != 'normal':
         return JsonResponse({'error': '잘못된 status 값'}, status=400)
+
+    if not reason:
+        return JsonResponse({'error': '이유 선택은 필수입니다'}, status=400)
 
     if table_name not in VALID_TABLES_UPDATE:
         return JsonResponse({'error': '허용되지 않는 테이블'}, status=400)
@@ -3256,6 +3286,18 @@ def null_review(request):
         old_value = row[0]
         retailer = row[1]
         item_value = str(row[2]) if row[2] else None
+
+        # 중복 정상처리 체크
+        cursor.execute("""
+            SELECT id FROM monitoring_corrections
+            WHERE table_name = %s AND record_id = %s AND column_name = %s
+              AND correction_type = %s AND status = 'normal' AND crawl_date = %s
+        """, (table_name, record_id, column_name, correction_type_value, str(crawl_date)))
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return JsonResponse({'error': '이미 정상처리된 항목입니다'}, status=400)
+
         now = datetime.now()
         user_id = request.user.username if request.user.is_authenticated else 'anonymous'
 
