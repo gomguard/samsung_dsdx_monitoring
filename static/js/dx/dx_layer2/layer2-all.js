@@ -422,6 +422,7 @@ function renderDetailWithTable(options) {
         margin: '0',
         border: 'none',
         onPageChange: function(page) {
+            _resetPendingEdits();
             detailRenderPage(page);
         }
     });
@@ -677,6 +678,18 @@ function _updateSaveButton() {
     }
     document.getElementById('edit-actions-info').textContent = count + '건 변경됨';
     document.getElementById('btn-save-edits').textContent = '저장';
+}
+
+function _resetPendingEdits() {
+    var edits = detailViewState.pendingEdits;
+    if (!edits) return;
+    Object.keys(edits).forEach(function(k) {
+        var edit = edits[k];
+        _updateDetailData(edit.row_id, edit.column_name, edit._oldValue);
+    });
+    detailViewState.pendingEdits = {};
+    var wrap = document.getElementById('detail-edit-actions');
+    if (wrap) wrap.remove();
 }
 
 function _cancelAllEdits() {
@@ -1086,6 +1099,7 @@ function detailRenderPage(page) {
         var suffix = detailViewState.filteredData ? ' (필터 적용)' : '';
         countEl.innerHTML = '총 <strong>' + totalItems.toLocaleString() + '</strong>건' + suffix;
     }
+
 }
 
 function applyDetailFilter() {

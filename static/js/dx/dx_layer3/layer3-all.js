@@ -1869,7 +1869,10 @@ function _cfRebuildTable() {
         padding: '0',
         margin: '0',
         border: 'none',
-        onPageChange: function(page) { _cfRenderPage(page); }
+        onPageChange: function(page) {
+            _cfResetPendingEdits();
+            _cfRenderPage(page);
+        }
     });
 
     _cfSortAndRender();
@@ -2291,6 +2294,12 @@ function _cfUpdateSaveButton() {
     }
     document.getElementById('cf-edit-info').textContent = count + '건 변경됨';
     document.getElementById('cf-btn-save').textContent = '저장';
+}
+
+function _cfResetPendingEdits() {
+    window.crossfieldPendingEdits = {};
+    var wrap = document.getElementById('cf-edit-actions');
+    if (wrap) wrap.remove();
 }
 
 function _cfCancelAllEdits() {
@@ -4400,7 +4409,10 @@ function _fmRebuildTable() {
     var pageSize = 15;
     st.pager = new Pagination('#fm-detail-pagination', {
         pageSize: pageSize, showInfo: true,
-        onPageChange: function(page) { _fmRenderPage(page); }
+        onPageChange: function(page) {
+            _fmResetPendingEdits();
+            _fmRenderPage(page);
+        }
     });
 
     _fmSortAndRender();
@@ -4663,6 +4675,11 @@ function _fmUpdateSaveButton() {
         + '<button class="btn-cancel-edits" onclick="_fmCancelAllEdits()">취소</button>'
         + '<button class="btn-save-edits" onclick="_fmSaveAllEdits()">저장</button>'
         + '</div></div>';
+}
+
+function _fmResetPendingEdits() {
+    fmPendingEdits = {};
+    _fmUpdateSaveButton();
 }
 
 window._fmCancelAllEdits = function() {
