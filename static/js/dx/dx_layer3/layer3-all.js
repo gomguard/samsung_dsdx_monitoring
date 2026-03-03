@@ -2139,8 +2139,8 @@ function _cfBindEditEvents() {
     // 클릭: 셀 선택 또는 정상처리/취소 바
     tableEl.addEventListener('click', function(e) {
         var td = e.target.closest('td[data-editable]');
-        var reviewTd = !td ? e.target.closest('td[data-row-id]') : null;
-        var normalTd = (!td && !reviewTd) ? e.target.closest('td.cell-normal') : null;
+        var normalTd = !td ? e.target.closest('td.cell-normal') : null;
+        var reviewTd = (!td && !normalTd) ? e.target.closest('td[data-row-id]') : null;
         var prev = tableEl.querySelector('.cell-selected');
         if (prev) prev.classList.remove('cell-selected');
         _cfHideReviewBar();
@@ -2148,13 +2148,13 @@ function _cfBindEditEvents() {
             td.classList.add('cell-selected');
             window._cfSelectedCell = td;
             _cfShowReviewBar(td, 'normal');
+        } else if (normalTd) {
+            window._cfSelectedCell = null;
+            _cfShowReviewBar(normalTd, 'revert');
         } else if (reviewTd) {
             reviewTd.classList.add('cell-selected');
             window._cfSelectedCell = null;
             _cfShowReviewBar(reviewTd, 'normal');
-        } else if (normalTd) {
-            window._cfSelectedCell = null;
-            _cfShowReviewBar(normalTd, 'revert');
         } else {
             window._cfSelectedCell = null;
         }
@@ -4557,8 +4557,8 @@ function _fmBindEditEvents() {
     // 클릭: 셀 선택 / 정상처리 바
     tableEl.addEventListener('click', function(e) {
         var td = e.target.closest('td[data-editable]');
-        var reviewTd = !td ? e.target.closest('td[data-row-id]') : null;
-        var normalTd = (!td && !reviewTd) ? e.target.closest('td.cell-normal') : null;
+        var normalTd = !td ? e.target.closest('td.cell-normal') : null;
+        var reviewTd = (!td && !normalTd) ? e.target.closest('td[data-row-id]') : null;
         var prev = tableEl.querySelector('.cell-selected');
         if (prev) prev.classList.remove('cell-selected');
         _fmHideReviewBar();
@@ -4566,13 +4566,13 @@ function _fmBindEditEvents() {
             td.classList.add('cell-selected');
             window._fmSelectedCell = td;
             _fmShowReviewBar(td, 'normal');
+        } else if (normalTd) {
+            window._fmSelectedCell = null;
+            _fmShowReviewBar(normalTd, 'revert');
         } else if (reviewTd) {
             reviewTd.classList.add('cell-selected');
             window._fmSelectedCell = null;
             _fmShowReviewBar(reviewTd, 'normal');
-        } else if (normalTd) {
-            window._fmSelectedCell = null;
-            _fmShowReviewBar(normalTd, 'revert');
         } else {
             window._fmSelectedCell = null;
         }

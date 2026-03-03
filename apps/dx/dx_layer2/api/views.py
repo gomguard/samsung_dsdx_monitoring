@@ -3217,8 +3217,6 @@ def null_review(request):
     reason = body.get('reason', '')  # 사유 텍스트
     crawl_date = body.get('crawl_date')
     correction_type = body.get('correction_type', 'null')
-    retailer = body.get('retailer', '')
-
     valid_correction_types = {'null': 'null_check', 'format': 'format_check', 'duplicate': 'duplicate_check'}
     correction_type_value = valid_correction_types.get(correction_type, 'null_check')
 
@@ -3244,18 +3242,11 @@ def null_review(request):
         conn = get_dx_connection()
         cursor = conn.cursor()
 
-        # 현재 값 + item 조회 (리테일 테이블이면 item 컬럼도 조회)
-        is_retail = table_name in ('tv_retail_com', 'hhp_retail_com')
-        if is_retail:
-            cursor.execute(
-                f"SELECT {column_name}, item FROM {table_name} WHERE id = %s",
-                (record_id,)
-            )
-        else:
-            cursor.execute(
-                f"SELECT {column_name} FROM {table_name} WHERE id = %s",
-                (record_id,)
-            )
+        # 현재 값 + account_name + item 조회
+        cursor.execute(
+            f"SELECT {column_name}, account_name, item FROM {table_name} WHERE id = %s",
+            (record_id,)
+        )
         row = cursor.fetchone()
         if not row:
             cursor.close()
@@ -3263,7 +3254,8 @@ def null_review(request):
             return JsonResponse({'error': '해당 레코드가 없습니다'}, status=404)
 
         old_value = row[0]
-        item_value = str(row[1]) if is_retail and row[1] else None
+        retailer = row[1]
+        item_value = str(row[2]) if row[2] else None
         now = datetime.now()
         user_id = request.user.username if request.user.is_authenticated else 'anonymous'
 

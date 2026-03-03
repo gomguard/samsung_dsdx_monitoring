@@ -798,58 +798,77 @@
             });
         });
 
-        // 리테일러별 서브섹션 렌더링 (고정 순서)
-        var retailerIdx = 1;
+        // 리테일러별 행을 하나의 플랫 배열로 합침
+        var allRows = [];
         sortRetailerKeys(Object.keys(retailerData)).forEach(function(name) {
             var rd = retailerData[name];
-            section.appendChild(createDiv('rpt-sub-title',
-                '(' + retailerIdx + ') ' + name + '(' + rd.total + '건)'));
-
             var rows = Object.keys(rd.groups).map(function(gk) {
                 var g = rd.groups[gk];
                 var uniqueItems = g.items.filter(function(v, i, a) { return a.indexOf(v) === i; });
-                return { column: g.column, count: g.count, item: uniqueItems.join(', '), action: g.action };
+                return { retailer: name, column: g.column, count: g.count, item: uniqueItems.join(', '), action: g.action };
             });
-            // 같은 필드끼리 연속 정렬
             rows.sort(function(a, b) { return a.column.localeCompare(b.column); });
+            allRows = allRows.concat(rows);
+        });
 
-            // 필드 rowspan 계산
-            var fieldSpanMap = {};
-            var fieldSkipSet = {};
-            var ri = 0;
-            while (ri < rows.length) {
-                var curCol = rows[ri].column;
-                var spanCount = 1;
-                while (ri + spanCount < rows.length && rows[ri + spanCount].column === curCol) {
-                    fieldSkipSet[ri + spanCount] = true;
-                    spanCount++;
-                }
-                if (spanCount > 1) fieldSpanMap[ri] = spanCount;
-                ri += spanCount;
+        // 리테일러 rowspan 계산
+        var retailerSpanMap = {};
+        var retailerSkipSet = {};
+        var ri = 0;
+        while (ri < allRows.length) {
+            var curRetailer = allRows[ri].retailer;
+            var spanCount = 1;
+            while (ri + spanCount < allRows.length && allRows[ri + spanCount].retailer === curRetailer) {
+                retailerSkipSet[ri + spanCount] = true;
+                spanCount++;
             }
+            if (spanCount > 1) retailerSpanMap[ri] = spanCount;
+            ri += spanCount;
+        }
 
-            var fieldWidth = typeName === '누락필드 검증' ? 240 : 140;
-            createReportTable(section, [
-                { key: 'column', label: '필드', width: fieldWidth },
-                { key: 'count', label: '건수', width: 60, align: 'center' },
-                { key: 'item', label: itemLabel },
-                { key: 'action', label: '조치 및 확인사항' }
-            ], rows, function(d, idx) {
-                var fieldTd = '';
-                if (!fieldSkipSet[idx]) {
-                    var span = fieldSpanMap[idx];
-                    var spanAttr = span ? ' rowspan="' + span + '"' : '';
-                    fieldTd = '<td' + spanAttr + ' style="vertical-align:middle;">' + escapeHtml(d.column) + '</td>';
-                }
-                return '<tr>'
-                    + fieldTd
-                    + '<td style="text-align:center">' + d.count + '</td>'
-                    + '<td>' + escapeHtml(d.item) + '</td>'
-                    + '<td>' + escapeHtml(d.action) + '</td>'
-                    + '</tr>';
-            });
+        // 필드 rowspan 계산 (같은 리테일러 내에서만)
+        var fieldSpanMap = {};
+        var fieldSkipSet = {};
+        ri = 0;
+        while (ri < allRows.length) {
+            var curRetailer2 = allRows[ri].retailer;
+            var curCol = allRows[ri].column;
+            var spanCount2 = 1;
+            while (ri + spanCount2 < allRows.length && allRows[ri + spanCount2].retailer === curRetailer2 && allRows[ri + spanCount2].column === curCol) {
+                fieldSkipSet[ri + spanCount2] = true;
+                spanCount2++;
+            }
+            if (spanCount2 > 1) fieldSpanMap[ri] = spanCount2;
+            ri += spanCount2;
+        }
 
-            retailerIdx++;
+        var fieldWidth = typeName === '누락필드 검증' ? 240 : 140;
+        createReportTable(section, [
+            { key: 'retailer', label: '리테일러', width: 120 },
+            { key: 'column', label: '필드', width: fieldWidth },
+            { key: 'count', label: '건수', width: 60, align: 'center' },
+            { key: 'item', label: itemLabel },
+            { key: 'action', label: '조치 및 확인사항' }
+        ], allRows, function(d, idx) {
+            var retailerTd = '';
+            if (!retailerSkipSet[idx]) {
+                var rSpan = retailerSpanMap[idx];
+                var rSpanAttr = rSpan ? ' rowspan="' + rSpan + '"' : '';
+                retailerTd = '<td' + rSpanAttr + ' style="vertical-align:middle;">' + escapeHtml(d.retailer) + '</td>';
+            }
+            var fieldTd = '';
+            if (!fieldSkipSet[idx]) {
+                var fSpan = fieldSpanMap[idx];
+                var fSpanAttr = fSpan ? ' rowspan="' + fSpan + '"' : '';
+                fieldTd = '<td' + fSpanAttr + ' style="vertical-align:middle;">' + escapeHtml(d.column) + '</td>';
+            }
+            return '<tr>'
+                + retailerTd
+                + fieldTd
+                + '<td style="text-align:center">' + d.count + '</td>'
+                + '<td>' + escapeHtml(d.item) + '</td>'
+                + '<td>' + escapeHtml(d.action) + '</td>'
+                + '</tr>';
         });
 
         parentEl.appendChild(section);
@@ -973,14 +992,35 @@
                 });
             });
 
+            // 리테일러 rowspan 계산
+            var cfRetailerSpanMap = {};
+            var cfRetailerSkipSet = {};
+            var cri = 0;
+            while (cri < rows.length) {
+                var curR = rows[cri].retailer;
+                var rSpan = 1;
+                while (cri + rSpan < rows.length && rows[cri + rSpan].retailer === curR) {
+                    cfRetailerSkipSet[cri + rSpan] = true;
+                    rSpan++;
+                }
+                if (rSpan > 1) cfRetailerSpanMap[cri] = rSpan;
+                cri += rSpan;
+            }
+
             createReportTable(section, [
                 { key: 'retailer', label: '리테일러', width: 120 },
                 { key: 'count', label: '건수', width: 60, align: 'center' },
                 { key: 'item', label: 'Item' },
                 { key: 'action', label: '조치 및 확인사항' }
-            ], rows, function(d) {
+            ], rows, function(d, idx) {
+                var rTd = '';
+                if (!cfRetailerSkipSet[idx]) {
+                    var span = cfRetailerSpanMap[idx];
+                    var spanAttr = span ? ' rowspan="' + span + '"' : '';
+                    rTd = '<td' + spanAttr + ' style="vertical-align:middle;">' + escapeHtml(d.retailer) + '</td>';
+                }
                 return '<tr>'
-                    + '<td>' + escapeHtml(d.retailer) + '</td>'
+                    + rTd
                     + '<td style="text-align:center">' + d.count + '</td>'
                     + '<td>' + escapeHtml(d.item) + '</td>'
                     + '<td>' + escapeHtml(d.action) + '</td>'
