@@ -414,7 +414,7 @@ function renderDetailWithTable(options) {
     }
 
     // Pagination
-    var pageSize = 15;
+    var pageSize = detailViewState.pageSize || 15;
     detailViewState.pager = new Pagination('#detail-pagination', {
         pageSize: pageSize,
         showInfo: true,
@@ -479,6 +479,12 @@ function _buildDetailTable() {
         reorder: true,
         fixedColumns: ['_no'],
         multiSort: !isRowspan,
+        pageSize: detailViewState.pageSize || 15,
+        onPageSizeChange: function(val) {
+            detailViewState.pageSize = val;
+            if (detailViewState.pager) detailViewState.pager.options.pageSize = val;
+            detailRenderPage(1);
+        },
         onSort: !isRowspan ? function(sortCols) { handleDetailSort(sortCols); } : undefined,
         onReorder: function(newColumns) {
             // No 컬럼 제외한 순서로 detailViewState.columns 갱신
@@ -996,7 +1002,10 @@ function detailRenderPage(page) {
     var isRowspan = !Array.isArray(config);
     var tableParam = detailViewState.tableParam;
     var visibleCols = detailViewState.columns;
-    var pageSize = detailViewState.pager ? detailViewState.pager.getPageSize() : 20;
+    var pageSize = (detailViewState.table && detailViewState.table.getPageSize)
+        ? detailViewState.table.getPageSize()
+        : (detailViewState.pager ? detailViewState.pager.getPageSize() : 15);
+    if (detailViewState.pager) detailViewState.pager.options.pageSize = pageSize;
 
     // rowspan인 경우 그룹 단위로 페이징
     var pageData, totalItems, startIdx;
@@ -1635,6 +1644,7 @@ let modalState = {
     nullFieldsData: null,
     selectedField: null
 };
+var _dupPageSize = 50;
 
 function openDetailModal(type, tableName, retailer, count, page = 1) {
     if (count === 0) { showToast('조회된 데이터가 없습니다.', 'info'); return; }
@@ -1685,7 +1695,7 @@ function openDetailModal(type, tableName, retailer, count, page = 1) {
     } else if (type === 'format') {
         apiUrl = `/dx/layer2/api/format-detail/?table=${tableParam}&retailer=${retailer}&date=${date}`;
     } else if (type === 'duplicate') {
-        apiUrl = `/dx/layer2/api/anomaly-detail/?table=${tableParam}&retailer=${retailer}&date=${date}&page=${page}&page_size=50`;
+        apiUrl = `/dx/layer2/api/anomaly-detail/?table=${tableParam}&retailer=${retailer}&date=${date}&page=${page}&page_size=${_dupPageSize}`;
     } else {
         apiUrl = `/dx/layer2/api/detail/?type=${type}&table=${tableParam}&retailer=${retailer}&date=${date}`;
     }
@@ -2509,7 +2519,12 @@ function renderDetailTable(type, data, tableParam) {
         detailViewState.allData = flatData;
 
         detailViewState.table = new CommonTable('#detail-table-area', {
-            variant: 'detail', columns: ctColumns, vlines: true, rounded: true, showTotalCount: true, padding: '10px 12px'
+            variant: 'detail', columns: ctColumns, vlines: true, rounded: true, showTotalCount: true, padding: '10px 12px',
+            pageSize: _dupPageSize,
+            onPageSizeChange: function(val) {
+                _dupPageSize = val;
+                goToPage(1);
+            }
         });
         detailViewState.table.render();
 
@@ -2545,7 +2560,7 @@ function renderDetailTable(type, data, tableParam) {
         if (pagerEl) {
             var sp = new Pagination(pagerEl, {
                 variant: 'simple',
-                pageSize: 50,
+                pageSize: _dupPageSize,
                 showInfo: true,
                 onPageChange: function(page) { goToPage(page); }
             });

@@ -83,6 +83,8 @@ class CommonTable {
             padding: null,
             onSort: null,
             showTotalCount: false,
+            pageSize: null,
+            onPageSizeChange: null,
             ...options
         };
         this.multiSort = options.multiSort || false;
@@ -91,6 +93,7 @@ class CommonTable {
         this.sortColumns = [];  // 다중 정렬: [{ key, order }] 순서 배열
         this.tableEl = null;
         this.countEl = null;
+        this._pageSizeInput = null;
     }
 
     /**
@@ -168,7 +171,45 @@ class CommonTable {
         });
         document.body.removeChild(measureEl);
 
-        if (this.options.showTotalCount) {
+        if (typeof this.options.pageSize === 'number') {
+            var toolbar = document.createElement('div');
+            toolbar.className = 'ct-toolbar';
+            if (this.options.showTotalCount) {
+                this.countEl = document.createElement('div');
+                this.countEl.className = 'ct-count';
+                toolbar.appendChild(this.countEl);
+            }
+            var right = document.createElement('div');
+            right.className = 'ct-toolbar-right';
+            var lbl = document.createElement('label');
+            lbl.textContent = '건수';
+            var psInput = document.createElement('input');
+            psInput.type = 'number';
+            psInput.className = 'ct-page-size';
+            psInput.value = this.options.pageSize;
+            psInput.min = 1;
+            psInput.max = 200;
+            this._pageSizeInput = psInput;
+            var self = this;
+            var applyPageSize = function() {
+                var v = Math.min(Math.max(parseInt(psInput.value) || self.options.pageSize, 1), 200);
+                psInput.value = v;
+                if (self.options.onPageSizeChange) self.options.onPageSizeChange(v);
+            };
+            psInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') applyPageSize();
+            });
+            var psBtn = document.createElement('button');
+            psBtn.type = 'button';
+            psBtn.className = 'ct-page-size-btn';
+            psBtn.textContent = '조회';
+            psBtn.addEventListener('click', applyPageSize);
+            right.appendChild(lbl);
+            right.appendChild(psInput);
+            right.appendChild(psBtn);
+            toolbar.appendChild(right);
+            this.container.insertBefore(toolbar, this.container.firstChild);
+        } else if (this.options.showTotalCount) {
             this.countEl = document.createElement('div');
             this.countEl.className = 'ct-count';
             this.countEl.style.cssText = 'padding: 10px 12px; font-size: 13px; color: var(--text-secondary);';
@@ -250,6 +291,16 @@ class CommonTable {
         if (this.countEl) {
             this.countEl.innerHTML = '총 <strong>' + rows.length.toLocaleString() + '</strong>건';
         }
+    }
+
+    getPageSize() {
+        return this._pageSizeInput
+            ? Math.min(Math.max(parseInt(this._pageSizeInput.value) || this.options.pageSize, 1), 200)
+            : null;
+    }
+
+    setPageSize(val) {
+        if (this._pageSizeInput) this._pageSizeInput.value = val;
     }
 
     /**

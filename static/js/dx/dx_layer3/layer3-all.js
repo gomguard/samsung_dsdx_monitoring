@@ -1851,6 +1851,11 @@ function _cfRebuildTable() {
         reorder: true,
         fixedColumns: ['_no'],
         multiSort: true,
+        pageSize: 15,
+        onPageSizeChange: function(val) {
+            if (st.pager) st.pager.options.pageSize = val;
+            _cfRenderPage(1);
+        },
         onSort: function(sortArr) {
             st.sortState = sortArr;
             _cfSortAndRender();
@@ -1916,7 +1921,8 @@ function _cfRenderPage(page) {
     var st = window._cfDetailState;
     if (!st || !st.table) return;
     var dataArr = st._sortedData || st.allData;
-    var pageSize = 15;
+    var pageSize = (st.table && st.table.getPageSize) ? st.table.getPageSize() : 15;
+    if (st.pager) st.pager.options.pageSize = pageSize;
     var start = (page - 1) * pageSize;
     var pageData = dataArr.slice(start, start + pageSize);
     pageData.forEach(function(r, i) { r._no = start + i + 1; });
@@ -4383,6 +4389,11 @@ function _fmRebuildTable() {
     st.table = new CommonTable('#fm-detail-table-area', {
         variant: 'detail', columns: ctColumns, vlines: true, section: true, showTotalCount: true,
         padding: '6px 12px', reorder: true, fixedColumns: ['_no'], multiSort: true,
+        pageSize: 15,
+        onPageSizeChange: function(val) {
+            if (st.pager) st.pager.options.pageSize = val;
+            _fmRenderPage(1);
+        },
         onSort: function(sortArr) { st.sortState = sortArr; _fmSortAndRender(); }
     }).render();
 
@@ -4420,7 +4431,8 @@ function _fmRenderPage(page) {
     if (!st || !st.table) return;
 
     var dataArr = st._sortedData || st.allData;
-    var pageSize = 15;
+    var pageSize = (st.table && st.table.getPageSize) ? st.table.getPageSize() : 15;
+    if (st.pager) st.pager.options.pageSize = pageSize;
     var start = (page - 1) * pageSize;
     var pageData = dataArr.slice(start, start + pageSize);
     pageData.forEach(function(r, i) { r._no = start + i + 1; });

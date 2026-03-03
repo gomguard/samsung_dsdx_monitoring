@@ -249,6 +249,54 @@
 }
 
 /* ============================================================
+   Toolbar (건수 입력 + count)
+   ============================================================ */
+.ct-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+.ct-toolbar .ct-count {
+    padding: 0;
+}
+.ct-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ct-toolbar-right label {
+    font-weight: 500;
+    white-space: nowrap;
+}
+.ct-page-size,
+.ct-page-size-btn {
+    box-sizing: border-box;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 26px;
+}
+.ct-page-size {
+    width: 60px;
+    border: 1px solid var(--border-color);
+    text-align: center;
+}
+.ct-page-size-btn {
+    border: 1px solid var(--page-color);
+    background: var(--page-color);
+    color: #fff;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.ct-page-size-btn:hover {
+    opacity: 0.85;
+}
+
+/* ============================================================
    Modifier: section (카드 배경 래퍼)
    ============================================================ */
 .ct-section {
