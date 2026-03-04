@@ -1,5 +1,14 @@
 let currentData = null;
 
+// product_url 렌더링 헬퍼: 아이콘(링크) + URL 텍스트(잘림)
+function renderProductUrl(url) {
+    var safe = safeUrl(url);
+    if (!safe) return '-';
+    return '<span style="display:flex;align-items:center;gap:4px;min-width:0;">'
+        + '<a href="' + esc(safe) + '" target="_blank" style="flex-shrink:0;display:flex;color:#2563eb;">' + AppButton.getIcon('external') + '</a>'
+        + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;color:#374151;" title="' + esc(safe) + '">' + esc(safe) + '</span></span>';
+}
+
 // ViewStack — 모달 대신 인라인 콘텐츠 교체
 const ViewStack = {
     stack: [],
@@ -589,12 +598,7 @@ ORDER BY item, ${dateColumn} ASC;`;
                     const change = row.rank_change || 0;
                     html += `<td style="color: ${change > 0 ? 'red' : 'green'};">${change > 0 ? '+' : ''}${change}</td>`;
                 }
-                const safeLink = safeUrl(row.product_url);
-                if (safeLink) {
-                    html += `<td><a href="${esc(safeLink)}" target="_blank" style="color: #1976d2;">링크</a></td>`;
-                } else {
-                    html += '<td>-</td>';
-                }
+                html += `<td>${renderProductUrl(row.product_url)}</td>`;
                 html += '</tr>';
             });
 
@@ -1044,20 +1048,6 @@ function copyQueryToClipboard(element) {
     }
 }
 
-function copyUrlToClipboard(text, btn) {
-    function onSuccess() {
-        const orig = btn.textContent;
-        btn.textContent = '완료';
-        btn.style.background = '#22c55e';
-        setTimeout(() => { btn.textContent = orig; btn.style.background = '#6b7280'; }, 1200);
-    }
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess));
-    } else {
-        fallbackCopy(text, onSuccess);
-    }
-}
-
 // 크로스필드 검증 유형 목록으로 돌아가기
 function backToCrossfieldSummary() {
     if (isCrossFieldInline()) {
@@ -1341,16 +1331,7 @@ ORDER BY account_name, item;`;
             cols.forEach(col => {
                 const value = row[col.key];
                 if (col.key.toLowerCase().includes('url') && value) {
-                    const safe = safeUrl(value);
-                    if (safe) {
-                        const escaped = safe.replace(/'/g, "\\'");
-                        html += `<td style="white-space: nowrap;">
-                            <a href="${esc(safe)}" target="_blank" style="color: #3b82f6; text-decoration: none;">링크</a>
-                            ${AppButton.iconHtml('copy', "copyUrlToClipboard('" + escaped + "', this)", { style: 'ghost', title: 'URL 복사' })}
-                        </td>`;
-                    } else {
-                        html += '<td>-</td>';
-                    }
+                    html += `<td style="max-width:250px;">${renderProductUrl(value)}</td>`;
                 } else {
                     html += `<td>${value !== null && value !== undefined ? esc(String(value)) : '-'}</td>`;
                 }
@@ -1701,8 +1682,7 @@ function showRetailerDetail(retailer) {
                 }
             });
             if (urlKey) {
-                const url = safeUrl(row[urlKey]);
-                r['product_url'] = url ? `<a href="${esc(url)}" target="_blank" style="color:#1976d2;">링크</a>` : '-';
+                r['product_url'] = renderProductUrl(row[urlKey]);
             }
             // 편집용 메타데이터
             r._rowId = row.id;
@@ -1823,8 +1803,7 @@ function showRetailerDetail(retailer) {
                 html += `<td>${value !== null && value !== undefined ? esc(String(value)) : '-'}</td>`;
             });
             if (urlKey) {
-                const url = safeUrl(row[urlKey]);
-                html += url ? `<td><a href="${esc(url)}" target="_blank" style="color:#1976d2;">링크</a></td>` : '<td>-</td>';
+                html += `<td>${renderProductUrl(row[urlKey])}</td>`;
             }
             html += '</tr>';
         });
@@ -2093,8 +2072,7 @@ async function reloadCfDays() {
                     r[key] = row[key] !== null && row[key] !== undefined ? String(row[key]) : '-';
                 });
                 if (urlKey) {
-                    var url = safeUrl(row[urlKey]);
-                    r['product_url'] = url ? '<a href="' + esc(url) + '" target="_blank" style="color:#1976d2;">링크</a>' : '-';
+                    r['product_url'] = renderProductUrl(row[urlKey]);
                 }
                 r._rowId = row.id;
                 var dateCol = (window.crossfieldProductLine || 'tv').toUpperCase() === 'HHP' ? 'crawl_strdatetime' : 'crawl_datetime';
@@ -3299,8 +3277,7 @@ ORDER BY item, ${dateColumn} ASC;`;
                     val = 'NULL';
                 }
             } else if (col === 'product_url') {
-                const safe = safeUrl(String(val));
-                val = safe ? `<a href="${esc(safe)}" target="_blank" style="color: #2563eb; text-decoration: none;">링크</a>` : esc(val);
+                val = renderProductUrl(val);
             } else if (col === 'id') {
                 style += ' color: #6b7280; font-size: 12px;';
             } else if (typeof val === 'string' && val.length > 80) {
@@ -3695,7 +3672,7 @@ function buildRowHtml(row, columns, bgColor = '#ffffff') {
         if (val === null || val === undefined || val === '') {
             val = '<span style="color: #dc2626;">-</span>';
         } else if (col === 'product_url') {
-            val = `<a href="${safeUrl(String(val))}" target="_blank" style="color: #2563eb; text-decoration: none;">링크</a>`;
+            val = renderProductUrl(val);
         } else if (col === 'id') {
             style += ' color: #6b7280; font-size: 11px;';
             val = esc(String(val));
@@ -4232,8 +4209,7 @@ function _fmRenderInlineView(data, retailer, fieldName, productLine, date, days)
         columns.forEach(function(col) {
             var val = row[col];
             if (col === 'product_url') {
-                var url = safeUrl(val);
-                r[col] = url ? '<a href="' + esc(url) + '" target="_blank" style="color:#1976d2;">링크</a>' : '-';
+                r[col] = renderProductUrl(val);
             } else {
                 r[col] = val !== null && val !== undefined ? String(val) : '-';
             }
@@ -4378,8 +4354,7 @@ window.reloadFmDays = function() {
                 columns.forEach(function(col) {
                     var val = row[col];
                     if (col === 'product_url') {
-                        var url = safeUrl(val);
-                        r[col] = url ? '<a href="' + esc(url) + '" target="_blank" style="color:#1976d2;">링크</a>' : '-';
+                        r[col] = renderProductUrl(val);
                     } else {
                         r[col] = val !== null && val !== undefined ? String(val) : '-';
                     }
