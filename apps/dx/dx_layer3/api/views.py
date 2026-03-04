@@ -2994,9 +2994,6 @@ def field_missing_detail_all(request):
                 # datetime 변환
                 if col_name == date_column and val:
                     val = str(val)
-                # 긴 텍스트 자르기 (product_url은 링크 동작을 위해 제외)
-                if val and isinstance(val, str) and len(val) > 100 and col_name != 'product_url':
-                    val = val[:100] + '...'
                 row_dict[col_name] = val
             all_data.append(row_dict)
 
@@ -3153,8 +3150,8 @@ def field_missing_detail_problem(request):
                 'item': row[0],
                 'account_name': row[1],
                 'field_name': row[2],
-                'd2_value': prev_val[:100] if prev_val and len(prev_val) > 100 else prev_val,
-                'd1_value': prev_val[:100] if prev_val and len(prev_val) > 100 else prev_val,
+                'd2_value': prev_val,
+                'd1_value': prev_val,
                 'today_value': None,
                 'today_has_value': False
             })
@@ -3347,9 +3344,6 @@ def field_missing_detail_by_field(request):
                 val = row[i]
                 if col_name == date_column and val:
                     val = str(val)
-                # product_url은 자르지 않음 (링크 동작 필요)
-                if val and isinstance(val, str) and len(val) > 100 and col_name != 'product_url':
-                    val = val[:100] + '...'
                 row_dict[col_name] = val
             all_data.append(row_dict)
 
