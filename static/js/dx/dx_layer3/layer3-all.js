@@ -911,15 +911,16 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             if (inline) html += `<div class="rule-summary-section-header">${_inlineTitle(titleText)}</div>`;
             html += '<div class="rule-summary-container">';
             Object.keys(retailerData).sort().forEach(retailer => {
-                const items = retailerData[retailer].items;
                 const rowCount = retailerData[retailer].adjustedCount;
+                if (rowCount === 0) return;
+                const items = retailerData[retailer].items;
                 html += `
                     <div class="rule-summary-card" data-retailer="${esc(retailer)}" onclick="showRetailerDetail('${escJs(retailer)}')">
                         <div class="rule-info">
                             <div class="rule-name">${esc(retailer)}</div>
                             <div class="rule-desc">${items.length} items</div>
                         </div>
-                        <span class="rule-count${rowCount === 0 ? ' zero' : ''}">${rowCount}건</span>
+                        <span class="rule-count">${rowCount}건</span>
                     </div>
                 `;
             });

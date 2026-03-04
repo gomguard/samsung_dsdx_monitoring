@@ -3255,7 +3255,7 @@ def field_missing_detail_by_field(request):
             default_display.append(field)
 
         # 전체 수집 컬럼 SELECT (컬럼 선택 기능용)
-        added = {'id', date_column, 'item'}
+        added = {'id', date_column, 'item', 'product_url'}
         # 기본 표시 컬럼 먼저
         for col in default_display:
             select_cols.append(f'"{col}"')
