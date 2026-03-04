@@ -455,14 +455,14 @@
         if (existing) existing.remove();
         var activeTab = document.querySelector('#corrections-tabs .log-tab.active');
         if (!activeTab || activeTab.dataset.status !== 'normal') return;
-        var filterBar = document.querySelector('#corrections-filter-bar .fb');
-        if (!filterBar) return;
+        var tabsContainer = document.getElementById('corrections-tabs');
+        if (!tabsContainer) return;
         var btn = document.createElement('button');
         btn.id = 'corr-cancel-btn';
-        btn.className = 'app-btn app-btn-md app-btn-danger';
-        btn.textContent = '정상취소';
+        btn.className = 'app-btn app-btn-sm app-btn-danger';
+        btn.textContent = '취소';
         btn.addEventListener('click', function() { cancelCheckedCorrections(); });
-        filterBar.appendChild(btn);
+        tabsContainer.appendChild(btn);
     }
 
     function updateTabCounts(correctedCount, normalCount, revertedCount) {
@@ -580,7 +580,6 @@
                 variant: 'detail',
                 columns: getCorrectionsColumns(),
                 resize: true,
-                section: true,
                 vlines: true,
                 showTotalCount: true
             });

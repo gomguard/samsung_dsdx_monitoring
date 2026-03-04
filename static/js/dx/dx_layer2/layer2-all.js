@@ -800,7 +800,7 @@ function _showNullReviewBar(td, mode) {
     info.textContent = infoText;
     var btn = document.createElement('button');
     btn.className = 'btn-null-normal';
-    btn.textContent = '정상 처리';
+    btn.textContent = '확인';
     btn.addEventListener('click', function() {
         _showReviewDialog(function(reason, memo) {
             _submitNullReview(td, 'normal', memo, reason);
@@ -822,7 +822,7 @@ function _showReviewDialog(callback) {
     var overlay = document.createElement('div');
     overlay.className = 'memo-dialog-overlay';
     overlay.innerHTML = '<div class="memo-dialog">'
-        + '<div class="memo-dialog-title">정상 처리</div>'
+        + '<div class="memo-dialog-title">확인</div>'
         + '<div class="memo-dialog-field"><label class="memo-dialog-label">이유 <span style="color:#dc2626;">*</span></label>'
         + '<select class="memo-dialog-select" id="review-reason-select"><option value="">불러오는 중...</option></select></div>'
         + '<div class="memo-dialog-field"><label class="memo-dialog-label">메모</label>'
@@ -954,7 +954,7 @@ function _submitNullReview(td, status, memo, reason) {
                 var tip = '정상 처리됨';
                 if (memo) tip += ' | 메모: ' + memo;
                 td.title = tip;
-                showToast('정상 처리 완료', 'success');
+                showToast('확인 처리 완료', 'success');
             }
         } else {
             showToast(res.error || '처리 실패', 'error');

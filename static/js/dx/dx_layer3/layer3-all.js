@@ -2424,7 +2424,7 @@ function _cfShowReviewBar(td, mode) {
     info.textContent = infoText;
     var btn = document.createElement('button');
     btn.className = 'btn-null-normal';
-    btn.textContent = '정상 처리';
+    btn.textContent = '확인';
     btn.addEventListener('click', function() {
         _cfShowReviewDialog(function(reason, memo) {
             _cfSubmitReview(td, 'normal', memo, reason);
@@ -2454,7 +2454,7 @@ function _cfShowReviewDialog(callback) {
     var overlay = document.createElement('div');
     overlay.className = 'memo-dialog-overlay';
     overlay.innerHTML = '<div class="memo-dialog">'
-        + '<div class="memo-dialog-title">정상 처리</div>'
+        + '<div class="memo-dialog-title">확인</div>'
         + '<div class="memo-dialog-field"><label class="memo-dialog-label">이유 <span style="color:#dc2626;">*</span></label>'
         + '<select class="memo-dialog-select" id="cf-review-reason-select"><option value="">불러오는 중...</option></select></div>'
         + '<div class="memo-dialog-field"><label class="memo-dialog-label">메모</label>'
@@ -2541,7 +2541,7 @@ function _cfSubmitReview(td, status, memo, reason) {
             var nrKey = rowId + '_' + colName;
             if (!window.crossfieldNormalReviews) window.crossfieldNormalReviews = {};
             window.crossfieldNormalReviews[nrKey] = { memo: memo, reason: reason, created_id: '', created_at: '' };
-            showToast('정상 처리 완료', 'success');
+            showToast('확인 처리 완료', 'success');
             // 테이블 재렌더링 (정상 처리 행 제외 + 건수 갱신)
             _cfSortAndRender();
         } else {
@@ -4757,7 +4757,7 @@ function _fmShowReviewBar(td, mode) {
 
     var html = '<div class="null-review-bar" id="fm-review-bar">'
         + '<span class="null-review-info">' + esc(col) + ' (ID: ' + rowId + ')</span>'
-        + '<button class="btn-null-normal" onclick="_fmShowReviewDialog(\'' + rowId + '\',\'' + esc(col) + '\')">정상 처리</button>'
+        + '<button class="btn-null-normal" onclick="_fmShowReviewDialog(\'' + rowId + '\',\'' + esc(col) + '\')">확인</button>'
         + '</div>';
     bar.innerHTML = html;
 }
@@ -4777,7 +4777,7 @@ window._fmShowReviewDialog = function(rowId, col) {
             var reasonOpts = '<option value="">선택하세요</option>';
             reasons.forEach(function(r) { reasonOpts += '<option value="' + esc(r) + '">' + esc(r) + '</option>'; });
             overlay.innerHTML = '<div class="memo-dialog">'
-                + '<div class="memo-dialog-title">정상 처리</div>'
+                + '<div class="memo-dialog-title">확인</div>'
                 + '<div class="memo-dialog-field"><label class="memo-dialog-label">이유 (필수)</label><select class="memo-dialog-select" id="fm-review-reason">' + reasonOpts + '</select></div>'
                 + '<div class="memo-dialog-field"><label class="memo-dialog-label">메모 (선택)</label><textarea class="memo-dialog-input" id="fm-review-memo" rows="2"></textarea></div>'
                 + '<div class="memo-dialog-buttons">'
@@ -4819,7 +4819,7 @@ window._fmSubmitReview = function(rowId, col, status, reason, memo, normalKey) {
         var st = window._fmDetailState;
         var nk = rowId + '_' + col;
         st.normalReviews[nk] = { reason: reason, memo: memo, created_id: '' };
-        showToast('정상 처리 완료', 'success');
+        showToast('확인 처리 완료', 'success');
         _fmHideReviewBar();
         _fmRenderPage(st.pager ? st.pager.currentPage || 1 : 1);
         setTimeout(function() { _fmBindEditEvents(); }, 100);

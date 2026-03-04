@@ -7,8 +7,13 @@
 <style>
     .log-tabs {
         display: flex;
+        align-items: flex-end;
         gap: 4px;
         margin-bottom: 0;
+    }
+    #corr-cancel-btn {
+        margin-left: auto;
+        margin-bottom: 4px;
     }
     .log-tab {
         padding: 10px 20px;
@@ -89,8 +94,8 @@
 <!-- 상태 탭 -->
 <div class="log-tabs" id="corrections-tabs" style="display:none;">
     <button class="log-tab active" data-status="corrected">수정 <span class="tab-count count-zero" id="tabCorrectedCount">0</span></button>
-    <button class="log-tab" data-status="normal">정상처리 <span class="tab-count count-zero" id="tabNormalCount">0</span></button>
-    <button class="log-tab" data-status="reverted">정상처리 취소 <span class="tab-count count-zero" id="tabRevertedCount">0</span></button>
+    <button class="log-tab" data-status="normal">확인 <span class="tab-count count-zero" id="tabNormalCount">0</span></button>
+    <button class="log-tab" data-status="reverted">취소 <span class="tab-count count-zero" id="tabRevertedCount">0</span></button>
 </div>
 
 <!-- 검수기록 테이블 -->
