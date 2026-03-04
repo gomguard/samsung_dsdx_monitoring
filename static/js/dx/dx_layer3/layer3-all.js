@@ -213,8 +213,21 @@ async function loadData() {
         if (!reopenDetail) {
             const urlParams = new URLSearchParams(window.location.search);
             const focus = urlParams.get('focus');
-            if (focus && section === 'category_spec') {
-                showDetail('카테고리별 특성', focus);
+            if (focus) {
+                // 사이드바 하위메뉴 active 동기화
+                var expGroup = document.querySelector('.sidebar-group.expanded');
+                if (expGroup) {
+                    expGroup.querySelectorAll('.sidebar-subitem').forEach(function(item) {
+                        item.classList.toggle('active', item.textContent.trim() === focus);
+                    });
+                }
+
+                if (section === 'field_missing') {
+                    switchFieldMissingTab(focus.toLowerCase());
+                } else if (SECTION_CATEGORY_MAP[section]) {
+                    showDetail(SECTION_CATEGORY_MAP[section], focus);
+                }
+
                 // focus 파라미터 제거 (뒤로가기 시 중복 방지)
                 urlParams.delete('focus');
                 const cleanUrl = urlParams.toString() ? `${window.location.pathname}?${urlParams}` : window.location.pathname;
@@ -4131,6 +4144,14 @@ function onSubitemClick(parentSection, checkName) {
     const date = document.getElementById('target-date') ? document.getElementById('target-date').value : '';
     const dateParam = date ? `?date=${date}` : '';
 
+    // 사이드바 하위메뉴 active 상태 동기화
+    var group = document.querySelector('.sidebar-group.expanded');
+    if (group) {
+        group.querySelectorAll('.sidebar-subitem').forEach(function(item) {
+            item.classList.toggle('active', item.textContent.trim() === checkName);
+        });
+    }
+
     // 해당 섹션 페이지가 아니면 이동
     if (section !== parentSection) {
         const sep = dateParam ? '&' : '?';
@@ -4140,6 +4161,8 @@ function onSubitemClick(parentSection, checkName) {
 
     // 필드 누락: 탭 전환
     if (parentSection === 'field_missing') {
+        // 상세보기 중이면 요약으로 복귀 후 탭 전환
+        while (ViewStack.depth() > 0) ViewStack.pop();
         switchFieldMissingTab(checkName.toLowerCase());
         return;
     }
