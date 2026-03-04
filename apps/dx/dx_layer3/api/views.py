@@ -1405,8 +1405,12 @@ def cross_field_detail(request):
                     cur_nr.close()
                     conn_nr.close()
 
-                    # 정상 처리 건수 차감한 이상치 수
-                    adjusted_total = max(0, len(anomalies) - len(normal_reviews))
+                    # 정상 처리 건수 차감한 이상치 수 (DISTINCT record_id 기준 — 배지와 동일)
+                    normal_record_ids = set()
+                    for nr_key in normal_reviews:
+                        rid = nr_key.split('_')[0]
+                        normal_record_ids.add(rid)
+                    adjusted_total = max(0, len(anomalies) - len(normal_record_ids))
 
                     # 리테일러별 전체 수집 컬럼 (컬럼 선택용)
                     from apps.common.retail_columns import get_retailer_columns

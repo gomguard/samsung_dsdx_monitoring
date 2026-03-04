@@ -866,16 +866,26 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
         if (anomalies.length === 0) {
             html += '<p>해당 검증 유형에 대한 이상치 데이터가 없습니다.</p>';
         } else {
+            // 정상처리된 record_id 집합 (배지 건수 차감용)
+            const normalReviews = data.normal_reviews || {};
+            const normalRecordIds = new Set();
+            Object.keys(normalReviews).forEach(key => {
+                normalRecordIds.add(key.split('_')[0]);
+            });
+
             // 리테일러별 데이터 그룹핑
             const retailerData = {};
             anomalies.forEach(row => {
                 const retailer = row.account_name || 'Unknown';
                 if (!retailerData[retailer]) {
-                    retailerData[retailer] = { items: [], rows: [] };
+                    retailerData[retailer] = { items: [], rows: [], adjustedCount: 0 };
                 }
                 retailerData[retailer].rows.push(row);
                 if (row.item && !retailerData[retailer].items.includes(row.item)) {
                     retailerData[retailer].items.push(row.item);
+                }
+                if (!normalRecordIds.has(String(row.id || ''))) {
+                    retailerData[retailer].adjustedCount++;
                 }
             });
 
@@ -902,7 +912,7 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             html += '<div class="rule-summary-container">';
             Object.keys(retailerData).sort().forEach(retailer => {
                 const items = retailerData[retailer].items;
-                const rowCount = retailerData[retailer].rows.length;
+                const rowCount = retailerData[retailer].adjustedCount;
                 html += `
                     <div class="rule-summary-card" data-retailer="${esc(retailer)}" onclick="showRetailerDetail('${escJs(retailer)}')">
                         <div class="rule-info">
@@ -1581,7 +1591,7 @@ function showRetailerDetail(retailer) {
     const dateCol = productLine.toUpperCase() === 'HHP' ? 'crawl_strdatetime' : 'crawl_datetime';
     const productLineDisplay = productLine.toUpperCase();
     const ruleNameDisplay = window.crossfieldRuleName || '';
-    const titleText = `${ruleNameDisplay} (${rows.length}건)`;
+    const titleText = `${ruleNameDisplay} (${data.adjustedCount}건)`;
     const subtitleText = `${productLineDisplay} Retail | ${retailer}`;
 
     const editableCols = inline ? (window.crossfieldEditableCols || new Set()) : new Set();
