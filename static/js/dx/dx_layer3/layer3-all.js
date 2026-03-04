@@ -1735,7 +1735,7 @@ function showRetailerDetail(retailer) {
                 fixed: ['_no'],
                 defaultVisible: defaultVisibleKeys,
                 onUpdate: function(selected) {
-                    window._cfDetailState.visibleKeys = selected;
+                    window._cfDetailState.visibleKeys = selected.map(c => c.key);
                     _cfRebuildTable();
                 }
             },
@@ -1830,7 +1830,9 @@ function showRetailerDetail(retailer) {
 function _cfRebuildTable() {
     var st = window._cfDetailState;
     if (!st) return;
-    var visibleCols = st.allColumns.filter(c => st.visibleKeys.includes(c.key));
+    var colMap = {};
+    st.allColumns.forEach(c => { colMap[c.key] = c; });
+    var visibleCols = st.visibleKeys.map(k => colMap[k]).filter(Boolean);
     st._visibleCols = visibleCols;
 
     var ctColumns = visibleCols.map(c => ({
@@ -1840,6 +1842,10 @@ function _cfRebuildTable() {
         sortable: c.key !== '_no',
         align: c.key === '_no' ? 'center' : undefined
     }));
+
+    var el = document.getElementById('cf-detail-table-area');
+    if (!el) return;
+    el.innerHTML = '';
 
     st.table = new CommonTable('#cf-detail-table-area', {
         variant: 'detail',
@@ -4319,7 +4325,7 @@ function _fmRenderInlineView(data, retailer, fieldName, productLine, date, days)
             fixed: ['_no'],
             defaultVisible: defaultVisibleKeys,
             onUpdate: function(selected) {
-                window._fmDetailState.visibleKeys = selected;
+                window._fmDetailState.visibleKeys = selected.map(function(c) { return c.key; });
                 _fmRebuildTable();
             }
         },
@@ -4384,7 +4390,9 @@ function _fmRebuildTable() {
     var st = window._fmDetailState;
     if (!st) return;
 
-    var visibleCols = st.allColumns.filter(function(c) { return st.visibleKeys.indexOf(c.key) >= 0; });
+    var colMap = {};
+    st.allColumns.forEach(function(c) { colMap[c.key] = c; });
+    var visibleCols = st.visibleKeys.map(function(k) { return colMap[k]; }).filter(Boolean);
     st._visibleCols = visibleCols;
 
     var ctColumns = visibleCols.map(function(c) {
