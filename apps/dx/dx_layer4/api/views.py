@@ -631,6 +631,23 @@ def check_save(request):
                             'error': '미해결 이슈 ' + str(open_count) + '건이 있습니다. 이슈를 먼저 처리하세요.'
                         }, status=400)
 
+                    # 2차 완료: NULL 상태 detail 체크 (이슈 미등록 시에만 차단)
+                    null_items = [d for d in details if d.get('status') == 'NULL']
+                    if null_items:
+                        cursor.execute("""
+                            SELECT COUNT(*) FROM monitoring_check_log_issues
+                            WHERE crawl_date = %s AND section = %s AND is_del = 0
+                        """, (date_str, section))
+                        issue_count = cursor.fetchone()[0]
+                        if issue_count == 0:
+                            null_names = ', '.join(d.get('item_name', '') or d.get('retailer', '') for d in null_items)
+                            conn.rollback()
+                            return JsonResponse({
+                                'success': False,
+                                'error': 'NULL 상태 항목이 ' + str(len(null_items)) + '건 있습니다 (' + null_names + '). 이슈를 먼저 등록하세요.',
+                                'level': 'warning'
+                            }, status=400)
+
                     # check_log UPDATE (confirm_step=2, 최신 수치 반영)
                     cursor.execute("""
                         UPDATE monitoring_check_log

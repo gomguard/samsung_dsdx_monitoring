@@ -671,7 +671,7 @@ async function saveCheck(sectionType, step) {
             body: JSON.stringify({ date: getSelectedDate(), layer: 1, step: step, sections: [sectionData] })
         });
         var saveData = await response.json();
-        if (!response.ok || !saveData.success) { showToast(saveData.error || '저장 중 오류가 발생했습니다.', 'error'); return; }
+        if (!response.ok || !saveData.success) { showToast(saveData.error || '저장 중 오류가 발생했습니다.', saveData.level || 'error'); return; }
         showToast(step === 2 ? '완료 처리됨' : '확인 완료', 'success');
         loadAllData();
     } catch (e) { showToast('시스템 오류가 발생했습니다.', 'error'); }
