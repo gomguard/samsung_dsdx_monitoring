@@ -1829,7 +1829,7 @@ function _cfRebuildTable() {
         key: c.key,
         label: c.label,
         width: c.width,
-        sortable: c.key !== '_no',
+        sortable: c.key === 'item',
         align: c.key === '_no' ? 'center' : undefined
     }));
 
@@ -4385,7 +4385,7 @@ function _fmRebuildTable() {
     st._visibleCols = visibleCols;
 
     var ctColumns = visibleCols.map(function(c) {
-        return { key: c.key, label: c.label, width: c.width, sortable: c.key !== '_no', align: c.key === '_no' ? 'center' : undefined };
+        return { key: c.key, label: c.label, width: c.width, sortable: c.key === 'item', align: c.key === '_no' ? 'center' : undefined };
     });
 
     var el = document.getElementById('fm-detail-table-area');
@@ -4418,6 +4418,15 @@ function _fmRebuildTable() {
             _fmRenderPage(page);
         }
     });
+
+    // 레이아웃 고정용: review bar를 미리 hidden으로 생성
+    var actionBar = document.getElementById('fm-detail-action-bar');
+    if (actionBar && !document.getElementById('fm-review-bar')) {
+        actionBar.innerHTML = '<div class="null-review-bar" id="fm-review-bar" style="visibility:hidden;">'
+            + '<span class="null-review-info">&nbsp;</span>'
+            + '<button class="btn-null-normal">확인</button>'
+            + '</div>';
+    }
 
     _fmSortAndRender();
 }
@@ -4684,7 +4693,12 @@ function _fmUpdateSaveButton() {
     var bar = document.getElementById('fm-detail-action-bar');
     if (!bar) return;
     var count = Object.keys(fmPendingEdits).length;
-    if (count === 0) { bar.innerHTML = ''; return; }
+    if (count === 0) {
+        bar.innerHTML = '<div class="null-review-bar" id="fm-review-bar" style="visibility:hidden;">'
+            + '<span class="null-review-info">&nbsp;</span>'
+            + '<button class="btn-null-normal">확인</button></div>';
+        return;
+    }
     bar.innerHTML = '<div class="detail-edit-actions">'
         + '<span class="edit-actions-info">' + count + '건 변경됨</span>'
         + '<div style="display:flex;gap:8px;">'
@@ -4774,16 +4788,23 @@ function _fmShowReviewBar(td, mode) {
     var col = td.getAttribute('data-col');
     if (!rowId) return;
 
-    var html = '<div class="null-review-bar" id="fm-review-bar">'
-        + '<span class="null-review-info">' + esc(col) + ' (ID: ' + rowId + ')</span>'
-        + '<button class="btn-null-normal" onclick="_fmShowReviewDialog(\'' + rowId + '\',\'' + esc(col) + '\')">확인</button>'
-        + '</div>';
-    bar.innerHTML = html;
+    var reviewBar = document.getElementById('fm-review-bar');
+    if (!reviewBar) {
+        var html = '<div class="null-review-bar" id="fm-review-bar">'
+            + '<span class="null-review-info"></span>'
+            + '<button class="btn-null-normal">확인</button>'
+            + '</div>';
+        bar.innerHTML = html;
+        reviewBar = document.getElementById('fm-review-bar');
+    }
+    reviewBar.querySelector('.null-review-info').textContent = col + ' (ID: ' + rowId + ')';
+    reviewBar.querySelector('.btn-null-normal').onclick = function() { _fmShowReviewDialog(rowId, col); };
+    reviewBar.style.visibility = 'visible';
 }
 
 function _fmHideReviewBar() {
     var bar = document.getElementById('fm-review-bar');
-    if (bar) bar.remove();
+    if (bar) bar.style.visibility = 'hidden';
 }
 
 window._fmShowReviewDialog = function(rowId, col) {

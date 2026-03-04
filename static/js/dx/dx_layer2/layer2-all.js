@@ -467,7 +467,7 @@ function _buildDetailTable() {
     ctColumns.push({ key: '_no', label: 'No', width: 50, sortable: false, align: 'center' });
     visibleCols.forEach(function(col) {
         if (col.key === '_no') return;
-        ctColumns.push({ key: col.key, label: col.label, width: col.width, sortable: !isRowspan, align: col.align });
+        ctColumns.push({ key: col.key, label: col.label, width: col.width, sortable: !isRowspan && col.key === 'item', align: col.align });
     });
     document.getElementById('detail-table-area').innerHTML = '';
     detailViewState.table = new CommonTable('#detail-table-area', {
