@@ -418,6 +418,14 @@ function toggleCategory(idx) {
 async function showDetail(category, checkName) {
     const date = document.getElementById('target-date').value;
 
+    // 사이드바 하위메뉴 active 동기화
+    var expGroup = document.querySelector('.sidebar-group.expanded');
+    if (expGroup) {
+        expGroup.querySelectorAll('.sidebar-subitem').forEach(function(item) {
+            item.classList.toggle('active', item.textContent.trim() === checkName);
+        });
+    }
+
     let apiUrl = '';
     let title = checkName;
 
@@ -4170,6 +4178,8 @@ function onSubitemClick(parentSection, checkName) {
     // 인라인 상세보기 (시계열/크로스필드/카테고리별 특성 공통)
     const categoryName = SECTION_CATEGORY_MAP[parentSection];
     if (categoryName) {
+        // 상세보기 중이면 요약으로 복귀 후 새 상세보기
+        while (ViewStack.depth() > 0) ViewStack.pop();
         showDetail(categoryName, checkName);
         return;
     }
