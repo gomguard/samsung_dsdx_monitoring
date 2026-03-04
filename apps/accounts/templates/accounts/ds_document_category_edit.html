@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var editorOpts = {
         height: '600px',
-        uploadUrl: '{% url "main:api_ds_document_upload" %}'
+        uploadUrl: '{% url "ds_document:api_upload" %}'
     };
     if (objectDocumentId) {
         editorOpts.getObjectDocumentId = function() { return objectDocumentId; };
