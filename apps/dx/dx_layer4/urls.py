@@ -13,6 +13,7 @@ urlpatterns = [
     # APIs
     path('api/dashboard-stats/', api_views.dashboard_stats, name='api_dashboard_stats'),
     path('api/corrections/', api_views.corrections_list, name='api_corrections'),
+    path('api/corrections/cancel/', api_views.corrections_cancel, name='api_corrections_cancel'),
     path('api/report/', api_views.report_data, name='api_report'),
     path('api/review-reasons/', api_views.review_reasons, name='api_review_reasons'),
     # Check Log APIs

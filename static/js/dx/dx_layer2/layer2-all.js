@@ -1972,10 +1972,11 @@ function showNullFieldDetail(fieldName, pushStack = true) {
         body.innerHTML = containerHtml;
     }
 
-    // CommonTable + FilterBar + Pagination 렌더
+    // CommonTable + FilterBar + Pagination 렌더 (deep copy로 원본 데이터 보호)
+    var detailRecords = JSON.parse(JSON.stringify(filteredRecords));
     renderDetailWithTable({
         config: columns,
-        data: filteredRecords,
+        data: detailRecords,
         tableParam: tableParam,
         type: 'null',
         selectCols: data.select_cols || null,
@@ -2238,11 +2239,12 @@ function showFormatFieldDetail(fieldName, pushStack = true) {
         body.innerHTML = containerHtml;
     }
 
-    // CommonTable + FilterBar + Pagination 렌더
+    // CommonTable + FilterBar + Pagination 렌더 (deep copy로 원본 데이터 보호)
+    var detailRecords = JSON.parse(JSON.stringify(filteredRecords));
     renderDetailWithTable({
         config: columns,
         selectCols: selectCols,
-        data: filteredRecords,
+        data: detailRecords,
         tableParam: tableParam,
         type: 'format',
         editableCols: data.editable_cols || [],

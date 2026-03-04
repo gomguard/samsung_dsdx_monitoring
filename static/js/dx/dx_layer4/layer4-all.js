@@ -409,17 +409,6 @@
             });
         }
 
-        controls.push({
-            type: 'select', key: 'filter-status', label: '상태',
-            options: [
-                { value: 'all', label: '전체' },
-                { value: 'corrected', label: '수정' },
-                { value: 'normal', label: '확인' },
-                { value: 'reverted', label: '취소' }
-            ],
-            onChange: function() { currentPage = 1; correctionsTable = null; loadCorrections(); }
-        });
-
         correctionsFilterBar = new FilterBar('#corrections-filter-bar', { controls: controls, plain: true, sticky: false }).render();
 
         // 검증유형 드롭다운 값 복원
@@ -427,6 +416,9 @@
             var typeEl = document.getElementById('filter-type');
             if (typeEl) typeEl.value = correctionsLastType;
         }
+
+        // 필터바 재구성 후 정상취소 버튼 복원
+        updateCancelButton();
     }
 
     var correctionsLastType = 'all';
@@ -437,6 +429,49 @@
         correctionsFixedType = FOCUS_TO_TYPE[focusParam] || '';
         correctionsLastType = correctionsFixedType || 'all';
         buildCorrectionsFilterBar();
+        initCorrectionsTabs();
+    }
+
+    function initCorrectionsTabs() {
+        var tabsContainer = document.getElementById('corrections-tabs');
+        if (!tabsContainer) return;
+        tabsContainer.style.display = 'flex';
+        var tabs = tabsContainer.querySelectorAll('.log-tab');
+        tabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                tabs.forEach(function(t) { t.classList.remove('active'); });
+                tab.classList.add('active');
+                currentPage = 1;
+                correctionsTable = null;
+                updateCancelButton();
+                loadCorrections();
+            });
+        });
+        updateCancelButton();
+    }
+
+    function updateCancelButton() {
+        var existing = document.getElementById('corr-cancel-btn');
+        if (existing) existing.remove();
+        var activeTab = document.querySelector('#corrections-tabs .log-tab.active');
+        if (!activeTab || activeTab.dataset.status !== 'normal') return;
+        var filterBar = document.querySelector('#corrections-filter-bar .fb');
+        if (!filterBar) return;
+        var btn = document.createElement('button');
+        btn.id = 'corr-cancel-btn';
+        btn.className = 'app-btn app-btn-md app-btn-danger';
+        btn.textContent = '정상취소';
+        btn.addEventListener('click', function() { cancelCheckedCorrections(); });
+        filterBar.appendChild(btn);
+    }
+
+    function updateTabCounts(correctedCount, normalCount, revertedCount) {
+        var el1 = document.getElementById('tabCorrectedCount');
+        var el2 = document.getElementById('tabNormalCount');
+        var el3 = document.getElementById('tabRevertedCount');
+        if (el1) { el1.textContent = correctedCount; el1.className = 'tab-count ' + (correctedCount > 0 ? 'count-corrected' : 'count-zero'); }
+        if (el2) { el2.textContent = normalCount; el2.className = 'tab-count ' + (normalCount > 0 ? 'count-normal' : 'count-zero'); }
+        if (el3) { el3.textContent = revertedCount; el3.className = 'tab-count ' + (revertedCount > 0 ? 'count-reverted' : 'count-zero'); }
     }
 
     window.loadCorrections = function(page) {
@@ -447,7 +482,8 @@
         if (currentPage === 1) correctionsTable = null;
 
         var type = getActiveType();
-        var status = document.getElementById('filter-status') ? document.getElementById('filter-status').value : 'all';
+        var activeTab = document.querySelector('#corrections-tabs .log-tab.active');
+        var status = activeTab ? activeTab.dataset.status : 'corrected';
         var category = document.getElementById('filter-category') ? document.getElementById('filter-category').value : 'all';
         var ruleName = document.getElementById('filter-rule') ? document.getElementById('filter-rule').value : 'all';
 
@@ -469,6 +505,10 @@
                 // 룰 드롭다운 갱신
                 if (data.rule_options) {
                     updateRuleDropdown(data.rule_options);
+                }
+                // 탭 카운트 갱신
+                if (data.status_counts) {
+                    updateTabCounts(data.status_counts.corrected || 0, data.status_counts.normal || 0, data.status_counts.reverted || 0);
                 }
                 renderCorrections(data);
             })
@@ -495,46 +535,28 @@
     }
 
     var correctionsTable = null;
+    var correctionItems = [];
 
     function getCorrectionsColumns() {
-        var cols = [
-            { key: 'no', label: 'No.', width: 50, align: 'center' }
-        ];
+        var activeTab = document.querySelector('#corrections-tabs .log-tab.active');
+        var isNormalTab = activeTab && activeTab.dataset.status === 'normal';
+        var cols = [];
+        if (isNormalTab) {
+            cols.push({ key: '_check', label: '', width: 40, align: 'center' });
+        }
+        cols.push({ key: 'no', label: 'No.', width: 50, align: 'center' });
         if (!correctionsFixedType) {
             cols.push({ key: 'correction_type', label: '검증유형', width: 90, align: 'center' });
         }
-        if (isCrossFieldMode()) {
-            cols.push(
-                { key: 'table_name', label: '카테고리', width: 60 },
-                { key: 'rule_name', label: '검증규칙명', width: 150 },
-                { key: 'retailer', label: '리테일러', width: 90 },
-                { key: 'record_id', label: 'Record', width: 80 },
-                { key: 'item', label: 'Item', width: 120 },
-                { key: 'column_name', label: '컬럼', width: 140 },
-                { key: 'old_value', label: '이전값' },
-                { key: 'new_value', label: '변경한 값' },
-                { key: 'status', label: '상태', width: 70, align: 'center' },
-                { key: 'reason', label: '이유' },
-                { key: 'memo', label: '메모' },
-                { key: 'created_id', label: '수정자', width: 70 },
-                { key: 'created_at', label: '수정일', width: 140 }
-            );
-        } else {
-            cols.push(
-                { key: 'table_name', label: '카테고리', width: 60 },
-                { key: 'retailer', label: '리테일러', width: 90 },
-                { key: 'record_id', label: 'Record', width: 80 },
-                { key: 'item', label: 'Item', width: 120 },
-                { key: 'column_name', label: '컬럼', width: 160 },
-                { key: 'old_value', label: '이전값' },
-                { key: 'new_value', label: '변경한 값' },
-                { key: 'status', label: '상태', width: 70, align: 'center' },
-                { key: 'reason', label: '이유' },
-                { key: 'memo', label: '메모' },
-                { key: 'created_id', label: '수정자', width: 70 },
-                { key: 'created_at', label: '수정일', width: 140 }
-            );
-        }
+        cols.push(
+            { key: 'table_name', label: '카테고리', width: 60 },
+            { key: 'retailer', label: '리테일러', width: 90 },
+            { key: 'item', label: 'Item', width: 140 },
+            { key: 'column_name', label: '컬럼', width: 160 },
+            { key: 'old_value', label: '이전값' },
+            { key: 'new_value', label: '변경한 값' },
+            { key: 'reason', label: '이유' }
+        );
         return cols;
     }
 
@@ -550,6 +572,7 @@
         }
 
         var startNo = (data.page - 1) * data.page_size;
+        var activeTab = document.querySelector('#corrections-tabs .log-tab.active');
 
         if (!correctionsTable) {
             container.innerHTML = '';
@@ -562,6 +585,18 @@
                 showTotalCount: true
             });
             correctionsTable.render();
+            // normal 탭이면 첫 번째 th에 전체선택 체크박스 삽입
+            if (activeTab && activeTab.dataset.status === 'normal') {
+                var firstTh = container.querySelector('thead th');
+                if (firstTh) {
+                    firstTh.innerHTML = '<input type="checkbox" id="corr-check-all">';
+                    document.getElementById('corr-check-all').addEventListener('change', function() {
+                        var checks = document.querySelectorAll('.corr-check');
+                        var checked = this.checked;
+                        checks.forEach(function(cb) { cb.checked = checked; });
+                    });
+                }
+            }
         }
 
         var CATEGORY_NAME = {
@@ -570,35 +605,131 @@
             'market_trend': 'Market Trend', 'market_comp_product': 'Market', 'market_comp_event': 'Market',
             'openai_forecast_results': '수요증감율'
         };
-        var crossFieldMode = isCrossFieldMode();
+        var isNormalTab = activeTab && activeTab.dataset.status === 'normal';
         correctionsTable.renderBody(items, function(item, idx) {
-            var statusName = STATUS_NAMES[item.status] || item.status;
             var categoryName = CATEGORY_NAME[item.table_name] || item.table_name;
-            var html = '<tr>'
-                + '<td style="text-align:center">' + (startNo + idx + 1) + '</td>';
+            var html = '<tr style="cursor:pointer" data-corr-idx="' + idx + '">';
+            if (isNormalTab) {
+                html += '<td style="text-align:center"><input type="checkbox" class="corr-check" data-id="' + item.id + '"></td>';
+            }
+            html += '<td style="text-align:center">' + (startNo + idx + 1) + '</td>';
             if (!correctionsFixedType) {
                 var typeName = TYPE_NAMES[item.correction_type] || item.correction_type;
                 html += '<td style="text-align:center"><span class="l4-type-badge">' + escapeHtml(typeName) + '</span></td>';
             }
-            html += '<td>' + escapeHtml(categoryName) + '</td>';
-            if (crossFieldMode) {
-                html += '<td>' + escapeHtml(item.rule_name || '-') + '</td>';
-            }
-            html += '<td>' + escapeHtml(item.retailer || '-') + '</td>'
-                + '<td>' + escapeHtml(String(item.record_id)) + '</td>'
+            html += '<td>' + escapeHtml(categoryName) + '</td>'
+                + '<td>' + escapeHtml(item.retailer || '-') + '</td>'
+                + '<td>' + escapeHtml(item.item || '-') + '</td>'
                 + '<td>' + escapeHtml(item.column_name) + '</td>'
                 + '<td title="' + escapeHtml(item.old_value || '') + '">' + escapeHtml(item.old_value || '-') + '</td>'
                 + '<td title="' + escapeHtml(item.new_value || '') + '">' + escapeHtml(item.new_value || '-') + '</td>'
-                + '<td style="text-align:center"><span class="l4-status ' + item.status + '">' + escapeHtml(statusName) + '</span></td>'
                 + '<td>' + escapeHtml(item.reason || '-') + '</td>'
-                + '<td title="' + escapeHtml(item.memo || '') + '">' + escapeHtml(item.memo || '-') + '</td>'
-                + '<td>' + escapeHtml(item.created_id) + '</td>'
-                + '<td>' + escapeHtml(item.created_at) + '</td>'
                 + '</tr>';
             return html;
         });
 
+        // 행 클릭 → 상세 모달
+        correctionItems = items;
+        var tbody = container.querySelector('tbody');
+        if (tbody) {
+            tbody.addEventListener('click', function(e) {
+                // 체크박스 클릭은 무시
+                if (e.target.tagName === 'INPUT') return;
+                var tr = e.target.closest('tr[data-corr-idx]');
+                if (!tr) return;
+                var idx = parseInt(tr.dataset.corrIdx);
+                showCorrectionDetail(items[idx], startNo + idx + 1);
+            });
+        }
+
         renderPagination(data.page, data.total_pages, data.total);
+
+        // 전체선택 체크박스 초기화
+        var checkAll = document.getElementById('corr-check-all');
+        if (checkAll) checkAll.checked = false;
+    }
+
+    function showCorrectionDetail(item, no) {
+        var CATEGORY_NAME = {
+            'tv_retail_com': 'TV', 'hhp_retail_com': 'HHP',
+            'youtube_collection_logs': 'YouTube', 'youtube_videos': 'YouTube', 'youtube_comments': 'YouTube',
+            'market_trend': 'Market Trend', 'market_comp_product': 'Market', 'market_comp_event': 'Market',
+            'openai_forecast_results': '수요증감율'
+        };
+        var categoryName = CATEGORY_NAME[item.table_name] || item.table_name;
+        var typeName = TYPE_NAMES[item.correction_type] || item.correction_type;
+        var statusName = STATUS_NAMES[item.status] || item.status;
+        var isCorrected = item.status === 'corrected';
+
+        var rows = [
+            ['No.', no],
+            ['검증유형', typeName],
+            ['카테고리', categoryName],
+            ['리테일러', item.retailer || '-'],
+            ['Record', item.record_id],
+            ['Item', item.item || '-'],
+            ['컬럼', item.column_name],
+            ['이전값', item.old_value || '-'],
+            ['변경한 값', item.new_value || '-'],
+            ['상태', '<span class="l4-status ' + item.status + '">' + escapeHtml(statusName) + '</span>'],
+            ['이유', item.reason || '-'],
+            ['메모', item.memo || '-'],
+            [isCorrected ? '수정자' : '확인자', item.created_id || '-'],
+            [isCorrected ? '수정일' : '확인일', item.created_at || '-']
+        ];
+        if (item.rule_name) {
+            rows.splice(3, 0, ['검증규칙명', item.rule_name]);
+        }
+        if (item.status === 'reverted') {
+            rows.push(['취소자', item.updated_id || '-']);
+            rows.push(['취소일', item.updated_at || '-']);
+            if (item.cancel_memo) {
+                rows.push(['취소 사유', item.cancel_memo]);
+            }
+        }
+
+        var html = '<table class="corr-detail-table">';
+        for (var i = 0; i < rows.length; i++) {
+            var isHtml = rows[i][0] === '상태';
+            html += '<tr><th>' + escapeHtml(rows[i][0]) + '</th><td>' + (isHtml ? rows[i][1] : escapeHtml(String(rows[i][1]))) + '</td></tr>';
+        }
+        html += '</table>';
+
+        AppModal.setTitle('corr-detail', '검수기록 상세');
+        AppModal.setBody('corr-detail', html);
+        AppModal.open('corr-detail');
+    }
+
+    async function cancelCheckedCorrections() {
+        var checked = document.querySelectorAll('.corr-check:checked');
+        if (checked.length === 0) {
+            showToast('취소할 항목을 선택하세요.', 'warning');
+            return;
+        }
+        var ids = [];
+        checked.forEach(function(cb) { ids.push(parseInt(cb.dataset.id)); });
+
+        var result = await showConfirm(ids.length + '건을 정상취소 하시겠습니까?', 'warning', {
+            input: { placeholder: '취소 사유 (선택)' }
+        });
+        if (!result.confirmed) return;
+
+        try {
+            var res = await fetch('/dx/layer4/api/corrections/cancel/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                body: JSON.stringify({ ids: ids, cancel_memo: result.value || '' })
+            });
+            var data = await res.json();
+            if (data.success) {
+                showToast(data.cancelled + '건 취소되었습니다.', 'success');
+                loadCorrections();
+            } else {
+                showToast(data.error || '취소 실패', 'error');
+            }
+        } catch (e) {
+            showToast('시스템 오류가 발생했습니다.', 'error');
+        }
     }
 
     function renderPagination(page, totalPages, total) {
@@ -1398,6 +1529,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         if (section === 'corrections') {
             initCorrectionsFilterBar();
+            AppModal.create('corr-detail', { style: 'compact', closeOnOverlay: true });
         }
         initFilterBar();
         handleSearch();

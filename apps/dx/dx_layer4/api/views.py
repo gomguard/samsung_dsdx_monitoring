@@ -116,27 +116,41 @@ def corrections_list(request):
         conn = get_dx_connection()
         cursor = conn.cursor()
 
-        where_clauses = ["c.crawl_date = %s", "c.status IS NOT NULL"]
-        params = [str(target_date)]
+        base_clauses = ["c.crawl_date = %s", "c.status IS NOT NULL"]
+        base_params = [str(target_date)]
 
         if correction_type != 'all':
-            where_clauses.append("c.correction_type = %s")
-            params.append(correction_type)
-
-        if status != 'all':
-            where_clauses.append("c.status = %s")
-            params.append(status)
+            base_clauses.append("c.correction_type = %s")
+            base_params.append(correction_type)
 
         if category != 'all':
             category_table_map = {'TV': 'tv_retail_com', 'HHP': 'hhp_retail_com'}
             table_name = category_table_map.get(category)
             if table_name:
-                where_clauses.append("c.table_name = %s")
-                params.append(table_name)
+                base_clauses.append("c.table_name = %s")
+                base_params.append(table_name)
 
         if rule_name != 'all':
-            where_clauses.append("c.rule_id IN (SELECT id FROM monitoring_validation_rules WHERE detail_name = %s)")
-            params.append(rule_name)
+            base_clauses.append("c.rule_id IN (SELECT id FROM monitoring_validation_rules WHERE detail_name = %s)")
+            base_params.append(rule_name)
+
+        # 탭 카운트 (status 필터 제외)
+        base_where_sql = " AND ".join(base_clauses)
+        cursor.execute(f"""
+            SELECT c.status, COUNT(*) FROM monitoring_corrections c
+            WHERE {base_where_sql}
+            GROUP BY c.status
+        """, base_params)
+        status_counts = {}
+        for row in cursor.fetchall():
+            status_counts[row[0]] = row[1]
+
+        # status 필터 적용
+        where_clauses = list(base_clauses)
+        params = list(base_params)
+        if status != 'all':
+            where_clauses.append("c.status = %s")
+            params.append(status)
 
         where_sql = " AND ".join(where_clauses)
 
@@ -150,7 +164,8 @@ def corrections_list(request):
             SELECT c.id, c.layer, c.correction_type, c.table_name, c.record_id,
                    c.column_name, c.old_value, c.new_value, c.crawl_date,
                    c.status, c.memo, c.created_id, c.created_at, c.reason,
-                   c.retailer, c.item, c.rule_id, r.detail_name
+                   c.retailer, c.item, c.rule_id, r.detail_name,
+                   c.updated_id, c.updated_at, c.cancel_memo
             FROM monitoring_corrections c
             LEFT JOIN monitoring_validation_rules r ON c.rule_id = r.id
             WHERE {where_sql}
@@ -180,6 +195,9 @@ def corrections_list(request):
                 'item': row[15] or '',
                 'rule_id': row[16],
                 'rule_name': row[17] or '',
+                'updated_id': row[18] or '',
+                'updated_at': row[19].strftime('%Y-%m-%d %H:%M:%S') if row[19] else '',
+                'cancel_memo': row[20] or '',
             })
 
         # 크로스필드일 때 룰 목록 반환 (detail_name 기준 중복 제거)
@@ -209,6 +227,11 @@ def corrections_list(request):
             'page': page,
             'page_size': page_size,
             'total_pages': total_pages,
+            'status_counts': {
+                'corrected': status_counts.get('corrected', 0),
+                'normal': status_counts.get('normal', 0),
+                'reverted': status_counts.get('reverted', 0),
+            },
         }
         if rule_options:
             resp['rule_options'] = rule_options
@@ -1084,3 +1107,35 @@ def collection_issue_resolve(request):
             conn.close()
     except Exception as e:
         return safe_error(e, 'collection_issue_resolve')
+
+
+@require_POST
+def corrections_cancel(request):
+    """정상처리 일괄 취소 API"""
+    try:
+        data = json.loads(request.body)
+        ids = data.get('ids', [])
+        cancel_memo = data.get('cancel_memo', '')
+        username = request.user.username if request.user.is_authenticated else ''
+        now = datetime.now()
+
+        if not ids or not isinstance(ids, list):
+            return JsonResponse({'success': False, 'error': '취소할 항목을 선택하세요.'}, status=400)
+
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        try:
+            placeholders = ','.join(['%s'] * len(ids))
+            cursor.execute(f"""
+                UPDATE monitoring_corrections
+                SET status = 'reverted', updated_id = %s, updated_at = %s, cancel_memo = %s
+                WHERE id IN ({placeholders}) AND status = 'normal'
+            """, [username, now, cancel_memo or None] + ids)
+            cancelled = cursor.rowcount
+            conn.commit()
+            return JsonResponse({'success': True, 'cancelled': cancelled})
+        finally:
+            cursor.close()
+            conn.close()
+    except Exception as e:
+        return safe_error(e, 'corrections_cancel')

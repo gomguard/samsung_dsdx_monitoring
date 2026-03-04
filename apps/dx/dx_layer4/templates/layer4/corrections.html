@@ -3,12 +3,98 @@
 
 {% block page_title %}검수기록{% endblock %}
 
+{% block layer4_css %}
+<style>
+    .log-tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 0;
+    }
+    .log-tab {
+        padding: 10px 20px;
+        font-size: 14px;
+        font-weight: 600;
+        border: 1px solid var(--border-color);
+        border-bottom: none;
+        border-radius: 8px 8px 0 0;
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .log-tab:hover { color: var(--text-primary); }
+    .log-tab.active {
+        background: white;
+        color: var(--text-primary);
+        border-bottom: 1px solid white;
+        margin-bottom: -1px;
+        position: relative;
+        z-index: 1;
+    }
+    .tab-count {
+        display: inline-block;
+        min-width: 20px;
+        padding: 1px 6px;
+        margin-left: 6px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        text-align: center;
+    }
+    .count-corrected { background: #dbeafe; color: #1e40af; }
+    .count-normal { background: #d1fae5; color: #065f46; }
+    .count-reverted { background: #fee2e2; color: #991b1b; }
+    .count-zero { background: var(--bg-primary); color: var(--text-secondary); }
+
+    .corr-section {
+        background: white;
+        border-radius: 0 12px 12px 12px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .corr-detail-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .corr-detail-table th,
+    .corr-detail-table td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    .corr-detail-table th {
+        width: 120px;
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .corr-detail-table td {
+        color: var(--text-primary);
+        word-break: break-all;
+    }
+    .corr-detail-table tr:last-child th,
+    .corr-detail-table tr:last-child td {
+        border-bottom: none;
+    }
+</style>
+{% endblock %}
+
 {% block layer4_content %}
 <!-- 조회 필터바 -->
 <div id="corrections-filter-bar"></div>
 
+<!-- 상태 탭 -->
+<div class="log-tabs" id="corrections-tabs" style="display:none;">
+    <button class="log-tab active" data-status="corrected">수정 <span class="tab-count count-zero" id="tabCorrectedCount">0</span></button>
+    <button class="log-tab" data-status="normal">정상처리 <span class="tab-count count-zero" id="tabNormalCount">0</span></button>
+    <button class="log-tab" data-status="reverted">정상처리 취소 <span class="tab-count count-zero" id="tabRevertedCount">0</span></button>
+</div>
+
 <!-- 검수기록 테이블 -->
-<div id="corrections-table-container">
+<div class="corr-section" id="corrections-table-container">
     <div class="l4-empty-state">
         <p>날짜를 선택하고 조회 버튼을 클릭하세요.</p>
     </div>
