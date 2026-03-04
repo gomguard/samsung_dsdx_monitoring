@@ -4282,7 +4282,7 @@ function _fmRenderInlineView(data, retailer, fieldName, productLine, date, days)
         + '<input type="number" id="fm-detail-days" value="' + days + '" min="1" max="30" style="width:50px;padding:3px 6px;border:1px solid var(--border-color,#e2e8f0);border-radius:4px;font-size:12px;text-align:center;" onkeydown="if(event.key===\'Enter\')reloadFmDays()">'
         + '<button onclick="reloadFmDays()" style="padding:3px 10px;font-size:12px;border:1px solid var(--border-color,#e2e8f0);border-radius:4px;background:var(--page-color,#0d9488);color:#fff;cursor:pointer;white-space:nowrap;">조회</button></div>';
 
-    var titleText = fieldName + ' (' + (data.missing_item_count || 0) + '건)';
+    var titleText = fieldName + ' (' + (data.today_null_count || 0) + '건)';
     var subtitleText = plDisplay + ' Retail | ' + retailer;
     var wrapper = '<div class="inline-detail-view">'
         + '<div class="inline-detail-header"><div>'
@@ -4293,6 +4293,9 @@ function _fmRenderInlineView(data, retailer, fieldName, productLine, date, days)
         + '</div>';
 
     ViewStack.push('<div class="inline-detail"><button class="btn-back" onclick="ViewStack.pop()">← 뒤로가기</button>' + wrapper + '</div>');
+
+    // 편집 상태 초기화
+    fmPendingEdits = {};
 
     // 전역 상태 저장
     window._fmCurrentRetailer = retailer;
@@ -4418,7 +4421,11 @@ function _fmRebuildTable() {
         variant: 'detail', columns: ctColumns, vlines: true, section: true, showTotalCount: true,
         padding: '6px 12px', reorder: true, fixedColumns: ['_no'], multiSort: true,
         pageSize: 15,
-        onPageSizeChange: function(val) {
+        onPageSizeChange: async function(val) {
+            if (Object.keys(fmPendingEdits).length > 0) {
+                if (!await showConfirm('변경된 값이 있습니다.\n저장하지 않고 이동하시겠습니까?', 'warning', { okText: '이동', cancelText: '취소' })) return;
+            }
+            _fmResetPendingEdits();
             if (st.pager) st.pager.options.pageSize = val;
             _fmRenderPage(1);
         },
@@ -4428,7 +4435,10 @@ function _fmRebuildTable() {
     var pageSize = 15;
     st.pager = new Pagination('#fm-detail-pagination', {
         pageSize: pageSize, showInfo: true,
-        onPageChange: function(page) {
+        onPageChange: async function(page) {
+            if (Object.keys(fmPendingEdits).length > 0) {
+                if (!await showConfirm('변경된 값이 있습니다.\n저장하지 않고 이동하시겠습니까?', 'warning', { okText: '이동', cancelText: '취소' })) return;
+            }
             _fmResetPendingEdits();
             _fmRenderPage(page);
         }
@@ -4529,7 +4539,7 @@ function _fmRenderPage(page) {
                 // 누락필드 특유: 타겟 날짜 NULL 셀 빨간 배경
                 var isNull = displayVal === '-' || displayVal === '';
                 var cellStyle = (isNull && c.key === targetField) ? ' style="background:#fee2e2;"' : '';
-                tr += '<td data-editable="true" data-row-id="' + rowId + '" data-col="' + esc(c.key) + '"' + cellStyle + '>' + esc(displayVal) + '</td>';
+                tr += '<td data-editable="true" data-row-id="' + rowId + '" data-col="' + esc(c.key) + '" data-original="' + esc(displayVal === '-' ? '' : displayVal) + '"' + cellStyle + '>' + esc(displayVal) + '</td>';
             } else if (isTargetDate && rowId) {
                 var isNull2 = displayVal === '-' || displayVal === '';
                 var cellStyle2 = (isNull2 && c.key === targetField) ? ' style="background:#fee2e2;"' : '';
@@ -4646,14 +4656,26 @@ function _fmBindEditEvents() {
         td.appendChild(input);
         input.focus();
         input.select();
-        input.addEventListener('blur', function() { _fmApplyEdit(td, input.value); input.remove(); });
-        input.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') { _fmApplyEdit(td, input.value); input.remove(); } else if (ev.key === 'Escape') { input.remove(); } });
+        var committed = false;
+        function commit() {
+            if (committed) return;
+            committed = true;
+            var newVal = input.value.trim();
+            input.remove();
+            _fmApplyEdit(td, newVal);
+        }
+        input.addEventListener('blur', commit);
+        input.addEventListener('keydown', function(ev) {
+            if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+            else if (ev.key === 'Escape') { committed = true; input.remove(); }
+        });
     });
 
     // Ctrl+V 붙여넣기
     tableEl.addEventListener('paste', function(e) {
         var td = e.target.closest('td[data-editable]');
         if (!td) return;
+        if (td.querySelector('.cell-edit-overlay')) return;
         e.preventDefault();
         var text = (e.clipboardData || window.clipboardData).getData('text').trim();
         _fmApplyEdit(td, text);
@@ -4665,7 +4687,7 @@ function _fmApplyEdit(td, newVal) {
     var col = td.getAttribute('data-col');
     if (!rowId || !col) return;
     var key = rowId + '_' + col;
-    var original = fmPendingEdits[key] ? fmPendingEdits[key].original : td.textContent.trim();
+    var original = td.getAttribute('data-original') || '';
     if (original === '-') original = '';
     // 값이 변경되지 않았으면 무시
     if (newVal.trim() === original) {
@@ -4705,7 +4727,7 @@ window._fmCancelAllEdits = function() {
     Object.keys(fmPendingEdits).forEach(function(key) {
         var edit = fmPendingEdits[key];
         var tds = document.querySelectorAll('td[data-row-id="' + edit.rowId + '"][data-col="' + edit.col + '"]');
-        tds.forEach(function(td) { td.textContent = edit.original; td.classList.remove('cell-pending'); });
+        tds.forEach(function(td) { var orig = td.getAttribute('data-original') || ''; td.textContent = orig || '-'; td.classList.remove('cell-pending'); });
     });
     fmPendingEdits = {};
     _fmUpdateSaveButton();
@@ -4736,7 +4758,10 @@ window._fmSaveAllEdits = function() {
             if (failedResults.length > 0) console.warn('fm save failures:', failedResults);
             var successCount = results.filter(function(r) { return r.success; }).length;
             showToast(successCount + '건 저장 완료', 'success');
-            document.querySelectorAll('td.cell-pending').forEach(function(td) { td.classList.remove('cell-pending'); td.classList.add('cell-saved'); });
+            document.querySelectorAll('td.cell-pending').forEach(function(td) {
+                td.setAttribute('data-original', td.textContent.trim() === '-' ? '' : td.textContent.trim());
+                td.classList.remove('cell-pending'); td.classList.add('cell-saved');
+            });
             fmPendingEdits = {};
             _fmUpdateSaveButton();
             setTimeout(function() { document.querySelectorAll('td.cell-saved').forEach(function(td) { td.classList.remove('cell-saved'); }); }, 2000);
