@@ -1405,23 +1405,32 @@ def cross_field_detail(request):
                     cur_nr.close()
                     conn_nr.close()
 
-                    # 정상 처리 건수 차감한 이상치 수 (DISTINCT record_id 기준 — 배지와 동일)
+                    # 정상 처리된 record_id 집합
                     normal_record_ids = set()
                     for nr_key in normal_reviews:
                         rid = nr_key.split('_')[0]
                         normal_record_ids.add(rid)
-                    adjusted_total = max(0, len(anomalies) - len(normal_record_ids))
+
+                    # 리테일러별 집계 (건수 계산의 단일 기준)
+                    retailer_summary = {}
+                    for a in anomalies:
+                        retailer = a.get('account_name', 'Unknown')
+                        if retailer not in retailer_summary:
+                            retailer_summary[retailer] = {'count': 0, 'items': []}
+                        if str(a.get('id', '')) not in normal_record_ids:
+                            retailer_summary[retailer]['count'] += 1
+                        item = a.get('item', '')
+                        if item and item not in retailer_summary[retailer]['items']:
+                            retailer_summary[retailer]['items'].append(item)
+
+                    adjusted_total = sum(r['count'] for r in retailer_summary.values())
 
                     # 리테일러별 전체 수집 컬럼 (컬럼 선택용)
                     from apps.common.retail_columns import get_retailer_columns
                     retailer_columns = {}
-                    seen_retailers = set()
-                    for a in anomalies:
-                        r = a.get('account_name', '')
-                        if r and r not in seen_retailers:
-                            seen_retailers.add(r)
-                            cols = get_retailer_columns(product_line, r)
-                            retailer_columns[r] = cols
+                    for r in retailer_summary:
+                        cols = get_retailer_columns(product_line, r)
+                        retailer_columns[r] = cols
 
                     return JsonResponse({
                         'date': str(target_date),
@@ -1434,6 +1443,7 @@ def cross_field_detail(request):
                         'validation_type': validation_type,
                         'error_message': rule_result['error_message'],
                         'total_anomalies': adjusted_total,
+                        'retailer_summary': retailer_summary,
                         'anomalies': anomalies,
                         'select_fields': rule_result.get('select_fields', ''),
                         'table_name': table_name,
@@ -1837,6 +1847,7 @@ def time_series_detail(request):
                         AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) < 12
                         AND final_sku_price IS NOT NULL
                         AND final_sku_price LIKE '$%%'
+                        AND final_sku_price !~ '[a-zA-Z]'
                     ),
                     today_pm AS (
                         SELECT item, account_name, retailer_sku_name,
@@ -1850,6 +1861,7 @@ def time_series_detail(request):
                         AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) >= 12
                         AND final_sku_price IS NOT NULL
                         AND final_sku_price LIKE '$%%'
+                        AND final_sku_price !~ '[a-zA-Z]'
                     ),
                     yesterday_pm AS (
                         SELECT item, account_name,
@@ -1860,6 +1872,7 @@ def time_series_detail(request):
                         AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) >= 12
                         AND final_sku_price IS NOT NULL
                         AND final_sku_price LIKE '$%%'
+                        AND final_sku_price !~ '[a-zA-Z]'
                     ),
                     am_changes AS (
                         SELECT t.item, t.account_name, t.retailer_sku_name as product_name,
@@ -2388,6 +2401,7 @@ def price_changes(request):
                     WHERE DATE(crawl_strdatetime) = %s
                     AND final_sku_price IS NOT NULL
                     AND final_sku_price LIKE '$%%'
+                    AND final_sku_price !~ '[a-zA-Z]'
                 ),
                 yesterday AS (
                     SELECT item, product_name, account_name,
@@ -2396,6 +2410,7 @@ def price_changes(request):
                     WHERE DATE(crawl_strdatetime) = %s
                     AND final_sku_price IS NOT NULL
                     AND final_sku_price LIKE '$%%'
+                    AND final_sku_price !~ '[a-zA-Z]'
                 )
                 SELECT
                     t.item,

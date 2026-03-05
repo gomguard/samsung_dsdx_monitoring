@@ -25,9 +25,7 @@ const ViewStack = {
         });
         container.innerHTML = html;
         window.scrollTo(0, 0);
-        // 하위 뷰 진입 시 필터바 숨김 + category-section 배경/보더 제거
-        var filterBar = document.querySelector('.filter-section');
-        if (filterBar) filterBar.style.display = 'none';
+        // 하위 뷰 진입 시 category-section 배경/보더 제거 (필터바는 유지)
         if (container.classList.contains('category-section')) {
             container.style.background = 'none';
             container.style.border = 'none';
@@ -41,10 +39,8 @@ const ViewStack = {
             container.innerHTML = state.html;
             window.scrollTo(0, state.scrollTop);
         }
-        // 최상위로 돌아오면 필터바 복원 + category-section 스타일 복원
+        // 최상위로 돌아오면 category-section 스타일 복원
         if (this.stack.length === 0) {
-            var filterBar = document.querySelector('.filter-section');
-            if (filterBar) filterBar.style.display = '';
             if (container && container.classList.contains('category-section')) {
                 container.style.background = '';
                 container.style.border = '';
@@ -72,7 +68,7 @@ function isCrossFieldInline() {
 
 // 인라인 상세 타이틀 HTML (제목 + 날짜)
 function _inlineTitle(title) {
-    var dateVal = document.getElementById('target-date') ? document.getElementById('target-date').value : '';
+    var dateVal = getSelectedDate();
     var dateDisplay = '';
     if (dateVal) {
         var d = new Date(dateVal + 'T00:00:00');
@@ -82,52 +78,15 @@ function _inlineTitle(title) {
     return '<span>' + title + '</span>' + (dateDisplay ? '<span class="inline-detail-date">' + dateDisplay + '</span>' : '');
 }
 
-// 요일 표시 업데이트
-function updateWeekday() {
-    const dateInput = document.getElementById('target-date');
-    const weekdayDisplay = document.getElementById('weekday-display');
-    if (dateInput.value && weekdayDisplay) {
-        const date = new Date(dateInput.value + 'T00:00:00');
-        const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-        const weekday = weekdays[date.getDay()];
-        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-        weekdayDisplay.textContent = `(${weekday})`;
-        weekdayDisplay.style.color = isWeekend ? 'var(--color-critical)' : 'var(--text-secondary)';
-    }
-}
-
-// 로컬 날짜를 YYYY-MM-DD 형식으로 변환
-function formatLocalDate(date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-}
-
 // 초기화
 document.addEventListener('DOMContentLoaded', function() {
-    const dateInput = document.getElementById('target-date');
-    const saved = localStorage.getItem('monitoringSelectedDate');
-    if (saved) {
-        dateInput.value = saved;
-    } else {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        dateInput.value = formatLocalDate(yesterday);
-    }
-
-    // 날짜 변경 시 요일 업데이트 + localStorage 저장
-    dateInput.addEventListener('change', function() {
-        updateWeekday();
-        localStorage.setItem('monitoringSelectedDate', dateInput.value);
-    });
-    updateWeekday();
+    initFilterBar();
     checkBackupStatus();
     loadData();
 });
 
 async function checkBackupStatus() {
-    const date = document.getElementById('target-date').value;
+    const date = getSelectedDate();
     if (!date) return;
     try {
         const res = await fetch(`/dx/layer1/api/backup-status/?date=${date}`);
@@ -144,27 +103,6 @@ async function checkBackupStatus() {
     } catch (e) { /* 백업 상태 조회 실패 시 무시 */ }
 }
 
-// 다음날(조회 날짜 기준 +1일) 설정 후 조회
-function setNextDay() {
-    const dateInput = document.getElementById('target-date');
-    const current = new Date(dateInput.value);
-    current.setDate(current.getDate() + 1);
-    dateInput.value = formatLocalDate(current);
-    localStorage.setItem('monitoringSelectedDate', dateInput.value);
-    updateWeekday();
-    loadData();
-}
-
-// 전날(조회 날짜 기준 -1일) 설정 후 조회
-function setPrevDay() {
-    const dateInput = document.getElementById('target-date');
-    const current = new Date(dateInput.value);
-    current.setDate(current.getDate() - 1);
-    dateInput.value = formatLocalDate(current);
-    localStorage.setItem('monitoringSelectedDate', dateInput.value);
-    updateWeekday();
-    loadData();
-}
 
 // 섹션 → 카테고리명 매핑
 const SECTION_CATEGORY_MAP = {
@@ -176,7 +114,7 @@ const SECTION_CATEGORY_MAP = {
 // 데이터 로드
 async function loadData() {
     checkBackupStatus();
-    const date = document.getElementById('target-date').value;
+    const date = getSelectedDate();
     const section = (window.LAYER3 && window.LAYER3.section) || 'dashboard';
 
     // 인라인 상세보기 중이면 현재 보고 있는 항목 저장 (날짜 변경 후 복원용)
@@ -187,7 +125,49 @@ async function loadData() {
     ViewStack.stack = [];  // ViewStack 초기화
 
     const catContainer = document.getElementById('categories-container');
-    if (catContainer) catContainer.innerHTML = '<div class="loading">데이터를 불러오는 중...</div>';
+
+    // focus 파라미터 확인 (사이드바에서 직접 진입 시)
+    const urlParams = new URLSearchParams(window.location.search);
+    const focusParam = urlParams.get('focus');
+
+    // focus가 있으면 stats 건너뛰고 바로 상세 로드
+    if (focusParam) {
+        // 사이드바 하위메뉴 active 동기화
+        var expGroup = document.querySelector('.sidebar-group.expanded');
+        if (expGroup) {
+            expGroup.querySelectorAll('.sidebar-subitem').forEach(function(item) {
+                item.classList.toggle('active', item.textContent.trim() === focusParam);
+            });
+        }
+
+        if (section === 'field_missing') {
+            // 필드 누락은 stats 필요 (탭 전환)
+            if (catContainer) catContainer.innerHTML = '<div class="loading">데이터를 불러오는 중...</div>';
+            try {
+                const sectionParam = `&section=${section}`;
+                const data = await fetchAPI(`/layer3/api/stats/?date=${date}&type=all${sectionParam}`);
+                currentData = data;
+                renderData(data);
+                loadAllRetailersMissing();
+                switchFieldMissingTab(focusParam.toLowerCase());
+            } catch (error) {
+                console.error('Error:', error);
+                if (catContainer) catContainer.innerHTML = '<div class="loading">데이터 로드 실패</div>';
+            }
+        } else if (SECTION_CATEGORY_MAP[section]) {
+            showDetail(SECTION_CATEGORY_MAP[section], focusParam);
+        }
+
+        // focus 파라미터 제거 (뒤로가기 시 중복 방지)
+        urlParams.delete('focus');
+        const cleanUrl = urlParams.toString() ? `${window.location.pathname}?${urlParams}` : window.location.pathname;
+        history.replaceState(null, '', cleanUrl);
+        return;
+    }
+
+    if (catContainer) {
+        catContainer.innerHTML = '<div class="loading">데이터를 불러오는 중...</div>';
+    }
 
     // 필드 누락 캐시 초기화 (조회 시 항상 새로운 데이터 로드)
     retailerMissingCache = {};
@@ -197,7 +177,6 @@ async function loadData() {
         const data = await fetchAPI(`/layer3/api/stats/?date=${date}&type=all${sectionParam}`);
         currentData = data;
         renderData(data);
-        updateCurrentInfo(date);
 
         // 필드 누락 데이터 로드 (대시보드 또는 필드 누락 페이지에서만)
         if (section === 'dashboard' || section === 'field_missing') {
@@ -208,57 +187,12 @@ async function loadData() {
         if (reopenDetail) {
             showDetail('카테고리별 특성', reopenDetail);
         }
-
-        // URL focus 파라미터 처리 (사이드바에서 직접 진입 시)
-        if (!reopenDetail) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const focus = urlParams.get('focus');
-            if (focus) {
-                // 사이드바 하위메뉴 active 동기화
-                var expGroup = document.querySelector('.sidebar-group.expanded');
-                if (expGroup) {
-                    expGroup.querySelectorAll('.sidebar-subitem').forEach(function(item) {
-                        item.classList.toggle('active', item.textContent.trim() === focus);
-                    });
-                }
-
-                if (section === 'field_missing') {
-                    switchFieldMissingTab(focus.toLowerCase());
-                } else if (SECTION_CATEGORY_MAP[section]) {
-                    showDetail(SECTION_CATEGORY_MAP[section], focus);
-                }
-
-                // focus 파라미터 제거 (뒤로가기 시 중복 방지)
-                urlParams.delete('focus');
-                const cleanUrl = urlParams.toString() ? `${window.location.pathname}?${urlParams}` : window.location.pathname;
-                history.replaceState(null, '', cleanUrl);
-            }
-        }
     } catch (error) {
         console.error('Error:', error);
         if (catContainer) catContainer.innerHTML = '<div class="loading">데이터 로드 실패</div>';
     }
 }
 
-// 조회 날짜 정보 표시
-function updateCurrentInfo(date) {
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-    let badgeClass = 'past';
-    let badgeText = '';
-    if (date === today) {
-        badgeClass = 'today';
-        badgeText = 'TODAY';
-    } else if (date === yesterday) {
-        badgeClass = 'yesterday';
-        badgeText = 'D-1';
-    } else {
-        const diffDays = Math.floor((new Date(today) - new Date(date)) / 86400000);
-        badgeText = `D-${diffDays}`;
-    }
-    document.getElementById('current-info').innerHTML = `<strong>${esc(date)}</strong> 검증 현황 <span class="date-badge ${badgeClass}">${esc(badgeText)}</span>`;
-}
 
 // 데이터 렌더링
 function renderData(data) {
@@ -416,7 +350,7 @@ function toggleCategory(idx) {
 
 // 상세 정보 표시
 async function showDetail(category, checkName) {
-    const date = document.getElementById('target-date').value;
+    const date = getSelectedDate();
 
     // 사이드바 하위메뉴 active 동기화
     var expGroup = document.querySelector('.sidebar-group.expanded');
@@ -462,9 +396,7 @@ async function showDetail(category, checkName) {
         if (isCrossFieldInline() && apiUrl) {
             ViewStack.push(`
                 <div class="inline-detail">
-                    <button class="btn-back" onclick="ViewStack.pop()">← 목록으로</button>
-                    <div class="inline-detail-title">${_inlineTitle(title)}</div>
-                    <div class="inline-detail-body"><p style="text-align:center;">데이터를 불러오는 중...</p></div>
+                    <div class="inline-detail-body"><div class="loading">데이터를 불러오는 중...</div></div>
                 </div>
             `);
             try {
@@ -485,9 +417,7 @@ async function showDetail(category, checkName) {
         if (isCatSpecInline()) {
             ViewStack.push(`
                 <div class="inline-detail">
-                    <button class="btn-back" onclick="ViewStack.pop()">← 목록으로</button>
-                    <div class="inline-detail-title">${title}</div>
-                    <div class="inline-detail-body"><p style="text-align:center;">데이터를 불러오는 중...</p></div>
+                    <div class="inline-detail-body"><div class="loading">데이터를 불러오는 중...</div></div>
                 </div>
             `);
             try {
@@ -543,7 +473,7 @@ function renderDetailModal(title, category, data) {
             const inClause = items.map(item => `'${item}'`).join(', ');
 
             // 조회 쿼리 생성
-            const queryDate = data.date || document.getElementById('target-date').value;
+            const queryDate = data.date || getSelectedDate();
             let selectCols = 'id, item, account_name, retailer_sku_name, ' + dateColumn;
             if (isPriceCheck) {
                 selectCols += ', final_sku_price';
@@ -737,10 +667,10 @@ function renderCrossfieldSummaryContent(title, _category, data) {
     }
 
     if (inline) {
-        const titleEl = document.querySelector('.inline-detail-title');
-        const bodyEl = document.querySelector('.inline-detail-body');
-        if (titleEl) titleEl.style.display = 'none';
-        if (bodyEl) bodyEl.innerHTML = html;
+        const detailEl = document.querySelector('.inline-detail');
+        if (detailEl) {
+            detailEl.innerHTML = html;
+        }
     } else {
         AppModal.setTitle('detail', titleText);
         AppModal.setBody('detail', html);
@@ -791,10 +721,10 @@ function renderCatSpecSummaryContent(title, data) {
     }
 
     if (isCatSpecInline()) {
-        const titleEl = document.querySelector('.inline-detail-title');
-        const bodyEl = document.querySelector('.inline-detail-body');
-        if (titleEl) titleEl.style.display = 'none';
-        if (bodyEl) bodyEl.innerHTML = html;
+        const detailEl = document.querySelector('.inline-detail');
+        if (detailEl) {
+            detailEl.innerHTML = html;
+        }
     } else {
         AppModal.setTitle('detail', titleText);
         AppModal.setBody('detail', html);
@@ -856,9 +786,7 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
     if (inline) {
         ViewStack.push(`
             <div class="inline-detail">
-                <button class="btn-back" onclick="ViewStack.pop()">← 뒤로가기</button>
-                <div class="inline-detail-title">${_inlineTitle(ruleName)}</div>
-                <div class="inline-detail-body"><p style="text-align:center;">데이터를 불러오는 중...</p></div>
+                <div class="inline-detail-body"><div class="loading">데이터를 불러오는 중...</div></div>
             </div>
         `);
     } else {
@@ -888,34 +816,23 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
         }
 
         const anomalies = data.anomalies || [];
+        const retailerSummary = data.retailer_summary || {};
         if (anomalies.length === 0) {
             html += '<p>해당 검증 유형에 대한 이상치 데이터가 없습니다.</p>';
         } else {
-            // 정상처리된 record_id 집합 (배지 건수 차감용)
-            const normalReviews = data.normal_reviews || {};
-            const normalRecordIds = new Set();
-            Object.keys(normalReviews).forEach(key => {
-                normalRecordIds.add(key.split('_')[0]);
-            });
-
-            // 리테일러별 데이터 그룹핑
+            // 리테일러별 rows 그룹핑 (건수 계산은 백엔드 retailer_summary 사용)
             const retailerData = {};
             anomalies.forEach(row => {
                 const retailer = row.account_name || 'Unknown';
                 if (!retailerData[retailer]) {
-                    retailerData[retailer] = { items: [], rows: [], adjustedCount: 0 };
+                    retailerData[retailer] = { rows: [] };
                 }
                 retailerData[retailer].rows.push(row);
-                if (row.item && !retailerData[retailer].items.includes(row.item)) {
-                    retailerData[retailer].items.push(row.item);
-                }
-                if (!normalRecordIds.has(String(row.id || ''))) {
-                    retailerData[retailer].adjustedCount++;
-                }
             });
 
             // 전역에 저장 (리테일러 클릭 시 사용)
             window.crossfieldRetailerData = retailerData;
+            window.crossfieldRetailerSummary = retailerSummary;
             window.crossfieldAnomalies = anomalies;
             window.crossfieldProductLine = productLine;
             window.crossfieldDate = date;
@@ -929,23 +846,23 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             window.crossfieldRetailerColumns = data.retailer_columns || {};
             window.crossfieldPendingEdits = {};
 
+            // 건수는 백엔드 계산값 사용
             const titleText = `${ruleName} (${data.total_anomalies}건)`;
 
             // 리테일러 목록 (rule-summary-card 스타일)
             html += '<div class="rule-summary-section">';
             if (inline) html += `<div class="rule-summary-section-header">${_inlineTitle(titleText)}</div>`;
             html += '<div class="rule-summary-container">';
-            Object.keys(retailerData).sort().forEach(retailer => {
-                const rowCount = retailerData[retailer].adjustedCount;
-                if (rowCount === 0) return;
-                const items = retailerData[retailer].items;
+            Object.keys(retailerSummary).sort().forEach(retailer => {
+                const info = retailerSummary[retailer];
+                if (info.count === 0) return;
                 html += `
                     <div class="rule-summary-card" data-retailer="${esc(retailer)}" onclick="showRetailerDetail('${escJs(retailer)}')">
                         <div class="rule-info">
                             <div class="rule-name">${esc(retailer)}</div>
-                            <div class="rule-desc">${items.length} items</div>
+                            <div class="rule-desc">${info.items.length} items</div>
                         </div>
-                        <span class="rule-count">${rowCount}건</span>
+                        <span class="rule-count">${info.count}건</span>
                     </div>
                 `;
             });
@@ -953,10 +870,10 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
             html += '</div>';
         }
         if (inline) {
-            const titleEl = document.querySelector('.inline-detail-title');
-            const bodyEl = document.querySelector('.inline-detail-body');
-            if (titleEl) titleEl.style.display = 'none';
-            if (bodyEl) bodyEl.innerHTML = html;
+            const detailEl = document.querySelector('.inline-detail');
+            if (detailEl) {
+                detailEl.innerHTML = `<button class="btn-back" onclick="ViewStack.pop()">← 뒤로가기</button>` + html;
+            }
         } else {
             AppModal.setTitle('detail', ruleName + ' (' + (data.total_anomalies || 0) + '건)');
             AppModal.setBody('detail', html);
@@ -966,8 +883,8 @@ async function loadCrossfieldRuleDetail(productLine, ruleId, date, ruleName) {
         console.error('Error:', error);
         const errHtml = '<p style="color: red;">데이터 로드 실패</p>';
         if (inline) {
-            const body = document.querySelector('.inline-detail-body');
-            if (body) body.innerHTML = errHtml;
+            const detailEl = document.querySelector('.inline-detail');
+            if (detailEl) detailEl.innerHTML = errHtml;
         } else {
             AppModal.setBody('detail', errHtml);
         }
@@ -1586,7 +1503,8 @@ function showRetailerDetail(retailer) {
 
     const data = retailerData[retailer];
     const rows = data.rows;
-    const items = data.items;
+    const rSummary = (window.crossfieldRetailerSummary || {})[retailer] || {};
+    const items = rSummary.items || [];
 
     const productLine = window.crossfieldProductLine || 'HHP';
     const date = window.crossfieldDate || new Date().toISOString().slice(0, 10);
@@ -1594,7 +1512,7 @@ function showRetailerDetail(retailer) {
     const dateCol = productLine.toUpperCase() === 'HHP' ? 'crawl_strdatetime' : 'crawl_datetime';
     const productLineDisplay = productLine.toUpperCase();
     const ruleNameDisplay = window.crossfieldRuleName || '';
-    const titleText = `${ruleNameDisplay} (${data.adjustedCount}건)`;
+    const titleText = `${ruleNameDisplay} (${rSummary.count || 0}건)`;
     const subtitleText = `${productLineDisplay} Retail | ${retailer}`;
 
     const editableCols = inline ? (window.crossfieldEditableCols || new Set()) : new Set();
@@ -2868,7 +2786,7 @@ let retailerMissingCache = {};
 
 // 모든 리테일러 데이터 로드
 async function loadAllRetailersMissing() {
-    const date = document.getElementById('target-date').value;
+    const date = getSelectedDate();
     const retailers = ['Amazon', 'Bestbuy', 'Walmart'];
     let totalMissing = 0;
     let totalFields = 0;
@@ -2947,7 +2865,7 @@ let missingSummaryState = {
 function viewMissingSummary(retailer, dateOverride = null) {
     missingSummaryState.retailer = retailer;
     missingSummaryState.productLine = currentFieldMissingPL;
-    missingSummaryState.date = dateOverride || document.getElementById('target-date').value;
+    missingSummaryState.date = dateOverride || getSelectedDate();
 
     // 누락필드 섹션이면 인라인
     if (window.LAYER3 && window.LAYER3.section === 'field_missing') {
@@ -3079,7 +2997,7 @@ function changeSummaryDate(retailer) {
 
 // --- 인라인 요약 뷰 ---
 async function viewMissingSummaryInline(retailer, date) {
-    var actualDate = date || document.getElementById('target-date').value;
+    var actualDate = date || getSelectedDate();
     var cacheKey = currentFieldMissingPL + '-' + retailer;
     var cached = retailerMissingCache[cacheKey];
 
@@ -3091,11 +3009,11 @@ async function viewMissingSummaryInline(retailer, date) {
         var loadingHtml = '<div class="detail-view-wrapper" style="padding:40px;text-align:center;">데이터를 불러오는 중...</div>';
         ViewStack.push(loadingHtml, currentFieldMissingPL.toUpperCase() + ' - ' + retailer + ' 필드별 누락 요약');
         try {
-            var data = await fetchAPI('/layer3/api/field-missing/?date=' + (date || document.getElementById('target-date').value) + '&type=' + currentFieldMissingPL + '&retailer=' + retailer);
+            var data = await fetchAPI('/layer3/api/field-missing/?date=' + (date || getSelectedDate()) + '&type=' + currentFieldMissingPL + '&retailer=' + retailer);
             var missingFields = data.missing_fields || [];
             var summary = data.summary || {};
             var prevDates = data.prev_dates || [];
-            var actualDate = date || document.getElementById('target-date').value;
+            var actualDate = date || getSelectedDate();
             ViewStack.pop();
             _fmRenderSummaryInline(missingFields, summary, actualDate, prevDates, retailer);
         } catch (e) {
@@ -3337,7 +3255,7 @@ let missingItemsState = {
 
 // 누락분 보기 버튼
 async function viewMissingItems(retailer) {
-    const date = document.getElementById('target-date').value;
+    const date = getSelectedDate();
 
     // 상태 초기화
     missingItemsState = {
@@ -3520,7 +3438,7 @@ let threeDaysState = {
 
 // 3일치 보기 버튼
 async function view3DaysData(retailer) {
-    const date = document.getElementById('target-date').value;
+    const date = getSelectedDate();
 
     // 상태 초기화
     threeDaysState = {
@@ -3843,7 +3761,7 @@ document.getElementById('field-missing-retailer')?.addEventListener('change', lo
 
 // 3일치 전체보기
 async function showFieldMissing3Days() {
-    const date = document.getElementById('target-date').value;
+    const date = getSelectedDate();
     const productLine = currentFieldMissingPL || 'tv';
     const retailer = document.getElementById('field-missing-retailer').value;
     const field = document.getElementById('field-missing-field').value;
@@ -3900,7 +3818,7 @@ function renderFieldMissing3Days(data, fieldName) {
 
 // 필드 누락 탐지 데이터 로드
 async function loadFieldMissing() {
-    const date = document.getElementById('target-date').value;
+    const date = getSelectedDate();
     const productLine = currentFieldMissingPL || 'tv';
     const retailer = document.getElementById('field-missing-retailer').value;
 
@@ -3973,7 +3891,7 @@ function renderFieldMissing(data) {
 
 // 필드 누락 상세 - 전체 데이터
 async function showFieldMissingDetailAll(retailer, fieldName) {
-    const date = document.getElementById('target-date').value;
+    const date = getSelectedDate();
     const productLine = currentFieldMissingPL || 'tv';
 
     AppModal.setTitle('detail', `${fieldName} - 전체 데이터 (${retailer})`);
@@ -3991,7 +3909,7 @@ async function showFieldMissingDetailAll(retailer, fieldName) {
 
 // 필드 누락 상세 - 문제 데이터만
 async function showFieldMissingDetailProblem(retailer, fieldName) {
-    const date = document.getElementById('target-date').value;
+    const date = getSelectedDate();
     const productLine = currentFieldMissingPL || 'tv';
 
     AppModal.setTitle('detail', `${fieldName} - 문제 데이터 (${retailer})`);
@@ -4148,41 +4066,25 @@ function getValidationRules(checkName) {
 // =============================================
 // 사이드바 — 하위 항목 클릭 (전 섹션 공통)
 function onSubitemClick(parentSection, checkName) {
-    const section = (window.LAYER3 && window.LAYER3.section) || 'dashboard';
-    const date = document.getElementById('target-date') ? document.getElementById('target-date').value : '';
-    const dateParam = date ? `?date=${date}` : '';
-
-    // 사이드바 하위메뉴 active 상태 동기화
-    var group = document.querySelector('.sidebar-group.expanded');
-    if (group) {
-        group.querySelectorAll('.sidebar-subitem').forEach(function(item) {
-            item.classList.toggle('active', item.textContent.trim() === checkName);
-        });
-    }
-
-    // 해당 섹션 페이지가 아니면 이동
-    if (section !== parentSection) {
-        const sep = dateParam ? '&' : '?';
-        window.location.href = `/dx/layer3/${parentSection.replace('_', '-')}/${dateParam}${sep}focus=${encodeURIComponent(checkName)}`;
+    // 시계열 이상치: 모달로 열림 → 페이지 전환 없이 바로 모달 오픈
+    if (parentSection === 'time_series') {
+        showDetail('시계열 이상치', checkName);
         return;
     }
 
-    // 필드 누락: 탭 전환
-    if (parentSection === 'field_missing') {
-        // 상세보기 중이면 요약으로 복귀 후 탭 전환
-        while (ViewStack.depth() > 0) ViewStack.pop();
-        switchFieldMissingTab(checkName.toLowerCase());
-        return;
-    }
+    var date = getSelectedDate();
+    var params = [];
+    if (date) params.push('date=' + date);
+    if (checkName) params.push('focus=' + encodeURIComponent(checkName));
+    var qs = params.length > 0 ? '?' + params.join('&') : '';
 
-    // 인라인 상세보기 (시계열/크로스필드/카테고리별 특성 공통)
-    const categoryName = SECTION_CATEGORY_MAP[parentSection];
-    if (categoryName) {
-        // 상세보기 중이면 요약으로 복귀 후 새 상세보기
-        while (ViewStack.depth() > 0) ViewStack.pop();
-        showDetail(categoryName, checkName);
-        return;
-    }
+    var sectionUrls = {
+        cross_field: 'cross-field',
+        category_spec: 'category-spec',
+        field_missing: 'field-missing'
+    };
+    var path = sectionUrls[parentSection] || '';
+    window.location.href = '/dx/layer3/' + path + '/' + qs;
 }
 
 // ============================================================
@@ -4190,7 +4092,7 @@ function onSubitemClick(parentSection, checkName) {
 // ============================================================
 
 async function showFieldMissingDetailInline(retailer, fieldName) {
-    var date = document.getElementById('target-date').value;
+    var date = getSelectedDate();
     var productLine = currentFieldMissingPL || 'tv';
     var days = 3;
 
