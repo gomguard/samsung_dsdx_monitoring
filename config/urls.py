@@ -20,6 +20,7 @@ urlpatterns = [
     path('ds/layer3/', include('apps.ds.ds_layer3.urls')),
 
     # DX apps
+    path('dx/', include('apps.dx.dx_dashboard.urls', namespace='dx_dashboard')),
     path('dx/layer1/', include('apps.dx.dx_layer1.urls', namespace='dx_layer1')),
     path('dx/layer2/', include('apps.dx.dx_layer2.urls', namespace='dx_layer2')),
     path('dx/layer3/', include('apps.dx.dx_layer3.urls', namespace='dx_layer3')),

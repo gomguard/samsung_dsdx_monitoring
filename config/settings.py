@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'apps.ds.ds_layer2',
     'apps.ds.ds_layer3',
     # DX apps
+    'apps.dx.dx_dashboard',
     'apps.dx.dx_document',
     'apps.dx.dx_data',
     'apps.dx.dx_layer1',
