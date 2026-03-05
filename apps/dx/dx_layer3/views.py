@@ -52,16 +52,16 @@ def _get_sidebar_items():
 def _build_sidebar_groups(section):
     sidebar = _get_sidebar_items()
     return [
-        {'key': 'time_series', 'icon': '📈', 'label': '시계열 이상치', 'url': 'time-series/',
+        {'key': 'time_series', 'icon': '📈', 'label': '시계열 이상치',
          'expanded': section == 'time_series', 'active': section == 'time_series',
          'items': [{'name': n, 'active': False} for n in sidebar['time_series']]},
-        {'key': 'cross_field', 'icon': '🔗', 'label': '크로스 필드 검증', 'url': 'cross-field/',
+        {'key': 'cross_field', 'icon': '🔗', 'label': '크로스 필드 검증',
          'expanded': section == 'cross_field', 'active': section == 'cross_field',
          'items': [{'name': n, 'active': False} for n in sidebar['cross_field']]},
-        {'key': 'category_spec', 'icon': '📋', 'label': '카테고리별 특성', 'url': 'category-spec/',
+        {'key': 'category_spec', 'icon': '📋', 'label': '카테고리별 특성',
          'expanded': section == 'category_spec', 'active': section == 'category_spec',
          'items': [{'name': n, 'active': False} for n in sidebar['category_spec']]},
-        {'key': 'field_missing', 'icon': '🔍', 'label': '필드 누락', 'url': 'field-missing/',
+        {'key': 'field_missing', 'icon': '🔍', 'label': '필드 누락',
          'expanded': section == 'field_missing', 'active': section == 'field_missing',
          'items': [{'name': n, 'active': False} for n in sidebar['field_missing']]},
     ]

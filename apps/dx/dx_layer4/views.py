@@ -29,7 +29,6 @@ def _build_sidebar_groups(section, focus=''):
             'key': 'check_log',
             'icon': '✅',
             'label': '마감기록',
-            'url': 'check-log/',
             'expanded': section == 'check_log',
             'active': section == 'check_log',
             'items': [
@@ -40,7 +39,6 @@ def _build_sidebar_groups(section, focus=''):
             'key': 'corrections',
             'icon': '📝',
             'label': '검수기록',
-            'url': 'corrections/',
             'expanded': section == 'corrections',
             'active': section == 'corrections',
             'items': [
@@ -55,7 +53,6 @@ def _build_sidebar_groups(section, focus=''):
             'key': 'report',
             'icon': '📋',
             'label': '보고서',
-            'url': 'report/',
             'expanded': section == 'report',
             'active': section == 'report',
             'items': [

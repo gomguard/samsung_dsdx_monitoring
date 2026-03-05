@@ -1,5 +1,5 @@
 /**
- * 공통 사이드바 — initSidebar, toggleSidebarGroup, navigateSidebarGroup
+ * 공통 사이드바 — initSidebar, toggleSidebarGroup
  * onSubitemClick은 각 레이어 JS에서 정의 (레이어별 동작이 다름)
  */
 
@@ -26,15 +26,6 @@ function initSidebar() {
 function toggleSidebarGroup(rowEl) {
     var group = rowEl.closest('.sidebar-group');
     if (group) group.classList.toggle('expanded');
-}
-
-function navigateSidebarGroup(rowEl) {
-    var url = rowEl.dataset.url;
-    if (!url) return;
-
-    var dateEl = document.getElementById('target-date');
-    var dateParam = (dateEl && dateEl.value) ? '?date=' + dateEl.value : '';
-    window.location.href = url + dateParam;
 }
 
 document.addEventListener('DOMContentLoaded', initSidebar);

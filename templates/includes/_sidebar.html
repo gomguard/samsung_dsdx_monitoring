@@ -1,4 +1,4 @@
-<div class="dx-sidebar" id="dx-sidebar" data-base-url="{{ sidebar_base_url }}">
+<div class="dx-sidebar" id="dx-sidebar">
     <div class="sidebar-header">
         <span class="sidebar-title">{{ sidebar_title }}</span>
         <button class="sidebar-collapse-btn" type="button" title="사이드바 접기">
@@ -12,11 +12,10 @@
         </a>
         {% for group in sidebar_groups %}
         <div class="sidebar-group {% if group.expanded %}expanded{% endif %}">
-            <div class="sidebar-item-row {% if group.active %}active{% endif %}"
-                 onclick="navigateSidebarGroup(this)" data-url="{{ sidebar_base_url }}{{ group.url }}"
+            <div class="sidebar-item-row {% if group.active %}active{% endif %}" onclick="toggleSidebarGroup(this)">
                 <span class="sidebar-icon">{{ group.icon }}</span>
                 <span class="sidebar-text">{{ group.label }}</span>
-                <span class="sidebar-arrow" onclick="event.stopPropagation(); toggleSidebarGroup(this)">▶</span>
+                <span class="sidebar-arrow">▶</span>
             </div>
             <div class="sidebar-subitems">
                 {% for item in group.items %}
