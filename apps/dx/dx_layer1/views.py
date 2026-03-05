@@ -31,12 +31,14 @@ SIDEBAR_GROUPS_DEF = [
         'key': 'daily',
         'icon': '📦',
         'label': '데일리 검증',
+        'url': 'retail/',
         'sections': ['retail', 'sentiment', 'youtube', 'market_trend', 'market_demand'],
     },
     {
         'key': 'period',
         'icon': '📅',
         'label': '분석대상일별 검증',
+        'url': 'market-competitor/',
         'sections': ['market_competitor', 'market_competitor_event', 'market_promotion'],
     },
 ]
@@ -49,6 +51,7 @@ def _build_sidebar_groups(section):
             'key': g['key'],
             'icon': g['icon'],
             'label': g['label'],
+            'url': g['url'],
             'expanded': section in g['sections'],
             'active': section in g['sections'],
             'items': [

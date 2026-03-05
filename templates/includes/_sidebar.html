@@ -13,7 +13,7 @@
         {% for group in sidebar_groups %}
         <div class="sidebar-group {% if group.expanded %}expanded{% endif %}">
             <div class="sidebar-item-row {% if group.active %}active{% endif %}"
-                 onclick="navigateSidebarGroup(this)" data-key="{{ group.key }}">
+                 onclick="navigateSidebarGroup(this)" data-url="{{ sidebar_base_url }}{{ group.url }}"
                 <span class="sidebar-icon">{{ group.icon }}</span>
                 <span class="sidebar-text">{{ group.label }}</span>
                 <span class="sidebar-arrow" onclick="event.stopPropagation(); toggleSidebarGroup(this)">▶</span>

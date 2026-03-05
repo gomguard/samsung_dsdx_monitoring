@@ -45,11 +45,11 @@ def _build_sidebar_groups(section, focus=''):
         return [{'name': CATEGORY_NAMES.get(c, c), 'active': section == sec and CATEGORY_NAMES.get(c, c) == focus} for c in categories]
 
     return [
-        {'key': 'null_validation', 'icon': '🔍', 'label': 'NULL 검증',
+        {'key': 'null_validation', 'icon': '🔍', 'label': 'NULL 검증', 'url': 'null/',
          'expanded': section == 'null_validation', 'active': section == 'null_validation', 'items': make_items('null_validation')},
-        {'key': 'format_validation', 'icon': '📋', 'label': '형식 검증',
+        {'key': 'format_validation', 'icon': '📋', 'label': '형식 검증', 'url': 'format/',
          'expanded': section == 'format_validation', 'active': section == 'format_validation', 'items': make_items('format_validation')},
-        {'key': 'anomaly_validation', 'icon': '🔄', 'label': '중복 검증',
+        {'key': 'anomaly_validation', 'icon': '🔄', 'label': '중복 검증', 'url': 'anomaly/',
          'expanded': section == 'anomaly_validation', 'active': section == 'anomaly_validation', 'items': make_items('anomaly_validation')},
     ]
 

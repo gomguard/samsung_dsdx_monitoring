@@ -29,14 +29,12 @@ function toggleSidebarGroup(rowEl) {
 }
 
 function navigateSidebarGroup(rowEl) {
-    var key = rowEl.dataset.key;
-    var sidebar = document.getElementById('dx-sidebar');
-    var baseUrl = sidebar ? (sidebar.dataset.baseUrl || '') : '';
-    if (!key || !baseUrl) return;
+    var url = rowEl.dataset.url;
+    if (!url) return;
 
     var dateEl = document.getElementById('target-date');
     var dateParam = (dateEl && dateEl.value) ? '?date=' + dateEl.value : '';
-    window.location.href = baseUrl + key.replace(/_/g, '-') + '/' + dateParam;
+    window.location.href = url + dateParam;
 }
 
 document.addEventListener('DOMContentLoaded', initSidebar);
