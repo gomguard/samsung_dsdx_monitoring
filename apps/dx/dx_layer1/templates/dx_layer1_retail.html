@@ -294,7 +294,7 @@ function toggleRetailCategory(element, checkIdx, catIdx) {
 // ============================================================
 
 var rawView = new RawDataView({
-    apiUrl: '/dx/layer1/api/retailer-raw-data/',
+    apiUrl: '/dx/layer1/retail/api/raw-data/',
     backUrl: '/dx/layer1/retail/',
     title: function(p) { return p.category + ' Retail - ' + p.retailer + ' (' + p.period + ')'; },
     urlParams: ['category', 'retailer', 'period']
@@ -345,7 +345,7 @@ function switchColumnsTab(tab) {
 }
 
 function loadColumnsData() {
-    fetch('/dx/layer1/api/retailer-columns/')
+    fetch('/dx/layer1/retail/api/columns/')
         .then(function(response) { return response.json(); })
         .then(function(data) {
             columnsData = data;
@@ -416,8 +416,8 @@ async function loadSectionData() {
         // Retail Summary 데이터 로딩 (TV + HHP)
         try {
             var [tvSum, hhpSum] = await Promise.all([
-                fetch('/dx/layer1/api/retail-summary/?type=tv&date=' + selectedDate).then(r => r.json()),
-                fetch('/dx/layer1/api/retail-summary/?type=hhp&date=' + selectedDate).then(r => r.json())
+                fetch('/dx/layer1/retail/api/summary/?type=tv&date=' + selectedDate).then(r => r.json()),
+                fetch('/dx/layer1/retail/api/summary/?type=hhp&date=' + selectedDate).then(r => r.json())
             ]);
             currentRetailSummary = { tv: tvSum, hhp: hhpSum };
             currentNullData = { tv: tvSum.null_columns || [], hhp: hhpSum.null_columns || [] };

@@ -228,7 +228,7 @@ function renderYouTubeCheck(check, checkIdx) {
 // ============================================================
 
 var rawView = new RawDataView({
-    apiUrl: '/dx/layer1/api/youtube-raw-data/',
+    apiUrl: '/dx/layer1/youtube/api/raw-data/',
     backUrl: '/dx/layer1/youtube/',
     title: function(p) {
         var typeLabel = {'logs': '로그', 'videos': '비디오', 'comments': '댓글'}[p.data_type] || '로그';

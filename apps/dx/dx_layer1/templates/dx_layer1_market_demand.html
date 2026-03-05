@@ -144,7 +144,7 @@ function renderMarketDemandCheck(check, checkIdx) {
 // ============================================================
 
 var rawView = new RawDataView({
-    apiUrl: '/dx/layer1/api/market-demand-raw-data/',
+    apiUrl: '/dx/layer1/market-demand/api/raw-data/',
     backUrl: '/dx/layer1/market-demand/',
     title: function(p) { return 'Market Demand - ' + p.category; },
     urlParams: ['category'],

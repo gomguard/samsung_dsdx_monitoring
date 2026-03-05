@@ -197,7 +197,7 @@ function renderSentimentCheck(check, checkIdx) {
 // ============================================================
 
 var rawView = new RawDataView({
-    apiUrl: '/dx/layer1/api/sentiment-raw-data/',
+    apiUrl: '/dx/layer1/sentiment/api/raw-data/',
     backUrl: '/dx/layer1/sentiment/',
     title: function(p) { return p.category + ' Sentiment - ' + p.retailer + ' (' + p.period + ')'; },
     urlParams: ['category', 'retailer', 'period']

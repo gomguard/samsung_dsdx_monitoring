@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from .api import views as api_views
+from apps.dx.dx_layer1.common import api as check_api
 
 app_name = 'layer4'
 
@@ -16,10 +17,8 @@ urlpatterns = [
     path('api/corrections/cancel/', api_views.corrections_cancel, name='api_corrections_cancel'),
     path('api/report/', api_views.report_data, name='api_report'),
     path('api/review-reasons/', api_views.review_reasons, name='api_review_reasons'),
-    # Check Log APIs
-    path('api/check/status/', api_views.check_status, name='api_check_status'),
-    path('api/check/save/', api_views.check_save, name='api_check_save'),
-    path('api/check/delete/', api_views.check_delete, name='api_check_delete'),
+    # Check Log APIs — status는 Layer 1 common 참조, log/memo는 Layer 4 자체
+    path('api/check/status/', check_api.check_status, name='api_check_status'),
     path('api/check/log/', api_views.check_log_list, name='api_check_log_list'),
     path('api/check/memo/', api_views.check_memo_update, name='api_check_memo_update'),
     # Collection Issues APIs

@@ -122,8 +122,8 @@ async function loadStats() {
         // Retail Summary 데이터 로딩 (TV + HHP: rank별 건수 + NULL 컬럼)
         try {
             var [tvSum, hhpSum] = await Promise.all([
-                fetch('/dx/layer1/api/retail-summary/?type=tv&date=' + selectedDate).then(r => r.json()),
-                fetch('/dx/layer1/api/retail-summary/?type=hhp&date=' + selectedDate).then(r => r.json())
+                fetch('/dx/layer1/retail/api/summary/?type=tv&date=' + selectedDate).then(r => r.json()),
+                fetch('/dx/layer1/retail/api/summary/?type=hhp&date=' + selectedDate).then(r => r.json())
             ]);
             currentRetailSummary = { tv: tvSum, hhp: hhpSum };
             currentNullData = { tv: tvSum.null_columns || [], hhp: hhpSum.null_columns || [] };
@@ -1626,7 +1626,7 @@ function loadDemandMissingData() {
 
     wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
 
-    var url = '/dx/layer1/api/market-demand-missing/?category=' + encodeURIComponent(demandMissingDataState.category) +
+    var url = '/dx/layer1/market-demand/api/missing/?category=' + encodeURIComponent(demandMissingDataState.category) +
               '&date=' + encodeURIComponent(currentDate);
 
     fetch(url)
@@ -1701,7 +1701,7 @@ function runBackup() {
     btn.textContent = '확인 중...';
 
     // 1. 먼저 백업 대상 건수 조회 (GET)
-    fetch('/dx/layer1/api/backup/?date=' + targetDate)
+    fetch('/dx/layer1/retail/api/backup/?date=' + targetDate)
         .then(function(r) { return r.json(); })
         .then(function(res) {
             btn.disabled = false;
@@ -1721,7 +1721,7 @@ function runBackup() {
                 btn.disabled = true;
                 btn.textContent = '백업 중...';
 
-                fetch('/dx/layer1/api/backup/?date=' + targetDate, {
+                fetch('/dx/layer1/retail/api/backup/?date=' + targetDate, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

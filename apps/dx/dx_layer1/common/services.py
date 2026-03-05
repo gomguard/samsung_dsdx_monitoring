@@ -1,0 +1,316 @@
+"""
+검수 확인/완료 비즈니스 로직
+- check_status, check_save, check_delete, check_memo_update, check_log_list
+"""
+
+from datetime import datetime, timedelta
+
+
+ALL_SECTIONS = [
+    'retail', 'sentiment', 'youtube', 'market_trend',
+    'market_competitor', 'market_competitor_event',
+    'market_demand', 'market_promotion',
+]
+
+
+def get_target_sections(date_str):
+    """해당 날짜의 검증 대상 섹션 수 계산"""
+    from datetime import date as date_cls
+    target_date = date_cls.fromisoformat(date_str)
+
+    # 기본 대상: retail, sentiment, youtube, market_trend, market_demand (5개)
+    count = 5
+
+    # market_competitor: 분기 첫날
+    if target_date.day == 1 and target_date.month in [1, 4, 7, 10]:
+        count += 1
+
+    # market_competitor_event: 매월 첫 월요일
+    first_day = target_date.replace(day=1)
+    days_until_monday = (7 - first_day.weekday()) % 7
+    first_monday = first_day if first_day.weekday() == 0 else first_day + timedelta(days=days_until_monday)
+    if target_date == first_monday:
+        count += 1
+
+    # market_promotion: 월요일
+    if target_date.weekday() == 0:
+        count += 1
+
+    return count
+
+
+def get_check_status(cursor, date_str, layer, include_detail=False):
+    """날짜별 검수 확인 상태 조회"""
+    cursor.execute("""
+        SELECT id, section, expected_count, actual_count, rate, status, memo,
+               created_id, created_at, updated_id, updated_at, confirm_step
+        FROM monitoring_check_log
+        WHERE crawl_date = %s AND layer = %s AND is_del = 0
+        ORDER BY id
+    """, (date_str, layer))
+
+    rows = cursor.fetchall()
+    sections = {}
+    for row in rows:
+        sections[row[1]] = {
+            'id': row[0],
+            'expected_count': row[2],
+            'actual_count': row[3],
+            'rate': float(row[4]) if row[4] else 0,
+            'status': row[5],
+            'memo': row[6] or '',
+            'created_id': row[7],
+            'created_at': row[8].isoformat() if row[8] else None,
+            'updated_id': row[9],
+            'updated_at': row[10].isoformat() if row[10] else None,
+            'confirm_step': row[11],
+        }
+
+    check_log_ids = [sections[s]['id'] for s in sections]
+    if include_detail and check_log_ids:
+        placeholders = ','.join(['%s'] * len(check_log_ids))
+        cursor.execute(f"""
+            SELECT d.id, d.section, d.category, d.time_slot, d.retailer,
+                   d.item_name, d.expected_count, d.actual_count, d.rate, d.status,
+                   d.issue_id, d.confirm_step
+            FROM monitoring_check_log_detail d
+            WHERE d.check_log_id IN ({placeholders})
+            ORDER BY d.confirm_step, d.id
+        """, check_log_ids)
+        for dr in cursor.fetchall():
+            sec_key = dr[1]
+            step = dr[11]
+            if sec_key in sections:
+                cur_step = sections[sec_key]['confirm_step']
+                detail_key = 'details' if step == cur_step else 'details_step1'
+                if detail_key not in sections[sec_key]:
+                    sections[sec_key][detail_key] = []
+                sections[sec_key][detail_key].append({
+                    'detail_id': dr[0],
+                    'category': dr[2], 'time_slot': dr[3],
+                    'retailer': dr[4], 'item_name': dr[5],
+                    'expected_count': dr[6], 'actual_count': dr[7],
+                    'rate': float(dr[8]) if dr[8] else 0, 'status': dr[9],
+                    'issue_id': dr[10],
+                })
+
+    target_count = get_target_sections(date_str)
+    return {
+        'success': True,
+        'checked_all': len(sections) >= target_count,
+        'checked_count': len(sections),
+        'total_sections': target_count,
+        'sections': sections
+    }
+
+
+def save_check(cursor, conn, date_str, layer, step, sections, username):
+    """검수 확인 저장 (step=1: 1차 확인, step=2: 2차 완료)"""
+    now = datetime.now()
+
+    for s in sections:
+        section = s.get('section', '')
+        if section not in ALL_SECTIONS:
+            continue
+
+        details = s.get('details', [])
+        if details:
+            expected = sum(d.get('expected_count', 0) for d in details)
+            actual = sum(d.get('actual_count', 0) for d in details)
+        else:
+            expected = s.get('expected_count', 0)
+            actual = s.get('actual_count', 0)
+        rate = round(actual / expected * 100) if expected > 0 else s.get('rate', 0)
+
+        if step == 2:
+            # 2차 완료: 미해결 이슈 체크
+            cursor.execute("""
+                SELECT COUNT(*) FROM monitoring_check_log_issues
+                WHERE crawl_date = %s AND section = %s AND is_del = 0
+                  AND resolution_status = 'open'
+            """, (date_str, section))
+            open_count = cursor.fetchone()[0]
+            if open_count > 0:
+                conn.rollback()
+                return {
+                    'success': False,
+                    'error': '미해결 이슈 ' + str(open_count) + '건이 있습니다. 이슈를 먼저 처리하세요.'
+                }
+
+            # 2차 완료: NULL 상태 detail 체크 (이슈 미등록 시에만 차단)
+            null_items = [d for d in details if d.get('status') == 'NULL']
+            if null_items:
+                cursor.execute("""
+                    SELECT COUNT(*) FROM monitoring_check_log_issues
+                    WHERE crawl_date = %s AND section = %s AND is_del = 0
+                """, (date_str, section))
+                issue_count = cursor.fetchone()[0]
+                if issue_count == 0:
+                    null_names = ', '.join(d.get('item_name', '') or d.get('retailer', '') for d in null_items)
+                    conn.rollback()
+                    return {
+                        'success': False,
+                        'error': 'NULL 상태 항목이 ' + str(len(null_items)) + '건 있습니다 (' + null_names + '). 이슈를 먼저 등록하세요.',
+                        'level': 'warning'
+                    }
+
+            # check_log UPDATE (confirm_step=2, 최신 수치 반영)
+            cursor.execute("""
+                UPDATE monitoring_check_log
+                SET confirm_step = 2, expected_count = %s, actual_count = %s,
+                    rate = %s, status = %s, updated_id = %s, updated_at = %s
+                WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
+            """, (expected, actual, rate, s.get('status', 'OK'),
+                  username, now, date_str, layer, section))
+
+            # 기존 check_log_id 조회
+            cursor.execute("""
+                SELECT id FROM monitoring_check_log
+                WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
+            """, (date_str, layer, section))
+            row = cursor.fetchone()
+            if not row:
+                # 1차 없이 바로 2차 (100% 섹션)
+                cursor.execute("""
+                    INSERT INTO monitoring_check_log
+                        (crawl_date, layer, section, expected_count, actual_count,
+                         rate, status, memo, confirm_step, created_id, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 2, %s, %s)
+                    RETURNING id
+                """, (
+                    date_str, layer, section,
+                    expected, actual, rate, s.get('status', 'OK'),
+                    s.get('memo', ''), username, now
+                ))
+                row = cursor.fetchone()
+            check_log_id = row[0]
+
+            # detail 전체 INSERT (confirm_step=2)
+            for d in details:
+                cursor.execute("""
+                    INSERT INTO monitoring_check_log_detail
+                        (check_log_id, crawl_date, layer, section,
+                         category, time_slot, retailer, item_name,
+                         expected_count, actual_count, rate, status, confirm_step)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 2)
+                """, (
+                    check_log_id, date_str, layer, section,
+                    d.get('category', ''), d.get('time_slot', ''),
+                    d.get('retailer', ''), d.get('item_name', ''),
+                    d.get('expected_count', 0), d.get('actual_count', 0),
+                    d.get('rate', 0), d.get('status', 'OK')
+                ))
+
+        else:
+            # 1차 확인: 기존 soft-delete → INSERT 패턴
+            cursor.execute("""
+                UPDATE monitoring_check_log
+                SET is_del = 1, updated_id = %s, updated_at = %s
+                WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
+            """, (username, now, date_str, layer, section))
+
+            cursor.execute("""
+                INSERT INTO monitoring_check_log
+                    (crawl_date, layer, section, expected_count, actual_count,
+                     rate, status, memo, confirm_step, created_id, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, %s, %s)
+                RETURNING id
+            """, (
+                date_str, layer, section,
+                expected, actual,
+                rate, s.get('status', 'OK'), s.get('memo', ''),
+                username, now
+            ))
+            check_log_id = cursor.fetchone()[0]
+
+            # detail: 이상치(status≠OK)만 INSERT (confirm_step=1)
+            for d in details:
+                if d.get('status', 'OK') != 'OK':
+                    cursor.execute("""
+                        INSERT INTO monitoring_check_log_detail
+                            (check_log_id, crawl_date, layer, section,
+                             category, time_slot, retailer, item_name,
+                             expected_count, actual_count, rate, status, confirm_step)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
+                    """, (
+                        check_log_id, date_str, layer, section,
+                        d.get('category', ''), d.get('time_slot', ''),
+                        d.get('retailer', ''), d.get('item_name', ''),
+                        d.get('expected_count', 0), d.get('actual_count', 0),
+                        d.get('rate', 0), d.get('status', 'OK')
+                    ))
+
+            # 수요증감율 부족 키워드 저장
+            keywords = s.get('keywords', [])
+            if keywords:
+                for kw in keywords:
+                    cursor.execute("""
+                        INSERT INTO monitoring_check_log_keywords
+                            (check_log_id, crawl_date, category, event_name,
+                             product_name, event_date, created_id, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        check_log_id, date_str,
+                        kw.get('category', ''), kw.get('event_name', ''),
+                        kw.get('product_name', ''), kw.get('event_date'),
+                        username, now
+                    ))
+
+    conn.commit()
+    return {'success': True, 'saved_count': len(sections), 'step': step}
+
+
+def delete_check(cursor, conn, date_str, layer, section, step, delete_memo, username):
+    """검수 확인 취소 (step에 따라 다른 동작)"""
+    now = datetime.now()
+
+    if step == 2 and section:
+        # 2차 완료 취소
+        cursor.execute("""
+            SELECT id, updated_at FROM monitoring_check_log
+            WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
+        """, (date_str, layer, section))
+        row = cursor.fetchone()
+        if row:
+            check_log_id = row[0]
+            has_step1 = row[1] is not None
+            cursor.execute("""
+                DELETE FROM monitoring_check_log_detail
+                WHERE check_log_id = %s AND confirm_step = 2
+            """, (check_log_id,))
+            if has_step1:
+                cursor.execute("""
+                    UPDATE monitoring_check_log
+                    SET confirm_step = 1, updated_id = %s, updated_at = %s, delete_memo = %s
+                    WHERE id = %s
+                """, (username, now, delete_memo, check_log_id))
+            else:
+                cursor.execute("DELETE FROM monitoring_check_log_keywords WHERE check_log_id = %s", (check_log_id,))
+                cursor.execute("""
+                    UPDATE monitoring_check_log
+                    SET is_del = 1, updated_id = %s, updated_at = %s, delete_memo = %s
+                    WHERE id = %s
+                """, (username, now, delete_memo, check_log_id))
+    elif section:
+        # 1차 확인 취소
+        cursor.execute("""
+            SELECT id FROM monitoring_check_log
+            WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
+        """, (date_str, layer, section))
+        del_row = cursor.fetchone()
+        if del_row:
+            cursor.execute("DELETE FROM monitoring_check_log_keywords WHERE check_log_id = %s", (del_row[0],))
+        cursor.execute("""
+            UPDATE monitoring_check_log
+            SET is_del = 1, updated_id = %s, updated_at = %s, delete_memo = %s
+            WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
+        """, (username, now, delete_memo, date_str, layer, section))
+    else:
+        cursor.execute("""
+            UPDATE monitoring_check_log
+            SET is_del = 1, updated_id = %s, updated_at = %s, delete_memo = %s
+            WHERE crawl_date = %s AND layer = %s AND is_del = 0
+        """, (username, now, delete_memo, date_str, layer))
+
+    conn.commit()
+    return {'success': True, 'deleted': cursor.rowcount}

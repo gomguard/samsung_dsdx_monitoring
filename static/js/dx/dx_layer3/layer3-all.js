@@ -89,7 +89,7 @@ async function checkBackupStatus() {
     const date = getSelectedDate();
     if (!date) return;
     try {
-        const res = await fetch(`/dx/layer1/api/backup-status/?date=${date}`);
+        const res = await fetch(`/dx/layer1/retail/api/backup-status/?date=${date}`);
         const data = await res.json();
         if (!data.success || data.pending_count === 0) return;
 

@@ -86,6 +86,9 @@ coverage.xml
 # Jupyter Notebook
 .ipynb_checkpoints
 
+# 백업 폴더
+_backup/
+
 # 기타
 *.bak
 *.tmp
