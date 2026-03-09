@@ -668,7 +668,10 @@ def get_retailer_raw_data(cursor, category, retailer, period, target_date):
             raise ValueError(f"허용되지 않은 테이블: {table_name}")
 
         # 컬럼 검증 — DB에서 등록된 컬럼만 허용
-        all_valid_columns = set(get_all_retailer_columns(product_line))
+        retailer_columns = get_all_retailer_columns(product_line)
+        all_valid_columns = set()
+        for cols in retailer_columns.values():
+            all_valid_columns.update(cols)
         all_valid_columns.add('id')
         invalid_cols = [c for c in columns if c not in all_valid_columns]
         if invalid_cols:

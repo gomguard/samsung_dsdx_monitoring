@@ -1392,8 +1392,8 @@ def cross_field_detail(request):
                         FROM monitoring_corrections
                         WHERE layer = 3 AND correction_type = 'cross_field'
                           AND crawl_date = %s AND status = 'normal'
-                          AND table_name = %s
-                    """, (str(target_date), table_name))
+                          AND table_name = %s AND rule_id = %s
+                    """, (str(target_date), table_name, rule_id))
                     for nr_row in cur_nr.fetchall():
                         nr_key = f"{nr_row[0]}_{nr_row[1]}"
                         normal_reviews[nr_key] = {

@@ -1300,9 +1300,9 @@
             const gridCols = retailerCount <= 2 ? retailerCount : 3;
             html += `<div class="retailer-grid" style="grid-template-columns: repeat(${gridCols}, 1fr)">`;
             table.retailers.forEach(retailer => {
-                const hasIssue = (retailer.records_with_null || 0) > 0;
+                const hasIssue = (retailer.total_null_count || 0) > 0;
                 const totalCount = retailer.total || 0;
-                const nullCount = retailer.records_with_null || 0;
+                const nullCount = retailer.total_null_count || 0;
 
                 html += `
                     <div class="retailer-card ${(retailer.status || 'ok').toLowerCase()}">

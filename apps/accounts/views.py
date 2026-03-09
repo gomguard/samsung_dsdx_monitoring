@@ -13,7 +13,8 @@ from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from .models import UserProfile
 from apps.common.db import get_dx_connection, get_ds_connection, dx_table
-from apps.common.retail_columns import reload_retail_columns, reload_missing_exclude_rules, reload_null_check_config, reload_format_rules
+from apps.common.retail_columns import reload_retail_columns, reload_missing_exclude_rules, reload_format_rules
+from apps.dx.dx_layer2.null_validation.services import reload_null_check_config
 from apps.common.targets import reload_targets, format_time
 from apps.common.dx_schedules import reload_schedules
 import json

@@ -1475,14 +1475,16 @@ function renderDXTableDetail(vType, table) {
         const gridCols = retailerCount <= 2 ? retailerCount : 3;
         html += `<div class="retailer-grid" style="grid-template-columns: repeat(${gridCols}, 1fr)">`;
         table.retailers.forEach(retailer => {
-            const hasIssue = (retailer.records_with_null || 0) > 0;
+            const hasIssue = (retailer.total_null_count || 0) > 0;
             const totalCount = retailer.total || 0;
-            const nullCount = retailer.records_with_null || 0;
+            const nullCount = retailer.total_null_count || 0;
 
+            const fieldsJson = JSON.stringify(retailer.fields_detail || {}).replace(/'/g, '&#39;');
             html += `
                 <div class="retailer-card ${(retailer.status || 'ok').toLowerCase()}">
                     <div class="retailer-card-main"
-                         onclick="openDetailModal('null', '${tableName}', '${retailer.retailer}', ${nullCount})"
+                         data-fields='${fieldsJson}'
+                         onclick="openDetailModal('null', '${tableName}', '${retailer.retailer}', ${nullCount}, 1, this.dataset.fields)"
                          ${!hasIssue ? 'style="cursor: default;"' : 'style="cursor: pointer;"'}>
                         <div class="retailer-header">
                             <span class="retailer-name">${retailer.retailer}</span>
@@ -1660,7 +1662,7 @@ let modalState = {
 };
 var _dupPageSize = 50;
 
-function openDetailModal(type, tableName, retailer, count, page = 1) {
+function openDetailModal(type, tableName, retailer, count, page = 1, fieldsDetailJson = null) {
     if (count === 0) { showToast('조회된 데이터가 없습니다.', 'info'); return; }
 
     const typeNames = { 'null': 'NULL 검증', 'format': '형식 검증', 'duplicate': '중복 검증' };
@@ -1703,10 +1705,15 @@ function openDetailModal(type, tableName, retailer, count, page = 1) {
 
     modalState = { type, tableName, tableParam, retailer, count, currentPage: page, totalPages: 1, totalGroups: 0, nullFieldsData: null, selectedField: null, days: 1 };
 
+    // NULL 검증: fieldsDetail이 있으면 API 호출 없이 바로 요약 표시
+    if (type === 'null' && fieldsDetailJson) {
+        const fieldCounts = typeof fieldsDetailJson === 'string' ? JSON.parse(fieldsDetailJson) : fieldsDetailJson;
+        renderNullFieldSummary({ field_counts: fieldCounts, date: date });
+        return;
+    }
+
     let apiUrl;
-    if (type === 'null') {
-        apiUrl = `/dx/layer2/api/null-detail/?table=${tableParam}&retailer=${retailer}&date=${date}`;
-    } else if (type === 'format') {
+    if (type === 'format') {
         apiUrl = `/dx/layer2/api/format-detail/?table=${tableParam}&retailer=${retailer}&date=${date}`;
     } else if (type === 'duplicate') {
         apiUrl = `/dx/layer2/api/anomaly-detail/?table=${tableParam}&retailer=${retailer}&date=${date}&page=${page}&page_size=${_dupPageSize}`;
@@ -1729,18 +1736,10 @@ function openDetailModal(type, tableName, retailer, count, page = 1) {
                 modalState.currentPage = data.page || 1;
             }
 
-            // 실제 반환 건수로 subtitle 업데이트
-            var actualRecords = data.records || (dupResults ? dupResults.duplicates : null) || data.results || [];
-            var actualCount = type === 'duplicate' ? (modalState.totalGroups || actualRecords.length) : actualRecords.length;
             var subtitle = getDetailSubtitle();
-            if (subtitle) subtitle.textContent = tableName + ' | ' + actualCount + '건의 오류 데이터';
+            if (subtitle) subtitle.textContent = tableName + ' | ' + (modalState.count || 0) + '건의 오류 데이터';
 
-            // (중복 검증 액션 버튼은 테이블 위 action-bar에서 렌더)
-
-            if (type === 'null') {
-                modalState.nullFieldsData = data;
-                renderNullFieldSummary(data, tableParam);
-            } else if (type === 'format') {
+            if (type === 'format') {
                 modalState.formatFieldsData = data;
                 renderFormatFieldSummary(data, tableParam);
             } else {
@@ -1755,18 +1754,12 @@ function openDetailModal(type, tableName, retailer, count, page = 1) {
 }
 
 // NULL 필드별 요약 표시
-function renderNullFieldSummary(data, tableParam) {
+function renderNullFieldSummary(data) {
     const body = getDetailBody();
-    const records = data.records || data.results || [];
     const date = data.date || getSelectedDate();
 
-    const fieldCounts = {};
-    records.forEach(record => {
-        const nullFields = record.null_fields || [];
-        nullFields.forEach(field => {
-            fieldCounts[field] = (fieldCounts[field] || 0) + 1;
-        });
-    });
+    // 백엔드에서 계산한 필드별 건수 사용
+    const fieldCounts = data.field_counts || {};
 
     modalState.nullFieldsData = data;
     modalState.selectedField = null;
@@ -1783,7 +1776,7 @@ function renderNullFieldSummary(data, tableParam) {
         </div>`;
     }
 
-    const sortedFields = Object.entries(fieldCounts).sort((a, b) => b[1] - a[1]);
+    const sortedFields = Object.entries(fieldCounts).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]);
 
     if (sortedFields.length === 0) {
         html += '<p style="text-align: center; color: var(--text-secondary);">NULL 오류 데이터가 없습니다.</p>';
@@ -1803,11 +1796,35 @@ function renderNullFieldSummary(data, tableParam) {
     body.innerHTML = html;
 }
 
-// NULL 필드별 상세 데이터 표시
+// NULL 필드별 상세 데이터 표시 — API 호출로 해당 컬럼만 조회
 function showNullFieldDetail(fieldName, pushStack = true) {
     const body = getDetailBody();
-    const data = modalState.nullFieldsData;
-    const records = data.records || data.results || [];
+    if (body) body.innerHTML = '<div class="modal-loading">데이터 로딩 중...</div>';
+
+    const tableParam = modalState.tableParam;
+    const date = modalState.nullFieldsData?.date || getSelectedDate();
+    const days = modalState.days || 1;
+    const retailer = modalState.retailer || '';
+
+    modalState.selectedField = fieldName;
+
+    const apiUrl = `/dx/layer2/api/null-detail/?table=${tableParam}&retailer=${retailer}&date=${date}&days=${days}&column=${fieldName}`;
+
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            renderNullFieldDetailView(fieldName, data, pushStack);
+        })
+        .catch(error => {
+            console.error('Null Field Detail Error:', error);
+            if (body) body.innerHTML = '<div class="modal-loading" style="color: var(--color-critical);">데이터 로딩 실패</div>';
+        });
+}
+
+// NULL 필드별 상세 데이터 렌더링 (API 응답 기반)
+function renderNullFieldDetailView(fieldName, data, pushStack = true) {
+    const body = getDetailBody();
+    const records = data.results || [];
     const displayConfig = data.display_config || {};
     const queryConfig = data.query_config || {};
     const dateColumn = data.date_column || 'crawl_datetime';
@@ -1816,30 +1833,6 @@ function showNullFieldDetail(fieldName, pushStack = true) {
     const isRetail = tableParam === 'tv_retail' || tableParam === 'hhp_retail';
     const currentDays = modalState.days || 1;
 
-    var filteredRecords;
-    if (currentDays > 1 && isRetail) {
-        // days > 1: 조회 날짜에 해당 필드 null인 item 추출 → 해당 item 전체 레코드 표시
-        var targetDateStr = date;
-        var errorItems = new Set();
-        records.forEach(function(record) {
-            var recDate = (record[dateColumn] || '').substring(0, 10);
-            if (recDate === targetDateStr && (record.null_fields || []).includes(fieldName)) {
-                if (record.item) errorItems.add(record.item);
-            }
-        });
-        if (errorItems.size > 0) {
-            filteredRecords = records.filter(function(record) { return errorItems.has(record.item); });
-        } else {
-            filteredRecords = records.filter(function(record) { return (record.null_fields || []).includes(fieldName); });
-        }
-    } else {
-        filteredRecords = records.filter(record => {
-            const nullFields = record.null_fields || [];
-            return nullFields.includes(fieldName);
-        });
-    }
-
-    modalState.selectedField = fieldName;
     const fieldConfig = displayConfig[fieldName] || {};
     const selectColumns = fieldConfig.select_columns || [];
     const columnHeaders = fieldConfig.column_headers || {};
@@ -1866,10 +1859,10 @@ function showNullFieldDetail(fieldName, pushStack = true) {
                     onchange="reloadNullData(this.value)">
             </div>
         </div>`;
-        itemQueryHtml += `<h4 style="margin-bottom: 12px; font-size: 15px;">${fieldName} NULL 오류 (${filteredRecords.length}건)</h4>`;
+        itemQueryHtml += `<h4 style="margin-bottom: 12px; font-size: 15px;">${fieldName} NULL 오류 (${records.length}건)</h4>`;
     }
 
-    if (filteredRecords.length === 0) {
+    if (records.length === 0) {
         var emptyHtml = itemQueryHtml + '<p>해당 필드의 NULL 오류 데이터가 없습니다.</p>';
         if (isInlineMode()) {
             var _de = new Date(date + 'T00:00:00');
@@ -1890,11 +1883,10 @@ function showNullFieldDetail(fieldName, pushStack = true) {
 
     // Item/쿼리 섹션 생성 (retail만)
     if (isRetail) {
-        const items = [...new Set(filteredRecords.map(r => r.item).filter(Boolean))].sort();
-        const ids = filteredRecords.map(r => r.id).filter(Boolean);
+        const items = [...new Set(records.map(r => r.item).filter(Boolean))].sort();
+        const ids = records.map(r => r.id).filter(Boolean);
 
         if (isInlineMode()) {
-            // 섹션 페이지: item/ID 목록만 토글로 표시 (쿼리 없음)
             var listLabel = items.length > 0 ? 'Item 목록 (' + items.length + '개)' : ids.length > 0 ? 'ID 목록 (' + ids.length + '개)' : '';
             var listContent = items.length > 0 ? items.join(', ') : ids.join(', ');
             if (listLabel) {
@@ -1909,7 +1901,6 @@ function showNullFieldDetail(fieldName, pushStack = true) {
                 </div>`;
             }
         } else {
-            // 대시보드 모달: item 목록 + 쿼리 표시
             const tblName = tableParam === 'tv_retail' ? 'tv_retail_com' : 'hhp_retail_com';
             const retailerName = modalState.retailer || '';
             const queryCols = queryColumns.length > 0 ? queryColumns.join(', ') : '*';
@@ -1950,8 +1941,8 @@ function showNullFieldDetail(fieldName, pushStack = true) {
         var _dn = new Date(date + 'T00:00:00');
         var _wn = ['일','월','화','수','목','금','토'][_dn.getDay()];
         const fieldTitle = currentDays > 1
-            ? `${fieldName} NULL 오류 항목 (${filteredRecords.length}건 / ${currentDays}일치)`
-            : `${fieldName} NULL 오류 (${filteredRecords.length}건)`;
+            ? `${fieldName} NULL 오류 항목 (${records.length}건 / ${currentDays}일치)`
+            : `${fieldName} NULL 오류 (${records.length}건)`;
         const fieldSubtitle = `${modalState.tableName} | ${modalState.retailer}`;
         var daysInputHtml = isRetail ? `<div style="display:flex;align-items:center;gap:6px;margin-right:12px;">
             <label style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">일수:</label>
@@ -1972,11 +1963,10 @@ function showNullFieldDetail(fieldName, pushStack = true) {
         body.innerHTML = containerHtml;
     }
 
-    // CommonTable + FilterBar + Pagination 렌더 (deep copy로 원본 데이터 보호)
-    var detailRecords = JSON.parse(JSON.stringify(filteredRecords));
+    // CommonTable + FilterBar + Pagination 렌더
     renderDetailWithTable({
         config: columns,
-        data: detailRecords,
+        data: records,
         tableParam: tableParam,
         type: 'null',
         selectCols: data.select_cols || null,
@@ -2039,8 +2029,7 @@ function backToNullFieldSummary() {
         return;
     }
     const data = modalState.nullFieldsData;
-    const tableParam = modalState.tableParam;
-    renderNullFieldSummary(data, tableParam);
+    renderNullFieldSummary(data);
 }
 
 // ==================== 형식 검증: 필드별 요약 → 상세 (null 패턴) ====================
@@ -2049,13 +2038,8 @@ function renderFormatFieldSummary(data, tableParam) {
     const records = data.records || data.results || [];
     const date = data.date || getSelectedDate();
 
-    const fieldCounts = {};
-    records.forEach(record => {
-        const errorFields = record.error_fields || [];
-        errorFields.forEach(field => {
-            fieldCounts[field] = (fieldCounts[field] || 0) + 1;
-        });
-    });
+    // 백엔드에서 계산한 필드별 건수 사용
+    const fieldCounts = data.field_counts || {};
 
     modalState.formatFieldsData = data;
     modalState.selectedField = null;
@@ -2072,7 +2056,7 @@ function renderFormatFieldSummary(data, tableParam) {
         </div>`;
     }
 
-    const sortedFields = Object.entries(fieldCounts).sort((a, b) => b[1] - a[1]);
+    const sortedFields = Object.entries(fieldCounts).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]);
 
     if (sortedFields.length === 0) {
         html += '<p style="text-align: center; color: var(--text-secondary);">형식 오류 데이터가 없습니다.</p>';
@@ -2296,26 +2280,29 @@ async function reloadNullData(date) {
     const body = getDetailBody();
     body.innerHTML = '<div class="modal-loading">데이터를 불러오는 중...</div>';
 
-    const { tableParam, retailer, selectedField } = modalState;
+    const { selectedField } = modalState;
 
-    try {
-        const days = modalState.days || 1;
-        const response = await fetch(`/dx/layer2/api/null-detail/?table=${tableParam}&retailer=${retailer}&date=${date}&days=${days}`);
-        const data = await response.json();
+    if (selectedField) {
+        // 필드 상세 화면: 해당 컬럼만 재조회
+        showNullFieldDetail(selectedField, false);
+    } else {
+        // 요약 화면: stats API로 건수 재조회
+        try {
+            const response = await fetch(`/dx/layer2/api/stats/?date=${date}`);
+            const statsData = await response.json();
 
-        modalState.nullFieldsData = data;
+            // dxData에서 해당 리테일러의 fields_detail 찾기
+            const nullType = (statsData.validation_types || []).find(v => v.type === 'null');
+            const table = (nullType?.tables || []).find(t => t.table_name === modalState.tableName);
+            const retailerData = (table?.retailers || []).find(r => r.retailer === modalState.retailer);
+            const fieldCounts = retailerData?.fields_detail || {};
 
-        const records = data.records || data.results || [];
-        getDetailSubtitle().textContent = `${modalState.tableName} | ${records.length}건의 오류 데이터`;
-
-        if (selectedField) {
-            showNullFieldDetail(selectedField, false);
-        } else {
-            renderNullFieldSummary(data, tableParam);
+            modalState.nullFieldsData = { field_counts: fieldCounts, date: date };
+            renderNullFieldSummary(modalState.nullFieldsData);
+        } catch (error) {
+            console.error('Error:', error);
+            body.innerHTML = '<div class="modal-loading" style="color: var(--color-critical);">데이터 로드 실패</div>';
         }
-    } catch (error) {
-        console.error('Error:', error);
-        body.innerHTML = '<div class="modal-loading" style="color: var(--color-critical);">데이터 로드 실패</div>';
     }
 }
 
