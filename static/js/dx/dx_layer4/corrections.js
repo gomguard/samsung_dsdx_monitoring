@@ -1,0 +1,421 @@
+/**
+ * Layer 4 검수기록
+ */
+
+(function() {
+    'use strict';
+
+    var currentPage = 1;
+
+    // focus 파라미터 → 고정 검증유형
+    var FOCUS_TO_TYPE = { 'NULL 검수': 'null_check', '형식 검수': 'format_check', '중복 검수': 'duplicate_check', '크로스필드 검수': 'cross_field', '누락필드 검수': 'field_missing' };
+    var correctionsFocus = '';
+    var correctionsFixedType = '';
+
+    var correctionsFilterBar = null;
+
+    function getActiveType() {
+        return correctionsFixedType || 'all';
+    }
+
+    function resetFilters() {
+        currentPage = 1;
+        correctionsTable = null;
+        loadCorrections();
+    }
+
+    function buildCorrectionsFilterBar() {
+        var controls = [];
+
+        // 검색 항목 드롭다운 + 검색어 입력
+        var searchOptions = [
+            { value: 'category', label: '카테고리' },
+            { value: 'retailer', label: '리테일러' },
+            { value: 'column_name', label: '컬럼' },
+            { value: 'item', label: 'Item' },
+            { value: 'record_id', label: 'Record' }
+        ];
+        if (!correctionsFixedType) {
+            searchOptions.unshift({ value: 'correction_type', label: '검증유형' });
+        }
+        controls.push({
+            type: 'select', key: 'filter-search-field', label: '항목',
+            options: searchOptions
+        });
+        controls.push({
+            type: 'input', key: 'filter-search-value', placeholder: '검색어 입력...',
+            onEnter: resetFilters
+        });
+
+        correctionsFilterBar = new FilterBar('#corrections-filter-bar', {
+            controls: controls, plain: true, sticky: false,
+            onSearch: resetFilters,
+            onReset: resetFilters
+        }).render();
+
+        updateCancelButton();
+    }
+
+    function initCorrectionsFilterBar() {
+        var focusParam = new URLSearchParams(window.location.search).get('focus') || '';
+        correctionsFocus = focusParam;
+        correctionsFixedType = FOCUS_TO_TYPE[focusParam] || '';
+        buildCorrectionsFilterBar();
+        initCorrectionsTabs();
+    }
+
+    function initCorrectionsTabs() {
+        var tabsContainer = document.getElementById('corrections-tabs');
+        if (!tabsContainer) return;
+        tabsContainer.style.display = 'flex';
+        var tabs = tabsContainer.querySelectorAll('.log-tab');
+        tabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                tabs.forEach(function(t) { t.classList.remove('active'); });
+                tab.classList.add('active');
+                currentPage = 1;
+                correctionsTable = null;
+                updateCancelButton();
+                loadCorrections();
+            });
+        });
+        updateCancelButton();
+    }
+
+    function updateCancelButton() {
+        var existing = document.getElementById('corr-cancel-btn');
+        if (existing) existing.remove();
+        var activeTab = document.querySelector('#corrections-tabs .log-tab.active');
+        if (!activeTab || activeTab.dataset.status !== 'normal') return;
+        var tabsContainer = document.getElementById('corrections-tabs');
+        if (!tabsContainer) return;
+        var btn = document.createElement('button');
+        btn.id = 'corr-cancel-btn';
+        btn.className = 'app-btn app-btn-sm app-btn-danger';
+        btn.textContent = '취소';
+        btn.addEventListener('click', function() { cancelCheckedCorrections(); });
+        tabsContainer.appendChild(btn);
+    }
+
+    function updateTabCounts(correctedCount, normalCount, revertedCount) {
+        var el1 = document.getElementById('tabCorrectedCount');
+        var el2 = document.getElementById('tabNormalCount');
+        var el3 = document.getElementById('tabRevertedCount');
+        if (el1) { el1.textContent = correctedCount; el1.className = 'tab-count ' + (correctedCount > 0 ? 'count-corrected' : 'count-zero'); }
+        if (el2) { el2.textContent = normalCount; el2.className = 'tab-count ' + (normalCount > 0 ? 'count-normal' : 'count-zero'); }
+        if (el3) { el3.textContent = revertedCount; el3.className = 'tab-count ' + (revertedCount > 0 ? 'count-reverted' : 'count-zero'); }
+    }
+
+    function loadCorrections(page) {
+        var date = getSelectedDate();
+        if (!date) return;
+
+        if (page !== undefined) currentPage = page;
+        if (currentPage === 1) correctionsTable = null;
+
+        var type = getActiveType();
+        var activeTab = document.querySelector('#corrections-tabs .log-tab.active');
+        var status = activeTab ? activeTab.dataset.status : 'corrected';
+        var searchField = document.getElementById('filter-search-field') ? document.getElementById('filter-search-field').value : '';
+        var searchValue = document.getElementById('filter-search-value') ? document.getElementById('filter-search-value').value.trim() : '';
+
+        var url = '/dx/layer4/api/corrections/?date=' + encodeURIComponent(date)
+            + '&type=' + encodeURIComponent(type)
+            + '&status=' + encodeURIComponent(status)
+            + '&page=' + currentPage
+            + '&page_size=50';
+        if (searchValue && searchField) {
+            url += '&search_field=' + encodeURIComponent(searchField)
+                + '&search_value=' + encodeURIComponent(searchValue);
+        }
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) {
+                    showToast(data.error || '조회 실패', 'error');
+                    return;
+                }
+                if (data.status_counts) {
+                    updateTabCounts(data.status_counts.corrected || 0, data.status_counts.normal || 0, data.status_counts.reverted || 0);
+                }
+                renderCorrections(data);
+            })
+            .catch(function(e) {
+                console.error(e);
+                showToast('검수기록 조회 중 오류가 발생했습니다.', 'error');
+            });
+    }
+
+    // window에 노출 (페이지네이션 onclick에서 호출)
+    window.loadCorrections = loadCorrections;
+
+    var correctionsTable = null;
+    var correctionItems = [];
+
+    function getActiveStatus() {
+        var activeTab = document.querySelector('#corrections-tabs .log-tab.active');
+        return activeTab ? activeTab.dataset.status : 'corrected';
+    }
+
+    function getCorrectionsColumns() {
+        var status = getActiveStatus();
+        var isNormalTab = status === 'normal';
+        var isCorrectedTab = status === 'corrected';
+        var cols = [];
+        if (isNormalTab) {
+            cols.push({ key: '_check', label: '', width: 40, align: 'center' });
+        }
+        cols.push({ key: 'no', label: 'No.', width: 50, align: 'center' });
+        if (!correctionsFixedType) {
+            cols.push({ key: 'correction_type', label: '검증유형', width: 90, align: 'center' });
+        }
+        cols.push(
+            { key: 'table_name', label: '카테고리', width: 60 },
+            { key: 'retailer', label: '리테일러', width: 90 },
+            { key: 'item', label: 'Item', width: 140 }
+        );
+        // 수정 탭: record_id, 수집시간 표시
+        if (isCorrectedTab) {
+            cols.push(
+                { key: 'record_id', label: 'Record', width: 70, align: 'center' },
+                { key: 'crawl_time', label: '수집시간', width: 150 }
+            );
+        }
+        cols.push({ key: 'column_name', label: '컬럼', width: 160 });
+        // 수정/취소 탭: 이전값, 변경한 값 표시
+        if (!isNormalTab) {
+            cols.push(
+                { key: 'old_value', label: '이전값', width: 120 },
+                { key: 'new_value', label: '변경한 값', width: 120 }
+            );
+        }
+        // 확인 탭: 이유 표시
+        if (!isCorrectedTab) {
+            cols.push({ key: 'reason', label: '이유' });
+        }
+        return cols;
+    }
+
+    function renderCorrections(data) {
+        var container = document.getElementById('corrections-table-container');
+        var items = data.items || [];
+
+        if (items.length === 0) {
+            container.innerHTML = '<div class="l4-empty-state"><p>검수기록이 없습니다.</p></div>';
+            correctionsTable = null;
+            renderPagination(0, 0, 0);
+            return;
+        }
+
+        var startNo = (data.page - 1) * data.page_size;
+        var activeTab = document.querySelector('#corrections-tabs .log-tab.active');
+
+        if (!correctionsTable) {
+            container.innerHTML = '';
+            correctionsTable = new CommonTable(container, {
+                variant: 'detail',
+                columns: getCorrectionsColumns(),
+                resize: true,
+                vlines: true,
+                showTotalCount: true
+            });
+            correctionsTable.render();
+            if (activeTab && activeTab.dataset.status === 'normal') {
+                var firstTh = container.querySelector('thead th');
+                if (firstTh) {
+                    firstTh.innerHTML = '<input type="checkbox" id="corr-check-all">';
+                    document.getElementById('corr-check-all').addEventListener('change', function() {
+                        var checks = document.querySelectorAll('.corr-check');
+                        var checked = this.checked;
+                        checks.forEach(function(cb) { cb.checked = checked; });
+                    });
+                }
+            }
+        }
+
+        var CATEGORY_NAME = {
+            'tv_retail_com': 'TV', 'hhp_retail_com': 'HHP',
+            'youtube_collection_logs': 'YouTube', 'youtube_videos': 'YouTube', 'youtube_comments': 'YouTube',
+            'market_trend': 'Market Trend', 'market_comp_product': 'Market', 'market_comp_event': 'Market',
+            'openai_forecast_results': '수요증감율'
+        };
+        var status = getActiveStatus();
+        var isNormalTab = status === 'normal';
+        var isCorrectedTab = status === 'corrected';
+        correctionsTable.renderBody(items, function(item, idx) {
+            var categoryName = CATEGORY_NAME[item.table_name] || item.table_name;
+            var html = '<tr style="cursor:pointer" data-corr-idx="' + idx + '">';
+            if (isNormalTab) {
+                html += '<td style="text-align:center"><input type="checkbox" class="corr-check" data-id="' + item.id + '"></td>';
+            }
+            html += '<td style="text-align:center">' + (startNo + idx + 1) + '</td>';
+            if (!correctionsFixedType) {
+                var typeName = L4.TYPE_NAMES[item.correction_type] || item.correction_type;
+                html += '<td style="text-align:center"><span class="l4-type-badge">' + L4.escapeHtml(typeName) + '</span></td>';
+            }
+            html += '<td>' + L4.escapeHtml(categoryName) + '</td>'
+                + '<td>' + L4.escapeHtml(item.retailer || '-') + '</td>'
+                + '<td>' + L4.escapeHtml(item.item || '-') + '</td>';
+            if (isCorrectedTab) {
+                html += '<td style="text-align:center">' + L4.escapeHtml(String(item.record_id || '-')) + '</td>'
+                    + '<td>' + L4.escapeHtml(item.crawl_time || '-') + '</td>';
+            }
+            html += '<td>' + L4.escapeHtml(item.column_name) + '</td>';
+            if (!isNormalTab) {
+                html += '<td title="' + L4.escapeHtml(item.old_value || '') + '">' + L4.escapeHtml(item.old_value || '-') + '</td>'
+                    + '<td title="' + L4.escapeHtml(item.new_value || '') + '">' + L4.escapeHtml(item.new_value || '-') + '</td>';
+            }
+            if (!isCorrectedTab) {
+                html += '<td>' + L4.escapeHtml(item.reason || '-') + '</td>';
+            }
+            html += '</tr>';
+            return html;
+        });
+
+        // 행 클릭 → 상세 모달
+        correctionItems = items;
+        var tbody = container.querySelector('tbody');
+        if (tbody) {
+            tbody.addEventListener('click', function(e) {
+                if (e.target.tagName === 'INPUT') return;
+                var tr = e.target.closest('tr[data-corr-idx]');
+                if (!tr) return;
+                var idx = parseInt(tr.dataset.corrIdx);
+                showCorrectionDetail(items[idx], startNo + idx + 1);
+            });
+        }
+
+        renderPagination(data.page, data.total_pages, data.total);
+
+        var checkAll = document.getElementById('corr-check-all');
+        if (checkAll) checkAll.checked = false;
+    }
+
+    function showCorrectionDetail(item, no) {
+        var CATEGORY_NAME = {
+            'tv_retail_com': 'TV', 'hhp_retail_com': 'HHP',
+            'youtube_collection_logs': 'YouTube', 'youtube_videos': 'YouTube', 'youtube_comments': 'YouTube',
+            'market_trend': 'Market Trend', 'market_comp_product': 'Market', 'market_comp_event': 'Market',
+            'openai_forecast_results': '수요증감율'
+        };
+        var categoryName = CATEGORY_NAME[item.table_name] || item.table_name;
+        var typeName = L4.TYPE_NAMES[item.correction_type] || item.correction_type;
+        var statusName = L4.STATUS_NAMES[item.status] || item.status;
+        var isCorrected = item.status === 'corrected';
+
+        var rows = [
+            ['No.', no],
+            ['검증유형', typeName],
+            ['카테고리', categoryName],
+            ['리테일러', item.retailer || '-'],
+            ['Record', item.record_id],
+            ['Item', item.item || '-'],
+            ['컬럼', item.column_name],
+            ['이전값', item.old_value || '-'],
+            ['변경한 값', item.new_value || '-'],
+            ['상태', '<span class="l4-status ' + item.status + '">' + L4.escapeHtml(statusName) + '</span>'],
+            ['이유', item.reason || '-'],
+            ['메모', item.memo || '-'],
+            [isCorrected ? '수정자' : '확인자', item.created_id || '-'],
+            [isCorrected ? '수정일' : '확인일', item.created_at || '-']
+        ];
+        if (item.rule_name) {
+            rows.splice(3, 0, ['검증규칙명', item.rule_name]);
+        }
+        if (item.status === 'reverted') {
+            rows.push(['취소자', item.updated_id || '-']);
+            rows.push(['취소일', item.updated_at || '-']);
+            if (item.cancel_memo) {
+                rows.push(['취소 사유', item.cancel_memo]);
+            }
+        }
+
+        var html = '<table class="corr-detail-table">';
+        for (var i = 0; i < rows.length; i++) {
+            var isHtml = rows[i][0] === '상태';
+            html += '<tr><th>' + L4.escapeHtml(rows[i][0]) + '</th><td>' + (isHtml ? rows[i][1] : L4.escapeHtml(String(rows[i][1]))) + '</td></tr>';
+        }
+        html += '</table>';
+
+        AppModal.setTitle('corr-detail', '검수기록 상세');
+        AppModal.setBody('corr-detail', html);
+        AppModal.open('corr-detail');
+    }
+
+    async function cancelCheckedCorrections() {
+        var checked = document.querySelectorAll('.corr-check:checked');
+        if (checked.length === 0) {
+            showToast('취소할 항목을 선택하세요.', 'warning');
+            return;
+        }
+        var ids = [];
+        checked.forEach(function(cb) { ids.push(parseInt(cb.dataset.id)); });
+
+        var result = await showConfirm(ids.length + '건을 정상취소 하시겠습니까?', 'warning', {
+            input: { placeholder: '취소 사유 (선택)' }
+        });
+        if (!result.confirmed) return;
+
+        try {
+            var res = await fetch('/dx/layer4/api/corrections/cancel/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                body: JSON.stringify({ ids: ids, cancel_memo: result.value || '' })
+            });
+            var data = await res.json();
+            if (data.success) {
+                showToast(data.cancelled + '건 취소되었습니다.', 'success');
+                loadCorrections();
+            } else {
+                showToast(data.error || '취소 실패', 'error');
+            }
+        } catch (e) {
+            showToast('시스템 오류가 발생했습니다.', 'error');
+        }
+    }
+
+    function renderPagination(page, totalPages, total) {
+        var container = document.getElementById('corrections-pagination');
+        if (!container) return;
+
+        if (totalPages <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+
+        var html = '<div style="display:flex;justify-content:center;gap:4px;margin-top:16px;">';
+
+        if (page > 1) {
+            html += '<button class="app-btn app-btn-sm app-btn-outline" onclick="loadCorrections(1)">&laquo;</button>';
+            html += '<button class="app-btn app-btn-sm app-btn-outline" onclick="loadCorrections(' + (page - 1) + ')">&lsaquo;</button>';
+        }
+
+        var start = Math.max(1, page - 2);
+        var end = Math.min(totalPages, page + 2);
+
+        for (var i = start; i <= end; i++) {
+            if (i === page) {
+                html += '<button class="app-btn app-btn-sm" style="background:var(--layer-color);color:white;border-color:var(--layer-color);">' + i + '</button>';
+            } else {
+                html += '<button class="app-btn app-btn-sm app-btn-outline" onclick="loadCorrections(' + i + ')">' + i + '</button>';
+            }
+        }
+
+        if (page < totalPages) {
+            html += '<button class="app-btn app-btn-sm app-btn-outline" onclick="loadCorrections(' + (page + 1) + ')">&rsaquo;</button>';
+            html += '<button class="app-btn app-btn-sm app-btn-outline" onclick="loadCorrections(' + totalPages + ')">&raquo;</button>';
+        }
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // 핸들러/초기화 등록
+    L4._sectionHandler['corrections'] = loadCorrections;
+    L4._sectionInit['corrections'] = function() {
+        initCorrectionsFilterBar();
+        AppModal.create('corr-detail', { style: 'compact', closeOnOverlay: true });
+    };
+
+})();

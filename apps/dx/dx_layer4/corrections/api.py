@@ -11,6 +11,52 @@ from apps.common.response import safe_error
 from apps.common.params import parse_date
 
 
+# 원본 테이블별 수집 시간 컬럼 매핑
+_CRAWL_TIME_COLUMN = {
+    'tv_retail_com': 'crawl_datetime',
+    'hhp_retail_com': 'crawl_strdatetime',
+    'youtube_videos': 'created_at',
+    'youtube_collection_logs': 'started_at',
+    'youtube_comments': 'created_at',
+    'market_trend': 'crawl_at_local_time',
+    'market_comp_product': 'created_at',
+    'market_comp_event': 'created_at',
+    'openai_forecast_results': 'crawled_at',
+}
+
+# SQL 인젝션 방지: 허용된 테이블명만 사용
+_ALLOWED_TABLES = set(_CRAWL_TIME_COLUMN.keys())
+
+
+def _enrich_crawl_time(cursor, items):
+    """items에 crawl_time 필드를 추가 (원본 테이블에서 수집 시간 조회)"""
+    # table_name별로 record_id 그룹핑
+    ids_by_table = {}
+    for item in items:
+        tn = item.get('table_name')
+        rid = item.get('record_id')
+        if tn and rid and tn in _ALLOWED_TABLES:
+            ids_by_table.setdefault(tn, set()).add(rid)
+
+    # 테이블별 수집 시간 조회
+    crawl_time_map = {}  # (table_name, record_id) → crawl_time
+    for tn, record_ids in ids_by_table.items():
+        col = _CRAWL_TIME_COLUMN[tn]
+        placeholders = ','.join(['%s'] * len(record_ids))
+        cursor.execute(
+            f"SELECT id, {col} FROM {tn} WHERE id IN ({placeholders})",
+            list(record_ids)
+        )
+        for row in cursor.fetchall():
+            if row[1]:
+                crawl_time_map[(tn, row[0])] = row[1].strftime('%Y-%m-%d %H:%M') if hasattr(row[1], 'strftime') else str(row[1])
+
+    # items에 crawl_time 추가
+    for item in items:
+        key = (item.get('table_name'), item.get('record_id'))
+        item['crawl_time'] = crawl_time_map.get(key, '')
+
+
 def corrections_list(request):
     """검수기록 목록 조회 (GET)"""
     target_date = parse_date(request.GET.get('date'))
@@ -19,8 +65,8 @@ def corrections_list(request):
 
     correction_type = request.GET.get('type', 'all')
     status = request.GET.get('status', 'all')
-    category = request.GET.get('category', 'all')
-    rule_name = request.GET.get('rule_name', 'all')
+    search_field = request.GET.get('search_field', '')
+    search_value = request.GET.get('search_value', '').strip()
     page = int(request.GET.get('page', 1))
     page_size = int(request.GET.get('page_size', 50))
 
@@ -36,16 +82,22 @@ def corrections_list(request):
             base_clauses.append("c.correction_type = %s")
             base_params.append(correction_type)
 
-        if category != 'all':
-            category_table_map = {'TV': 'tv_retail_com', 'HHP': 'hhp_retail_com'}
-            table_name = category_table_map.get(category)
-            if table_name:
-                base_clauses.append("c.table_name = %s")
-                base_params.append(table_name)
-
-        if rule_name != 'all':
-            base_clauses.append("c.rule_id IN (SELECT id FROM monitoring_validation_rules WHERE detail_name = %s)")
-            base_params.append(rule_name)
+        _SEARCH_FIELDS = {
+            'category': 'c.table_name',
+            'retailer': 'c.retailer',
+            'column_name': 'c.column_name',
+            'item': 'c.item',
+            'record_id': None,
+            'correction_type': 'c.correction_type',
+        }
+        if search_value and search_field in _SEARCH_FIELDS:
+            if search_field == 'record_id':
+                base_clauses.append("CAST(c.record_id AS TEXT) LIKE %s")
+                base_params.append(f'%{search_value}%')
+            else:
+                col = _SEARCH_FIELDS[search_field]
+                base_clauses.append(f"{col} ILIKE %s")
+                base_params.append(f'%{search_value}%')
 
         # 탭 카운트 (status 필터 제외)
         base_where_sql = " AND ".join(base_clauses)
@@ -112,6 +164,9 @@ def corrections_list(request):
                 'updated_at': row[19].strftime('%Y-%m-%d %H:%M:%S') if row[19] else '',
                 'cancel_memo': row[20] or '',
             })
+
+        # 수집 시간 조회 (record_id → 원본 테이블 crawl_time)
+        _enrich_crawl_time(cursor, items)
 
         # 크로스필드일 때 룰 목록 반환 (detail_name 기준 중복 제거)
         rule_options = []

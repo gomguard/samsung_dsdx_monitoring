@@ -289,7 +289,7 @@
 {% endblock %}
 
 {% block layer4_js %}
-<script src="{% static 'js/dx/dx_layer4/layer4-all.js' %}?v=1"></script>
+<script src="{% static 'js/dx/dx_layer4/common.js' %}?v=1"></script>
 <script>
 var SECTION_NAMES = {
     retail: 'Retail',
@@ -303,6 +303,25 @@ var SECTION_NAMES = {
 };
 
 var _currentSection = null;  // loadDetail에서 저장
+var _currentStep = 2;  // 현재 보고 있는 step (1차/2차)
+var _stepInitialized = false;
+var _step1NoIssueKeys = null;  // 1차에서 이슈 미등록한 행 키 Set
+
+function _buildStep1NoIssueKeys() {
+    _step1NoIssueKeys = new Set();
+    var step1 = _currentSection && _currentSection.details_step1;
+    if (!step1) return;
+    step1.forEach(function(d) {
+        if (!d.issue_id) {
+            _step1NoIssueKeys.add(d.category + '|' + d.retailer + '|' + d.time_slot);
+        }
+    });
+}
+
+function _step1IssueSkipped(d) {
+    if (!_step1NoIssueKeys) return false;
+    return _step1NoIssueKeys.has(d.category + '|' + d.retailer + '|' + d.time_slot);
+}
 
 var DETAIL_COLUMNS = [
     { key: 'category', label: '카테고리', group: true },
@@ -357,9 +376,15 @@ async function loadDetail() {
         }
 
         _currentSection = sec;
+        if (!_stepInitialized) {
+            _currentStep = sec.confirm_step || 2;
+            _stepInitialized = true;
+        }
+        _buildStep1NoIssueKeys();
         renderSummary(sec);
         renderStepToggle(sec);
-        renderDetailTable(sec.details || []);
+        var details = _currentStep === 1 ? (sec.details_step1 || []) : (sec.details || []);
+        renderDetailTable(details);
     } catch (e) {
         document.getElementById('detailTableContainer').innerHTML = '<div class="cl-empty-state">시스템 오류가 발생했습니다.</div>';
     }
@@ -374,15 +399,15 @@ function renderStepToggle(sec) {
     container.style.display = 'block';
     container.innerHTML =
         '<div class="cl-step-toggle">' +
-            '<button class="cl-step-btn" onclick="switchStep(1)">1차 확인</button>' +
-            '<button class="cl-step-btn active" onclick="switchStep(2)">2차 완료</button>' +
+            '<button class="cl-step-btn' + (_currentStep === 1 ? ' active' : '') + '" onclick="switchStep(1)">1차 확인</button>' +
+            '<button class="cl-step-btn' + (_currentStep === 2 ? ' active' : '') + '" onclick="switchStep(2)">2차 완료</button>' +
         '</div>';
 }
 
 function switchStep(step) {
     if (!_currentSection) return;
-    document.querySelectorAll('.cl-step-btn').forEach(function(btn) { btn.classList.remove('active'); });
-    event.target.classList.add('active');
+    _currentStep = step;
+    renderStepToggle(_currentSection);
     var details = step === 1 ? (_currentSection.details_step1 || []) : (_currentSection.details || []);
     renderDetailTable(details);
 }
@@ -500,6 +525,8 @@ function renderDetailTable(details) {
         });
         if (d.issue_id) {
             html += '<td class="ct-nc" style="text-align:center;font-size:12px;color:var(--text-secondary);">등록됨</td>';
+        } else if (_currentStep === 2 && _step1IssueSkipped(d)) {
+            html += '<td class="ct-nc" style="text-align:center;font-size:12px;color:var(--text-secondary);" title="1차 확인에서 미등록">-</td>';
         } else {
             var rowData = JSON.stringify(d).replace(/"/g, '&quot;');
             html += '<td class="ct-nc" style="text-align:center;">' + AppButton.iconHtml('plus', 'openIssueFormFromRow(' + rowData + ')', { color: 'purple', size: 'sm' }) + '</td>';
