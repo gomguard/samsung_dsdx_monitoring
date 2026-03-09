@@ -2383,67 +2383,54 @@ function _cfHideReviewBar() {
     if (bar) bar.remove();
 }
 
-// 정상 처리 다이얼로그 (이유 선택 필수 + 메모 선택)
-function _cfShowReviewDialog(callback) {
-    var overlay = document.createElement('div');
-    overlay.className = 'memo-dialog-overlay';
-    overlay.innerHTML = '<div class="memo-dialog">'
-        + '<div class="memo-dialog-title">확인</div>'
-        + '<div class="memo-dialog-field"><label class="memo-dialog-label">이유 <span style="color:#dc2626;">*</span></label>'
-        + '<select class="memo-dialog-select" id="cf-review-reason-select"><option value="">불러오는 중...</option></select></div>'
-        + '<div class="memo-dialog-field"><label class="memo-dialog-label">메모</label>'
-        + '<textarea class="memo-dialog-input" placeholder="메모 입력 (선택사항)" rows="3"></textarea></div>'
-        + '<div class="memo-dialog-buttons">'
-        + '<button class="memo-dialog-cancel">취소</button>'
-        + '<button class="memo-dialog-confirm">확인</button>'
-        + '</div></div>';
-    document.body.appendChild(overlay);
-    setTimeout(function() { overlay.classList.add('show'); }, 10);
-
-    // 이유 목록 조회
-    fetch('/dx/layer3/api/review-reasons/?check_type=cross_field')
+// 정상 처리 공통 다이얼로그 (이유 선택 필수 + 메모 선택)
+// checkType: 'cross_field' | 'field_missing' 등 — review-reasons API 파라미터
+function _showReviewDialog(checkType, callback) {
+    fetch('/dx/layer3/api/review-reasons/?check_type=' + encodeURIComponent(checkType))
         .then(function(r) { return r.json(); })
-        .then(function(res) {
-            var sel = document.getElementById('cf-review-reason-select');
-            if (!sel) return;
-            var reasons = res.reasons || [];
-            if (reasons.length === 0) {
-                var reasonField = sel.closest('.memo-dialog-field');
-                if (reasonField) reasonField.style.display = 'none';
-            } else {
-                sel.innerHTML = '<option value="">-- 선택 --</option>';
-                reasons.forEach(function(r) {
-                    var opt = document.createElement('option');
-                    opt.value = r.text;
-                    opt.textContent = r.text;
-                    sel.appendChild(opt);
-                });
+        .then(function(data) {
+            var reasons = (data.reasons || []).map(function(r) { return typeof r === 'object' ? r.text : r; });
+            var overlay = document.createElement('div');
+            overlay.className = 'memo-dialog-overlay';
+            var reasonOpts = '<option value="">-- 선택 --</option>';
+            reasons.forEach(function(r) { reasonOpts += '<option value="' + esc(r) + '">' + esc(r) + '</option>'; });
+            var hideReason = reasons.length === 0;
+            overlay.innerHTML = '<div class="memo-dialog">'
+                + '<div class="memo-dialog-title">확인</div>'
+                + '<div class="memo-dialog-field"' + (hideReason ? ' style="display:none"' : '') + '><label class="memo-dialog-label">이유 <span style="color:#dc2626;">*</span></label>'
+                + '<select class="memo-dialog-select" id="review-reason-select">' + reasonOpts + '</select></div>'
+                + '<div class="memo-dialog-field"><label class="memo-dialog-label">메모</label>'
+                + '<textarea class="memo-dialog-input" id="review-memo" placeholder="메모 입력 (선택사항)" rows="3"></textarea></div>'
+                + '<div class="memo-dialog-buttons">'
+                + '<button class="memo-dialog-cancel">취소</button>'
+                + '<button class="memo-dialog-confirm">확인</button>'
+                + '</div></div>';
+            document.body.appendChild(overlay);
+            requestAnimationFrame(function() { overlay.classList.add('show'); });
+
+            function closeDlg() {
+                overlay.classList.remove('show');
+                setTimeout(function() { overlay.remove(); }, 200);
             }
+            overlay.querySelector('.memo-dialog-cancel').onclick = closeDlg;
+            overlay.querySelector('.memo-dialog-confirm').onclick = function() {
+                var reason = hideReason ? '' : document.getElementById('review-reason-select').value;
+                var memo = document.getElementById('review-memo').value.trim();
+                if (!hideReason && !reason) { showToast('이유를 선택해주세요', 'warning'); return; }
+                closeDlg();
+                callback(reason, memo);
+            };
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) closeDlg();
+            });
         })
         .catch(function() {
-            var sel = document.getElementById('cf-review-reason-select');
-            if (sel) sel.innerHTML = '<option value="">로딩 실패</option>';
+            showToast('이유 목록 로딩 실패', 'error');
         });
+}
 
-    var textarea = overlay.querySelector('.memo-dialog-input');
-    function closeDlg() {
-        overlay.classList.remove('show');
-        setTimeout(function() { overlay.remove(); }, 200);
-    }
-    overlay.querySelector('.memo-dialog-cancel').addEventListener('click', closeDlg);
-    overlay.querySelector('.memo-dialog-confirm').addEventListener('click', function() {
-        var selEl = document.getElementById('cf-review-reason-select');
-        var reasonField = selEl ? selEl.closest('.memo-dialog-field') : null;
-        var reasonHidden = reasonField && reasonField.style.display === 'none';
-        var reason = reasonHidden ? '' : (selEl ? selEl.value : '');
-        var memo = textarea.value.trim();
-        if (!reasonHidden && !reason) { showToast('이유를 선택해주세요', 'error'); return; }
-        closeDlg();
-        callback(reason, memo);
-    });
-    overlay.addEventListener('click', function(e) {
-        if (e.target === overlay) closeDlg();
-    });
+function _cfShowReviewDialog(callback) {
+    _showReviewDialog('cross_field', callback);
 }
 
 function _cfSubmitReview(td, status, memo, reason) {
@@ -4743,33 +4730,9 @@ function _fmHideReviewBar() {
 }
 
 window._fmShowReviewDialog = function(rowId, col) {
-    fetch('/dx/layer3/api/review-reasons/?check_type=field_missing')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            var reasons = (data.reasons || []).map(function(r) { return typeof r === 'object' ? r.text : r; });
-            var overlay = document.createElement('div');
-            overlay.className = 'memo-dialog-overlay';
-            var reasonOpts = '<option value="">선택하세요</option>';
-            reasons.forEach(function(r) { reasonOpts += '<option value="' + esc(r) + '">' + esc(r) + '</option>'; });
-            overlay.innerHTML = '<div class="memo-dialog">'
-                + '<div class="memo-dialog-title">확인</div>'
-                + '<div class="memo-dialog-field"><label class="memo-dialog-label">이유 (필수)</label><select class="memo-dialog-select" id="fm-review-reason">' + reasonOpts + '</select></div>'
-                + '<div class="memo-dialog-field"><label class="memo-dialog-label">메모 (선택)</label><textarea class="memo-dialog-input" id="fm-review-memo" rows="2"></textarea></div>'
-                + '<div class="memo-dialog-buttons">'
-                + '<button class="memo-dialog-cancel" id="fm-rev-cancel">취소</button>'
-                + '<button class="memo-dialog-confirm" id="fm-rev-confirm">확인</button>'
-                + '</div></div>';
-            document.body.appendChild(overlay);
-            requestAnimationFrame(function() { overlay.classList.add('show'); });
-            document.getElementById('fm-rev-cancel').onclick = function() { overlay.remove(); };
-            document.getElementById('fm-rev-confirm').onclick = function() {
-                var reason = document.getElementById('fm-review-reason').value;
-                var memo = document.getElementById('fm-review-memo').value.trim();
-                if (!reason) { showToast('이유를 선택해주세요', 'warning'); return; }
-                overlay.remove();
-                _fmSubmitReview(rowId, col, 'normal', reason, memo, '');
-            };
-        });
+    _showReviewDialog('field_missing', function(reason, memo) {
+        _fmSubmitReview(rowId, col, 'normal', reason, memo, '');
+    });
 };
 
 window._fmSubmitReview = function(rowId, col, status, reason, memo, normalKey) {

@@ -1,0 +1,699 @@
+"""
+Layer 3 필드 누락 API
+"""
+
+from django.http import JsonResponse
+from datetime import datetime, timedelta
+from apps.common.db import get_dx_connection
+from apps.common.retail_columns import get_editable_columns
+from apps.common.response import safe_error, log_error
+from apps.dx.dx_layer3.dashboard.services import validate_exclude_condition
+
+
+def field_missing_detection(request):
+    """
+    필드 누락 탐지 API
+    - 직전 2일 vs 오늘 비교
+    - 직전에는 값이 있었는데 오늘 NULL/빈값인 필드 탐지
+    """
+    import csv
+    import os
+
+    date_str = request.GET.get('date')
+    product_line = request.GET.get('type', 'tv')  # tv, hhp
+    retailer = request.GET.get('retailer', 'all')  # Amazon, Bestbuy, Walmart, all
+
+    if date_str:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    else:
+        target_date = (datetime.now() - timedelta(days=1)).date()
+
+    # 직전 2일
+    prev_date_1 = target_date - timedelta(days=1)
+    prev_date_2 = target_date - timedelta(days=2)
+
+    # DB에서 리테일러별 수집 필드 로드 (skip_missing_check=TRUE인 필드 제외)
+    from apps.common.retail_columns import get_retail_columns_for_retailer, get_missing_exclude_conditions
+    retail_columns = {}
+
+    for ret in ['Amazon', 'Bestbuy', 'Walmart']:
+        cols = get_retail_columns_for_retailer(product_line, ret)
+        if cols:
+            retail_columns[ret] = cols
+
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        results = {
+            'date': str(target_date),
+            'product_line': product_line.upper(),
+            'retailer': retailer,
+            'prev_dates': [str(prev_date_1), str(prev_date_2)],
+            'summary': {},
+            'missing_fields': []
+        }
+
+        # 테이블명과 날짜 컬럼 결정
+        if product_line == 'tv':
+            table_name = 'tv_retail_com'
+            date_column = 'crawl_datetime::timestamp'
+        else:
+            table_name = 'hhp_retail_com'
+            date_column = 'crawl_strdatetime'
+
+        # 리테일러 목록
+        retailers_to_check = ['Amazon', 'Bestbuy', 'Walmart'] if retailer == 'all' else [retailer]
+
+        total_missing = 0
+
+        for ret in retailers_to_check:
+            if ret not in retail_columns:
+                continue
+
+            columns_to_check = retail_columns[ret]
+            # 기본 필드 제외 (항상 있어야 하는 필드)
+            exclude_cols = ['id', 'item', 'account_name', 'page_type', 'crawl_datetime', 'crawl_strdatetime', 'calendar_week']
+            columns_to_check = [c for c in columns_to_check if c not in exclude_cols]
+
+            if not columns_to_check:
+                continue
+
+            # 모든 필드에 대해 한번의 쿼리로 처리
+            # 각 필드별로 직전값 존재 여부, 오늘 NULL 여부를 item별로 집계
+            case_prev = []
+            case_today = []
+            for col in columns_to_check:
+                safe_col = f'"{col}"'
+                case_prev.append(f"MAX(CASE WHEN DATE({date_column}) IN ('{prev_date_1}', '{prev_date_2}') AND {safe_col} IS NOT NULL AND CAST({safe_col} AS TEXT) != '' THEN 1 ELSE 0 END) as prev_{col.replace(' ', '_')}")
+
+                # exclude 조건 적용
+                exclude_conds = get_missing_exclude_conditions(ret, table_name, col)
+                exclude_conds = [c for c in exclude_conds if validate_exclude_condition(c)]
+                exclude_sql = ""
+                if exclude_conds:
+                    # psycopg2에서 %를 %%로 이스케이프 (LIKE 패턴 등)
+                    exclude_parts = " OR ".join([f"({c.replace('%', '%%')})" for c in exclude_conds])
+                    exclude_sql = f" AND NOT ({exclude_parts})"
+
+                case_today.append(f"MAX(CASE WHEN DATE({date_column}) = '{target_date}' AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = ''){exclude_sql} THEN 1 ELSE 0 END) as today_{col.replace(' ', '_')}")
+
+            query = f"""
+                SELECT item, {', '.join(case_prev)}, {', '.join(case_today)}
+                FROM {table_name}
+                WHERE account_name = %s
+                AND DATE({date_column}) IN (%s, %s, %s)
+                GROUP BY item
+            """
+            cursor.execute(query, (ret, prev_date_1, prev_date_2, target_date))
+            rows = cursor.fetchall()
+
+            # 각 필드별 누락 카운트 계산
+            field_stats = {col: {'prev_count': 0, 'missing_count': 0, 'missing_items': []} for col in columns_to_check}
+            num_cols = len(columns_to_check)
+
+            for row in rows:
+                # row: (item, prev_col1, prev_col2, ..., today_col1, today_col2, ...)
+                item_name = row[0]
+                for i, col in enumerate(columns_to_check):
+                    prev_val = row[1 + i]  # prev 값들
+                    today_val = row[1 + num_cols + i]  # today 값들
+                    if prev_val == 1:
+                        field_stats[col]['prev_count'] += 1
+                        if today_val == 1:
+                            field_stats[col]['missing_count'] += 1
+                            field_stats[col]['missing_items'].append(item_name)
+
+            # 각 필드별 오늘 날짜 누락 데이터 수(행 수) 조회
+            for col in columns_to_check:
+                stats = field_stats[col]
+                if stats['missing_count'] > 0 and stats['missing_items']:
+                    # 누락 item들의 오늘 날짜 NULL 행 수 조회
+                    safe_col = f'"{col}"'
+                    placeholders = ', '.join(['%s'] * len(stats['missing_items']))
+                    # exclude 조건 적용
+                    exclude_conds = get_missing_exclude_conditions(ret, table_name, col)
+                    exclude_conds = [c for c in exclude_conds if validate_exclude_condition(c)]
+                    exclude_sql = ""
+                    if exclude_conds:
+                        exclude_parts = " OR ".join([f"({c.replace('%', '%%')})" for c in exclude_conds])
+                        exclude_sql = f" AND NOT ({exclude_parts})"
+
+                    null_count_query = f"""
+                        SELECT COUNT(*) FROM {table_name}
+                        WHERE account_name = %s
+                        AND DATE({date_column}) = %s
+                        AND item IN ({placeholders})
+                        AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = ''){exclude_sql}
+                    """
+                    cursor.execute(null_count_query, (ret, target_date, *stats['missing_items']))
+                    stats['today_null_rows'] = cursor.fetchone()[0] or 0
+
+            # 정상처리 건수 차감 (field_missing)
+            try:
+                cursor.execute("""
+                    SELECT column_name, COUNT(DISTINCT item) FROM monitoring_corrections
+                    WHERE layer = 3 AND correction_type = 'field_missing'
+                      AND table_name = %s AND crawl_date = %s AND retailer = %s
+                      AND status = 'normal'
+                    GROUP BY column_name
+                """, (table_name, str(target_date), ret))
+                for nr_row in cursor.fetchall():
+                    nr_col, nr_count = nr_row[0], nr_row[1]
+                    if nr_col in field_stats:
+                        field_stats[nr_col]['missing_count'] = max(0, field_stats[nr_col]['missing_count'] - nr_count)
+            except Exception:
+                pass
+
+            # 결과 집계
+            for col in columns_to_check:
+                stats = field_stats[col]
+                if stats['missing_count'] > 0:
+                    total_missing += stats['missing_count']
+                    results['missing_fields'].append({
+                        'retailer': ret,
+                        'column': col,
+                        'prev_had_value_items': stats['prev_count'],
+                        'today_missing_items': stats['missing_count'],
+                        'today_null_rows': stats.get('today_null_rows', 0),  # 누락 데이터 수 (행 수)
+                        'missing_rate': round(stats['missing_count'] / stats['prev_count'] * 100, 2) if stats['prev_count'] > 0 else 0
+                    })
+
+        results['summary'] = {
+            'total_missing_cases': total_missing,
+            'fields_with_issues': len(results['missing_fields']),
+            'status': 'OK' if total_missing == 0 else ('WARNING' if total_missing < 10 else 'CRITICAL')
+        }
+
+        cursor.close()
+        conn.close()
+
+        return JsonResponse(results)
+
+    except Exception as e:
+        log_error(e)
+        return safe_error(e)
+
+
+def field_missing_detail_all(request):
+    """
+    필드 누락 탐지 상세 - 3일치 raw 데이터 (무한스크롤용)
+    item + crawl_datetime 순으로 정렬, 필드들을 컬럼으로 표시
+    offset/limit 파라미터로 데이터 분할 조회
+    """
+    import csv
+    import os
+
+    date_str = request.GET.get('date')
+    product_line = request.GET.get('product_line', request.GET.get('type', 'tv'))
+    retailer = request.GET.get('retailer', 'Amazon')
+    try:
+        offset = max(0, int(request.GET.get('offset', 0)))
+        limit = min(int(request.GET.get('limit', 100)), 500)
+    except (ValueError, TypeError):
+        offset = 0
+        limit = 100
+
+    if date_str:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    else:
+        target_date = (datetime.now() - timedelta(days=1)).date()
+
+    prev_date_1 = target_date - timedelta(days=1)
+    prev_date_2 = target_date - timedelta(days=2)
+
+    # DB에서 리테일러별 수집 필드 로드
+    from apps.common.retail_columns import get_retailer_columns
+    retail_columns = get_retailer_columns(product_line, retailer)
+
+    # 표시할 필드 선택 (긴 텍스트 필드 제외)
+    exclude_cols = ['calendar_week', 'detailed_review_content', 'summarized_review_content']
+    display_fields = [c for c in retail_columns if c not in exclude_cols and c not in ['id', 'item', 'account_name', 'page_type', 'crawl_datetime', 'crawl_strdatetime', 'product_url']]
+
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        if product_line == 'tv':
+            table_name = 'tv_retail_com'
+            date_column = 'crawl_datetime'
+            date_cast = 'crawl_datetime::timestamp'
+        else:
+            table_name = 'hhp_retail_com'
+            date_column = 'crawl_strdatetime'
+            date_cast = 'crawl_strdatetime'
+
+        # SELECT 절 구성: id, crawl_datetime, item + 표시 필드들 + product_url(마지막)
+        select_cols = ['id', date_column, 'item']
+        for col in display_fields:
+            select_cols.append(f'"{col}"')
+        select_cols.append('product_url')  # URL은 마지막에
+
+        select_clause = ', '.join(select_cols)
+
+        # 먼저 총 건수 조회 (첫 요청시에만)
+        total_count = 0
+        if offset == 0:
+            cursor.execute(f"""
+                SELECT COUNT(*)
+                FROM {table_name}
+                WHERE account_name = %s
+                AND DATE({date_cast}) IN (%s, %s, %s)
+            """, (retailer, prev_date_2, prev_date_1, target_date))
+            total_count = cursor.fetchone()[0]
+
+        # 3일치 데이터 조회 (item, crawl_datetime 순 정렬, 무한스크롤용)
+        cursor.execute(f"""
+            SELECT {select_clause}
+            FROM {table_name}
+            WHERE account_name = %s
+            AND DATE({date_cast}) IN (%s, %s, %s)
+            ORDER BY item, {date_column} ASC
+            LIMIT %s OFFSET %s
+        """, (retailer, prev_date_2, prev_date_1, target_date, limit, offset))
+
+        rows = cursor.fetchall()
+
+        # 컬럼명 목록 (product_url은 마지막)
+        column_names = ['id', date_column, 'item'] + display_fields + ['product_url']
+
+        # 데이터 변환
+        all_data = []
+        for row in rows:
+            row_dict = {}
+            for i, col_name in enumerate(column_names):
+                val = row[i]
+                # datetime 변환
+                if col_name == date_column and val:
+                    val = str(val)
+                row_dict[col_name] = val
+            all_data.append(row_dict)
+
+        cursor.close()
+        conn.close()
+
+        response_data = {
+            'status': 'success',
+            'date': str(target_date),
+            'prev_dates': [str(prev_date_2), str(prev_date_1)],
+            'product_line': product_line.upper(),
+            'retailer': retailer,
+            'columns': column_names,
+            'display_fields': display_fields,
+            'offset': offset,
+            'limit': limit,
+            'fetched_rows': len(all_data),
+            'has_more': len(all_data) == limit,
+            'data': all_data
+        }
+
+        # 첫 요청시에만 total_count 포함
+        if offset == 0:
+            response_data['total_count'] = total_count
+
+        return JsonResponse(response_data)
+
+    except Exception as e:
+        log_error(e)
+        return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
+
+
+def field_missing_detail_problem(request):
+    """
+    필드 누락 탐지 상세 - 문제 있는 item만 (직전에 있었는데 오늘 없는)
+    column 파라미터 없으면 해당 리테일러의 모든 컬럼 검사
+    무한 스크롤: offset, limit 파라미터 지원
+    """
+    import csv
+    import os
+
+    date_str = request.GET.get('date')
+    product_line = request.GET.get('product_line', request.GET.get('type', 'tv'))
+    retailer = request.GET.get('retailer', 'Amazon')
+    column = request.GET.get('column', '')  # 선택: 검사할 컬럼 (없으면 모든 컬럼)
+    try:
+        offset = max(0, int(request.GET.get('offset', 0)))
+        limit = min(int(request.GET.get('limit', 100)), 500)
+    except (ValueError, TypeError):
+        offset = 0
+        limit = 100
+
+    if date_str:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    else:
+        target_date = (datetime.now() - timedelta(days=1)).date()
+
+    prev_date_1 = target_date - timedelta(days=1)
+    prev_date_2 = target_date - timedelta(days=2)
+
+    # DB에서 리테일러별 수집 필드 로드
+    from apps.common.retail_columns import get_retailer_columns
+    retail_columns = get_retailer_columns(product_line, retailer)
+
+    # 기본 필드 제외
+    exclude_cols = ['id', 'item', 'account_name', 'page_type', 'crawl_datetime', 'crawl_strdatetime', 'calendar_week', 'product_url']
+    columns_to_check = [c for c in retail_columns if c not in exclude_cols]
+
+    # column 파라미터가 있으면 해당 컬럼만
+    if column:
+        columns_to_check = [column] if column in columns_to_check else []
+
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        if product_line == 'tv':
+            table_name = 'tv_retail_com'
+            date_column = 'crawl_datetime'
+            date_cast = 'crawl_datetime::timestamp'
+        else:
+            table_name = 'hhp_retail_com'
+            date_column = 'crawl_strdatetime'
+            date_cast = 'crawl_strdatetime'
+
+        # 모든 컬럼에 대한 누락 데이터를 UNION ALL로 한번에 조회
+        union_queries = []
+        params = []
+
+        for col in columns_to_check:
+            safe_col = f'"{col}"'
+            union_queries.append(f"""
+                SELECT
+                    p.item,
+                    p.account_name,
+                    '{col}' as field_name,
+                    p.prev_value
+                FROM (
+                    SELECT DISTINCT item, account_name, MAX(CAST({safe_col} AS TEXT)) as prev_value
+                    FROM {table_name}
+                    WHERE account_name = %s
+                    AND DATE({date_cast}) IN (%s, %s)
+                    AND {safe_col} IS NOT NULL
+                    AND CAST({safe_col} AS TEXT) != ''
+                    GROUP BY item, account_name
+                ) p
+                LEFT JOIN (
+                    SELECT DISTINCT item, account_name, {safe_col}
+                    FROM {table_name}
+                    WHERE account_name = %s
+                    AND DATE({date_cast}) = %s
+                ) t ON p.item = t.item AND p.account_name = t.account_name
+                WHERE t.{safe_col} IS NULL OR CAST(t.{safe_col} AS TEXT) = ''
+            """)
+            params.extend([retailer, prev_date_1, prev_date_2, retailer, target_date])
+
+        if not union_queries:
+            cursor.close()
+            conn.close()
+            return JsonResponse({
+                'status': 'success',
+                'date': str(target_date),
+                'prev_dates': [str(prev_date_1), str(prev_date_2)],
+                'product_line': product_line.upper(),
+                'retailer': retailer,
+                'fields': columns_to_check,
+                'total_count': 0,
+                'offset': offset,
+                'limit': limit,
+                'has_more': False,
+                'data': []
+            })
+
+        full_query = " UNION ALL ".join(union_queries)
+
+        # 먼저 전체 카운트 조회
+        count_query = f"SELECT COUNT(*) FROM ({full_query}) as all_data"
+        cursor.execute(count_query, params)
+        total_count = cursor.fetchone()[0]
+
+        # 페이지네이션 적용한 데이터 조회
+        data_query = f"""
+            SELECT * FROM ({full_query}) as all_data
+            ORDER BY field_name, item
+            OFFSET %s LIMIT %s
+        """
+        cursor.execute(data_query, params + [offset, limit])
+
+        rows = cursor.fetchall()
+        all_missing = []
+        for row in rows:
+            prev_val = row[3]
+            all_missing.append({
+                'item': row[0],
+                'account_name': row[1],
+                'field_name': row[2],
+                'd2_value': prev_val,
+                'd1_value': prev_val,
+                'today_value': None,
+                'today_has_value': False
+            })
+
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({
+            'status': 'success',
+            'date': str(target_date),
+            'prev_dates': [str(prev_date_1), str(prev_date_2)],
+            'product_line': product_line.upper(),
+            'retailer': retailer,
+            'fields': columns_to_check,
+            'total_count': total_count,
+            'offset': offset,
+            'limit': limit,
+            'has_more': (offset + limit) < total_count,
+            'data': all_missing
+        })
+
+    except Exception as e:
+        log_error(e)
+        return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
+
+
+def field_missing_detail_by_field(request):
+    """
+    특정 필드의 누락 item들에 대한 3일치 raw 데이터 조회
+    - 직전 2일에 값이 있었는데 오늘 없는 item들의 3일치 전체 데이터
+    """
+    import csv
+    import os
+
+    date_str = request.GET.get('date')
+    product_line = request.GET.get('product_line', 'tv')
+    retailer = request.GET.get('retailer', 'Amazon')
+    field = request.GET.get('field', '')  # 필수: 조회할 필드
+    days = int(request.GET.get('days', 3))
+    if days < 1:
+        days = 1
+    if days > 30:
+        days = 30
+
+    if not field:
+        return JsonResponse({'status': 'error', 'message': 'field 파라미터가 필요합니다.'})
+
+    if date_str:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    else:
+        target_date = (datetime.now() - timedelta(days=1)).date()
+
+    # 조회 범위: target_date 포함 days일치
+    prev_dates = [target_date - timedelta(days=i) for i in range(1, days)]
+    all_dates = [target_date] + prev_dates  # [오늘, 어제, 그저께, ...]
+
+    # 누락 판정용 (직전 2일)
+    prev_date_1 = target_date - timedelta(days=1)
+    prev_date_2 = target_date - timedelta(days=2)
+
+    # DB에서 리테일러별 수집 필드 및 related_columns 로드
+    from apps.common.retail_columns import get_retail_columns_with_related, get_missing_exclude_conditions as get_exclude_conds
+    columns_info = get_retail_columns_with_related(product_line, retailer)
+    display_fields = [c['column_name'] for c in columns_info]
+    related_columns = []
+    for c in columns_info:
+        if c['column_name'] == field and c['related_columns']:
+            related_columns = [col.strip() for col in c['related_columns'].split('|') if col.strip()]
+            break
+
+    if field not in display_fields:
+        return JsonResponse({'status': 'error', 'message': '허용되지 않은 필드'})
+
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        if product_line == 'tv':
+            table_name = 'tv_retail_com'
+            date_column = 'crawl_datetime'
+            date_cast = 'crawl_datetime::timestamp'
+        else:
+            table_name = 'hhp_retail_com'
+            date_column = 'crawl_strdatetime'
+            date_cast = 'crawl_strdatetime'
+
+        safe_field = f'"{field}"'
+
+        # SELECT 컬럼 구성: 필수(id, 수집시간, item) + 전체 수집 컬럼 + URL(마지막)
+        select_cols = ['id', date_column, 'item']
+        # 기본 표시 컬럼: related_columns가 있으면 related, 없으면 해당 필드만
+        default_display = []
+        if related_columns:
+            for rel_col in related_columns:
+                if rel_col in display_fields:
+                    default_display.append(rel_col)
+        else:
+            default_display.append(field)
+
+        # 전체 수집 컬럼 SELECT (컬럼 선택 기능용)
+        added = {'id', date_column, 'item', 'product_url'}
+        # 기본 표시 컬럼 먼저
+        for col in default_display:
+            select_cols.append(f'"{col}"')
+            added.add(col)
+        # 나머지 수집 컬럼
+        for col in display_fields:
+            if col not in added:
+                select_cols.append(f'"{col}"')
+                added.add(col)
+        select_cols.append('product_url')  # URL은 마지막에
+        select_clause = ', '.join(select_cols)
+
+        # 먼저 요약 API와 동일한 방식으로 누락 item 목록 추출
+        # (직전 2일에 값이 있었고, 오늘 NULL인 item)
+        # exclude 조건 적용 (요약과 동일)
+        exclude_conds = get_exclude_conds(retailer, table_name, field)
+        exclude_conds = [c for c in exclude_conds if validate_exclude_condition(c)]
+        exclude_sql = ""
+        if exclude_conds:
+            exclude_parts = " OR ".join([f"({c.replace('%', '%%')})" for c in exclude_conds])
+            exclude_sql = f" AND NOT ({exclude_parts})"
+
+        missing_items_query = f"""
+            SELECT item
+            FROM {table_name}
+            WHERE account_name = %s
+            AND DATE({date_cast}) IN (%s, %s, %s)
+            GROUP BY item
+            HAVING
+                MAX(CASE WHEN DATE({date_cast}) IN (%s, %s) AND {safe_field} IS NOT NULL AND CAST({safe_field} AS TEXT) != '' THEN 1 ELSE 0 END) = 1
+                AND MAX(CASE WHEN DATE({date_cast}) = %s AND ({safe_field} IS NULL OR CAST({safe_field} AS TEXT) = ''){exclude_sql} THEN 1 ELSE 0 END) = 1
+        """
+
+        cursor.execute(missing_items_query, (
+            retailer, prev_date_2, prev_date_1, target_date,
+            prev_date_1, prev_date_2,
+            target_date
+        ))
+        missing_items = [row[0] for row in cursor.fetchall()]
+
+        if not missing_items:
+            # 누락 item이 없으면 빈 결과 반환
+            base_set = {'id', date_column, 'item', 'product_url'}
+            column_names = ['id', date_column, 'item'] + [c for c in default_display if c not in base_set] + [c for c in display_fields if c not in base_set and c not in set(default_display)] + ['product_url']
+
+            cursor.close()
+            conn.close()
+            return JsonResponse({
+                'status': 'success',
+                'date': str(target_date),
+                'prev_dates': [str(d) for d in prev_dates],
+                'product_line': product_line.upper(),
+                'retailer': retailer,
+                'field': field,
+                'columns': column_names,
+                'total_rows': 0,
+                'data': []
+            })
+
+        # 누락 item들의 N일치 데이터 조회
+        placeholders = ', '.join(['%s'] * len(missing_items))
+        date_placeholders = ', '.join(['%s'] * len(all_dates))
+        query = f"""
+            SELECT {select_clause}
+            FROM {table_name}
+            WHERE account_name = %s
+            AND DATE({date_cast}) IN ({date_placeholders})
+            AND item IN ({placeholders})
+            ORDER BY item, {date_column}
+        """
+
+        cursor.execute(query, (
+            retailer, *[str(d) for d in all_dates],
+            *missing_items
+        ))
+
+        rows = cursor.fetchall()
+
+        # 컬럼명 목록: select_cols와 동일한 순서
+        base_set = {'id', date_column, 'item', 'product_url'}
+        column_names = ['id', date_column, 'item'] + [c for c in default_display if c not in base_set] + [c for c in display_fields if c not in base_set and c not in set(default_display)] + ['product_url']
+
+        # 데이터 변환
+        all_data = []
+        today_null_count = 0  # 오늘 날짜의 NULL 행 수
+        for row in rows:
+            row_dict = {}
+            for i, col_name in enumerate(column_names):
+                val = row[i]
+                if col_name == date_column and val:
+                    val = str(val)
+                row_dict[col_name] = val
+            all_data.append(row_dict)
+
+            # 오늘 날짜이고 해당 필드가 NULL인 경우 카운트
+            crawl_date = row_dict.get(date_column, '')[:10] if row_dict.get(date_column) else ''
+            field_val = row_dict.get(field)
+            if crawl_date == str(target_date) and (field_val is None or field_val == ''):
+                today_null_count += 1
+
+        # editable_columns 조회
+        editable_cols = get_editable_columns(product_line, retailer)
+
+        # normal_reviews 조회 (field_missing 정상처리 이력)
+        normal_reviews = {}
+        try:
+            cursor.execute("""
+                SELECT record_id, column_name, reason, memo, created_id
+                FROM monitoring_corrections
+                WHERE layer = 3 AND correction_type = 'field_missing'
+                  AND table_name = %s AND crawl_date = %s
+                  AND status = 'normal'
+            """, (table_name, str(target_date)))
+            for nr_row in cursor.fetchall():
+                nk = str(nr_row[0]) + '_' + nr_row[1]
+                normal_reviews[nk] = {
+                    'reason': nr_row[2] or '',
+                    'memo': nr_row[3] or '',
+                    'created_id': nr_row[4] or ''
+                }
+        except Exception:
+            pass
+
+        cursor.close()
+        conn.close()
+
+        # 리테일러 전체 수집 컬럼 (컬럼 선택용)
+        all_display_fields = [c['column_name'] for c in columns_info
+                              if c['column_name'] not in ('id', 'item', 'account_name', 'page_type', date_column, 'product_url')]
+
+        return JsonResponse({
+            'status': 'success',
+            'date': str(target_date),
+            'prev_dates': [str(d) for d in prev_dates],
+            'product_line': product_line.upper(),
+            'retailer': retailer,
+            'field': field,
+            'columns': column_names,
+            'display_fields': all_display_fields,
+            'total_rows': len(all_data),
+            'missing_item_count': len(missing_items),
+            'today_null_count': today_null_count,
+            'data': all_data,
+            'table_name': table_name,
+            'editable_columns': editable_cols,
+            'normal_reviews': normal_reviews,
+            'default_columns': ['id', date_column, 'item'] + list(default_display) + ['product_url'],
+        })
+
+    except Exception as e:
+        log_error(e)
+        return JsonResponse({'status': 'error', 'message': '처리 중 오류가 발생했습니다.'})
