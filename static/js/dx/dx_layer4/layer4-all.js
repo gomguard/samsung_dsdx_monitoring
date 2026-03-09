@@ -7,7 +7,6 @@
 
     var section = (window.LAYER4 && window.LAYER4.section) || 'dashboard';
     var currentPage = 1;
-    var currentReportTab = 'detail';
     var reportCache = null;
 
     // 검증유형 표시 이름
@@ -770,15 +769,6 @@
     // ============================================================
     // 보고서
     // ============================================================
-    window.switchReportTab = function(tab) {
-        currentReportTab = tab;
-        document.querySelectorAll('.l4-tab').forEach(function(el) {
-            el.classList.toggle('active', el.dataset.tab === tab);
-        });
-        document.getElementById('report-detail').style.display = tab === 'detail' ? '' : 'none';
-        document.getElementById('report-summary').style.display = tab === 'summary' ? '' : 'none';
-    };
-
     window.saveReportToDocument = function() {
         var el = document.getElementById('report-detail');
         var rawContent = el ? el.innerHTML : '';
@@ -1212,7 +1202,6 @@
 
     function renderReport(data) {
         var detailEl = document.getElementById('report-detail');
-        var summaryEl = document.getElementById('report-summary');
 
         var date = data.date || '';
         var collectionStatus = data.collection_status || [];
@@ -1233,7 +1222,6 @@
 
         if (!hasCollection && !hasIssues && !hasCorrections) {
             detailEl.innerHTML = '<div class="l4-empty-state"><p>해당 날짜에 검수 기록이 없습니다.</p></div>';
-            summaryEl.innerHTML = '<div class="l4-empty-state"><p>해당 날짜에 검수 기록이 없습니다.</p></div>';
             return;
         }
 
@@ -1456,58 +1444,6 @@
             detailEl.appendChild(exSection);
             sectionNo++;
         }
-
-        // === 한줄 요약 ===
-        var sHtml = '<div class="report-title">[DX] ' + date + ' 검수 요약</div>';
-
-        // 수집현황 한줄
-        if (hasCollection || hasIssues) {
-            var summaryParts = [];
-            if (hasCollection) {
-                var allOk = collectionStatus.every(function(cs) { return cs.status === 'OK'; });
-                if (allOk) {
-                    summaryParts.push('전체 정상 (' + collectionStatus.length + '개 섹션)');
-                } else {
-                    var statusIssues = collectionStatus.filter(function(cs) { return cs.status !== 'OK'; });
-                    var issueParts = statusIssues.map(function(cs) {
-                        var name = CHECK_SECTION_NAMES[cs.section] || cs.section;
-                        return name + ' ' + cs.rate.toFixed(1) + '%';
-                    });
-                    summaryParts.push('이슈: ' + issueParts.join(', '));
-                }
-            }
-            if (hasIssues) {
-                summaryParts.push('수집 이슈 ' + collectionIssues.length + '건');
-            }
-            collectionStatus.forEach(function(cs) {
-                if (cs.memo) {
-                    var name = CHECK_SECTION_NAMES[cs.section] || cs.section;
-                    summaryParts.push(name + ': ' + cs.memo);
-                }
-            });
-            sHtml += '<div class="report-item">[수집현황] → ' + summaryParts.join(' / ') + '</div>';
-        }
-
-        // 유형별 한줄씩
-        ['null_check', 'duplicate_check', 'format_check', 'cross_field', 'field_missing'].forEach(function(ct) {
-            var c = typeSummary[ct];
-            if (!c) return;
-            var corrected = c.corrected || 0;
-            var normal = c.normal || 0;
-            if (corrected === 0 && normal === 0) return;
-
-            var parts = [];
-            if (corrected > 0) parts.push('수정 ' + corrected + '건');
-            if (normal > 0) parts.push('확인 ' + normal + '건');
-            sHtml += '<div class="report-item">[' + TYPE_NAMES[ct] + '] → ' + parts.join(', ') + '</div>';
-        });
-
-        // 비제품 제외 한줄
-        if (excludedItems.length > 0) {
-            sHtml += '<div class="report-item">[비제품 제외] → ' + excludedItems.length + '건 is_product = false로 변경</div>';
-        }
-
-        summaryEl.innerHTML = sHtml;
     }
 
     // ============================================================

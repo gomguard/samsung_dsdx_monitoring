@@ -1,29 +1,40 @@
 from django.urls import path
-from . import views
-from .api import views as api_views
+from .dashboard import views as dashboard_views, api as dashboard_api
+from .check_log import views as cl_views, api as cl_api
+from .corrections import views as corr_views, api as corr_api
+from .report import views as report_views, api as report_api
+from .collection_issues import api as ci_api
 from apps.dx.dx_layer1.common import api as check_api
 
 app_name = 'layer4'
 
 urlpatterns = [
-    path('', views.dashboard, name='dashboard'),
-    path('check-log/', views.check_log, name='check_log'),
-    path('check-log/detail/', views.check_log_detail, name='check_log_detail'),
-    path('corrections/', views.corrections, name='corrections'),
-    path('report/', views.report, name='report'),
-    # APIs
-    path('api/dashboard-stats/', api_views.dashboard_stats, name='api_dashboard_stats'),
-    path('api/corrections/', api_views.corrections_list, name='api_corrections'),
-    path('api/corrections/cancel/', api_views.corrections_cancel, name='api_corrections_cancel'),
-    path('api/report/', api_views.report_data, name='api_report'),
-    path('api/review-reasons/', api_views.review_reasons, name='api_review_reasons'),
-    # Check Log APIs — status는 Layer 1 common 참조, log/memo는 Layer 4 자체
+    # 페이지
+    path('', dashboard_views.dashboard, name='dashboard'),
+    path('check-log/', cl_views.check_log, name='check_log'),
+    path('check-log/detail/', cl_views.check_log_detail, name='check_log_detail'),
+    path('corrections/', corr_views.corrections, name='corrections'),
+    path('report/', report_views.report, name='report'),
+
+    # API — 대시보드
+    path('api/dashboard-stats/', dashboard_api.dashboard_stats, name='api_dashboard_stats'),
+
+    # API — 검수기록
+    path('api/corrections/', corr_api.corrections_list, name='api_corrections'),
+    path('api/corrections/cancel/', corr_api.corrections_cancel, name='api_corrections_cancel'),
+    path('api/review-reasons/', corr_api.review_reasons, name='api_review_reasons'),
+
+    # API — 보고서
+    path('api/report/', report_api.report_data, name='api_report'),
+
+    # API — 마감기록 (status는 Layer 1 common 참조)
     path('api/check/status/', check_api.check_status, name='api_check_status'),
-    path('api/check/log/', api_views.check_log_list, name='api_check_log_list'),
-    path('api/check/memo/', api_views.check_memo_update, name='api_check_memo_update'),
-    # Collection Issues APIs
-    path('api/collection-issues/', api_views.collection_issues_list, name='api_collection_issues'),
-    path('api/collection-issues/save/', api_views.collection_issue_save, name='api_collection_issue_save'),
-    path('api/collection-issues/delete/', api_views.collection_issue_delete, name='api_collection_issue_delete'),
-    path('api/collection-issues/resolve/', api_views.collection_issue_resolve, name='api_collection_issue_resolve'),
+    path('api/check/log/', cl_api.check_log_list, name='api_check_log_list'),
+    path('api/check/memo/', cl_api.check_memo_update, name='api_check_memo_update'),
+
+    # API — 수집 이슈
+    path('api/collection-issues/', ci_api.collection_issues_list, name='api_collection_issues'),
+    path('api/collection-issues/save/', ci_api.collection_issue_save, name='api_collection_issue_save'),
+    path('api/collection-issues/delete/', ci_api.collection_issue_delete, name='api_collection_issue_delete'),
+    path('api/collection-issues/resolve/', ci_api.collection_issue_resolve, name='api_collection_issue_resolve'),
 ]
