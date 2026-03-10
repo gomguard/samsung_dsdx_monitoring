@@ -1894,7 +1894,12 @@ function _cfRenderPage(page) {
                 if (nr.memo) tip += ' | 메모: ' + nr.memo;
                 tr += '<td class="cell-normal" data-row-id="' + rowId + '" data-col="' + esc(c.key) + '" data-normal-key="' + nrKey + '" title="' + esc(tip) + '">' + esc(displayVal) + '<span class="normal-badge">정상</span></td>';
             } else if (isTargetDate && st.editableCols.has(c.key) && rowId) {
-                tr += '<td data-editable="true" data-row-id="' + rowId + '" data-col="' + esc(c.key) + '">' + esc(displayVal) + '</td>';
+                var isCorrected = row._corrected && row._corrected[c.key];
+                if (isCorrected) {
+                    tr += '<td class="cell-corrected" data-row-id="' + rowId + '" data-col="' + esc(c.key) + '" title="수정 완료">' + esc(displayVal) + '<span class="corrected-badge">수정됨</span></td>';
+                } else {
+                    tr += '<td data-editable="true" data-row-id="' + rowId + '" data-col="' + esc(c.key) + '">' + esc(displayVal) + '</td>';
+                }
             } else if (isTargetDate && rowId) {
                 tr += '<td data-row-id="' + rowId + '" data-col="' + esc(c.key) + '">' + esc(displayVal) + '</td>';
             } else {
@@ -2083,17 +2088,26 @@ function _cfBindEditEvents() {
     tableEl.addEventListener('click', function(e) {
         var td = e.target.closest('td[data-editable]');
         var normalTd = !td ? e.target.closest('td.cell-normal') : null;
-        var reviewTd = (!td && !normalTd) ? e.target.closest('td[data-row-id]') : null;
+        var correctedTd = (!td && !normalTd) ? e.target.closest('td.cell-corrected') : null;
+        var reviewTd = (!td && !normalTd && !correctedTd) ? e.target.closest('td[data-row-id]') : null;
         var prev = tableEl.querySelector('.cell-selected');
         if (prev) prev.classList.remove('cell-selected');
         _cfHideReviewBar();
         if (td) {
-            td.classList.add('cell-selected');
-            window._cfSelectedCell = td;
-            _cfShowReviewBar(td, 'normal');
+            if (td.classList.contains('cell-pending')) {
+                window._cfSelectedCell = td;
+                // 변경 예정 셀은 확인 바 안 띄움
+            } else {
+                td.classList.add('cell-selected');
+                window._cfSelectedCell = td;
+                _cfShowReviewBar(td, 'normal');
+            }
         } else if (normalTd) {
             window._cfSelectedCell = null;
             // cell-normal은 무시 (정상처리 완료된 셀)
+        } else if (correctedTd) {
+            window._cfSelectedCell = null;
+            // cell-corrected는 무시 (수정 완료된 셀)
         } else if (reviewTd) {
             reviewTd.classList.add('cell-selected');
             window._cfSelectedCell = null;
@@ -2294,14 +2308,23 @@ function _cfDoSaveEdits(memo) {
     Promise.all(requests).then(function(results) {
         var successCount = 0;
         var failCount = 0;
+        var st = window._cfDetailState;
         results.forEach(function(r) {
             var edit = edits[r.key];
             if (r.success) {
                 successCount++;
-                if (edit.td) {
-                    edit.td.classList.remove('cell-pending');
-                    edit.td.classList.add('cell-saved');
-                    setTimeout(function() { edit.td.classList.remove('cell-saved'); }, 1500);
+                // 캐시 데이터 업데이트
+                if (st && st.allData && edit) {
+                    var rowId = edit.row_id;
+                    var colName = edit.column_name;
+                    var newVal = edit.new_value;
+                    st.allData.forEach(function(row) {
+                        if (row._rowId == rowId && row[colName] !== undefined) {
+                            row[colName] = newVal !== null && newVal !== undefined ? String(newVal) : '-';
+                            if (!row._corrected) row._corrected = {};
+                            row._corrected[colName] = true;
+                        }
+                    });
                 }
                 delete edits[r.key];
             } else {
@@ -2311,6 +2334,11 @@ function _cfDoSaveEdits(memo) {
         if (successCount > 0) showToast(successCount + '건 저장 완료', 'success');
         if (failCount > 0) showToast(failCount + '건 저장 실패', 'error');
         _cfUpdateSaveButton();
+
+        // 캐시 업데이트 후 테이블 재렌더링
+        if (successCount > 0) {
+            _cfSortAndRender();
+        }
     });
 }
 

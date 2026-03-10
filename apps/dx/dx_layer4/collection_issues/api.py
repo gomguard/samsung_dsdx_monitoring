@@ -87,12 +87,23 @@ def collection_issue_save(request):
         cursor = conn.cursor()
         try:
             if issue_id:
-                cursor.execute("""
-                    UPDATE monitoring_check_log_issues
-                    SET title = %s, issue_date = %s, symptom = %s,
-                        cause = %s, action = %s, updated_id = %s, updated_at = %s
-                    WHERE id = %s
-                """, (title, issue_date, symptom, cause, action, username, now, issue_id))
+                if already_resolved:
+                    cursor.execute("""
+                        UPDATE monitoring_check_log_issues
+                        SET title = %s, issue_date = %s, symptom = %s,
+                            cause = %s, action = %s, updated_id = %s, updated_at = %s,
+                            resolution_status = 'resolved', resolved_at = %s, resolved_id = %s
+                        WHERE id = %s
+                    """, (title, issue_date, symptom, cause, action, username, now,
+                          now, username, issue_id))
+                else:
+                    cursor.execute("""
+                        UPDATE monitoring_check_log_issues
+                        SET title = %s, issue_date = %s, symptom = %s,
+                            cause = %s, action = %s, updated_id = %s, updated_at = %s,
+                            resolution_status = 'open', resolved_at = NULL, resolved_id = NULL
+                        WHERE id = %s
+                    """, (title, issue_date, symptom, cause, action, username, now, issue_id))
                 conn.commit()
                 return JsonResponse({'success': True, 'id': issue_id})
             else:

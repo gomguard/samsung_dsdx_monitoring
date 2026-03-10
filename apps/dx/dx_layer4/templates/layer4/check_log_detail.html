@@ -578,9 +578,6 @@ function renderIssueList(items) {
             : '<span class="badge badge-critical" style="font-size:11px;margin-right:8px;">미해결</span>';
         html += '<span class="cl-issue-card-title">' + statusBadge + clEscapeHtml(item.title) + '</span>';
         html += '<div class="cl-issue-card-actions">';
-        if (!isResolved) {
-            html += AppButton.html('정상처리', 'resolveIssue(' + item.id + ')', { style: 'save', size: 'xs' });
-        }
         html += AppButton.iconHtml('edit', 'openIssueForm(' + JSON.stringify(item).replace(/"/g, '&quot;') + ')', { color: 'blue', size: 'sm', title: '수정' });
         html += AppButton.iconHtml('delete', 'deleteIssue(' + item.id + ')', { color: 'red', size: 'sm', title: '삭제' });
         html += '</div>';
@@ -624,9 +621,9 @@ function openIssueForm(issue) {
     document.getElementById('issueCause').value = issue ? (issue.cause || '') : '';
     document.getElementById('issueAction').value = issue ? (issue.action || '') : '';
 
-    // 이미 해결됨 체크박스: 신규 등록 시만 표시, 수정 시 숨김
-    document.getElementById('issueResolvedRow').style.display = _editingIssueId ? 'none' : '';
-    document.getElementById('issueResolved').checked = false;
+    // 해결 체크박스: 항상 표시, 수정 시 기존 상태 반영
+    document.getElementById('issueResolvedRow').style.display = '';
+    document.getElementById('issueResolved').checked = issue ? (issue.resolution_status === 'resolved') : false;
 
     document.getElementById('issueModal').classList.add('active');
     document.getElementById('issueTitle').focus();
@@ -657,9 +654,7 @@ async function saveIssue() {
     };
     if (_editingIssueId) body.id = _editingIssueId;
     if (_currentDetailId) body.detail_id = _currentDetailId;
-    if (!_editingIssueId && document.getElementById('issueResolved').checked) {
-        body.already_resolved = true;
-    }
+    body.already_resolved = document.getElementById('issueResolved').checked;
 
     try {
         var res = await fetch('/dx/layer4/api/collection-issues/save/', {

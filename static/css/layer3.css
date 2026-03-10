@@ -1189,6 +1189,23 @@ td.cell-normal:hover {
     vertical-align: middle;
 }
 
+td.cell-corrected {
+    background: #eff6ff !important;
+    border-left: 3px solid #3b82f6 !important;
+}
+
+.corrected-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 5px;
+    margin-left: 4px;
+    background: #bfdbfe;
+    color: #1e40af;
+    border-radius: 3px;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
 .null-review-bar {
     display: flex;
     justify-content: space-between;
