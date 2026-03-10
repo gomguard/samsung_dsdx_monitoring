@@ -22,6 +22,7 @@ urlpatterns = [
     # API — 검수기록
     path('api/corrections/', corr_api.corrections_list, name='api_corrections'),
     path('api/corrections/cancel/', corr_api.corrections_cancel, name='api_corrections_cancel'),
+    path('api/corrections/history/', corr_api.corrections_history, name='api_corrections_history'),
     path('api/review-reasons/', corr_api.review_reasons, name='api_review_reasons'),
 
     # API — 보고서

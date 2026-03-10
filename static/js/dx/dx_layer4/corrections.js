@@ -338,9 +338,158 @@
         }
         html += '</table>';
 
+        // TV/HHP만 이력 조회 버튼 표시
+        var historyTables = ['tv_retail_com', 'hhp_retail_com'];
+        if (historyTables.indexOf(item.table_name) >= 0 && item.retailer && item.item) {
+            html += '<div style="text-align:right;margin-top:12px;">'
+                + '<button class="app-btn app-btn-sm app-btn-outline" id="corr-history-btn">이력 조회</button>'
+                + '</div>';
+        }
+
         AppModal.setTitle('corr-detail', '검수기록 상세');
         AppModal.setBody('corr-detail', html);
         AppModal.open('corr-detail');
+
+        // 이력 조회 버튼 이벤트
+        var historyBtn = document.getElementById('corr-history-btn');
+        if (historyBtn) {
+            historyBtn.addEventListener('click', function() {
+                AppModal.close('corr-detail');
+                openCorrectionHistory(item);
+            });
+        }
+    }
+
+    // ── 이력 조회 ──────────────────────────────────
+
+    var historyTable = null;
+    var historyFilterBar = null;
+    var historyData = null;  // 마지막 조회 결과 보관
+
+    function openCorrectionHistory(item) {
+        AppModal.setTitle('corr-history', L4.escapeHtml(item.retailer + ' / ' + item.item) + ' 이력');
+        AppModal.setBody('corr-history', '<div id="history-filter-bar"></div><div id="history-table-container"><div class="l4-empty-state"><p>조회 중...</p></div></div>');
+        AppModal.open('corr-history');
+
+        historyTable = null;
+        historyFilterBar = null;
+        historyData = null;
+        loadCorrectionHistory(item, 3);
+    }
+
+    function loadCorrectionHistory(item, days) {
+        var url = '/dx/layer4/api/corrections/history/'
+            + '?table_name=' + encodeURIComponent(item.table_name)
+            + '&retailer=' + encodeURIComponent(item.retailer)
+            + '&item=' + encodeURIComponent(item.item)
+            + '&column=' + encodeURIComponent(item.column_name)
+            + '&record_id=' + encodeURIComponent(item.record_id || '')
+            + '&days=' + days;
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) {
+                    document.getElementById('history-table-container').innerHTML = '<div class="l4-empty-state"><p>' + L4.escapeHtml(data.error || '조회 실패') + '</p></div>';
+                    return;
+                }
+                historyData = data;
+                renderHistoryFilterBar(item, data, days);
+                renderHistoryTable();
+            })
+            .catch(function(e) {
+                console.error(e);
+                document.getElementById('history-table-container').innerHTML = '<div class="l4-empty-state"><p>시스템 오류가 발생했습니다.</p></div>';
+            });
+    }
+
+    function renderHistoryFilterBar(item, data, days) {
+        if (historyFilterBar) return;
+
+        var allColumns = data.columns || [];
+        var defaultVisible = data.default_visible || [];
+        var fixedCols = data.fixed || [];
+        var columnDefs = allColumns.map(function(c) { return { key: c, label: c }; });
+
+        historyFilterBar = new FilterBar('#history-filter-bar', {
+            plain: true, sticky: false,
+            controls: [
+                {
+                    type: 'custom',
+                    html: '<div style="display:flex;align-items:center;gap:6px;">'
+                        + '<label style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">일수:</label>'
+                        + '<input type="number" id="history-days" value="' + days + '" min="1" max="30"'
+                        + ' style="width:50px;padding:8px 6px;border:1px solid var(--border-color);border-radius:4px;font-size:14px;text-align:center;box-sizing:border-box;">'
+                        + '</div>'
+                }
+            ],
+            onSearch: function() {
+                var val = parseInt(document.getElementById('history-days').value) || 3;
+                historyTable = null;
+                loadCorrectionHistory(item, val);
+            },
+            columnSelector: {
+                columns: columnDefs,
+                fixed: fixedCols,
+                defaultVisible: defaultVisible,
+                onUpdate: function() {
+                    historyTable = null;
+                    renderHistoryTable();
+                }
+            }
+        }).render();
+
+        // Enter 키로 조회
+        var daysInput = document.getElementById('history-days');
+        if (daysInput) {
+            daysInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    var val = parseInt(daysInput.value) || 3;
+                    historyTable = null;
+                    loadCorrectionHistory(item, val);
+                }
+            });
+        }
+    }
+
+    function renderHistoryTable() {
+        var container = document.getElementById('history-table-container');
+        if (!historyData) return;
+
+        var rows = historyData.rows || [];
+        var recordId = historyData.record_id;
+
+        if (rows.length === 0) {
+            container.innerHTML = '<div class="l4-empty-state"><p>이력 데이터가 없습니다.</p></div>';
+            return;
+        }
+
+        var visibleCols = historyFilterBar ? historyFilterBar.getVisibleColumns() : [];
+        if (visibleCols.length === 0) {
+            visibleCols = (historyData.default_visible || []).map(function(c) { return { key: c, label: c }; });
+        }
+
+        container.innerHTML = '';
+        historyTable = new CommonTable(container, {
+            variant: 'detail',
+            columns: visibleCols,
+            resize: true,
+            vlines: true,
+            showTotalCount: true
+        });
+        historyTable.render();
+
+        historyTable.renderBody(rows, function(row) {
+            var isTarget = recordId && row.id && parseInt(row.id) === recordId;
+            var trStyle = isTarget ? ' style="background:rgba(139,92,246,0.08);"' : '';
+            var html = '<tr' + trStyle + '>';
+            visibleCols.forEach(function(col) {
+                var val = row[col.key];
+                html += '<td>' + L4.escapeHtml(val !== undefined && val !== '' ? String(val) : '-') + '</td>';
+            });
+            html += '</tr>';
+            return html;
+        });
     }
 
     async function cancelCheckedCorrections() {
@@ -416,6 +565,7 @@
     L4._sectionInit['corrections'] = function() {
         initCorrectionsFilterBar();
         AppModal.create('corr-detail', { style: 'compact', closeOnOverlay: true });
+        AppModal.create('corr-history', { style: 'wide', closeOnOverlay: true });
     };
 
 })();

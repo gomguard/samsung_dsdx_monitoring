@@ -1,14 +1,15 @@
 """
-Layer 4 검수기록 API — 목록 조회, 취소, 이유 조회
+Layer 4 검수기록 API — 목록 조회, 취소, 이유 조회, 이력 조회
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from apps.common.db import get_dx_connection
 from apps.common.response import safe_error
 from apps.common.params import parse_date
+from apps.common.retail_columns import get_retailer_columns
 
 
 # 원본 테이블별 수집 시간 컬럼 매핑
@@ -252,3 +253,93 @@ def review_reasons(request):
     check_type = request.GET.get('check_type', 'null_check')
     reasons = [{'text': r} for r in get_reasons(check_type)]
     return JsonResponse({'success': True, 'reasons': reasons})
+
+
+# 이력 조회: 허용 테이블 → (product_line, date_column)
+_HISTORY_TABLES = {
+    'tv_retail_com': ('tv', 'crawl_datetime'),
+    'hhp_retail_com': ('hhp', 'crawl_strdatetime'),
+}
+
+
+def corrections_history(request):
+    """원본 테이블 이력 조회 API (GET) — retailer+item 기준 최근 N일"""
+    table_name = request.GET.get('table_name', '')
+    retailer = request.GET.get('retailer', '')
+    item = request.GET.get('item', '')
+    column = request.GET.get('column', '')
+    days = int(request.GET.get('days', 3))
+    record_id = request.GET.get('record_id', '')
+
+    if table_name not in _HISTORY_TABLES:
+        return JsonResponse({'success': False, 'error': '지원하지 않는 테이블입니다.'}, status=400)
+    if not retailer or not item:
+        return JsonResponse({'success': False, 'error': 'retailer, item은 필수입니다.'}, status=400)
+
+    product_line, date_col = _HISTORY_TABLES[table_name]
+
+    # monitoring_retail_columns에서 컬럼 목록 조회
+    retail_columns = get_retailer_columns(product_line, retailer)
+    if not retail_columns:
+        return JsonResponse({'success': False, 'error': '컬럼 정보를 찾을 수 없습니다.'}, status=400)
+
+    # id, date_col, item은 항상 포함 (고정 컬럼)
+    fixed_cols = ['id', date_col, 'item']
+    other_cols = [c for c in retail_columns if c not in fixed_cols]
+    select_cols = fixed_cols + other_cols
+    select_sql = ', '.join(select_cols)
+
+    # 초기 표시 컬럼: 고정 컬럼 + 수정된 컬럼
+    default_visible = ['id', date_col, 'item']
+    if column and column in retail_columns and column not in default_visible:
+        default_visible.append(column)
+
+    conn = None
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        since_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+        cursor.execute(
+            f"SELECT {select_sql} FROM {table_name} "
+            f"WHERE account_name = %s AND item = %s AND ({date_col})::date >= %s::date "
+            f"ORDER BY {date_col} ASC",
+            (retailer, item, since_date)
+        )
+
+        col_names = [desc[0] for desc in cursor.description]
+        rows = []
+        for row in cursor.fetchall():
+            item_dict = {}
+            for i, val in enumerate(row):
+                if hasattr(val, 'strftime'):
+                    item_dict[col_names[i]] = val.strftime('%Y-%m-%d %H:%M:%S')
+                elif val is None:
+                    item_dict[col_names[i]] = ''
+                else:
+                    item_dict[col_names[i]] = str(val)
+            rows.append(item_dict)
+
+        cursor.close()
+        conn.close()
+
+        # 프론트에 보낼 컬럼 목록
+        columns = list(select_cols)
+        # 고정 컬럼
+        fixed = list(fixed_cols)
+
+        return JsonResponse({
+            'success': True,
+            'columns': columns,
+            'fixed': fixed,
+            'default_visible': default_visible,
+            'record_id': int(record_id) if record_id else None,
+            'rows': rows,
+        })
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return safe_error(e)
