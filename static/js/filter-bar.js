@@ -267,6 +267,7 @@ class FilterBar {
         }
 
         wrapper.appendChild(input);
+
         if (ctrl.key) {
             this.elements[ctrl.key] = input;
             this._defaults[ctrl.key] = ctrl.default !== undefined ? ctrl.default : (ctrl.value || '');
