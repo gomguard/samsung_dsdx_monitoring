@@ -431,7 +431,7 @@ function renderInstances() {
         }
 
         html += `
-            <tr>
+            <tr data-key="${inst.key}">
                 <td style="text-align:center;color:#64748b;">${idx + 1}</td>
                 <td>
                     <div class="retailer-tags">
@@ -490,12 +490,28 @@ async function ec2Action(key, action, retailerName) {
 
         if (data.success) {
             showToast(data.message || `${retailerName} ${actionText} 요청 완료`, 'success');
-            setTimeout(() => loadEC2Status(), 3000);
+            // 해당 행만 상태 업데이트 (재조회 없음)
+            const newState = action === 'start' ? 'pending' : 'stopping';
+            updateRowState(key, newState);
         } else {
             showToast('요청 처리에 실패했습니다.', 'error');
         }
     } catch (e) {
         showToast('서버 연결에 실패했습니다.', 'error');
+    }
+}
+
+function updateRowState(key, newState) {
+    const row = document.querySelector(`tr[data-key="${key}"]`);
+    if (!row) return;
+    const stateCell = row.querySelector('.state-cell');
+    if (stateCell) {
+        stateCell.innerHTML = `<span class="state-dot ${newState}"></span><span class="state-badge badge-${newState}">${getStateText(newState)}</span>`;
+    }
+    const actionCell = row.querySelector('.action-btns');
+    if (actionCell) {
+        const powerIcon = actionCell.querySelector('svg').outerHTML;
+        actionCell.innerHTML = `<button class="btn-power" disabled title="${getStateText(newState)}">${powerIcon}</button>`;
     }
 }
 

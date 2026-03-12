@@ -118,11 +118,7 @@ def ec2_status(request):
 
 @require_POST
 def ec2_action(request):
-    """EC2 인스턴스 시작/종료 — key 기반 검증, 관리자 전용"""
-    # 관리자 권한 체크
-    if not request.user.is_staff:
-        return JsonResponse({'success': False}, status=403)
-
+    """EC2 인스턴스 시작/종료 — key 기반 검증"""
     try:
         body = json.loads(request.body)
     except (json.JSONDecodeError, ValueError):
