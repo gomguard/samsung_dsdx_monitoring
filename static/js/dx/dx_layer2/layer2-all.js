@@ -186,7 +186,7 @@ function _editableAttr(row, key) {
     if (!rowId) return '';
     // 다일치 조회 시 조회 날짜 데이터만 수정 가능
     if ((modalState.days || 1) > 1 && detailViewState.crawlDate) {
-        var dateCol = (modalState.nullFieldsData && modalState.nullFieldsData.date_column) || 'crawl_datetime';
+        var dateCol = detailViewState.dateColumn || (modalState.nullFieldsData && modalState.nullFieldsData.date_column) || 'crawl_datetime';
         var recDate = (row[dateCol] || '').substring(0, 10);
         if (recDate !== detailViewState.crawlDate) return '';
     }
@@ -307,6 +307,7 @@ function renderDetailWithTable(options) {
     var actualTable = options.actualTable || '';
     var crawlDate = options.crawlDate || '';
     var normalReviews = options.normalReviews || {};
+    var dateColumn = options.dateColumn || '';
     var isRowspan = !Array.isArray(config);
     var defaultCols = getAllColumns(config);
 
@@ -316,6 +317,7 @@ function renderDetailWithTable(options) {
     detailViewState.normalReviews = normalReviews;
     detailViewState.actualTable = actualTable;
     detailViewState.crawlDate = crawlDate;
+    detailViewState.dateColumn = dateColumn;
 
     // flat 데이터 생성
     var flatData;
@@ -1973,6 +1975,7 @@ function renderNullFieldDetailView(fieldName, data, pushStack = true) {
         editableCols: data.editable_cols || [],
         actualTable: data.actual_table || '',
         crawlDate: date,
+        dateColumn: data.date_column || '',
         normalReviews: data.normal_reviews || {}
     });
 }

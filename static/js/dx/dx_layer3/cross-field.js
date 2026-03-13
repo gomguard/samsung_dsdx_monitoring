@@ -30,8 +30,8 @@ function showRetailerDetail(retailer) {
     const titleText = `${ruleNameDisplay} (${rSummary.count || 0}건)`;
     const subtitleText = `${productLineDisplay} Retail | ${retailer}`;
 
-    const editableCols = window.crossfieldEditableCols || new Set();
-    const normalReviews = window.crossfieldNormalReviews || {};
+    const editableCols = inline ? (window.crossfieldEditableCols || new Set()) : new Set();
+    const normalReviews = inline ? (window.crossfieldNormalReviews || {}) : {};
 
     // 동적 컬럼
     const excludeKeys = ['id', 'item', 'account_name', 'page_type'];
@@ -47,22 +47,68 @@ function showRetailerDetail(retailer) {
     const _wn = ['일','월','화','수','목','금','토'][new Date(date).getDay()];
     const dateDisplay = `${date}(${_wn})`;
 
-    // Item 목록 토글
+    // Item 목록 토글 + 3일치 쿼리 (모달)
     const retailerSafe = retailer.replace(/[^a-zA-Z0-9]/g, '');
     const itemListDisplay = items.join(', ');
-    const itemQueryHtml = `
-        <div class="item-toggle-section">
-            <div class="item-toggle-header" onclick="var c=this.nextElementSibling;c.style.display=c.style.display==='none'?'':'none';this.querySelector('.toggle-arrow').textContent=c.style.display==='none'?'▸':'▾';">
-                <span class="toggle-arrow">▸</span> Item 목록 (${items.length}개)
-            </div>
-            <div class="item-toggle-content" style="display:none;">
-                <div class="item-copy-header">
-                    <span class="item-copy-title">Item 목록 (${items.length}개)</span>
-                    <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('item-list-${retailerSafe}'))">복사</button>
+    var itemQueryHtml = '';
+    if (inline) {
+        // 인라인: Item 목록 토글만
+        itemQueryHtml = `
+            <div class="item-toggle-section">
+                <div class="item-toggle-header" onclick="var c=this.nextElementSibling;c.style.display=c.style.display==='none'?'':'none';this.querySelector('.toggle-arrow').textContent=c.style.display==='none'?'▸':'▾';">
+                    <span class="toggle-arrow">▸</span> Item 목록 (${items.length}개)
                 </div>
-                <div id="item-list-${retailerSafe}" class="item-copy-content">${esc(itemListDisplay)}</div>
-            </div>
-        </div>`;
+                <div class="item-toggle-content" style="display:none;">
+                    <div class="item-copy-header">
+                        <span class="item-copy-title">Item 목록 (${items.length}개)</span>
+                        <button class="btn-copy" onclick="copyQueryToClipboard(document.getElementById('item-list-${retailerSafe}'))">복사</button>
+                    </div>
+                    <div id="item-list-${retailerSafe}" class="item-copy-content">${esc(itemListDisplay)}</div>
+                </div>
+            </div>`;
+    } else {
+        // 모달: Item 목록 + 3일치 쿼리 (원본 모달 로직)
+        const inClause = items.map(item => "'" + item + "'").join(', ');
+        var dynamicCols = [];
+        const selectFieldsRaw = window.crossfieldSelectFields || '';
+        if (selectFieldsRaw) {
+            dynamicCols = selectFieldsRaw.split('|').map(function(f) { return f.trim(); }).filter(function(f) { return f; });
+        } else {
+            const excludeCols = ['id', 'item', dateCol, 'account_name', 'product_url', 'page_type'];
+            if (rows.length > 0) {
+                Object.keys(rows[0]).forEach(function(key) {
+                    if (!excludeCols.includes(key)) dynamicCols.push(key);
+                });
+            }
+        }
+        const validationType = window.crossfieldValidationType || '';
+        var validationTagCol = '';
+        if (validationType === 'cross_detail_mismatch') {
+            validationTagCol = "\n'review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || ' -' AS expected_pattern,\nCASE WHEN LOWER(detailed_review_content) LIKE '%review' || LEAST(CAST(REPLACE(count_of_reviews, ',', '') AS INTEGER), 20)::text || ' -%' THEN 'OK' ELSE 'MISSING' END AS validation_tag,";
+        }
+        var selectCols = ['id', 'account_name', 'item', dateCol].join(', ');
+        const query = `SELECT ${selectCols},${validationTagCol}\n${dynamicCols.join(', ')}, product_url\nFROM ${tableName}\nWHERE account_name = '${retailer}'\nAND item IN (${inClause})\nAND DATE(${dateCol}::timestamp) >= DATE('${date}') - INTERVAL '2 days'\nAND DATE(${dateCol}::timestamp) <= DATE('${date}')\nORDER BY item, ${dateCol};`;
+
+        if (items.length > 0) {
+            itemQueryHtml = `
+                <div class="query-section">
+                    <div class="item-list-box">
+                        <div class="query-box-header">
+                            <span class="query-box-title">Item 목록 (${items.length}개)</span>
+                            <button class="btn-copy" onclick="copyQueryToClipboard(this.parentElement.nextElementSibling)">복사</button>
+                        </div>
+                        <div class="item-list-content">${esc(itemListDisplay)}</div>
+                    </div>
+                    <div class="query-box">
+                        <div class="query-box-header">
+                            <span class="query-box-title">3일치 조회 쿼리</span>
+                            <button class="btn-copy" onclick="copyQueryToClipboard(this.parentElement.nextElementSibling)">복사</button>
+                        </div>
+                        <pre class="query-content">${query}</pre>
+                    </div>
+                </div>`;
+        }
+    }
 
     // 컬럼 정의: 기본 표시 컬럼
     const allColumns = [
@@ -198,8 +244,10 @@ function showRetailerDetail(retailer) {
     // CommonTable + Pagination 빌드
     _cfRebuildTable();
 
-    // 편집/정상처리 이벤트
-    setTimeout(function() { _cfBindEditEvents(); }, 100);
+    // 편집/정상처리 이벤트 (인라인만)
+    if (inline) {
+        setTimeout(function() { _cfBindEditEvents(); }, 100);
+    }
 }
 
 // ---- 크로스필드 상세 CommonTable 헬퍼 ----
@@ -314,13 +362,43 @@ function _cfRenderPage(page) {
 
     var visibleCols = st._visibleCols || st.allColumns;
 
+    // item 기준 rowspan 계산: 첫 행 = span 수, 나머지 행 = 0 (td 생략)
+    var itemSpanMap = {};
+    var hasItemCol = visibleCols.some(function(c) { return c.key === 'item'; });
+    if (hasItemCol) {
+        var si = 0;
+        while (si < pageData.length) {
+            var itemVal = pageData[si].item || '-';
+            var spanCount = 1;
+            for (var sj = si + 1; sj < pageData.length; sj++) {
+                if ((pageData[sj].item || '-') === itemVal) spanCount++;
+                else break;
+            }
+            itemSpanMap[si] = spanCount;
+            for (var sk = si + 1; sk < si + spanCount; sk++) {
+                itemSpanMap[sk] = 0; // 병합된 행 → td 생략
+            }
+            si += spanCount;
+        }
+    }
+
     // renderBody로 tr을 직접 생성 (td에 data-editable, cell-normal 등 속성 부여)
     var targetDate = window.crossfieldDate || '';
+    var _cfPageIdx = 0;
     st.table.renderBody(pageData, function(row) {
+        var rowIdx = _cfPageIdx++;
         var tr = '<tr>';
         var rowId = row._rowId;
         var isTargetDate = row._rowDate === targetDate;
         visibleCols.forEach(function(c) {
+            // item 컬럼 rowspan 처리
+            if (c.key === 'item' && hasItemCol) {
+                var span = itemSpanMap[rowIdx];
+                if (span === 0) return; // 병합된 하위 행 → td 생략
+                tr += '<td' + (span > 1 ? ' rowspan="' + span + '"' : '') + ' style="vertical-align:middle;">' + esc(row.item || '-') + '</td>';
+                return;
+            }
+
             var val = row[c.key];
             var displayVal = val !== null && val !== undefined ? String(val) : '-';
 
