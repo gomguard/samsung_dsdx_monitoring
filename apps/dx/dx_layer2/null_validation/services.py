@@ -338,18 +338,10 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
     check_type = col_config.get('check_type', 'both')
     where_cond = _build_null_sql_condition(column, check_type)
 
-    # 조회할 칼럼 수집
-    select_cols_set = {'id', date_col, column}
-    if has_retailer:
-        select_cols_set.update(['item', 'product_url'])
-    select_cols_set.update(col_config.get('display_columns', []))
-    select_cols_set.update(col_config.get('query_columns', []))
-    select_cols = list(select_cols_set)
-
-    # 쿼리 생성
+    # 쿼리 생성 — 전체 컬럼 조회 (프론트 컬럼 선택 지원)
     if has_retailer:
         query = f"""
-            SELECT {', '.join(select_cols)}
+            SELECT *
             FROM {actual_table}
             WHERE {date_col}::timestamp >= %s AND {date_col}::timestamp < %s
               AND {where_cond}
@@ -361,7 +353,7 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
         query += f" ORDER BY {date_col}"
     else:
         query = f"""
-            SELECT {', '.join(select_cols)}
+            SELECT *
             FROM {actual_table}
             WHERE DATE({date_col}) = %s
               AND {where_cond}
@@ -370,9 +362,11 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
         params = [target_date]
 
     cursor.execute(query, params)
+    select_cols = [desc[0] for desc in cursor.description]
     rows = cursor.fetchall()
 
     # retail + days > 1: 오류 item 추출 후 N일치 확장 조회
+    is_expanded = False
     if has_retailer and days > 1 and rows:
         item_idx = select_cols.index('item') if 'item' in select_cols else None
         if item_idx is not None:
@@ -381,7 +375,7 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
                 start_date = target_date - timedelta(days=days - 1)
                 placeholders = ', '.join(['%s'] * len(error_items))
                 expand_query = f"""
-                    SELECT {', '.join(select_cols)}
+                    SELECT *
                     FROM {actual_table}
                     WHERE {date_col}::timestamp >= %s AND {date_col}::timestamp < %s
                       AND account_name = %s
@@ -391,6 +385,7 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
                 expand_params = [str(start_date), str(next_date), retailer] + error_items
                 cursor.execute(expand_query, expand_params)
                 rows = cursor.fetchall()
+                is_expanded = True
 
     # 컬럼 인덱스 매핑
     col_index = {col: idx for idx, col in enumerate(select_cols)}
@@ -421,19 +416,22 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
         if row[id_idx] in normal_set:
             continue
 
-        # NULL 판정
-        if col_idx is not None and _is_field_null(row[col_idx], check_type):
-            record_data = {}
-            for col_name in select_cols:
-                idx = col_index.get(col_name)
-                if idx is not None:
-                    val = row[idx]
-                    if isinstance(val, datetime):
-                        record_data[col_name] = val.strftime('%Y-%m-%d %H:%M:%S')
-                    else:
-                        record_data[col_name] = val
-            record_data['null_fields'] = [column]
-            results.append(record_data)
+        # 확장 조회(days > 1)면 전체 이력 표시, 1일치면 NULL만 필터
+        if not is_expanded:
+            if col_idx is not None and not _is_field_null(row[col_idx], check_type):
+                continue
+
+        record_data = {}
+        for col_name in select_cols:
+            idx = col_index.get(col_name)
+            if idx is not None:
+                val = row[idx]
+                if isinstance(val, datetime):
+                    record_data[col_name] = val.strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    record_data[col_name] = val
+        record_data['null_fields'] = [column] if (col_idx is not None and _is_field_null(row[col_idx], check_type)) else []
+        results.append(record_data)
 
     # display_config, query_config 생성
     display_config = {}
