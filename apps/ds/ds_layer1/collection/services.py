@@ -149,7 +149,7 @@ def get_layer_stats(cursor, target_date, batch_view):
         if close_row and close_row[0] == 1:
             is_closed = True
             cursor.execute("""
-                SELECT t.retailer, r.expected_count, r.total_count, r.completion_rate
+                SELECT t.retailer, r.expected_count, r.total_count, r.completion_rate, r.final_batch_count
                 FROM ssd_crawl_db.ds_monitoring_report_daily r
                 JOIN ssd_crawl_db.ds_monitoring_targets t ON r.retailer_id = t.retailer_id
                 WHERE r.crawl_date = %s AND r.is_del = 0
@@ -158,7 +158,8 @@ def get_layer_stats(cursor, target_date, batch_view):
                 closed_data[row[0]] = {
                     'expected': row[1] or 0,
                     'actual': row[2] or 0,
-                    'completion_rate': float(row[3]) if row[3] else 0
+                    'completion_rate': float(row[3]) if row[3] else 0,
+                    'final_batch_count': row[4] or 0
                 }
     except:
         is_closed = False
@@ -178,8 +179,16 @@ def get_layer_stats(cursor, target_date, batch_view):
         # 마감된 날짜 + 현황 데이터 있음 → 스냅샷 사용 (실시간 쿼리 생략)
         if is_closed and retailer in closed_data:
             expected = closed_data[retailer]['expected']
-            actual = closed_data[retailer]['actual']
-            completion_rate = closed_data[retailer]['completion_rate']
+            if batch_view == 'final':
+                actual = closed_data[retailer]['final_batch_count']
+            else:
+                actual = closed_data[retailer]['actual']
+            if expected > 0 and actual >= 0:
+                completion_rate = round((actual / expected) * 100, 1)
+            elif expected == 0:
+                completion_rate = 0
+            else:
+                completion_rate = -1
             status = get_collection_status(korea_time, target_date, completion_rate)
         else:
             # 미마감 → 실시간 쿼리 (기존 로직)
