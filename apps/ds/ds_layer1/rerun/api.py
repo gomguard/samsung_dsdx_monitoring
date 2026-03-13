@@ -1,15 +1,12 @@
 """
 DS Layer 1 — 크롤러 재실행 API
+request 파싱 + services 호출 + JsonResponse 반환
 """
 
 from django.http import JsonResponse
-from datetime import datetime
-from apps.common.db import get_ds_connection
 from apps.common.response import safe_error
-from config.config import SSM_CONFIG
+from . import services
 import json
-import boto3
-import pytz
 
 
 def rerun_crawler(request):
@@ -29,108 +26,48 @@ def rerun_crawler(request):
     if not retailer or not crawl_date:
         return JsonResponse({'error': '리테일러, 날짜가 필요합니다.'}, status=400)
 
-    # DB에서 해당 리테일러의 id, instance_id, instance_region 조회
+    # 리테일러 정보 조회
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT retailer_id, instance_id, instance_region, schedule_name, region_timezone FROM ssd_crawl_db.ds_monitoring_targets
-            WHERE retailer = %s AND is_active = 1
-        """, (retailer,))
-        row = cursor.fetchone()
-
-        if not row:
-            cursor.close()
-            conn.close()
-            return JsonResponse({'error': '해당 리테일러를 찾을 수 없습니다.'}, status=404)
-
-        retailer_id = row[0]
-        instance_id = row[1]
-        instance_region = row[2] or SSM_CONFIG['region']
-        schedule_name = row[3]
-        region_timezone = row[4]
-
-        if not instance_id:
-            cursor.close()
-            conn.close()
-            return JsonResponse({'error': '이 리테일러는 instance_id가 없어 재실행할 수 없습니다.'}, status=400)
-
-        if not schedule_name:
-            cursor.close()
-            conn.close()
-            return JsonResponse({'error': '이 리테일러는 schedule_name이 등록되지 않았습니다.'}, status=400)
-
+        info = services.get_retailer_info(retailer)
     except Exception as e:
         return safe_error(e, 'db')
 
-    # SSM 명령 실행 (Task Scheduler 방식)
+    if not info:
+        return JsonResponse({'error': '해당 리테일러를 찾을 수 없습니다.'}, status=404)
+
+    if not info['instance_id']:
+        return JsonResponse({'error': '이 리테일러는 instance_id가 없어 재실행할 수 없습니다.'}, status=400)
+
+    if not info['schedule_name']:
+        return JsonResponse({'error': '이 리테일러는 schedule_name이 등록되지 않았습니다.'}, status=400)
+
+    # SSM 명령 실행
     try:
-        ssm_client = boto3.client(
-            'ssm',
-            region_name=instance_region,
-            aws_access_key_id=SSM_CONFIG['access_key'],
-            aws_secret_access_key=SSM_CONFIG['secret_key']
+        command_id = services.execute_ssm_command(
+            info['instance_id'], info['instance_region'],
+            info['schedule_name'], retailer, crawl_date
         )
-
-        commands = [
-            f'schtasks /run /tn "{schedule_name}"',
-            f'Write-Output "Task {schedule_name} triggered for {retailer} ({crawl_date})"'
-        ]
-
-        response = ssm_client.send_command(
-            InstanceIds=[instance_id],
-            DocumentName='AWS-RunPowerShellScript',
-            Parameters={
-                'commands': commands
-            },
-            TimeoutSeconds=60
-        )
-
-        command_id = response['Command']['CommandId']
-
     except Exception as e:
-        cursor.close()
-        conn.close()
         return safe_error(e)
-
-    now = datetime.now()
 
     # 재실행 로그 저장 & 배치 자동 생성
     try:
-        # 재실행 로그 저장
-        cursor.execute("""
-            INSERT INTO ssd_crawl_db.ds_monitoring_crawler_rerun_log
-            (retailer_id, crawl_date, schedule_name, created_id, instance_id, command_id, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (retailer_id, crawl_date, schedule_name, created_id, instance_id, command_id, now))
-
-        # 배치 로그 자동 생성 (start_time = 리테일러 타임존 기준)
-        if region_timezone:
-            tz = pytz.timezone(region_timezone)
-            local_now = datetime.now(tz)
-            batch_start_time = local_now.strftime('%H:%M:%S')
-        else:
-            batch_start_time = now.strftime('%H:%M:%S')
-        batch_memo = f'재실행 ({request.user.username})'
-        cursor.execute("""
-            INSERT INTO ssd_crawl_db.ds_collection_batch_log
-            (date, retailer, start_time, memo)
-            VALUES (%s, %s, %s, %s)
-        """, (crawl_date, retailer, batch_start_time, batch_memo))
-
-        conn.commit()
+        services.save_rerun_log(
+            info['retailer_id'], retailer, crawl_date,
+            info['schedule_name'], created_id,
+            info['instance_id'], command_id,
+            info['region_timezone'],
+            request.user.username
+        )
     except Exception as e:
         return safe_error(e, 'save')
-    finally:
-        cursor.close()
-        conn.close()
 
     return JsonResponse({
         'success': True,
         'message': f'{retailer} 크롤러 재실행이 요청되었습니다.',
         'command_id': command_id,
-        'instance_id': instance_id,
+        'instance_id': info['instance_id'],
         'retailer': retailer,
         'crawl_date': crawl_date,
-        'schedule_name': schedule_name
+        'schedule_name': info['schedule_name']
     })

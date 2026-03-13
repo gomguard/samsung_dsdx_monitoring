@@ -1,49 +1,14 @@
 """
 DS Layer 1 — 배치 로그 API
+request 파싱 + services 호출 + JsonResponse 반환
 """
 
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from apps.common.db import get_ds_connection
 from apps.common.response import safe_error, log_error
-from apps.common.targets import load_monitoring_targets_with_local_time, format_time
+from . import services
 import json
-
-
-def get_batches_for_date(target_date):
-    """특정 날짜의 배치 목록을 리테일러별로 그룹화하여 반환"""
-    batches_by_retailer = {}
-
-    try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
-
-        query = """
-            SELECT id, retailer, start_time, memo
-            FROM ssd_crawl_db.ds_collection_batch_log
-            WHERE date = %s
-            ORDER BY retailer, start_time
-        """
-        cursor.execute(query, (target_date,))
-        rows = cursor.fetchall()
-
-        for row in rows:
-            retailer = row[1]
-            if retailer not in batches_by_retailer:
-                batches_by_retailer[retailer] = []
-
-            batches_by_retailer[retailer].append({
-                'id': row[0],
-                'start_time': format_time(row[2]) if row[2] else '00:00',
-                'memo': row[3]
-            })
-
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print(f"Error loading batches: {e}")
-
-    return batches_by_retailer
 
 
 def batch_list(request):
@@ -65,31 +30,10 @@ def batch_list(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
-        # 해당 날짜의 배치 로그 조회
-        query = """
-            SELECT id, date, retailer, start_time, memo, created_at
-            FROM ssd_crawl_db.ds_collection_batch_log
-            WHERE date = %s
-            ORDER BY retailer, start_time
-        """
-        cursor.execute(query, (target_date,))
-        rows = cursor.fetchall()
-
-        batches = []
-        for row in rows:
-            batches.append({
-                'id': row[0],
-                'date': str(row[1]),
-                'retailer': row[2],
-                'start_time': format_time(row[3]) if row[3] else None,
-                'memo': row[4],
-                'created_at': row[5].isoformat() if row[5] else None
-            })
+        data['batches'] = services.get_batch_list(cursor, target_date)
 
         cursor.close()
         conn.close()
-
-        data['batches'] = batches
 
     except Exception as e:
         data['error'] = log_error(e)
@@ -120,35 +64,13 @@ def batch_init(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
-        # 이미 해당 날짜에 배치가 있는지 확인
-        check_query = """
-            SELECT COUNT(*) FROM ssd_crawl_db.ds_collection_batch_log
-            WHERE date = %s
-        """
-        cursor.execute(check_query, (target_date,))
-        count = cursor.fetchone()[0]
+        created_count = services.init_batches(cursor, conn, target_date)
 
-        if count > 0:
-            cursor.close()
-            conn.close()
-            return JsonResponse({'message': '이미 배치가 존재합니다.', 'created': 0})
-
-        # 모니터링 대상 목록에서 기본 배치 생성 (local_time 사용)
-        targets = load_monitoring_targets_with_local_time()
-        insert_query = """
-            INSERT INTO ssd_crawl_db.ds_collection_batch_log
-            (date, retailer, start_time, memo)
-            VALUES (%s, %s, %s, %s)
-        """
-
-        created_count = 0
-        for table_name, retailer, region, korea_time, local_time, country, mall_name in targets:
-            cursor.execute(insert_query, (target_date, retailer, local_time + ':00', None))
-            created_count += 1
-
-        conn.commit()
         cursor.close()
         conn.close()
+
+        if created_count == 0:
+            return JsonResponse({'message': '이미 배치가 존재합니다.', 'created': 0})
 
         return JsonResponse({'message': f'{created_count}개 배치가 생성되었습니다.', 'created': created_count})
 
@@ -178,17 +100,7 @@ def batch_create(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
-        insert_query = """
-            INSERT INTO ssd_crawl_db.ds_collection_batch_log
-            (date, retailer, start_time, memo)
-            VALUES (%s, %s, %s, %s)
-        """
-        cursor.execute(insert_query, (date_str, retailer, start_time, memo))
-        conn.commit()
-
-        # 새로 생성된 ID 가져오기
-        cursor.execute("SELECT LAST_INSERT_ID()")
-        new_id = cursor.fetchone()[0]
+        new_id = services.create_batch(cursor, conn, date_str, retailer, start_time, memo)
 
         cursor.close()
         conn.close()
@@ -220,34 +132,13 @@ def batch_update(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
-        # 업데이트할 필드 동적 구성
-        updates = []
-        params = []
+        affected = services.update_batch(cursor, conn, batch_id, start_time, memo)
 
-        if start_time is not None:
-            updates.append("start_time = %s")
-            params.append(start_time)
-
-        if memo is not None:
-            updates.append("memo = %s")
-            params.append(memo)
-
-        if not updates:
-            return JsonResponse({'error': '수정할 필드가 없습니다.'}, status=400)
-
-        params.append(batch_id)
-
-        update_query = f"""
-            UPDATE ssd_crawl_db.ds_collection_batch_log
-            SET {', '.join(updates)}
-            WHERE id = %s
-        """
-        cursor.execute(update_query, params)
-        conn.commit()
-
-        affected = cursor.rowcount
         cursor.close()
         conn.close()
+
+        if affected == -1:
+            return JsonResponse({'error': '수정할 필드가 없습니다.'}, status=400)
 
         if affected == 0:
             return JsonResponse({'error': '해당 배치를 찾을 수 없습니다.'}, status=404)
@@ -277,14 +168,8 @@ def batch_delete(request):
         conn = get_ds_connection()
         cursor = conn.cursor()
 
-        delete_query = """
-            DELETE FROM ssd_crawl_db.ds_collection_batch_log
-            WHERE id = %s
-        """
-        cursor.execute(delete_query, (batch_id,))
-        conn.commit()
+        affected = services.delete_batch(cursor, conn, batch_id)
 
-        affected = cursor.rowcount
         cursor.close()
         conn.close()
 
