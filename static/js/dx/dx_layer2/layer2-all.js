@@ -2670,7 +2670,7 @@ async function openRuleModal(tableName, retailer) {
     }
 
     try {
-        const response = await fetch(`/layer2/api/format-rules/?table=${dbTableName}&retailer=${retailer}`);
+        const response = await fetch(`/dx/layer2/api/format-rules/?table=${dbTableName}&retailer=${retailer}`);
         const data = await response.json();
         const rules = data.rules || [];
 
