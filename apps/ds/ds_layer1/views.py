@@ -10,7 +10,7 @@ LAYER_CONTEXT = {
         'number': 1,
         'name': '기본 통계 검수',
         'name_en': 'Foundational Integrity Check',
-        'description': '인스턴스별/지역별 수집 건수 및 완료율 검증',
+        'description': '인스턴스별 수집 건수 및 완료율 검증',
         'color': '#1a365d',
     },
     'data_source': {
