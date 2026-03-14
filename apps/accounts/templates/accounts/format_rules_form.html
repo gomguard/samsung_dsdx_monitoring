@@ -186,7 +186,11 @@ function onTemplateChange() {
         hint.textContent = cfg.hint;
     } else if (checkType && checkType.startsWith('regex')) {
         var hasPattern = (opt.getAttribute('data-pattern') || '').trim();
-        if (hasPattern) {
+        if (hasPattern && checkType === 'regex_clean') {
+            group.style.display = '';
+            input.placeholder = '예: comma 또는 comma|plus|null';
+            hint.textContent = '전처리 옵션: comma(쉼표 제거), plus(+ 제거), null(null/none 허용)';
+        } else if (hasPattern) {
             group.style.display = 'none';
             input.value = '';
         } else {
