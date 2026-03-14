@@ -48,98 +48,87 @@ def cross_field_detail(request):
                     date_col = crossfield_result.get('date_col', '')
                     validation_type = rule_result.get('validation_type', '')
 
-                    # 1일치: 기존 로직 (검증 결과 그대로 반환)
-                    if days == 1:
+                    # 에러 아이템 추출 (account_name + item 쌍)
+                    error_pairs = set()
+                    error_detail_map = {}  # (acct, item) → error_detail (검증 태그용)
+                    for detail in rule_result['error_details']:
+                        acct = detail.get('account_name', '')
+                        item = detail.get('item', '')
+                        if acct and item:
+                            error_pairs.add((acct, item))
+                            error_detail_map[(acct, item)] = detail
+
+                    if not error_pairs or not table_name or not date_col:
                         anomalies = []
-                        for detail in rule_result['error_details']:
-                            anomaly = {
-                                'item': detail.get('item'),
-                                'account_name': detail.get('account_name'),
-                                'page_type': detail.get('page_type'),
-                            }
-                            for key, value in detail.items():
-                                if key not in ['item', 'account_name', 'page_type']:
-                                    anomaly[key] = value
-                            if validation_type == 'cross_detail_mismatch':
-                                validation_info = validate_review_detail_match(detail, product_line, return_detail=True)
-                                anomaly['validation_tag'] = validation_info.get('reason', '')
-                                anomaly['expected_pattern'] = validation_info.get('expected_pattern', '')
-                            anomalies.append(anomaly)
                     else:
-                        # N일치: 에러 아이템의 원본 데이터를 N일간 조회
-                        # 에러 아이템 추출 (account_name + item 쌍)
-                        error_pairs = set()
-                        for detail in rule_result['error_details']:
-                            acct = detail.get('account_name', '')
-                            item = detail.get('item', '')
-                            if acct and item:
-                                error_pairs.add((acct, item))
+                        # 리테일러별 아이템 그룹핑
+                        retailer_items = {}
+                        for acct, item in error_pairs:
+                            retailer_items.setdefault(acct, []).append(item)
 
-                        if not error_pairs or not table_name or not date_col:
-                            anomalies = []
+                        conn_days = get_dx_connection()
+                        cur_days = conn_days.cursor()
+                        anomalies = []
+
+                        from_date = target_date - timedelta(days=days - 1)
+                        from apps.common.retail_columns import get_retailer_columns
+
+                        # select_fields에서 기본 표시 컬럼 결정
+                        select_fields_raw = rule_result.get('select_fields', '')
+                        if select_fields_raw:
+                            dynamic_cols = [f.strip() for f in select_fields_raw.split('|') if f.strip()]
                         else:
-                            # select_fields에서 기본 표시 컬럼 결정
-                            select_fields_raw = rule_result.get('select_fields', '')
-                            if select_fields_raw:
-                                dynamic_cols = [f.strip() for f in select_fields_raw.split('|') if f.strip()]
-                            else:
-                                # error_details의 키에서 추출
-                                exclude = {'id', 'item', 'account_name', 'page_type', date_col, 'product_url'}
-                                dynamic_cols = []
-                                if rule_result['error_details']:
-                                    for k in rule_result['error_details'][0].keys():
-                                        if k not in exclude:
-                                            dynamic_cols.append(k)
+                            exclude = {'id', 'item', 'account_name', 'page_type', date_col, 'product_url'}
+                            dynamic_cols = []
+                            if rule_result['error_details']:
+                                for k in rule_result['error_details'][0].keys():
+                                    if k not in exclude:
+                                        dynamic_cols.append(k)
 
-                            # 리테일러별 아이템 그룹핑
-                            retailer_items = {}
-                            for acct, item in error_pairs:
-                                retailer_items.setdefault(acct, []).append(item)
+                        for acct, items in retailer_items.items():
+                            # 리테일러 전체 수집 컬럼으로 SELECT
+                            retail_cols = get_retailer_columns(product_line, acct)
+                            fixed_cols = ['id', 'account_name', 'item', 'page_type', date_col]
+                            added = set(fixed_cols + ['product_url'])
+                            ordered_cols = list(fixed_cols)
+                            for c in dynamic_cols:
+                                if c not in added:
+                                    ordered_cols.append(c)
+                                    added.add(c)
+                            for c in retail_cols:
+                                if c not in added:
+                                    ordered_cols.append(c)
+                                    added.add(c)
+                            ordered_cols.append('product_url')
+                            select_sql = ', '.join(ordered_cols)
 
-                            conn_days = get_dx_connection()
-                            cur_days = conn_days.cursor()
-                            anomalies = []
+                            placeholders = ', '.join(['%s'] * len(items))
+                            cur_days.execute(f"""
+                                SELECT {select_sql}
+                                FROM {table_name}
+                                WHERE account_name = %s
+                                  AND item IN ({placeholders})
+                                  AND DATE({date_col}::timestamp) >= %s
+                                  AND DATE({date_col}::timestamp) <= %s
+                                ORDER BY item, {date_col}
+                            """, [acct] + items + [str(from_date), str(target_date)])
+                            cols_desc = [desc[0] for desc in cur_days.description]
+                            for row in cur_days.fetchall():
+                                anomaly = {}
+                                for i, col_name in enumerate(cols_desc):
+                                    val = row[i]
+                                    anomaly[col_name] = str(val) if val is not None else None
+                                # 검증 태그 추가 (1일치 에러 항목에만)
+                                pair_key = (anomaly.get('account_name', ''), anomaly.get('item', ''))
+                                if validation_type == 'cross_detail_mismatch' and pair_key in error_detail_map:
+                                    detail = error_detail_map[pair_key]
+                                    validation_info = validate_review_detail_match(detail, product_line, return_detail=True)
+                                    anomaly['validation_tag'] = validation_info.get('reason', '')
+                                    anomaly['expected_pattern'] = validation_info.get('expected_pattern', '')
+                                anomalies.append(anomaly)
 
-                            from_date = target_date - timedelta(days=days - 1)
-                            from apps.common.retail_columns import get_retailer_columns
-                            for acct, items in retailer_items.items():
-                                # 리테일러 전체 수집 컬럼으로 SELECT
-                                retail_cols = get_retailer_columns(product_line, acct)
-                                fixed_cols = ['id', 'account_name', 'item', 'page_type', date_col]
-                                # 기본 표시 컬럼 먼저, 나머지 수집 컬럼 추가
-                                added = set(fixed_cols + ['product_url'])
-                                ordered_cols = list(fixed_cols)
-                                for c in dynamic_cols:
-                                    if c not in added:
-                                        ordered_cols.append(c)
-                                        added.add(c)
-                                for c in retail_cols:
-                                    if c not in added:
-                                        ordered_cols.append(c)
-                                        added.add(c)
-                                ordered_cols.append('product_url')
-                                select_sql = ', '.join(ordered_cols)
-
-                                placeholders = ', '.join(['%s'] * len(items))
-                                cur_days.execute(f"""
-                                    SELECT {select_sql}
-                                    FROM {table_name}
-                                    WHERE account_name = %s
-                                      AND item IN ({placeholders})
-                                      AND DATE({date_col}::timestamp) >= %s
-                                      AND DATE({date_col}::timestamp) <= %s
-                                    ORDER BY item, {date_col}
-                                """, [acct] + items + [str(from_date), str(target_date)])
-                                cols_desc = [desc[0] for desc in cur_days.description]
-                                for row in cur_days.fetchall():
-                                    anomaly = {}
-                                    for i, col_name in enumerate(cols_desc):
-                                        val = row[i]
-                                        anomaly[col_name] = str(val) if val is not None else None
-                                    anomalies.append(anomaly)
-
-                            cur_days.close()
-                            conn_days.close()
+                        cur_days.close()
+                        conn_days.close()
 
                     # account_name, item, crawl_datetime 순으로 정렬
                     anomalies.sort(key=lambda x: (

@@ -1422,10 +1422,11 @@ function _fmRenderInlineView(data, retailer, fieldName, productLine, date, days)
             onUpdate: function(selected) {
                 window._fmDetailState.visibleKeys = selected.map(function(c) { return c.key; });
                 _fmRebuildTable();
+                setTimeout(function() { _fmBindEditEvents(); }, 100);
             }
         },
         right: [
-            { type: 'button', label: '정렬 초기화', style: 'outline', size: 'fb', onClick: function() { window._fmDetailState.sortState = []; _fmRebuildTable(); } }
+            { type: 'button', label: '정렬 초기화', style: 'outline', size: 'fb', onClick: function() { window._fmDetailState.sortState = []; _fmRebuildTable(); setTimeout(function() { _fmBindEditEvents(); }, 100); } }
         ]
     }).render();
 
@@ -1647,6 +1648,9 @@ function _fmRenderPage(page) {
         var suffix = st.filteredData ? ' (필터 적용)' : '';
         countEl.innerHTML = '총 <strong>' + dataArr.length.toLocaleString() + '</strong>건' + suffix;
     }
+
+    // 편집 이벤트 재바인딩 (테이블 재생성 후 필요)
+    setTimeout(function() { _fmBindEditEvents(); }, 50);
 }
 
 // 필터

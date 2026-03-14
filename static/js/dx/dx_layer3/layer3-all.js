@@ -1551,7 +1551,15 @@ function showRetailerDetail(retailer) {
                 </div>
             </div>`;
 
-        // 컬럼 정의: 기본 표시 컬럼
+        // 규칙에 정의된 기본 표시 컬럼 결정
+        const selectFieldsRaw = window.crossfieldSelectFields || '';
+        const ruleDisplayCols = selectFieldsRaw ? selectFieldsRaw.split('|').map(f => f.trim()).filter(f => f) : [];
+
+        // 기본 표시 컬럼: 고정 + 규칙 컬럼 (규칙 없으면 otherKeys 전체)
+        const fixedKeys = ['_no', 'id', 'item', 'page_type'];
+        const defaultDisplayKeys = ruleDisplayCols.length > 0 ? ruleDisplayCols : otherKeys;
+
+        // 전체 컬럼 정의 (기본 표시 + 나머지 수집 컬럼)
         const allColumns = [
             { key: '_no', label: 'No', width: 50, fixed: true },
             { key: 'id', label: 'id', width: 80 },
@@ -1564,7 +1572,14 @@ function showRetailerDetail(retailer) {
         if (urlKey) {
             allColumns.push({ key: 'product_url', label: 'product_url', width: 100 });
         }
-        const defaultVisibleKeys = allColumns.map(c => c.key);
+
+        // defaultVisibleKeys: 고정 + 규칙 표시 컬럼 + dateCol + product_url
+        const defaultVisibleSet = new Set(fixedKeys.concat(defaultDisplayKeys));
+        if (urlKey) defaultVisibleSet.add('product_url');
+        // dateCol 항상 포함
+        const dateColKey = otherKeys.find(k => k === 'crawl_datetime' || k === 'crawl_strdatetime');
+        if (dateColKey) defaultVisibleSet.add(dateColKey);
+        const defaultVisibleKeys = allColumns.filter(c => defaultVisibleSet.has(c.key)).map(c => c.key);
 
         // 리테일러 전체 수집 컬럼 추가 (컬럼 선택용, 기본 비표시)
         const retailerCols = (window.crossfieldRetailerColumns || {})[retailer] || [];
