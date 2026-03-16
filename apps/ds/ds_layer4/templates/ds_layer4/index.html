@@ -1080,7 +1080,7 @@
 
 {% block extra_js %}
 <div id="app-data" data-user-id="{{ request.user.username|default:'anonymous'|escapejs }}" style="display:none;"></div>
-<script src="{% static 'js/ds/ds_layer4/index.js' %}"></script>
-<script src="{% static 'js/ds/ds_layer4/report.js' %}"></script>
-<script src="{% static 'js/ds/ds_layer4/screenshot.js' %}"></script>
+<script src="{% static 'ds_layer4/js/index.js' %}"></script>
+<script src="{% static 'ds_layer4/js/report.js' %}"></script>
+<script src="{% static 'ds_layer4/js/screenshot.js' %}"></script>
 {% endblock %}
