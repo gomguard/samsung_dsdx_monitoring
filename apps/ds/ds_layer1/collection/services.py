@@ -6,7 +6,7 @@ DB 쿼리 + 계산 + 상태 판단 (순수 비즈니스 로직)
 from datetime import datetime, timedelta
 from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_instance, get_retailer_map
 from apps.ds.ds_layer1.batch.services import get_batches_for_date
-from apps.ds.ds_layer2.api.views import get_quality_counts_by_time_range
+from apps.ds.ds_layer2.stats.services import get_quality_counts_by_time_range
 
 
 def get_monitoring_targets():
