@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}DS Layer 3 - 연속 오류 추적{% endblock %}
+{% block title %}DS Layer 3 - SKU 이상치 추적{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -53,16 +53,8 @@
         font-weight: 700;
     }
 
-    .header-text h1 {
-        font-size: 24px;
-        font-weight: 700;
-        margin-bottom: 4px;
-    }
-
-    .header-text p {
-        font-size: 14px;
-        opacity: 0.9;
-    }
+    .header-text h1 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+    .header-text p { font-size: 14px; opacity: 0.9; }
 
     .header-badge {
         padding: 8px 16px;
@@ -79,9 +71,7 @@
     }
 
     @media (max-width: 1024px) {
-        .summary-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
+        .summary-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
     .summary-card {
@@ -98,10 +88,7 @@
         margin-bottom: 12px;
     }
 
-    .summary-label {
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
+    .summary-label { font-size: 13px; color: var(--text-secondary); }
 
     .summary-icon {
         width: 36px;
@@ -112,19 +99,10 @@
         justify-content: center;
     }
 
-    .summary-icon svg {
-        width: 20px;
-        height: 20px;
-    }
+    .summary-icon svg { width: 20px; height: 20px; }
 
-    .summary-value {
-        font-size: 28px;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
+    .summary-value { font-size: 28px; font-weight: 700; color: var(--text-primary); }
     .summary-value.success { color: #059669; }
-    .summary-value.warning { color: #d97706; }
     .summary-value.danger { color: #dc2626; }
 
     .info-banner {
@@ -138,160 +116,9 @@
         gap: 12px;
     }
 
-    .info-banner svg {
-        width: 24px;
-        height: 24px;
-        color: #d97706;
-        flex-shrink: 0;
-    }
-
-    .info-banner-text {
-        font-size: 14px;
-        color: #92400e;
-    }
-
-    .info-banner-text strong {
-        color: #78350f;
-    }
-
-    .error-summary-section {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        margin-bottom: 24px;
-    }
-
-    @media (max-width: 1024px) {
-        .error-summary-section {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    .error-summary {
-        background: white;
-        border-radius: 16px;
-        border: 1px solid var(--border-color);
-        padding: 20px;
-    }
-
-    .error-summary.new-errors {
-        border-left: 4px solid #3b82f6;
-    }
-
-    .error-summary.recurring-errors {
-        border-left: 4px solid #dc2626;
-    }
-
-    .error-summary-title {
-        font-size: 16px;
-        font-weight: 700;
-        margin-bottom: 16px;
-        color: var(--text-primary);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .title-badge {
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 600;
-    }
-
-    .title-badge.new {
-        background: #dbeafe;
-        color: #1d4ed8;
-    }
-
-    .title-badge.recurring {
-        background: #fef2f2;
-        color: #dc2626;
-    }
-
-    .error-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-    }
-
-    @media (max-width: 768px) {
-        .error-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-    }
-
-    .error-item {
-        background: var(--bg-primary);
-        padding: 16px;
-        border-radius: 12px;
-        text-align: center;
-    }
-
-    .error-item.danger-bg {
-        background: #fef2f2;
-    }
-
-    .error-item.warning-bg {
-        background: #fffbeb;
-    }
-
-    .error-item.info-bg {
-        background: #eff6ff;
-    }
-
-    .error-name {
-        font-size: 12px;
-        color: var(--text-secondary);
-        margin-bottom: 8px;
-    }
-
-    .error-value {
-        font-size: 20px;
-        font-weight: 700;
-    }
-
-    .error-value.danger { color: #dc2626; }
-    .error-value.warning { color: #d97706; }
-    .error-value.info { color: #2563eb; }
-
-    .error-desc {
-        font-size: 11px;
-        color: var(--text-secondary);
-        margin-top: 4px;
-    }
-
-    .view-tabs {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 24px;
-        background: white;
-        padding: 8px;
-        border-radius: 12px;
-        border: 1px solid var(--border-color);
-    }
-
-    .view-tab {
-        flex: 1;
-        padding: 12px 24px;
-        border: none;
-        background: transparent;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        color: var(--text-secondary);
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .view-tab:hover {
-        background: var(--bg-secondary);
-    }
-
-    .view-tab.active {
-        background: {{ layer.color }};
-        color: white;
-    }
+    .info-banner svg { width: 24px; height: 24px; color: #d97706; flex-shrink: 0; }
+    .info-banner-text { font-size: 14px; color: #92400e; }
+    .info-banner-text strong { color: #78350f; }
 
     .table-section {
         background: white;
@@ -308,16 +135,9 @@
         align-items: center;
     }
 
-    .table-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
+    .table-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
 
-    .retailer-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
+    .retailer-table { width: 100%; border-collapse: collapse; }
 
     .retailer-table th,
     .retailer-table td {
@@ -334,35 +154,14 @@
         background: var(--bg-primary);
     }
 
-    .retailer-table td {
-        font-size: 13px;
-        color: var(--text-primary);
-    }
+    .retailer-table td { font-size: 13px; color: var(--text-primary); }
+    .retailer-table tr:last-child td { border-bottom: none; }
+    .retailer-table tbody tr { cursor: pointer; transition: background 0.2s; }
+    .retailer-table tbody tr:hover { background: var(--bg-secondary); }
+    .retailer-table tbody tr.row-danger { background: #fef2f2; }
+    .retailer-table tbody tr.row-danger:hover { background: #fee2e2; }
 
-    .retailer-table tr:last-child td {
-        border-bottom: none;
-    }
-
-    .retailer-table tbody tr {
-        cursor: pointer;
-        transition: background 0.2s;
-    }
-
-    .retailer-table tbody tr:hover {
-        background: var(--bg-secondary);
-    }
-
-    .retailer-table tbody tr.row-danger {
-        background: #fef2f2;
-    }
-
-    .retailer-table tbody tr.row-danger:hover {
-        background: #fee2e2;
-    }
-
-    .retailer-name {
-        font-weight: 600;
-    }
+    .retailer-name { font-weight: 600; }
 
     .country-badge {
         display: inline-block;
@@ -374,21 +173,10 @@
         color: var(--text-secondary);
     }
 
-    .error-count {
-        font-weight: 600;
-    }
-
-    .error-count.has-error {
-        color: #dc2626;
-    }
-
-    .error-count.has-new {
-        color: #2563eb;
-    }
-
-    .error-count.no-error {
-        color: #059669;
-    }
+    .error-count { font-weight: 600; }
+    .error-count.has-error { color: #dc2626; }
+    .error-count.has-new { color: #2563eb; }
+    .error-count.no-error { color: #059669; }
 
     .status-badge {
         display: inline-flex;
@@ -401,9 +189,7 @@
     }
 
     .status-badge.success { background: #ecfdf5; color: #059669; }
-    .status-badge.warning { background: #fffbeb; color: #d97706; }
     .status-badge.danger { background: #fef2f2; color: #dc2626; }
-    .status-badge.pending { background: #f3f4f6; color: #6b7280; }
 
     .status-dot {
         width: 8px;
@@ -430,254 +216,101 @@
         margin-right: 12px;
     }
 
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .hidden { display: none !important; }
 
+    /* 모달 */
     .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-        padding: 20px;
+        display: flex; align-items: center; justify-content: center;
+        z-index: 1000; padding: 20px;
     }
 
     .modal-content {
-        background: white;
-        border-radius: 16px;
-        max-width: 1200px;
-        width: 100%;
-        max-height: 90vh;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
+        background: white; border-radius: 16px;
+        max-width: 1200px; width: 100%; max-height: 90vh;
+        overflow: hidden; display: flex; flex-direction: column;
     }
 
     .modal-header {
         padding: 20px 24px;
         border-bottom: 1px solid var(--border-color);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+        display: flex; justify-content: space-between; align-items: center;
     }
 
-    .modal-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--text-primary);
-    }
-
-    .modal-subtitle {
-        font-size: 13px;
-        color: var(--text-secondary);
-        margin-top: 4px;
-    }
+    .modal-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+    .modal-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
 
     .modal-close {
-        width: 36px;
-        height: 36px;
-        border: none;
-        background: var(--bg-secondary);
-        border-radius: 8px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 20px;
-        color: var(--text-secondary);
+        width: 36px; height: 36px; border: none;
+        background: var(--bg-secondary); border-radius: 8px;
+        cursor: pointer; display: flex; align-items: center;
+        justify-content: center; font-size: 20px; color: var(--text-secondary);
     }
 
-    .modal-close:hover {
-        background: var(--border-color);
-    }
+    .modal-close:hover { background: var(--border-color); }
 
-    .modal-body {
-        padding: 24px;
-        overflow-y: auto;
-        flex: 1;
-    }
+    .modal-body { padding: 24px; overflow-y: auto; flex: 1; }
 
     .modal-footer {
         padding: 16px 24px;
         border-top: 1px solid var(--border-color);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+        display: flex; justify-content: space-between; align-items: center;
     }
 
-    .filter-selector {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 16px;
-    }
+    .filter-selector { display: flex; gap: 8px; margin-bottom: 16px; }
 
     .filter-selector button {
         padding: 8px 16px;
         background: var(--bg-secondary);
         border: 1px solid var(--border-color);
-        border-radius: 8px;
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 0.2s;
+        border-radius: 8px; font-size: 13px;
+        cursor: pointer; transition: all 0.2s;
     }
 
     .filter-selector button.active {
-        background: {{ layer.color }};
-        color: white;
-        border-color: {{ layer.color }};
+        background: {{ layer.color }}; color: white; border-color: {{ layer.color }};
     }
 
-    .error-type-selector {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 16px;
-        flex-wrap: wrap;
-    }
-
-    .error-type-selector button {
-        padding: 8px 16px;
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        font-size: 13px;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .error-type-selector button.active {
-        background: {{ layer.color }};
-        color: white;
-        border-color: {{ layer.color }};
-    }
-
-    /* 테이블 스크롤 컨테이너 */
     .table-scroll-container {
-        overflow-x: auto;
-        overflow-y: auto;
+        overflow-x: auto; overflow-y: auto;
         max-height: 450px;
         border: 1px solid var(--border-color);
         border-radius: 8px;
     }
 
-    .detail-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-        table-layout: fixed;
-    }
+    .detail-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
     .detail-table th,
     .detail-table td {
-        padding: 12px 16px;
-        text-align: left;
+        padding: 12px 16px; text-align: left;
         border-bottom: 1px solid var(--border-color);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
 
     .detail-table th {
-        background: var(--bg-primary);
-        font-weight: 600;
-        color: var(--text-secondary);
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        cursor: default;
-        user-select: none;
-        position: relative;
+        background: var(--bg-primary); font-weight: 600;
+        color: var(--text-secondary); position: sticky; top: 0; z-index: 1;
     }
 
-    .detail-table th .resize-handle {
-        position: absolute;
-        right: 0;
-        top: 0;
-        bottom: 0;
-        width: 5px;
-        cursor: col-resize;
-        background: transparent;
-    }
+    .detail-table a { color: #2563eb; text-decoration: none; }
+    .detail-table a:hover { text-decoration: underline; }
 
-    .detail-table th .resize-handle:hover,
-    .detail-table th .resize-handle.resizing {
-        background: #3b82f6;
-    }
-
-    .detail-table td {
-        max-width: 300px;
-    }
-
-    .detail-table td.title-cell {
-        max-width: 400px;
-    }
-
-    .detail-table a {
-        color: #2563eb;
-        text-decoration: none;
-    }
-
-    .detail-table a:hover {
-        text-decoration: underline;
-    }
-
-    .detail-table img.thumb {
-        width: 40px;
-        height: 40px;
-        object-fit: cover;
-        border-radius: 4px;
-    }
-
-    /* 기본 열 너비 */
-    .col-date { width: 100px; }
-    .col-image { width: 70px; }
-    .col-title { width: 350px; }
-    .col-price { width: 80px; }
-    .col-ships { width: 100px; }
-    .col-sold { width: 100px; }
-    .col-status { width: 70px; }
-    .col-link { width: 60px; }
-
-    .null-value {
-        color: #dc2626;
-        font-style: italic;
-    }
+    .null-value { color: #dc2626; font-style: italic; }
 
     .recurring-badge {
-        display: inline-block;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 11px;
-        font-weight: 600;
+        display: inline-block; padding: 4px 8px;
+        border-radius: 4px; font-size: 11px; font-weight: 600;
     }
 
-    .recurring-badge.new {
-        background: #dbeafe;
-        color: #1d4ed8;
-    }
+    .recurring-badge.new { background: #dbeafe; color: #1d4ed8; }
+    .recurring-badge.recurring { background: #fef2f2; color: #dc2626; }
 
-    .recurring-badge.recurring {
-        background: #fef2f2;
-        color: #dc2626;
-    }
+.pagination { display: flex; gap: 8px; align-items: center; border-top: none; }
+    .pagination span { font-size: 13px; color: var(--text-secondary); }
 
-    .pagination {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-    }
-
-    .pagination span {
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
 </style>
 {% endblock %}
 
@@ -691,9 +324,7 @@
                 <p>{{ layer.name_en }} - {{ layer.description }}</p>
             </div>
         </div>
-        <div class="header-badge">
-            DS Retail - Global Price Tracking
-        </div>
+        <div class="header-badge">DS Retail - Global Price Tracking</div>
     </div>
 </div>
 
@@ -706,10 +337,8 @@
         <line x1="12" y1="16" x2="12.01" y2="16"/>
     </svg>
     <div class="info-banner-text">
-        <strong>에러 분석:</strong>
-        <strong style="color: #1d4ed8;">신규(1일)</strong>는 오늘 처음 발생한 에러,
-        <strong style="color: #dc2626;">반복(2일+)</strong>은 연속으로 발생하는 에러입니다.
-        producturl 기준으로 동일 상품을 식별합니다.
+        <strong style="color: #1d4ed8;">신규(1일)</strong>는 기준일에만 발생,
+        <strong style="color: #dc2626;">반복(2일+)</strong>은 연속 발생하는 이상치입니다.
     </div>
 </div>
 
@@ -719,8 +348,7 @@
             <span class="summary-label">전체 리테일러</span>
             <div class="summary-icon" style="background: #dbeafe; color: #2563eb;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
                     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
                 </svg>
             </div>
@@ -729,12 +357,10 @@
     </div>
     <div class="summary-card">
         <div class="summary-card-header">
-            <span class="summary-label">신규 에러 (1일)</span>
+            <span class="summary-label">신규 SKU (1일)</span>
             <div class="summary-icon" style="background: #dbeafe; color: #2563eb;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="8" x2="12" y2="16"/>
-                    <line x1="8" y1="12" x2="16" y2="12"/>
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
                 </svg>
             </div>
         </div>
@@ -742,12 +368,11 @@
     </div>
     <div class="summary-card">
         <div class="summary-card-header">
-            <span class="summary-label">반복 에러 (2일+)</span>
+            <span class="summary-label">반복 SKU (2일+)</span>
             <div class="summary-icon" style="background: #fef2f2; color: #dc2626;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
             </div>
         </div>
@@ -758,8 +383,7 @@
             <span class="summary-label">품질 상태</span>
             <div class="summary-icon" style="background: #d1fae5; color: #059669;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                    <polyline points="22 4 12 14.01 9 11.01"/>
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
                 </svg>
             </div>
         </div>
@@ -767,67 +391,9 @@
     </div>
 </div>
 
-<div class="error-summary-section">
-    <div class="error-summary new-errors">
-        <div class="error-summary-title">
-            <span class="title-badge new">NEW</span>
-            신규 에러 현황 (오늘 처음 발생)
-        </div>
-        <div class="error-grid">
-            <div class="error-item info-bg">
-                <div class="error-name">Title NULL</div>
-                <div class="error-value info" id="newTitleNull">-</div>
-            </div>
-            <div class="error-item info-bg">
-                <div class="error-name">Image NULL</div>
-                <div class="error-value info" id="newImageurlNull">-</div>
-            </div>
-            <div class="error-item info-bg">
-                <div class="error-name">Image 형식</div>
-                <div class="error-value info" id="newImageurlInvalid">-</div>
-            </div>
-            <div class="error-item info-bg">
-                <div class="error-name">부분 NULL</div>
-                <div class="error-value info" id="newPartialNull">-</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="error-summary recurring-errors">
-        <div class="error-summary-title">
-            <span class="title-badge recurring">2일+</span>
-            반복 에러 현황 (연속 발생)
-        </div>
-        <div class="error-grid">
-            <div class="error-item danger-bg">
-                <div class="error-name">Title NULL</div>
-                <div class="error-value danger" id="recurringTitleNull">-</div>
-            </div>
-            <div class="error-item danger-bg">
-                <div class="error-name">Image NULL</div>
-                <div class="error-value danger" id="recurringImageurlNull">-</div>
-            </div>
-            <div class="error-item danger-bg">
-                <div class="error-name">Image 형식</div>
-                <div class="error-value danger" id="recurringImageurlInvalid">-</div>
-            </div>
-            <div class="error-item danger-bg">
-                <div class="error-name">부분 NULL</div>
-                <div class="error-value danger" id="recurringPartialNull">-</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="view-tabs">
-    <button class="view-tab active" data-view="all" onclick="switchView('all')">전체</button>
-    <button class="view-tab" data-view="new" onclick="switchView('new')">신규 (1일)</button>
-    <button class="view-tab" data-view="recurring" onclick="switchView('recurring')">반복 (2일+)</button>
-</div>
-
 <div class="table-section">
     <div class="table-header">
-        <div class="table-title" id="tableTitle">리테일러별 에러 현황</div>
+        <div class="table-title">리테일러별 SKU 이상치 현황</div>
     </div>
     <div class="loading" id="tableLoading">
         <div class="loading-spinner"></div>
@@ -836,18 +402,17 @@
     <div id="tableContent"></div>
 </div>
 
-<div id="detailModal" class="modal-overlay hidden" onclick="closeModalOnOverlay(event)">
+<div id="detailModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal()">
     <div class="modal-content" onclick="event.stopPropagation()">
         <div class="modal-header">
             <div>
-                <div class="modal-title" id="modalTitle">에러 상세</div>
+                <div class="modal-title" id="modalTitle">SKU 이상치 상세</div>
                 <div class="modal-subtitle" id="modalSubtitle"></div>
             </div>
             <button class="modal-close" onclick="closeModal()">&times;</button>
         </div>
         <div class="modal-body">
             <div class="filter-selector" id="filterSelector"></div>
-            <div class="error-type-selector" id="errorTypeSelector"></div>
             <div class="loading" id="modalLoading">
                 <div class="loading-spinner"></div>
                 데이터를 불러오는 중...
@@ -869,94 +434,62 @@
 {% block extra_js %}
 <script>
 let statsData = null;
-let currentView = 'all';  // all, new, recurring
-let currentTableName = '';
-let currentErrorType = 'title_null';
+let currentRetailer = '';
 let currentFilter = 'all';
 let currentPage = 1;
 let totalPages = 1;
-let currentRetailerData = {};
 
 function formatLocalDate(date) {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
+    var yyyy = date.getFullYear();
+    var mm = String(date.getMonth() + 1).padStart(2, '0');
+    var dd = String(date.getDate()).padStart(2, '0');
+    return yyyy + '-' + mm + '-' + dd;
 }
 
 function setPrevDay() {
-    const dateInput = document.getElementById('targetDate');
-    const current = new Date(dateInput.value);
+    var dateInput = document.getElementById('targetDate');
+    var current = new Date(dateInput.value);
     current.setDate(current.getDate() - 1);
     dateInput.value = formatLocalDate(current);
     loadData();
 }
 
 function setNextDay() {
-    const dateInput = document.getElementById('targetDate');
-    const current = new Date(dateInput.value);
+    var dateInput = document.getElementById('targetDate');
+    var current = new Date(dateInput.value);
     current.setDate(current.getDate() + 1);
-    const nextStr = formatLocalDate(current);
-    const todayStr = formatLocalDate(new Date());
-
-    if (nextStr > todayStr) {
-        showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning');
-        return;
-    }
-
+    var nextStr = formatLocalDate(current);
+    var todayStr = formatLocalDate(new Date());
+    if (nextStr > todayStr) { showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning'); return; }
     dateInput.value = nextStr;
     loadData();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // FilterBar 초기화
     new FilterBar('#controlsBar', {
         controls: [
             { type: 'date', key: 'targetDate', label: '조회 날짜' },
-            { type: 'select', key: 'daysPeriod', label: '분석 기간', options: [
-                { value: '3', label: '3일' },
-                { value: '5', label: '5일' },
-                { value: '7', label: '7일' }
-            ]},
-            { type: 'button', label: '조회', style: 'primary', onClick: () => loadData() },
-            { type: 'button', label: '전날', style: 'cancel', color: '#1a365d', border: '1px solid #1a365d', onClick: () => setPrevDay() },
-            { type: 'button', label: '다음날', style: 'cancel', color: '#1a365d', border: '1px solid #1a365d', onClick: () => setNextDay() },
+            { type: 'button', label: '조회', style: 'primary', onClick: function() { loadData(); } },
+            { type: 'button', label: '전날', style: 'cancel', color: '#1a365d', border: '1px solid #1a365d', onClick: function() { setPrevDay(); } },
+            { type: 'button', label: '다음날', style: 'cancel', color: '#1a365d', border: '1px solid #1a365d', onClick: function() { setNextDay(); } },
         ]
     }).render();
 
-    // 저장된 날짜 또는 어제 날짜로 초기화
     document.getElementById('targetDate').value = getPersistedDate();
     loadData();
 });
 
-function switchView(view) {
-    currentView = view;
-    document.querySelectorAll('.view-tab').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.view === view);
-    });
-
-    const titles = {
-        'all': '리테일러별 에러 현황 (전체)',
-        'new': '리테일러별 에러 현황 (신규)',
-        'recurring': '리테일러별 에러 현황 (반복)'
-    };
-    document.getElementById('tableTitle').textContent = titles[view];
-
-    renderTable(statsData);
-}
-
 async function loadData() {
-    let date = document.getElementById('targetDate').value;
+    var date = document.getElementById('targetDate').value;
     if (!validateQueryDate(date, 'targetDate')) {
-        date = document.getElementById('targetDate').value; // 보정된 날짜
+        date = document.getElementById('targetDate').value;
     }
-    setPersistedDate(date); // 날짜 저장
-    const days = document.getElementById('daysPeriod').value;
+    setPersistedDate(date);
     document.getElementById('tableLoading').classList.remove('hidden');
     document.getElementById('tableContent').innerHTML = '';
 
     try {
-        const response = await fetch(`/ds/layer3/api/stats/?date=${date}&days=${days}`);
+        var response = await fetch('/ds/layer3/api/stats/?date=' + date + '&days=4');
         statsData = await response.json();
         updateSummary(statsData);
         renderTable(statsData);
@@ -969,207 +502,77 @@ async function loadData() {
 }
 
 function updateSummary(data) {
-    if (data.summary) {
-        document.getElementById('totalTables').textContent = data.summary.total_tables || 0;
-        document.getElementById('newTotal').textContent = (data.summary.new_total || 0).toLocaleString();
-        document.getElementById('recurringTotal').textContent = (data.summary.recurring_total || 0).toLocaleString();
+    if (!data.summary) return;
+    document.getElementById('totalTables').textContent = data.summary.total_tables || 0;
+    document.getElementById('newTotal').textContent = (data.summary.new_skus || 0).toLocaleString();
+    document.getElementById('recurringTotal').textContent = (data.summary.repeat_skus || 0).toLocaleString();
 
-        const status = data.summary.status || 'pending';
-        const statusEl = document.getElementById('overallStatus');
-        statusEl.textContent = getStatusLabel(status);
-        statusEl.className = 'summary-value ' + status;
-
-        // 신규 에러
-        document.getElementById('newTitleNull').textContent = (data.summary.new_title_null || 0).toLocaleString();
-        document.getElementById('newImageurlNull').textContent = (data.summary.new_imageurl_null || 0).toLocaleString();
-        document.getElementById('newImageurlInvalid').textContent = (data.summary.new_imageurl_invalid || 0).toLocaleString();
-        document.getElementById('newPartialNull').textContent = (data.summary.new_partial_null || 0).toLocaleString();
-
-        // 반복 에러
-        document.getElementById('recurringTitleNull').textContent = (data.summary.recurring_title_null || 0).toLocaleString();
-        document.getElementById('recurringImageurlNull').textContent = (data.summary.recurring_imageurl_null || 0).toLocaleString();
-        document.getElementById('recurringImageurlInvalid').textContent = (data.summary.recurring_imageurl_invalid || 0).toLocaleString();
-        document.getElementById('recurringPartialNull').textContent = (data.summary.recurring_partial_null || 0).toLocaleString();
-    }
+    var status = data.summary.status || 'pending';
+    var statusEl = document.getElementById('overallStatus');
+    statusEl.textContent = status === 'success' ? '정상' : '이상';
+    statusEl.className = 'summary-value ' + status;
 }
 
 function renderTable(data) {
-    const container = document.getElementById('tableContent');
-
+    var container = document.getElementById('tableContent');
     if (!data.results || data.results.length === 0) {
         container.innerHTML = '<div class="loading">데이터가 없습니다.</div>';
         return;
     }
 
-    let html = `
-        <table class="retailer-table">
-            <thead>
-                <tr>
-                    <th>No</th>
-                    <th>리테일러</th>
-                    <th>지역</th>
-                    <th>국가</th>
-    `;
+    var html = '<table class="retailer-table"><thead><tr>' +
+        '<th>No</th><th>리테일러</th><th>지역</th><th>국가</th>' +
+        '<th>신규 SKU</th><th>반복 SKU</th><th>전체</th><th>상태</th>' +
+        '</tr></thead><tbody>';
 
-    if (currentView === 'all') {
-        html += `
-                    <th>신규</th>
-                    <th>반복</th>
-                    <th>전체</th>
-        `;
-    } else if (currentView === 'new') {
-        html += `
-                    <th>Title</th>
-                    <th>Image</th>
-                    <th>형식</th>
-                    <th>부분</th>
-                    <th>합계</th>
-        `;
-    } else {
-        html += `
-                    <th>Title</th>
-                    <th>Image</th>
-                    <th>형식</th>
-                    <th>부분</th>
-                    <th>합계</th>
-        `;
-    }
+    for (var i = 0; i < data.results.length; i++) {
+        var item = data.results[i];
+        var rowClass = item.status === 'danger' ? 'row-danger' : '';
+        var total = item.total_anomaly_skus || 0;
 
-    html += `
-                    <th>상태</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-
-    for (const item of data.results) {
-        const rowClass = item.status === 'danger' ? 'row-danger' : '';
-        html += `<tr class="${rowClass}" onclick="openDetail('${item.table_name}', '${item.retailer}', '${item.country}', ${JSON.stringify(item).replace(/"/g, '&quot;')})" title="클릭하여 상세 보기">
-            <td>${item.no}</td>
-            <td><span class="retailer-name">${item.retailer}</span></td>
-            <td>${item.region}</td>
-            <td><span class="country-badge">${item.country}</span></td>
-        `;
-
-        if (currentView === 'all') {
-            html += `
-                <td class="error-count ${item.new_total > 0 ? 'has-new' : 'no-error'}">${item.new_total}</td>
-                <td class="error-count ${item.recurring_total > 0 ? 'has-error' : 'no-error'}">${item.recurring_total}</td>
-                <td class="error-count ${item.total > 0 ? 'has-error' : 'no-error'}">${item.total}</td>
-            `;
-        } else if (currentView === 'new') {
-            html += `
-                <td class="error-count ${item.new_title_null > 0 ? 'has-new' : 'no-error'}">${item.new_title_null}</td>
-                <td class="error-count ${item.new_imageurl_null > 0 ? 'has-new' : 'no-error'}">${item.new_imageurl_null}</td>
-                <td class="error-count ${item.new_imageurl_invalid > 0 ? 'has-new' : 'no-error'}">${item.new_imageurl_invalid}</td>
-                <td class="error-count ${item.new_partial_null > 0 ? 'has-new' : 'no-error'}">${item.new_partial_null}</td>
-                <td class="error-count ${item.new_total > 0 ? 'has-new' : 'no-error'}">${item.new_total}</td>
-            `;
-        } else {
-            html += `
-                <td class="error-count ${item.recurring_title_null > 0 ? 'has-error' : 'no-error'}">${item.recurring_title_null}</td>
-                <td class="error-count ${item.recurring_imageurl_null > 0 ? 'has-error' : 'no-error'}">${item.recurring_imageurl_null}</td>
-                <td class="error-count ${item.recurring_imageurl_invalid > 0 ? 'has-error' : 'no-error'}">${item.recurring_imageurl_invalid}</td>
-                <td class="error-count ${item.recurring_partial_null > 0 ? 'has-error' : 'no-error'}">${item.recurring_partial_null}</td>
-                <td class="error-count ${item.recurring_total > 0 ? 'has-error' : 'no-error'}">${item.recurring_total}</td>
-            `;
-        }
-
-        html += `
-            <td>
-                <span class="status-badge ${item.status}">
-                    <span class="status-dot"></span>
-                    ${getStatusLabel(item.status)}
-                </span>
-            </td>
-        </tr>`;
+        html += '<tr class="' + rowClass + '" onclick="openDetail(\'' + esc(item.retailer) + '\')">' +
+            '<td>' + item.no + '</td>' +
+            '<td><span class="retailer-name">' + esc(item.retailer) + '</span></td>' +
+            '<td>' + esc(item.region) + '</td>' +
+            '<td><span class="country-badge">' + esc(item.country) + '</span></td>' +
+            '<td class="error-count ' + (item.new_skus > 0 ? 'has-new' : 'no-error') + '">' + item.new_skus + '</td>' +
+            '<td class="error-count ' + (item.repeat_skus > 0 ? 'has-error' : 'no-error') + '">' + item.repeat_skus + '</td>' +
+            '<td class="error-count ' + (total > 0 ? 'has-error' : 'no-error') + '">' + total + '</td>' +
+            '<td><span class="status-badge ' + item.status + '"><span class="status-dot"></span>' + (item.status === 'success' ? '정상' : '이상') + '</span></td>' +
+            '</tr>';
     }
 
     html += '</tbody></table>';
     container.innerHTML = html;
 }
 
-function getStatusLabel(status) {
-    const labels = {
-        'success': '정상',
-        'warning': '경고',
-        'danger': '이상',
-        'pending': '대기',
-        'error': '오류'
-    };
-    return labels[status] || '확인필요';
-}
-
-function openDetail(tableName, retailerName, country, itemData) {
-    currentTableName = tableName;
+function openDetail(retailer) {
+    currentRetailer = retailer;
+    currentFilter = 'all';
     currentPage = 1;
-    currentRetailerData = itemData;
-    currentFilter = currentView === 'all' ? 'all' : currentView;
 
-    // 에러가 있는 첫 번째 타입 선택
-    const errorTypes = ['title_null', 'imageurl_null', 'imageurl_invalid', 'partial_null'];
-    currentErrorType = 'title_null';
-
-    for (const et of errorTypes) {
-        const newKey = 'new_' + et;
-        const recurringKey = 'recurring_' + et;
-        if ((itemData[newKey] || 0) > 0 || (itemData[recurringKey] || 0) > 0) {
-            currentErrorType = et;
-            break;
-        }
-    }
-
-    const days = document.getElementById('daysPeriod').value;
-    document.getElementById('modalTitle').textContent = `${retailerName} (${country}) - 에러 상세`;
-    document.getElementById('modalSubtitle').textContent = `테이블: ${tableName} | ${days}일 분석`;
+    document.getElementById('modalTitle').textContent = retailer + ' - SKU 이상치 상세';
+    document.getElementById('modalSubtitle').textContent = '4일 분석';
     document.getElementById('detailModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 
     renderFilterSelector();
-    renderErrorTypeSelector();
     loadDetailData();
 }
 
 function renderFilterSelector() {
-    const container = document.getElementById('filterSelector');
-    const filters = [
+    var container = document.getElementById('filterSelector');
+    var filters = [
         { key: 'all', label: '전체' },
         { key: 'new', label: '신규 (1일)' },
-        { key: 'recurring', label: '반복 (2일+)' }
+        { key: 'repeat', label: '반복 (2일+)' }
     ];
 
-    let html = '';
-    for (const f of filters) {
-        const isActive = f.key === currentFilter;
-        html += `<button class="${isActive ? 'active' : ''}" onclick="selectFilter('${f.key}')">${f.label}</button>`;
+    var html = '';
+    for (var i = 0; i < filters.length; i++) {
+        var f = filters[i];
+        html += '<button class="' + (f.key === currentFilter ? 'active' : '') + '" onclick="selectFilter(\'' + f.key + '\')">' + f.label + '</button>';
     }
-
-    container.innerHTML = html;
-}
-
-function renderErrorTypeSelector() {
-    const container = document.getElementById('errorTypeSelector');
-    const errorTypes = [
-        { key: 'title_null', label: 'Title NULL' },
-        { key: 'imageurl_null', label: 'Image NULL' },
-        { key: 'imageurl_invalid', label: 'Image 형식' },
-        { key: 'partial_null', label: '부분 NULL' }
-    ];
-
-    let html = '';
-    for (const et of errorTypes) {
-        const isActive = et.key === currentErrorType;
-        const newCount = currentRetailerData['new_' + et.key] || 0;
-        const recurringCount = currentRetailerData['recurring_' + et.key] || 0;
-
-        let count;
-        if (currentFilter === 'new') count = newCount;
-        else if (currentFilter === 'recurring') count = recurringCount;
-        else count = newCount + recurringCount;
-
-        html += `<button class="${isActive ? 'active' : ''}" onclick="selectErrorType('${et.key}')">${et.label} (${count})</button>`;
-    }
-
     container.innerHTML = html;
 }
 
@@ -1177,29 +580,23 @@ function selectFilter(filter) {
     currentFilter = filter;
     currentPage = 1;
     renderFilterSelector();
-    renderErrorTypeSelector();
-    loadDetailData();
-}
-
-function selectErrorType(errorType) {
-    currentErrorType = errorType;
-    currentPage = 1;
-    renderErrorTypeSelector();
     loadDetailData();
 }
 
 async function loadDetailData() {
-    const date = document.getElementById('targetDate').value;
-    const days = document.getElementById('daysPeriod').value;
+    var date = document.getElementById('targetDate').value;
     document.getElementById('modalLoading').classList.remove('hidden');
     document.getElementById('modalContent').innerHTML = '';
 
     try {
-        const response = await fetch(`/ds/layer3/api/recurring-detail/?table=${currentTableName}&error_type=${currentErrorType}&date=${date}&days=${days}&filter=${currentFilter}&page=${currentPage}&page_size=50`);
-        const data = await response.json();
+        var url = '/ds/layer3/api/sku-detail/?retailer=' + encodeURIComponent(currentRetailer) +
+            '&date=' + date + '&days=4&filter=' + currentFilter +
+            '&sort_by=consecutive_days&sort_order=desc&page=' + currentPage + '&page_size=50';
+        var response = await fetch(url);
+        var data = await response.json();
 
         if (data.error) {
-            document.getElementById('modalContent').innerHTML = `<div class="loading">${esc(data.error)}</div>`;
+            document.getElementById('modalContent').innerHTML = '<div class="loading">' + esc(data.error) + '</div>';
         } else {
             renderDetailTable(data);
             totalPages = data.total_pages;
@@ -1214,130 +611,70 @@ async function loadDetailData() {
 }
 
 function renderDetailTable(data) {
-    if (data.data.length === 0) {
-        document.getElementById('modalContent').innerHTML = '<div class="loading">에러 상품이 없습니다.</div>';
+    if (!data.data || data.data.length === 0) {
+        document.getElementById('modalContent').innerHTML = '<div class="loading">이상치 SKU가 없습니다.</div>';
         return;
     }
 
-    let html = `
-        <div class="table-scroll-container">
-        <table class="detail-table">
-            <thead>
-                <tr>
-                    <th class="col-date">수집일<div class="resize-handle"></div></th>
-                    <th class="col-image">이미지<div class="resize-handle"></div></th>
-                    <th class="col-title">제품명<div class="resize-handle"></div></th>
-                    <th class="col-price">가격<div class="resize-handle"></div></th>
-                    <th class="col-ships">Ships From<div class="resize-handle"></div></th>
-                    <th class="col-sold">Sold By<div class="resize-handle"></div></th>
-                    <th class="col-status">상태<div class="resize-handle"></div></th>
-                    <th class="col-link">링크</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
+    var dates = data.dates || [];
+    var html = '<div class="table-scroll-container"><table class="detail-table"><thead><tr>' +
+        '<th style="width:120px">SKU</th>' +
+        '<th style="width:60px">연속</th>' +
+        '<th style="width:250px">제품명</th>' +
+        '<th style="width:80px">가격</th>' +
+        '<th style="width:80px">원인</th>' +
+        '<th style="width:70px">URL</th></tr></thead><tbody>';
 
-    for (const item of data.data) {
-        const imgSrc = item.imageurl && item.imageurl.startsWith('https://') ? item.imageurl : '';
-        const isNew = item.is_new;
-        const badgeClass = isNew ? 'new' : 'recurring';
-        const badgeText = isNew ? '신규' : `${item.recurring_days}일+`;
+    for (var i = 0; i < data.data.length; i++) {
+        var item = data.data[i];
+        var consecutive = item.consecutive_days || 0;
+        var badgeClass = consecutive >= 2 ? 'recurring' : 'new';
+        var badgeText = consecutive > 3 ? '3일+' : (consecutive === 3 ? '3일' : (consecutive === 2 ? '2일' : '신규'));
 
-        html += `
-            <tr>
-                <td>${item.crawl_date || '-'}</td>
-                <td>${imgSrc ? `<img src="${imgSrc}" class="thumb" onerror="this.style.display='none'">` : '<span class="null-value">무효</span>'}</td>
-                <td class="title-cell" title="${item.title}">${item.title || '<span class="null-value">NULL</span>'}</td>
-                <td>${item.retailprice || '<span class="null-value">NULL</span>'}</td>
-                <td>${item.ships_from || '<span class="null-value">NULL</span>'}</td>
-                <td>${item.sold_by || '<span class="null-value">NULL</span>'}</td>
-                <td><span class="recurring-badge ${badgeClass}">${badgeText}</span></td>
-                <td>${item.producturl ? `<a href="${item.producturl}" target="_blank">보기</a>` : '-'}</td>
-            </tr>
-        `;
+        html += '<tr>' +
+            '<td title="' + esc(item.retailersku) + '">' + esc(item.retailersku) + '</td>' +
+            '<td><span class="recurring-badge ' + badgeClass + '">' + badgeText + '</span></td>' +
+            '<td title="' + esc(item.latest_title) + '">' + esc(item.latest_title || '') + '</td>' +
+            '<td>' + esc(item.latest_retailprice || '-') + '</td>' +
+            '<td>' + esc(item.latest_cause || '-') + '</td>' +
+            '<td>' + (item.latest_producturl ? '<a href="' + esc(item.latest_producturl) + '" target="_blank" title="새 탭에서 열기"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a> <span style="cursor:pointer" title="URL 복사" onclick="event.stopPropagation();copyText(\'' + esc(item.latest_producturl).replace(/'/g, "\\'") + '\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>' : '-') + '</td>' +
+            '</tr>';
     }
 
     html += '</tbody></table></div>';
     document.getElementById('modalContent').innerHTML = html;
-    initColumnResize();
 }
 
 function updatePagination(data) {
-    const typeLabels = {
-        title_null: 'Title NULL',
-        imageurl_null: 'Image NULL',
-        imageurl_invalid: 'Image 형식오류',
-        partial_null: '부분 NULL'
-    };
-    const filterLabels = { all: '전체', new: '신규', recurring: '반복' };
-    document.getElementById('modalInfo').textContent = `${typeLabels[currentErrorType]} (${filterLabels[currentFilter]}): ${data.total_count.toLocaleString()}건`;
-    document.getElementById('pageInfo').textContent = `${currentPage} / ${data.total_pages}`;
+    var filterLabels = { all: '전체', 'new': '신규', repeat: '반복' };
+    document.getElementById('modalInfo').textContent = filterLabels[currentFilter] + ': ' + (data.total_count || 0).toLocaleString() + '건';
+    document.getElementById('pageInfo').textContent = currentPage + ' / ' + (data.total_pages || 1);
     document.getElementById('prevBtn').disabled = currentPage <= 1;
-    document.getElementById('nextBtn').disabled = currentPage >= data.total_pages;
+    document.getElementById('nextBtn').disabled = currentPage >= (data.total_pages || 1);
 }
 
-function prevPage() {
-    if (currentPage > 1) {
-        currentPage--;
-        loadDetailData();
-    }
-}
-
-function nextPage() {
-    if (currentPage < totalPages) {
-        currentPage++;
-        loadDetailData();
-    }
-}
+function prevPage() { if (currentPage > 1) { currentPage--; loadDetailData(); } }
+function nextPage() { if (currentPage < totalPages) { currentPage++; loadDetailData(); } }
 
 function closeModal() {
     document.getElementById('detailModal').classList.add('hidden');
     document.body.style.overflow = '';
 }
 
-// 열 크기 조절 기능
-function initColumnResize() {
-    const handles = document.querySelectorAll('.detail-table .resize-handle');
-    handles.forEach(handle => {
-        handle.addEventListener('mousedown', initResize);
-    });
-}
-
-let currentTh = null;
-let startX = 0;
-let startWidth = 0;
-
-function initResize(e) {
-    e.preventDefault();
-    currentTh = e.target.parentElement;
-    startX = e.pageX;
-    startWidth = currentTh.offsetWidth;
-
-    e.target.classList.add('resizing');
-    document.addEventListener('mousemove', doResize);
-    document.addEventListener('mouseup', stopResize);
-}
-
-function doResize(e) {
-    if (!currentTh) return;
-    const diff = e.pageX - startX;
-    const newWidth = Math.max(50, startWidth + diff);
-    currentTh.style.width = newWidth + 'px';
-}
-
-function stopResize(e) {
-    if (currentTh) {
-        const handle = currentTh.querySelector('.resize-handle');
-        if (handle) handle.classList.remove('resizing');
+function copyText(text) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function() { showToast('URL이 복사되었습니다.', 'success'); });
+    } else {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('URL이 복사되었습니다.', 'success');
     }
-    currentTh = null;
-    document.removeEventListener('mousemove', doResize);
-    document.removeEventListener('mouseup', stopResize);
 }
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeModal();
-    }
-});
+
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
 </script>
 {% endblock %}
