@@ -15,16 +15,3 @@ def index(request):
         'data_source': {'id': 'ds', 'name': 'DS Retail', 'color': '#1a365d'}
     }
     return render(request, 'ds_layer2/index.html', context)
-
-def report(request):
-    context = {
-        'layer': {
-            'number': 2,
-            'name': '보고서 관리',
-            'name_en': 'Report Management',
-            'description': '저장된 이상치 보고서 관리 및 마감',
-            'color': '#0d9488',
-        },
-        'data_source': {'id': 'ds', 'name': 'DS Retail', 'color': '#1a365d'}
-    }
-    return render(request, 'ds_layer2/report.html', context)

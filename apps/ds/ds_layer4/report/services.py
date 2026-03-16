@@ -1,5 +1,5 @@
 """
-DS Layer 2 Report Services: 보고서 관리 비즈니스 로직
+DS Layer 4 Report Services: 보고서 관리 비즈니스 로직
 - 리테일러별 이상치 저장/삭제/수정
 - 일별 보고서 마감/취소
 - 파일 정보 조회/저장
@@ -1221,7 +1221,9 @@ def get_report_list(target_date, retailer_filter, view_mode):
         cause_summary = {}
         for row in cause_summary_rows:
             retailer = row[0]
-            cause = row[1] or '미입력'
+            cause = row[1] or ''
+            if not cause:
+                continue
             cnt = row[2]
             if retailer not in cause_summary:
                 cause_summary[retailer] = {}
