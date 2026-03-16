@@ -5,7 +5,7 @@ request 파싱 + services 호출 + JsonResponse 반환
 
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import get_ds_connection
+from apps.common.db import ds_connection
 from apps.common.response import safe_error, log_error
 from . import services
 import json
@@ -27,13 +27,8 @@ def batch_list(request):
     }
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
-
-        data['batches'] = services.get_batch_list(cursor, target_date)
-
-        cursor.close()
-        conn.close()
+        with ds_connection() as (conn, cursor):
+            data['batches'] = services.get_batch_list(cursor, target_date)
 
     except Exception as e:
         data['error'] = log_error(e)
@@ -61,18 +56,13 @@ def batch_init(request):
         return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            created_count = services.init_batches(cursor, conn, target_date)
 
-        created_count = services.init_batches(cursor, conn, target_date)
+            if created_count == 0:
+                return JsonResponse({'message': '이미 배치가 존재합니다.', 'created': 0})
 
-        cursor.close()
-        conn.close()
-
-        if created_count == 0:
-            return JsonResponse({'message': '이미 배치가 존재합니다.', 'created': 0})
-
-        return JsonResponse({'message': f'{created_count}개 배치가 생성되었습니다.', 'created': created_count})
+            return JsonResponse({'message': f'{created_count}개 배치가 생성되었습니다.', 'created': created_count})
 
     except Exception as e:
         return safe_error(e)
@@ -97,15 +87,10 @@ def batch_create(request):
         return JsonResponse({'error': '필수 필드가 누락되었습니다.'}, status=400)
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            new_id = services.create_batch(cursor, conn, date_str, retailer, start_time, memo)
 
-        new_id = services.create_batch(cursor, conn, date_str, retailer, start_time, memo)
-
-        cursor.close()
-        conn.close()
-
-        return JsonResponse({'message': '배치가 추가되었습니다.', 'id': new_id})
+            return JsonResponse({'message': '배치가 추가되었습니다.', 'id': new_id})
 
     except Exception as e:
         return safe_error(e)
@@ -129,21 +114,16 @@ def batch_update(request):
         return JsonResponse({'error': 'ID가 필요합니다.'}, status=400)
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            affected = services.update_batch(cursor, conn, batch_id, start_time, memo)
 
-        affected = services.update_batch(cursor, conn, batch_id, start_time, memo)
+            if affected == -1:
+                return JsonResponse({'error': '수정할 필드가 없습니다.'}, status=400)
 
-        cursor.close()
-        conn.close()
+            if affected == 0:
+                return JsonResponse({'error': '해당 배치를 찾을 수 없습니다.'}, status=404)
 
-        if affected == -1:
-            return JsonResponse({'error': '수정할 필드가 없습니다.'}, status=400)
-
-        if affected == 0:
-            return JsonResponse({'error': '해당 배치를 찾을 수 없습니다.'}, status=404)
-
-        return JsonResponse({'message': '배치가 수정되었습니다.'})
+            return JsonResponse({'message': '배치가 수정되었습니다.'})
 
     except Exception as e:
         return safe_error(e)
@@ -165,18 +145,13 @@ def batch_delete(request):
         return JsonResponse({'error': 'ID가 필요합니다.'}, status=400)
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            affected = services.delete_batch(cursor, conn, batch_id)
 
-        affected = services.delete_batch(cursor, conn, batch_id)
+            if affected == 0:
+                return JsonResponse({'error': '해당 배치를 찾을 수 없습니다.'}, status=404)
 
-        cursor.close()
-        conn.close()
-
-        if affected == 0:
-            return JsonResponse({'error': '해당 배치를 찾을 수 없습니다.'}, status=404)
-
-        return JsonResponse({'message': '배치가 삭제되었습니다.'})
+            return JsonResponse({'message': '배치가 삭제되었습니다.'})
 
     except Exception as e:
         return safe_error(e)

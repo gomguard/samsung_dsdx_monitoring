@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-from apps.common.db import get_ds_connection
+from apps.common.db import ds_connection
 from apps.common.response import log_error
 import boto3
 from botocore.exceptions import ClientError
@@ -23,19 +23,14 @@ def get_screenshot_url(file_id):
         return {'success': False, 'error': 'file_id is required'}
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
-
-        # ds_monitoring_file에서 file_path 조회
-        cursor.execute("""
-            SELECT file_path, file_name, file_type
-            FROM ssd_crawl_db.ds_monitoring_file
-            WHERE file_id = %s AND is_del = 0
-        """, (file_id,))
-        row = cursor.fetchone()
-
-        cursor.close()
-        conn.close()
+        with ds_connection() as (conn, cursor):
+            # ds_monitoring_file에서 file_path 조회
+            cursor.execute("""
+                SELECT file_path, file_name, file_type
+                FROM ssd_crawl_db.ds_monitoring_file
+                WHERE file_id = %s AND is_del = 0
+            """, (file_id,))
+            row = cursor.fetchone()
 
         if not row:
             return {'success': False, 'error': 'File not found'}
@@ -93,56 +88,48 @@ def trigger_screenshot_capture(retailer, crawl_date, username):
         return {'error': '리테일러와 날짜가 필요합니다.', 'status': 400}
 
     # DB에서 해당 리테일러의 instance_id, instance_region, retailer_id 조회
-    conn = None
-    cursor = None
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT retailer_id, instance_id, instance_region, mall_name FROM ssd_crawl_db.ds_monitoring_targets
-            WHERE retailer = %s AND is_active = 1
-        """, (retailer,))
-        row = cursor.fetchone()
+        with ds_connection() as (conn, cursor):
+            cursor.execute("""
+                SELECT retailer_id, instance_id, instance_region, mall_name FROM ssd_crawl_db.ds_monitoring_targets
+                WHERE retailer = %s AND is_active = 1
+            """, (retailer,))
+            row = cursor.fetchone()
 
-        if not row:
-            return {'error': '해당 리테일러를 찾을 수 없습니다.', 'status': 404}
+            if not row:
+                return {'error': '해당 리테일러를 찾을 수 없습니다.', 'status': 404}
 
-        retailer_id = row[0]
-        instance_id = row[1]
-        instance_region = row[2] or SSM_CONFIG['region']  # NULL이면 기본값 사용
-        mall_name = row[3]
+            retailer_id = row[0]
+            instance_id = row[1]
+            instance_region = row[2] or SSM_CONFIG['region']  # NULL이면 기본값 사용
+            mall_name = row[3]
 
-        if not instance_id:
-            return {'error': '이 리테일러는 스크린샷 캡쳐를 지원하지 않습니다.', 'status': 400}
+            if not instance_id:
+                return {'error': '이 리테일러는 스크린샷 캡쳐를 지원하지 않습니다.', 'status': 400}
 
-        # 30분 넘은 running → failed 자동 정리 (비정상 종료 안전장치)
-        cursor.execute("""
-            UPDATE ssd_crawl_db.ds_monitoring_capture_log
-            SET status = 'failed'
-            WHERE retailer_id = %s AND crawl_date = %s AND status = 'running'
-            AND triggered_at < %s
-        """, (retailer_id, crawl_date, datetime.now() - timedelta(minutes=30)))
-        if cursor.rowcount > 0:
-            conn.commit()
+            # 30분 넘은 running → failed 자동 정리 (비정상 종료 안전장치)
+            cursor.execute("""
+                UPDATE ssd_crawl_db.ds_monitoring_capture_log
+                SET status = 'failed'
+                WHERE retailer_id = %s AND crawl_date = %s AND status = 'running'
+                AND triggered_at < %s
+            """, (retailer_id, crawl_date, datetime.now() - timedelta(minutes=30)))
+            if cursor.rowcount > 0:
+                conn.commit()
 
-        # running 기록 확인 (중복 실행 방지)
-        cursor.execute("""
-            SELECT id, triggered_at FROM ssd_crawl_db.ds_monitoring_capture_log
-            WHERE retailer_id = %s AND crawl_date = %s AND status = 'running'
-            ORDER BY triggered_at DESC LIMIT 1
-        """, (retailer_id, crawl_date))
-        running_row = cursor.fetchone()
+            # running 기록 확인 (중복 실행 방지)
+            cursor.execute("""
+                SELECT id, triggered_at FROM ssd_crawl_db.ds_monitoring_capture_log
+                WHERE retailer_id = %s AND crawl_date = %s AND status = 'running'
+                ORDER BY triggered_at DESC LIMIT 1
+            """, (retailer_id, crawl_date))
+            running_row = cursor.fetchone()
 
-        if running_row:
-            return {'error': '이미 캡쳐가 진행 중입니다.', 'status': 409}
+            if running_row:
+                return {'error': '이미 캡쳐가 진행 중입니다.', 'status': 409}
 
     except Exception as e:
         return {'error': log_error(e), 'status': 500}
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
     # 리테일러명 변환 (소문자)
     retailer_key = retailer.lower()
@@ -182,16 +169,13 @@ def trigger_screenshot_capture(retailer, crawl_date, username):
 
         # 캡쳐 로그 INSERT
         try:
-            conn2 = get_ds_connection()
-            cursor2 = conn2.cursor()
-            cursor2.execute("""
-                INSERT INTO ssd_crawl_db.ds_monitoring_capture_log
-                (retailer_id, crawl_date, triggered_at, triggered_id, status)
-                VALUES (%s, %s, %s, %s, 'running')
-            """, (retailer_id, crawl_date, datetime.now(), created_id))
-            conn2.commit()
-            cursor2.close()
-            conn2.close()
+            with ds_connection() as (conn2, cursor2):
+                cursor2.execute("""
+                    INSERT INTO ssd_crawl_db.ds_monitoring_capture_log
+                    (retailer_id, crawl_date, triggered_at, triggered_id, status)
+                    VALUES (%s, %s, %s, %s, 'running')
+                """, (retailer_id, crawl_date, datetime.now(), created_id))
+                conn2.commit()
         except Exception:
             pass  # 로그 INSERT 실패해도 캡쳐는 진행
 
@@ -223,62 +207,53 @@ def get_screenshot_status(retailer, crawl_date):
     if not retailer or not crawl_date:
         return {'error': '리테일러와 날짜가 필요합니다.', 'status': 400}
 
-    conn = None
-    cursor = None
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            # 스크린샷 캡쳐 현황
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN a.screenshot_id IS NOT NULL THEN 1 ELSE 0 END) as captured
+                FROM ssd_crawl_db.ds_monitoring_report_anomaly a
+                JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
+                WHERE LOWER(t.retailer) = LOWER(%s) AND a.crawl_date = %s AND a.is_del = 0
+            """, (retailer, crawl_date))
 
-        # 스크린샷 캡쳐 현황
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total,
-                SUM(CASE WHEN a.screenshot_id IS NOT NULL THEN 1 ELSE 0 END) as captured
-            FROM ssd_crawl_db.ds_monitoring_report_anomaly a
-            JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
-            WHERE LOWER(t.retailer) = LOWER(%s) AND a.crawl_date = %s AND a.is_del = 0
-        """, (retailer, crawl_date))
+            row = cursor.fetchone()
+            total = row[0] or 0
+            captured = row[1] or 0
+            completed = total > 0 and total == captured
 
-        row = cursor.fetchone()
-        total = row[0] or 0
-        captured = row[1] or 0
-        completed = total > 0 and total == captured
+            # 캡쳐 로그 처리
+            is_running = False
+            triggered_at = None
 
-        # 캡쳐 로그 처리
-        is_running = False
-        triggered_at = None
+            # running 로그 확인
+            cursor.execute("""
+                SELECT cl.id, cl.triggered_at
+                FROM ssd_crawl_db.ds_monitoring_capture_log cl
+                JOIN ssd_crawl_db.ds_monitoring_targets t ON cl.retailer_id = t.retailer_id
+                WHERE LOWER(t.retailer) = LOWER(%s) AND cl.crawl_date = %s AND cl.status = 'running'
+                ORDER BY cl.triggered_at DESC LIMIT 1
+            """, (retailer, crawl_date))
+            log_row = cursor.fetchone()
 
-        # running 로그 확인
-        cursor.execute("""
-            SELECT cl.id, cl.triggered_at
-            FROM ssd_crawl_db.ds_monitoring_capture_log cl
-            JOIN ssd_crawl_db.ds_monitoring_targets t ON cl.retailer_id = t.retailer_id
-            WHERE LOWER(t.retailer) = LOWER(%s) AND cl.crawl_date = %s AND cl.status = 'running'
-            ORDER BY cl.triggered_at DESC LIMIT 1
-        """, (retailer, crawl_date))
-        log_row = cursor.fetchone()
+            if log_row:
+                is_running = True
+                triggered_at = log_row[1].strftime('%Y-%m-%d %H:%M:%S') if log_row[1] else None
 
-        if log_row:
-            is_running = True
-            triggered_at = log_row[1].strftime('%Y-%m-%d %H:%M:%S') if log_row[1] else None
-
-        return {
-            'retailer': retailer,
-            'total': total,
-            'captured': captured,
-            'remaining': total - captured,
-            'completed': completed,
-            'is_running': is_running,
-            'triggered_at': triggered_at
-        }
+            return {
+                'retailer': retailer,
+                'total': total,
+                'captured': captured,
+                'remaining': total - captured,
+                'completed': completed,
+                'is_running': is_running,
+                'triggered_at': triggered_at
+            }
 
     except Exception as e:
         return {'error': log_error(e, 'db'), 'status': 500}
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 
 def delete_screenshots(anomaly_ids):
@@ -295,68 +270,62 @@ def delete_screenshots(anomaly_ids):
         return {'success': False, 'error': 'anomaly_ids가 필요합니다.'}
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            # 1. anomaly에서 screenshot_id 목록 조회
+            placeholders = ','.join(['%s'] * len(anomaly_ids))
+            cursor.execute(f"""
+                SELECT id, screenshot_id FROM ssd_crawl_db.ds_monitoring_report_anomaly
+                WHERE id IN ({placeholders}) AND screenshot_id IS NOT NULL AND is_del = 0
+            """, anomaly_ids)
+            anomaly_rows = cursor.fetchall()
 
-        # 1. anomaly에서 screenshot_id 목록 조회
-        placeholders = ','.join(['%s'] * len(anomaly_ids))
-        cursor.execute(f"""
-            SELECT id, screenshot_id FROM ssd_crawl_db.ds_monitoring_report_anomaly
-            WHERE id IN ({placeholders}) AND screenshot_id IS NOT NULL AND is_del = 0
-        """, anomaly_ids)
-        anomaly_rows = cursor.fetchall()
+            if not anomaly_rows:
+                return {'success': False, 'error': '삭제할 스크린샷이 없습니다.'}
 
-        if not anomaly_rows:
-            cursor.close()
-            conn.close()
-            return {'success': False, 'error': '삭제할 스크린샷이 없습니다.'}
+            screenshot_ids = [row[1] for row in anomaly_rows]
+            target_anomaly_ids = [row[0] for row in anomaly_rows]
 
-        screenshot_ids = [row[1] for row in anomaly_rows]
-        target_anomaly_ids = [row[0] for row in anomaly_rows]
+            # 2. file 테이블에서 파일 정보 조회
+            file_placeholders = ','.join(['%s'] * len(screenshot_ids))
+            cursor.execute(f"""
+                SELECT file_id, file_path, file_name FROM ssd_crawl_db.ds_monitoring_file
+                WHERE file_id IN ({file_placeholders}) AND is_del = 0
+            """, screenshot_ids)
+            file_rows = cursor.fetchall()
 
-        # 2. file 테이블에서 파일 정보 조회
-        file_placeholders = ','.join(['%s'] * len(screenshot_ids))
-        cursor.execute(f"""
-            SELECT file_id, file_path, file_name FROM ssd_crawl_db.ds_monitoring_file
-            WHERE file_id IN ({file_placeholders}) AND is_del = 0
-        """, screenshot_ids)
-        file_rows = cursor.fetchall()
+            # 3. S3 파일 삭제
+            if file_rows:
+                try:
+                    s3_client = boto3.client(
+                        's3',
+                        region_name=S3_CONFIG['region'],
+                        aws_access_key_id=S3_CONFIG['access_key'],
+                        aws_secret_access_key=S3_CONFIG['secret_key']
+                    )
+                    for f in file_rows:
+                        s3_key = f'{f[1].rstrip("/")}/{f[2]}'
+                        s3_client.delete_object(Bucket=S3_CONFIG['bucket'], Key=s3_key)
+                except Exception:
+                    pass
 
-        # 3. S3 파일 삭제
-        if file_rows:
-            try:
-                s3_client = boto3.client(
-                    's3',
-                    region_name=S3_CONFIG['region'],
-                    aws_access_key_id=S3_CONFIG['access_key'],
-                    aws_secret_access_key=S3_CONFIG['secret_key']
-                )
-                for f in file_rows:
-                    s3_key = f'{f[1].rstrip("/")}/{f[2]}'
-                    s3_client.delete_object(Bucket=S3_CONFIG['bucket'], Key=s3_key)
-            except Exception:
-                pass
+            # 4. file 테이블 soft delete
+            cursor.execute(f"""
+                UPDATE ssd_crawl_db.ds_monitoring_file
+                SET is_del = 1
+                WHERE file_id IN ({file_placeholders})
+            """, screenshot_ids)
 
-        # 4. file 테이블 soft delete
-        cursor.execute(f"""
-            UPDATE ssd_crawl_db.ds_monitoring_file
-            SET is_del = 1
-            WHERE file_id IN ({file_placeholders})
-        """, screenshot_ids)
+            # 5. anomaly 테이블 screenshot_id = NULL
+            anomaly_placeholders = ','.join(['%s'] * len(target_anomaly_ids))
+            cursor.execute(f"""
+                UPDATE ssd_crawl_db.ds_monitoring_report_anomaly
+                SET screenshot_id = NULL
+                WHERE id IN ({anomaly_placeholders})
+            """, target_anomaly_ids)
 
-        # 5. anomaly 테이블 screenshot_id = NULL
-        anomaly_placeholders = ','.join(['%s'] * len(target_anomaly_ids))
-        cursor.execute(f"""
-            UPDATE ssd_crawl_db.ds_monitoring_report_anomaly
-            SET screenshot_id = NULL
-            WHERE id IN ({anomaly_placeholders})
-        """, target_anomaly_ids)
+            conn.commit()
 
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        return {'success': True, 'deleted_count': len(target_anomaly_ids)}
+            return {'success': True, 'deleted_count': len(target_anomaly_ids)}
 
     except Exception as e:
         return {'success': False, 'error': log_error(e)}
@@ -389,80 +358,74 @@ def upload_screenshot(file_obj, anomaly_id, username):
     anomaly_id = int(anomaly_id)
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            # anomaly 조회 → retailer, crawl_date, retailersku 추출
+            cursor.execute("""
+                SELECT a.id, t.retailer, a.crawl_date, a.retailersku
+                FROM ssd_crawl_db.ds_monitoring_report_anomaly a
+                LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
+                WHERE a.id = %s AND a.is_del = 0
+            """, (anomaly_id,))
+            row = cursor.fetchone()
 
-        # anomaly 조회 → retailer, crawl_date, retailersku 추출
-        cursor.execute("""
-            SELECT a.id, t.retailer, a.crawl_date, a.retailersku
-            FROM ssd_crawl_db.ds_monitoring_report_anomaly a
-            LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON a.retailer_id = t.retailer_id
-            WHERE a.id = %s AND a.is_del = 0
-        """, (anomaly_id,))
-        row = cursor.fetchone()
+            if not row:
+                return {'success': False, 'error': '해당 이상치를 찾을 수 없습니다.'}
 
-        if not row:
-            cursor.close()
-            conn.close()
-            return {'success': False, 'error': '해당 이상치를 찾을 수 없습니다.'}
+            retailer = row[1]
+            crawl_date = row[2]  # date 객체
+            retailersku = row[3]
+            if isinstance(crawl_date, str):
+                crawl_date = datetime.strptime(crawl_date, '%Y-%m-%d').date()
 
-        retailer = row[1]
-        crawl_date = row[2]  # date 객체
-        retailersku = row[3]
-        if isinstance(crawl_date, str):
-            crawl_date = datetime.strptime(crawl_date, '%Y-%m-%d').date()
+            # S3 키 생성 (캡쳐 프로그램과 동일 패턴: {retailer}_{retailersku}_{timestamp}.png)
+            # 캡쳐 프로그램은 소문자 retailer를 사용하므로 동일하게 소문자 변환
+            retailer_lower = retailer.lower()
+            now = datetime.now()
+            year = crawl_date.strftime('%Y')
+            year_month = crawl_date.strftime('%Y%m')
+            year_month_day = crawl_date.strftime('%Y%m%d')
+            creation_timestamp = now.strftime('%Y%m%d%H%M%S')
+            if retailersku:
+                file_name = f"{retailer_lower}_{retailersku}_{creation_timestamp}.png"
+            else:
+                file_name = f"{retailer_lower}_{creation_timestamp}.png"
+            file_path = f"{year}/{year_month}/{year_month_day}/{retailer_lower}/"
+            s3_key = f"{file_path}{file_name}"
 
-        # S3 키 생성 (캡쳐 프로그램과 동일 패턴: {retailer}_{retailersku}_{timestamp}.png)
-        # 캡쳐 프로그램은 소문자 retailer를 사용하므로 동일하게 소문자 변환
-        retailer_lower = retailer.lower()
-        now = datetime.now()
-        year = crawl_date.strftime('%Y')
-        year_month = crawl_date.strftime('%Y%m')
-        year_month_day = crawl_date.strftime('%Y%m%d')
-        creation_timestamp = now.strftime('%Y%m%d%H%M%S')
-        if retailersku:
-            file_name = f"{retailer_lower}_{retailersku}_{creation_timestamp}.png"
-        else:
-            file_name = f"{retailer_lower}_{creation_timestamp}.png"
-        file_path = f"{year}/{year_month}/{year_month_day}/{retailer_lower}/"
-        s3_key = f"{file_path}{file_name}"
+            # S3 업로드
+            file_bytes = file_obj.read()
+            s3_client = boto3.client(
+                's3',
+                region_name=S3_CONFIG['region'],
+                aws_access_key_id=S3_CONFIG['access_key'],
+                aws_secret_access_key=S3_CONFIG['secret_key']
+            )
+            s3_client.put_object(
+                Bucket=S3_CONFIG['bucket'],
+                Key=s3_key,
+                Body=file_bytes,
+                ContentType=file_obj.content_type
+            )
 
-        # S3 업로드
-        file_bytes = file_obj.read()
-        s3_client = boto3.client(
-            's3',
-            region_name=S3_CONFIG['region'],
-            aws_access_key_id=S3_CONFIG['access_key'],
-            aws_secret_access_key=S3_CONFIG['secret_key']
-        )
-        s3_client.put_object(
-            Bucket=S3_CONFIG['bucket'],
-            Key=s3_key,
-            Body=file_bytes,
-            ContentType=file_obj.content_type
-        )
+            # ds_monitoring_file INSERT
+            created_id = username
+            cursor.execute("""
+                INSERT INTO ssd_crawl_db.ds_monitoring_file
+                (file_name, file_path, file_size, file_type, is_del, created_at, created_id)
+                VALUES (%s, %s, %s, %s, 0, %s, %s)
+            """, (file_name, file_path, len(file_bytes), file_obj.content_type, now, created_id))
+            file_id = cursor.lastrowid
 
-        # ds_monitoring_file INSERT
-        created_id = username
-        cursor.execute("""
-            INSERT INTO ssd_crawl_db.ds_monitoring_file
-            (file_name, file_path, file_size, file_type, is_del, created_at, created_id)
-            VALUES (%s, %s, %s, %s, 0, %s, %s)
-        """, (file_name, file_path, len(file_bytes), file_obj.content_type, now, created_id))
-        file_id = cursor.lastrowid
+            # anomaly.screenshot_id 업데이트
+            cursor.execute("""
+                UPDATE ssd_crawl_db.ds_monitoring_report_anomaly
+                SET screenshot_id = %s
+                WHERE id = %s
+            """, (file_id, anomaly_id))
 
-        # anomaly.screenshot_id 업데이트
-        cursor.execute("""
-            UPDATE ssd_crawl_db.ds_monitoring_report_anomaly
-            SET screenshot_id = %s
-            WHERE id = %s
-        """, (file_id, anomaly_id))
+            conn.commit()
 
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        return {'success': True, 'file_id': file_id}
+            return {'success': True, 'file_id': file_id}
 
     except ClientError as e:
         return {'success': False, 'error': log_error(e, 's3')}

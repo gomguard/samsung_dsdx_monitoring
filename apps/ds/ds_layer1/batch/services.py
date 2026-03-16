@@ -3,7 +3,7 @@ DS Layer 1 — 배치 로그 서비스
 DB 쿼리 + 배치 CRUD (순수 비즈니스 로직)
 """
 
-from apps.common.db import get_ds_connection
+from apps.common.db import ds_connection
 from apps.common.targets import load_monitoring_targets_with_local_time, format_time
 
 
@@ -12,31 +12,26 @@ def get_batches_for_date(target_date):
     batches_by_retailer = {}
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            query = """
+                SELECT id, retailer, start_time, memo
+                FROM ssd_crawl_db.ds_collection_batch_log
+                WHERE date = %s
+                ORDER BY retailer, start_time
+            """
+            cursor.execute(query, (target_date,))
+            rows = cursor.fetchall()
 
-        query = """
-            SELECT id, retailer, start_time, memo
-            FROM ssd_crawl_db.ds_collection_batch_log
-            WHERE date = %s
-            ORDER BY retailer, start_time
-        """
-        cursor.execute(query, (target_date,))
-        rows = cursor.fetchall()
+            for row in rows:
+                retailer = row[1]
+                if retailer not in batches_by_retailer:
+                    batches_by_retailer[retailer] = []
 
-        for row in rows:
-            retailer = row[1]
-            if retailer not in batches_by_retailer:
-                batches_by_retailer[retailer] = []
-
-            batches_by_retailer[retailer].append({
-                'id': row[0],
-                'start_time': format_time(row[2]) if row[2] else '00:00',
-                'memo': row[3]
-            })
-
-        cursor.close()
-        conn.close()
+                batches_by_retailer[retailer].append({
+                    'id': row[0],
+                    'start_time': format_time(row[2]) if row[2] else '00:00',
+                    'memo': row[3]
+                })
     except Exception as e:
         print(f"Error loading batches: {e}")
 

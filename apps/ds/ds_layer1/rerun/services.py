@@ -4,7 +4,7 @@ DB 조회 + SSM 실행 + 로그 저장 (순수 비즈니스 로직)
 """
 
 from datetime import datetime
-from apps.common.db import get_ds_connection
+from apps.common.db import ds_connection
 from config.config import SSM_CONFIG
 import boto3
 import pytz
@@ -12,9 +12,7 @@ import pytz
 
 def get_retailer_info(retailer):
     """DB에서 해당 리테일러의 정보 조회. 없으면 None 반환"""
-    conn = get_ds_connection()
-    cursor = conn.cursor()
-    try:
+    with ds_connection() as (conn, cursor):
         cursor.execute("""
             SELECT retailer_id, instance_id, instance_region, schedule_name, region_timezone
             FROM ssd_crawl_db.ds_monitoring_targets
@@ -32,9 +30,6 @@ def get_retailer_info(retailer):
             'schedule_name': row[3],
             'region_timezone': row[4]
         }
-    finally:
-        cursor.close()
-        conn.close()
 
 
 def execute_ssm_command(instance_id, instance_region, schedule_name, retailer, crawl_date):
@@ -65,11 +60,9 @@ def execute_ssm_command(instance_id, instance_region, schedule_name, retailer, c
 
 def save_rerun_log(retailer_id, retailer, crawl_date, schedule_name, created_id, instance_id, command_id, region_timezone, username):
     """재실행 로그 저장 & 배치 자동 생성"""
-    conn = get_ds_connection()
-    cursor = conn.cursor()
     now = datetime.now()
 
-    try:
+    with ds_connection() as (conn, cursor):
         # 재실행 로그 저장
         cursor.execute("""
             INSERT INTO ssd_crawl_db.ds_monitoring_crawler_rerun_log
@@ -92,6 +85,3 @@ def save_rerun_log(retailer_id, retailer, crawl_date, schedule_name, created_id,
         """, (crawl_date, retailer, batch_start_time, batch_memo))
 
         conn.commit()
-    finally:
-        cursor.close()
-        conn.close()

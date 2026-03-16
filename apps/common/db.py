@@ -65,18 +65,22 @@ def dx_connection():
 
 
 @contextmanager
-def ds_connection():
-    """DS MySQL 커넥션 컨텍스트 매니저 (에러 시 rollback, 자동 close)"""
-    conn = get_ds_connection()
-    cursor = conn.cursor()
-    try:
-        yield conn, cursor
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        cursor.close()
-        conn.close()
+def ds_connection(existing=None):
+    """DS MySQL 커넥션 컨텍스트 매니저 (에러 시 rollback, 자동 close)
+    existing=(conn, cursor) 전달 시 기존 커넥션 재사용 (close 안 함)"""
+    if existing:
+        yield existing
+    else:
+        conn = get_ds_connection()
+        cursor = conn.cursor()
+        try:
+            yield conn, cursor
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
 
 
 def execute_dx_query(query, params=None):

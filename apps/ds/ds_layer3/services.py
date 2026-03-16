@@ -4,7 +4,7 @@ DS Layer 3 Service: SKU 이상치 반복 패턴 분석
 """
 
 from datetime import datetime, timedelta
-from apps.common.db import get_ds_connection
+from apps.common.db import ds_connection
 from apps.common.targets import load_monitoring_targets
 from apps.common.response import log_error
 
@@ -220,88 +220,83 @@ def get_layer_stats(target_date, days):
     }
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            closed_dates = get_closed_dates(cursor, start_date, target_date)
+            retailer_id_map = get_retailer_id_map(cursor)
 
-        closed_dates = get_closed_dates(cursor, start_date, target_date)
-        retailer_id_map = get_retailer_id_map(cursor)
+            results = []
+            total_anomaly_skus = 0
+            total_repeat_skus = 0
+            total_new_skus = 0
 
-        results = []
-        total_anomaly_skus = 0
-        total_repeat_skus = 0
-        total_new_skus = 0
+            for idx, (table_name, retailer, region, korea_time, country, mall_name) in enumerate(get_monitoring_targets(), 1):
+                retailer_id = retailer_id_map.get(retailer)
+                if not retailer_id:
+                    results.append({
+                        'no': idx, 'table_name': table_name, 'retailer': retailer,
+                        'region': region, 'country': country.upper(),
+                        'total_anomaly_skus': 0, 'repeat_skus': 0, 'new_skus': 0,
+                        'max_consecutive_days': 0, 'status': 'success'
+                    })
+                    continue
 
-        for idx, (table_name, retailer, region, korea_time, country, mall_name) in enumerate(get_monitoring_targets(), 1):
-            retailer_id = retailer_id_map.get(retailer)
-            if not retailer_id:
-                results.append({
-                    'no': idx, 'table_name': table_name, 'retailer': retailer,
-                    'region': region, 'country': country.upper(),
-                    'total_anomaly_skus': 0, 'repeat_skus': 0, 'new_skus': 0,
-                    'max_consecutive_days': 0, 'status': 'success'
-                })
-                continue
+                try:
+                    sku_map = build_sku_day_map(cursor, retailer_id, table_name, start_date, target_date, closed_dates)
 
-            try:
-                sku_map = build_sku_day_map(cursor, retailer_id, table_name, start_date, target_date, closed_dates)
+                    # 기준일에 이상치인 SKU만 집계
+                    anomaly_skus = 0
+                    repeat_skus = 0
+                    new_skus = 0
+                    max_consecutive = 0
 
-                # 기준일에 이상치인 SKU만 집계
-                anomaly_skus = 0
-                repeat_skus = 0
-                new_skus = 0
-                max_consecutive = 0
+                    for sku, info in sku_map.items():
+                        consecutive = calc_consecutive_days(info['days'], target_date)
+                        if consecutive == 0:
+                            continue  # 기준일에 없는 SKU
+                        anomaly_skus += 1
+                        if consecutive >= 2:
+                            repeat_skus += 1
+                        else:
+                            new_skus += 1
+                        if consecutive > max_consecutive:
+                            max_consecutive = consecutive
 
-                for sku, info in sku_map.items():
-                    consecutive = calc_consecutive_days(info['days'], target_date)
-                    if consecutive == 0:
-                        continue  # 기준일에 없는 SKU
-                    anomaly_skus += 1
-                    if consecutive >= 2:
-                        repeat_skus += 1
-                    else:
-                        new_skus += 1
-                    if consecutive > max_consecutive:
-                        max_consecutive = consecutive
+                    total_anomaly_skus += anomaly_skus
+                    total_repeat_skus += repeat_skus
+                    total_new_skus += new_skus
 
-                total_anomaly_skus += anomaly_skus
-                total_repeat_skus += repeat_skus
-                total_new_skus += new_skus
+                    status = 'success' if anomaly_skus == 0 else 'danger'
 
-                status = 'success' if anomaly_skus == 0 else 'danger'
+                    results.append({
+                        'no': idx,
+                        'table_name': table_name,
+                        'retailer': retailer,
+                        'region': region,
+                        'country': country.upper(),
+                        'total_anomaly_skus': anomaly_skus,
+                        'repeat_skus': repeat_skus,
+                        'new_skus': new_skus,
+                        'max_consecutive_days': max_consecutive,
+                        'status': status
+                    })
+                except Exception as e:
+                    results.append({
+                        'no': idx, 'table_name': table_name, 'retailer': retailer,
+                        'region': region, 'country': country.upper(),
+                        'total_anomaly_skus': 0, 'repeat_skus': 0, 'new_skus': 0,
+                        'max_consecutive_days': 0, 'status': 'error', 'error': log_error(e)
+                    })
 
-                results.append({
-                    'no': idx,
-                    'table_name': table_name,
-                    'retailer': retailer,
-                    'region': region,
-                    'country': country.upper(),
-                    'total_anomaly_skus': anomaly_skus,
-                    'repeat_skus': repeat_skus,
-                    'new_skus': new_skus,
-                    'max_consecutive_days': max_consecutive,
-                    'status': status
-                })
-            except Exception as e:
-                results.append({
-                    'no': idx, 'table_name': table_name, 'retailer': retailer,
-                    'region': region, 'country': country.upper(),
-                    'total_anomaly_skus': 0, 'repeat_skus': 0, 'new_skus': 0,
-                    'max_consecutive_days': 0, 'status': 'error', 'error': log_error(e)
-                })
+            overall_status = 'success' if total_anomaly_skus == 0 else 'danger'
 
-        cursor.close()
-        conn.close()
-
-        overall_status = 'success' if total_anomaly_skus == 0 else 'danger'
-
-        data['results'] = results
-        data['summary'] = {
-            'total_tables': len(get_monitoring_targets()),
-            'total_anomaly_skus': total_anomaly_skus,
-            'repeat_skus': total_repeat_skus,
-            'new_skus': total_new_skus,
-            'status': overall_status
-        }
+            data['results'] = results
+            data['summary'] = {
+                'total_tables': len(get_monitoring_targets()),
+                'total_anomaly_skus': total_anomaly_skus,
+                'repeat_skus': total_repeat_skus,
+                'new_skus': total_new_skus,
+                'status': overall_status
+            }
 
     except Exception as e:
         data['error'] = log_error(e)
@@ -341,23 +336,16 @@ def get_sku_detail(target_date, days, retailer, filter_type, sort_by, sort_order
     data['table_name'] = table_name
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            closed_dates = get_closed_dates(cursor, start_date, target_date)
+            retailer_id_map = get_retailer_id_map(cursor)
+            retailer_id = retailer_id_map.get(retailer)
 
-        closed_dates = get_closed_dates(cursor, start_date, target_date)
-        retailer_id_map = get_retailer_id_map(cursor)
-        retailer_id = retailer_id_map.get(retailer)
+            if not retailer_id:
+                data['error'] = '리테일러 ID를 찾을 수 없습니다.'
+                return data
 
-        if not retailer_id:
-            cursor.close()
-            conn.close()
-            data['error'] = '리테일러 ID를 찾을 수 없습니다.'
-            return data
-
-        sku_map = build_sku_day_map(cursor, retailer_id, table_name, start_date, target_date, closed_dates)
-
-        cursor.close()
-        conn.close()
+            sku_map = build_sku_day_map(cursor, retailer_id, table_name, start_date, target_date, closed_dates)
 
         # SKU별 연속일수 계산 + 필터
         sku_list = []
@@ -447,23 +435,16 @@ def get_sku_history(target_date, days, retailer, retailersku):
     table_name = retailer_info[0]
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            closed_dates = get_closed_dates(cursor, start_date, target_date)
+            retailer_id_map = get_retailer_id_map(cursor)
+            retailer_id = retailer_id_map.get(retailer)
 
-        closed_dates = get_closed_dates(cursor, start_date, target_date)
-        retailer_id_map = get_retailer_id_map(cursor)
-        retailer_id = retailer_id_map.get(retailer)
+            if not retailer_id:
+                data['error'] = '리테일러 ID를 찾을 수 없습니다.'
+                return data
 
-        if not retailer_id:
-            cursor.close()
-            conn.close()
-            data['error'] = '리테일러 ID를 찾을 수 없습니다.'
-            return data
-
-        sku_map = build_sku_day_map(cursor, retailer_id, table_name, start_date, target_date, closed_dates)
-
-        cursor.close()
-        conn.close()
+            sku_map = build_sku_day_map(cursor, retailer_id, table_name, start_date, target_date, closed_dates)
 
         sku_info = sku_map.get(retailersku)
         if not sku_info:

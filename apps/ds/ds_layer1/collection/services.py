@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_instance, get_retailer_map
 from apps.ds.ds_layer1.batch.services import get_batches_for_date
 from apps.ds.ds_layer2.stats.services import get_quality_counts_by_time_range
+from apps.ds.ds_layer4.report.services import is_report_closed
 
 
 def get_monitoring_targets():
@@ -135,19 +136,14 @@ def get_collection_status(korea_time_str, target_date, completion_rate):
             return 'error'
 
 
-def get_layer_stats(cursor, target_date, batch_view):
+def get_layer_stats(cursor, target_date, batch_view, conn=None):
     """DS Layer 1 전체 통계 조회"""
     # 마감 여부 확인 → 마감된 날짜는 현황 테이블 스냅샷 사용
-    is_closed = False
+    close_result = is_report_closed(str(target_date), existing=(conn, cursor) if conn else None)
+    is_closed = close_result.get('is_closed', False)
     closed_data = {}
-    try:
-        cursor.execute("""
-            SELECT is_closed FROM ssd_crawl_db.ds_monitoring_report_close
-            WHERE crawl_date = %s
-        """, (target_date,))
-        close_row = cursor.fetchone()
-        if close_row and close_row[0] == 1:
-            is_closed = True
+    if is_closed:
+        try:
             cursor.execute("""
                 SELECT t.retailer, r.expected_count, r.total_count, r.completion_rate, r.final_batch_count
                 FROM ssd_crawl_db.ds_monitoring_report_daily r
@@ -161,8 +157,8 @@ def get_layer_stats(cursor, target_date, batch_view):
                     'completion_rate': float(row[3]) if row[3] else 0,
                     'final_batch_count': row[4] or 0
                 }
-    except:
-        is_closed = False
+        except:
+            is_closed = False
 
     # 배치 정보 로드
     batches_by_retailer = get_batches_for_date(target_date)

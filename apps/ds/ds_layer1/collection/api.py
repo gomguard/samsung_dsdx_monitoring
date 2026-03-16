@@ -5,7 +5,7 @@ request 파싱 + services 호출 + JsonResponse 반환
 
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import get_ds_connection
+from apps.common.db import ds_connection
 from apps.common.response import log_error
 from . import services
 
@@ -30,16 +30,11 @@ def layer_stats(request):
     }
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            result = services.get_layer_stats(cursor, target_date, batch_view, conn=conn)
 
-        result = services.get_layer_stats(cursor, target_date, batch_view)
-
-        cursor.close()
-        conn.close()
-
-        data['results'] = result['results']
-        data['summary'] = result['summary']
+            data['results'] = result['results']
+            data['summary'] = result['summary']
 
     except Exception as e:
         data['error'] = log_error(e)
@@ -70,13 +65,8 @@ def instances_stats(request):
     }
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
-
-        data['regions'] = services.get_instances_stats(cursor, target_date)
-
-        cursor.close()
-        conn.close()
+        with ds_connection() as (conn, cursor):
+            data['regions'] = services.get_instances_stats(cursor, target_date)
 
     except Exception as e:
         data['error'] = log_error(e)
@@ -125,15 +115,10 @@ def table_detail(request):
     }
 
     try:
-        conn = get_ds_connection()
-        cursor = conn.cursor()
+        with ds_connection() as (conn, cursor):
+            result = services.get_table_detail(cursor, table_name, target_date, page, page_size, start_time, end_time, sort_by, sort_order)
 
-        result = services.get_table_detail(cursor, table_name, target_date, page, page_size, start_time, end_time, sort_by, sort_order)
-
-        cursor.close()
-        conn.close()
-
-        data.update(result)
+            data.update(result)
 
     except Exception as e:
         data['error'] = log_error(e)
