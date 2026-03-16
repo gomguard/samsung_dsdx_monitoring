@@ -365,32 +365,10 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
     select_cols = [desc[0] for desc in cursor.description]
     rows = cursor.fetchall()
 
-    # retail + days > 1: 오류 item 추출 후 N일치 확장 조회
-    is_expanded = False
-    if has_retailer and days > 1 and rows:
-        item_idx = select_cols.index('item') if 'item' in select_cols else None
-        if item_idx is not None:
-            error_items = list(set(r[item_idx] for r in rows if r[item_idx]))
-            if error_items:
-                start_date = target_date - timedelta(days=days - 1)
-                placeholders = ', '.join(['%s'] * len(error_items))
-                expand_query = f"""
-                    SELECT *
-                    FROM {actual_table}
-                    WHERE {date_col}::timestamp >= %s AND {date_col}::timestamp < %s
-                      AND account_name = %s
-                      AND item IN ({placeholders})
-                    ORDER BY item, {date_col}
-                """
-                expand_params = [str(start_date), str(next_date), retailer] + error_items
-                cursor.execute(expand_query, expand_params)
-                rows = cursor.fetchall()
-                is_expanded = True
-
     # 컬럼 인덱스 매핑
     col_index = {col: idx for idx, col in enumerate(select_cols)}
 
-    # 정상 처리(normal) 건 조회
+    # 정상 처리(normal) 건 조회 — 확장 조회 전에 실행하여 정상처리 item 제외
     normal_set = set()
     normal_reviews = {}
     cursor.execute("""
@@ -408,8 +386,31 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
             'reason': nr_row[5]
         }
 
-    results = []
+    # retail + days > 1: 오류 item 추출 후 N일치 확장 조회
+    is_expanded = False
     id_idx = col_index['id']
+    if has_retailer and days > 1 and rows:
+        item_idx = select_cols.index('item') if 'item' in select_cols else None
+        if item_idx is not None:
+            # 정상처리 건 제외 후 에러 item 추출
+            error_items = list(set(r[item_idx] for r in rows if r[item_idx] and r[id_idx] not in normal_set))
+            if error_items:
+                start_date = target_date - timedelta(days=days - 1)
+                placeholders = ', '.join(['%s'] * len(error_items))
+                expand_query = f"""
+                    SELECT *
+                    FROM {actual_table}
+                    WHERE {date_col}::timestamp >= %s AND {date_col}::timestamp < %s
+                      AND account_name = %s
+                      AND item IN ({placeholders})
+                    ORDER BY item, {date_col}
+                """
+                expand_params = [str(start_date), str(next_date), retailer] + error_items
+                cursor.execute(expand_query, expand_params)
+                rows = cursor.fetchall()
+                is_expanded = True
+
+    results = []
     col_idx = col_index.get(column)
     for row in rows:
         # 정상처리 건이면 스킵

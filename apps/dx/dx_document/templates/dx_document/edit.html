@@ -674,20 +674,22 @@ function loadExistingFiles() {
         });
 }
 
-// 파일 일괄 업로드 (저장 시 호출, upload_type=2 첨부파일)
-function uploadPendingFiles() {
-    const promises = pendingFiles.map(f => {
+// 파일 순차 업로드 (저장 시 호출, upload_type=2 첨부파일)
+async function uploadPendingFiles() {
+    const results = [];
+    for (const f of pendingFiles) {
         const formData = new FormData();
         formData.append('file', f.fileObj, f.name);
         formData.append('object_document_id', objectDocumentId);
         formData.append('upload_type', '2');
-        return fetch('{% url "dx_document:api_upload" %}', {
+        const res = await fetch('{% url "dx_document:api_upload" %}', {
             method: 'POST',
             headers: { 'X-CSRFToken': getCsrfToken() },
             body: formData
         }).then(r => r.json());
-    });
-    return Promise.all(promises);
+        results.push(res);
+    }
+    return results;
 }
 
 // 파일 일괄 삭제 (저장 시 호출)

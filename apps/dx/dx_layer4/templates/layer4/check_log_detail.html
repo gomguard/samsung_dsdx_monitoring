@@ -383,7 +383,7 @@ async function loadDetail() {
         _buildStep1NoIssueKeys();
         renderSummary(sec);
         renderStepToggle(sec);
-        var details = _currentStep === 1 ? (sec.details_step1 || []) : (sec.details || []);
+        var details = (sec.confirm_step === 1) ? (sec.details || []) : (_currentStep === 1 ? (sec.details_step1 || []) : (sec.details || []));
         renderDetailTable(details);
     } catch (e) {
         document.getElementById('detailTableContainer').innerHTML = '<div class="cl-empty-state">시스템 오류가 발생했습니다.</div>';
@@ -408,7 +408,7 @@ function switchStep(step) {
     if (!_currentSection) return;
     _currentStep = step;
     renderStepToggle(_currentSection);
-    var details = step === 1 ? (_currentSection.details_step1 || []) : (_currentSection.details || []);
+    var details = (_currentSection.confirm_step === 1) ? (_currentSection.details || []) : (step === 1 ? (_currentSection.details_step1 || []) : (_currentSection.details || []));
     renderDetailTable(details);
 }
 

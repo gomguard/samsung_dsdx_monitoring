@@ -553,11 +553,20 @@ function flattenCheckToDetails(sectionType, check) {
                 ['tv', 'hhp'].forEach(function(type) {
                     (currentNullData[type] || []).forEach(function(ret) {
                         ret.time_slots.forEach(function(slot) {
-                            details.push({
-                                category: type.toUpperCase(), time_slot: slot.time_slot,
-                                retailer: ret.retailer, item_name: slot.null_columns.join(', '),
-                                expected_count: 0, actual_count: 0, rate: 0, status: 'NULL'
+                            var nullCols = slot.null_columns.join(', ');
+                            var existing = details.find(function(d) {
+                                return d.category === type.toUpperCase() && d.retailer === ret.retailer && d.time_slot === slot.time_slot;
                             });
+                            if (existing) {
+                                existing.item_name = nullCols;
+                                existing.status = 'NULL';
+                            } else {
+                                details.push({
+                                    category: type.toUpperCase(), time_slot: slot.time_slot,
+                                    retailer: ret.retailer, item_name: nullCols,
+                                    expected_count: 0, actual_count: 0, rate: 0, status: 'NULL'
+                                });
+                            }
                         });
                     });
                 });

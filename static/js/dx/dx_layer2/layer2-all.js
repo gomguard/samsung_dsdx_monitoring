@@ -513,6 +513,14 @@ function _buildDetailTable() {
                     sel.appendChild(opt);
                 });
             }
+            // rowspan 사용 시 DOM 재정렬이 셀 수 불일치로 깨지므로 테이블 재생성
+            if (detailViewState.type === 'null') {
+                setTimeout(function() {
+                    _buildDetailTable();
+                    var currentPage = detailViewState.pager ? detailViewState.pager.getCurrentPage() : 1;
+                    detailRenderPage(currentPage);
+                }, 0);
+            }
         }
     });
     detailViewState.table.render();
@@ -1052,6 +1060,26 @@ function detailRenderPage(page) {
         pageData = source.slice(start, end);
     }
 
+    // item rowspan 계산 (flat 모드, null 타입만)
+    if (!isRowspan && detailViewState.type === 'null') {
+        for (var ri = 0; ri < pageData.length; ri++) {
+            var curItem = pageData[ri].item || '';
+            var span = 1;
+            while (ri + span < pageData.length && (pageData[ri + span].item || '') === curItem) {
+                span++;
+            }
+            if (span > 1) {
+                pageData[ri]._itemRowspan = span;
+                for (var si = 1; si < span; si++) {
+                    pageData[ri + si]._itemRowspan = 0;
+                }
+                ri += span - 1;
+            } else {
+                delete pageData[ri]._itemRowspan;
+            }
+        }
+    }
+
     // renderBody
     var rowNum = startIdx;
     var isDup = detailViewState.type === 'duplicate';
@@ -1086,7 +1114,13 @@ function detailRenderPage(page) {
             // No 컬럼 (항상 맨 앞)
             tr += '<td style="text-align:center;font-weight:500;">' + rowNum + '</td>';
             visibleCols.forEach(function(col) {
-                tr += getCellHtml(row, col, tableParam);
+                if (col.key === 'item' && row._itemRowspan !== undefined) {
+                    if (row._itemRowspan > 0) {
+                        tr += '<td rowspan="' + row._itemRowspan + '">' + esc(String(row.item || '')) + '</td>';
+                    }
+                } else {
+                    tr += getCellHtml(row, col, tableParam);
+                }
             });
             return tr + '</tr>';
         }
