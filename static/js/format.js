@@ -2,6 +2,7 @@
  * 포맷팅 및 상태 처리 함수
  *
  * - formatNumber(num)              : 숫자 천단위 콤마 (1234567 → "1,234,567")
+ * - formatFileSize(bytes)           : 파일 크기 포맷 (1024 → "1.0 KB")
  * - formatDate(dateString)         : 한국식 날짜 ("2026. 01. 31.")
  * - formatDateTime(dateString)     : 한국식 날짜+시간 ("2026. 01. 31. 오후 3:30")
  * - formatLocalDate(date)          : YYYY-MM-DD 문자열 ("2026-01-31")
@@ -38,6 +39,13 @@ function formatLocalDate(date) {
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     const dd = String(date.getDate()).padStart(2, '0');
     return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatFileSize(bytes) {
+    if (!bytes || bytes === 0) return '-';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
 function getStatusClass(status) {

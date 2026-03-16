@@ -116,6 +116,17 @@ function _fallbackCopy(text) {
     });
 }
 
+function copyProductUrl(url, btn) {
+    if (!url) return;
+    copyText(url).then(function() {
+        if (btn) {
+            btn.classList.add('copied');
+            setTimeout(function() { btn.classList.remove('copied'); }, 1000);
+        }
+        showToast('링크가 복사되었습니다.', 'success');
+    });
+}
+
 function showConfirm(msg, type, options) {
     if (!type) type = 'info';
     if (!options) options = {};

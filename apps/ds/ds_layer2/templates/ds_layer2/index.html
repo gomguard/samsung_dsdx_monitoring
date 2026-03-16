@@ -713,60 +713,6 @@
     }
 
     /* 확인 모달 */
-    .confirm-overlay {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.45);
-        z-index: 10002;
-        justify-content: center;
-        align-items: center;
-    }
-    .confirm-overlay.show { display: flex; }
-    .confirm-box {
-        background: var(--bg-primary, #fff);
-        border-radius: 12px;
-        padding: 28px 32px 20px;
-        min-width: 320px;
-        max-width: 440px;
-        box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-        text-align: center;
-    }
-    .confirm-box .confirm-icon {
-        margin-bottom: 12px;
-    }
-    .confirm-box .confirm-msg {
-        font-size: 15px;
-        font-weight: 500;
-        color: var(--text-primary, #1a1a1a);
-        line-height: 1.5;
-        margin-bottom: 24px;
-        white-space: pre-line;
-    }
-    .confirm-box .confirm-btns {
-        display: flex;
-        gap: 10px;
-        justify-content: center;
-    }
-    .confirm-box .confirm-btn {
-        padding: 9px 28px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 600;
-        border: none;
-        cursor: pointer;
-        transition: opacity 0.15s;
-    }
-    .confirm-box .confirm-btn:hover { opacity: 0.85; }
-    .confirm-box .btn-ok {
-        background: #ef4444;
-        color: #fff;
-    }
-    .confirm-box .btn-cancel {
-        background: var(--bg-secondary, #f3f4f6);
-        color: var(--text-primary, #1a1a1a);
-    }
-
 </style>
 {% endblock %}
 
@@ -906,21 +852,6 @@
     </div>
 </div>
 
-<!-- 확인 모달 -->
-<div class="confirm-overlay" id="confirmOverlay">
-    <div class="confirm-box">
-        <div class="confirm-icon" id="confirmIcon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40">
-                <path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/>
-            </svg>
-        </div>
-        <div class="confirm-msg" id="confirmMsg"></div>
-        <div class="confirm-btns">
-            <button class="confirm-btn btn-ok" id="confirmOk">확인</button>
-            <button class="confirm-btn btn-cancel" id="confirmCancel">취소</button>
-        </div>
-    </div>
-</div>
 
 {% endblock %}
 
@@ -1381,39 +1312,6 @@ async function bulkSaveRetailers() {
     renderNullTable(statsData);
 }
 
-// 일괄 마감
-async function closeReport() {
-    const date = document.getElementById('targetDate').value;
-    const savedCount = Object.keys(reportStatus.saved_retailers || {}).length;
-
-    const confirmed = await showConfirm(`${date} 날짜를 마감하시겠습니까?\n\n저장된 리테일러: ${savedCount}개\n\n※ 마감 후 수정이 필요한 경우 마감 취소가 필요합니다.`);
-    if (!confirmed) {
-        return;
-    }
-
-    try {
-        const response = await fetch('/ds/layer2/api/close/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            body: JSON.stringify({
-                crawl_date: date,
-                user_id: currentUserId
-            })
-        });
-
-        const result = await response.json();
-        if (result.success) {
-            showToast('마감 완료');
-            await loadReportStatus();
-            renderNullTable(statsData);
-        } else {
-            showToast(result.error || '마감 실패');
-        }
-    } catch (error) {
-        showToast('마감 중 오류 발생');
-    }
-}
-
 // formatLocalDate는 format.js, showToast는 ui.js에서 로드
 
 function setPrevDay() {
@@ -1804,7 +1702,7 @@ function renderDetailTable(data) {
                 <td>${shipsFrom || '<span class="null-value">NULL</span>'}</td>
                 <td>${soldBy || '<span class="null-value">NULL</span>'}</td>
                 <td style="max-width: 200px;">${imageurl ? `<a href="${imageurl}" target="_blank" title="${imageurl}">${imageurl.substring(0, 30)}...</a>` : '<span class="null-value">NULL</span>'}</td>
-                <td>${producturl ? `<a href="${producturl}" target="_blank">링크</a><button class="app-icon-btn-ghost" onclick="event.stopPropagation(); copyProductUrl(${index}, this)" title="링크 복사"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>` : '-'}</td>
+                <td>${producturl ? `<a href="${producturl}" target="_blank">링크</a><button class="app-icon-btn-ghost" onclick="event.stopPropagation(); copyProductUrl('${producturl.replace(/'/g, "\\'")}', this)" title="링크 복사"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>` : '-'}</td>
             </tr>
         `;
     });
@@ -1814,21 +1712,7 @@ function renderDetailTable(data) {
     updateCheckCount();
 }
 
-function copyProductUrl(index, btn) {
-    const url = currentDetailData[index]?.producturl;
-    if (!url) return;
-    const textarea = document.createElement('textarea');
-    textarea.value = url;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textarea);
-    btn.classList.add('copied');
-    setTimeout(() => btn.classList.remove('copied'), 1000);
-    showToast('링크가 복사되었습니다.', 'success');
-}
+// copyProductUrl → ui.js 공통
 
 function sortBy(column) {
     if (currentSortBy === column) {
@@ -1879,26 +1763,7 @@ function toggleNullBatchRows(retailer) {
     }
 }
 
-// HTTP 환경에서도 동작하는 복사 함수
-function fallbackCopy(text, onSuccess, onError) {
-    const textArea = document.createElement('textarea');
-    textArea.value = text;
-    textArea.style.position = 'fixed';
-    textArea.style.left = '-9999px';
-    textArea.style.top = '0';
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-        document.execCommand('copy');
-        if (onSuccess) onSuccess();
-    } catch (err) {
-        if (onError) onError(err);
-    }
-    document.body.removeChild(textArea);
-}
-
-// showToast는 ui.js에서 로드
+// fallbackCopy → ui.js copyText() 공통
 
 // 행 데이터를 보고서 형식으로 변환
 function formatRowForReport(item) {
@@ -1995,57 +1860,10 @@ function copyCheckedToReport() {
         showToast('복사 실패');
     };
 
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
-            fallbackCopy(text, onSuccess, onError);
-        });
-    } else {
-        fallbackCopy(text, onSuccess, onError);
-    }
+    copyText(text).then(onSuccess).catch(onError);
 }
 
-// CSRF 토큰 가져오기
-function getCsrfToken() {
-    const cookies = document.cookie.split(';');
-    for (let cookie of cookies) {
-        const [name, value] = cookie.trim().split('=');
-        if (name === 'csrftoken') {
-            return value;
-        }
-    }
-    return '';
-}
-
-// 커스텀 확인 모달
-function showConfirm(msg, type) {
-    return new Promise(function(resolve) {
-        var overlay = document.getElementById('confirmOverlay');
-        document.getElementById('confirmMsg').textContent = msg;
-        var iconEl = document.getElementById('confirmIcon');
-        var okBtn = document.getElementById('confirmOk');
-        if (type === 'info') {
-            iconEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" width="40" height="40"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
-            okBtn.style.background = '#2563eb';
-        } else {
-            iconEl.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" width="40" height="40"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 0 0 1.75-2.96L13.74 4a2 2 0 0 0-3.5 0L3.32 16.04A2 2 0 0 0 5.07 19z"/></svg>';
-            okBtn.style.background = '#ef4444';
-        }
-        overlay.classList.add('show');
-        var ok = document.getElementById('confirmOk');
-        var cancel = document.getElementById('confirmCancel');
-        function cleanup() {
-            overlay.classList.remove('show');
-            ok.removeEventListener('click', onOk);
-            cancel.removeEventListener('click', onCancel);
-            overlay.removeEventListener('click', onBg);
-        }
-        function onOk() { cleanup(); resolve(true); }
-        function onCancel() { cleanup(); resolve(false); }
-        function onBg(e) { if (e.target === overlay) { cleanup(); resolve(false); } }
-        ok.addEventListener('click', onOk);
-        cancel.addEventListener('click', onCancel);
-        overlay.addEventListener('click', onBg);
-    });
-}
+// getCsrfToken → security.js 공통
+// showConfirm → ui.js 공통
 </script>
 {% endblock %}

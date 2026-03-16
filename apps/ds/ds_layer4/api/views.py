@@ -9,47 +9,15 @@ from django.views.decorators.http import require_http_methods
 from apps.common.response import safe_error
 
 from apps.ds.ds_layer4.report.services import (
-    save_report, delete_report, update_report, update_daily_memo,
-    save_all_reports, save_file_info, close_report, cancel_close_report,
-    get_report_status, get_report_list, get_file_size_history
+    update_report, update_daily_memo,
+    save_file_info, close_report, cancel_close_report,
+    get_report_list, get_file_size_history
 )
 from apps.ds.ds_layer4.screenshot.services import (
     get_screenshot_url as _get_screenshot_url,
     trigger_screenshot_capture, get_screenshot_status,
     delete_screenshots, upload_screenshot
 )
-
-
-@require_http_methods(["POST"])
-def report_save(request):
-    """리테일러별 이상치 데이터 저장 API"""
-    try:
-        body = json.loads(request.body)
-        result = save_report(
-            crawl_date=body.get('crawl_date'),
-            retailer=body.get('retailer'),
-            anomalies=body.get('anomalies', []),
-            memo=body.get('memo', ''),
-            user_id=body.get('user_id', 'system')
-        )
-        return JsonResponse(result)
-    except Exception as e:
-        return safe_error(e, success=False)
-
-
-@require_http_methods(["POST"])
-def report_delete(request):
-    """리테일러별 저장된 데이터 삭제 API"""
-    try:
-        body = json.loads(request.body)
-        result = delete_report(
-            crawl_date=body.get('crawl_date'),
-            retailer=body.get('retailer'),
-            user_id=body.get('user_id', 'system')
-        )
-        return JsonResponse(result)
-    except Exception as e:
-        return safe_error(e, success=False)
 
 
 @require_http_methods(["POST"])
@@ -75,20 +43,6 @@ def report_daily_update(request):
 
 
 @require_http_methods(["POST"])
-def report_save_all(request):
-    """미저장 리테일러 일괄 현황 저장 API"""
-    try:
-        body = json.loads(request.body)
-        result = save_all_reports(
-            crawl_date=body.get('crawl_date'),
-            user_id=body.get('user_id', 'system')
-        )
-        return JsonResponse(result)
-    except Exception as e:
-        return safe_error(e, success=False)
-
-
-@require_http_methods(["POST"])
 def report_save_file_info(request):
     """파일서버 파일 정보 전체 업데이트 API"""
     try:
@@ -104,7 +58,7 @@ def report_save_file_info(request):
 
 @require_http_methods(["POST"])
 def report_close(request):
-    """일별 최종 마감 API"""
+    """보고서 마감 API"""
     try:
         body = json.loads(request.body)
         result = close_report(
@@ -118,7 +72,7 @@ def report_close(request):
 
 @require_http_methods(["POST"])
 def report_cancel_close(request):
-    """마감 취소 API"""
+    """보고서 마감 취소 API"""
     try:
         body = json.loads(request.body)
         result = cancel_close_report(
@@ -126,19 +80,6 @@ def report_cancel_close(request):
             user_id=body.get('user_id', 'system'),
             memo=body.get('memo', '')
         )
-        return JsonResponse(result)
-    except Exception as e:
-        return safe_error(e, success=False)
-
-
-def report_status(request):
-    """날짜별 저장/마감 현황 조회 API"""
-    date_str = request.GET.get('date')
-    if not date_str:
-        date_str = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-
-    try:
-        result = get_report_status(date_str)
         return JsonResponse(result)
     except Exception as e:
         return safe_error(e, success=False)

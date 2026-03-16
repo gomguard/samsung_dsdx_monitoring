@@ -7,11 +7,8 @@ app_name = 'ds_layer4'
 urlpatterns = [
     path('', views.index, name='index'),
     # 보고서 관리 API
-    path('api/save/', api_views.report_save, name='api_save'),
-    path('api/delete/', api_views.report_delete, name='api_delete'),
     path('api/update/', api_views.report_update, name='api_update'),
     path('api/daily-update/', api_views.report_daily_update, name='api_daily_update'),
-    path('api/save-all/', api_views.report_save_all, name='api_save_all'),
     path('api/save-file-info/', api_views.report_save_file_info, name='api_save_file_info'),
     path('api/close/', api_views.report_close, name='api_close'),
     path('api/cancel-close/', api_views.report_cancel_close, name='api_cancel_close'),

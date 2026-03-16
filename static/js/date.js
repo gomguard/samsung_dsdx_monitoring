@@ -55,6 +55,35 @@ function validateQueryDate(dateStr, inputId) {
     return true;
 }
 
+/**
+ * 전날/다음날 이동 (공통)
+ * @param {string} inputId - date input 엘리먼트 ID (기본: 'targetDate')
+ * @param {function} callback - 날짜 변경 후 호출할 함수
+ */
+function setPrevDay(inputId, callback) {
+    var id = inputId || 'targetDate';
+    var input = document.getElementById(id);
+    var date = new Date(input.value);
+    date.setDate(date.getDate() - 1);
+    input.value = formatLocalDate(date);
+    if (callback) callback();
+}
+
+function setNextDay(inputId, callback) {
+    var id = inputId || 'targetDate';
+    var input = document.getElementById(id);
+    var current = new Date(input.value);
+    current.setDate(current.getDate() + 1);
+    var nextStr = formatLocalDate(current);
+    var todayStr = formatLocalDate(new Date());
+    if (nextStr > todayStr) {
+        showToast('오늘 이후 날짜로는 조회할 수 없습니다.', 'warning');
+        return;
+    }
+    input.value = nextStr;
+    if (callback) callback();
+}
+
 // 날짜 입력 필드 자동 보정 (년도 4자리 제한)
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('input[type="date"]').forEach(input => {

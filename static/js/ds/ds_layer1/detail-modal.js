@@ -128,14 +128,7 @@ function renderDetailTable(data) {
     });
 }
 
-function copyProductUrl(url, btn) {
-    if (!url) return;
-    copyText(url).then(() => {
-        btn.classList.add('copied');
-        setTimeout(() => btn.classList.remove('copied'), 1000);
-        showToast('링크가 복사되었습니다.', 'success');
-    });
-}
+// copyProductUrl → ui.js 공통
 
 function closeModal() {
     document.getElementById('detailModal').classList.add('hidden');
