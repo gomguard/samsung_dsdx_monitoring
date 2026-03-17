@@ -216,6 +216,13 @@ class CommonTable {
             this.container.appendChild(this.countEl);
         }
 
+        // 외부 countEl 지정 (옵션으로 DOM 요소 또는 셀렉터 전달)
+        if (this.options.countEl) {
+            this.countEl = typeof this.options.countEl === 'string'
+                ? document.querySelector(this.options.countEl)
+                : this.options.countEl;
+        }
+
         // 셀 클릭 시 텍스트 선택 (Ctrl+C 복사용)
         // 셀 클릭 → 셀 하이라이트 + 텍스트 선택 (Ctrl+C 복사용)
         let selectedTd = null;
@@ -289,7 +296,11 @@ class CommonTable {
             }
         });
         if (this.countEl) {
-            this.countEl.innerHTML = '총 <strong>' + rows.length.toLocaleString() + '</strong>건';
+            if (typeof this.options.countFormat === 'function') {
+                this.countEl.innerHTML = this.options.countFormat(rows.length);
+            } else {
+                this.countEl.innerHTML = '총 <strong>' + rows.length.toLocaleString() + '</strong>건';
+            }
         }
     }
 

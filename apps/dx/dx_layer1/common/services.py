@@ -94,6 +94,24 @@ def get_check_status(cursor, date_str, layer, include_detail=False):
                     'issue_id': dr[10],
                 })
 
+    # 수요증감율: 부족 키워드 조인
+    if include_detail and check_log_ids:
+        kw_map = {}
+        cursor.execute(f"""
+            SELECT check_log_id, category, product_name, event_name, event_date
+            FROM monitoring_check_log_keywords
+            WHERE check_log_id IN ({','.join(['%s'] * len(check_log_ids))})
+            ORDER BY id
+        """, check_log_ids)
+        for kr in cursor.fetchall():
+            kw_map.setdefault(kr[0], []).append({
+                'category': kr[1], 'product_name': kr[2],
+                'event_name': kr[3], 'event_date': str(kr[4]) if kr[4] else ''
+            })
+        for sec_key, sec_data in sections.items():
+            if sec_data['id'] in kw_map:
+                sec_data['missing_keywords'] = kw_map[sec_data['id']]
+
     target_count = get_target_sections(date_str)
     return {
         'success': True,

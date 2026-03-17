@@ -554,16 +554,16 @@
                 return { event_name: eventName, category: g.category, products: g.products.join(', '), count: g.products.length };
             });
             createReportTable(collSection, [
-                { key: 'event_name', label: '이벤트' },
                 { key: 'category', label: '카테고리', align: 'center' },
-                { key: 'products', label: '부족 키워드' },
-                { key: 'count', label: '건수', align: 'center' }
+                { key: 'count', label: '건수', align: 'center' },
+                { key: 'event_name', label: '이벤트' },
+                { key: 'products', label: '부족 키워드' }
             ], kwData, function(item) {
                 return '<tr>'
-                    + '<td>' + L4.escapeHtml(item.event_name) + '</td>'
                     + '<td style="text-align:center">' + L4.escapeHtml(item.category) + '</td>'
-                    + '<td>' + L4.escapeHtml(item.products) + '</td>'
                     + '<td style="text-align:center">' + item.count + '</td>'
+                    + '<td>' + L4.escapeHtml(item.event_name) + '</td>'
+                    + '<td>' + L4.escapeHtml(item.products) + '</td>'
                     + '</tr>';
             });
         }

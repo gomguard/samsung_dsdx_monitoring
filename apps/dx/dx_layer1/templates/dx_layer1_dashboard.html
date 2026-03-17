@@ -1607,8 +1607,7 @@ function openDemandMissingModal(category) {
             '<div class="raw-data-modal-subtitle" id="demandMissingModalSubtitle">' + currentDate + '</div>' +
             '<div class="raw-modal-actions"></div>' +
         '</div>' +
-        '<div class="raw-data-count" id="demandMissingDataCount"></div>' +
-        '<div class="raw-data-table-wrapper" id="demandMissingTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>'
+        '<div class="raw-data-table-wrapper" style="padding: 0 20px 20px;" id="demandMissingTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>'
     );
     AppModal.open('demandMissing');
 
@@ -1621,7 +1620,6 @@ function closeDemandMissingModal() {
 
 function loadDemandMissingData() {
     var wrapperEl = document.getElementById('demandMissingTableWrapper');
-    var countEl = document.getElementById('demandMissingDataCount');
     var currentDate = getSelectedDate();
 
     wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
@@ -1649,13 +1647,12 @@ function loadDemandMissingData() {
                 }
                 summaryHtml = summaryParts.length > 0 ? ' (' + summaryParts.join(', ') + ')' : '';
             }
-            countEl.innerHTML = '총 <strong>' + (data.total_missing || 0).toLocaleString() + '</strong>건 부족' + summaryHtml;
-
             if (demandMissingDataState.data.length === 0) {
                 wrapperEl.innerHTML = '<div class="raw-data-empty">부족한 키워드가 없습니다</div>';
                 return;
             }
 
+            demandMissingDataState.summaryHtml = summaryHtml;
             renderDemandMissingTable();
         })
         .catch(function(error) {
@@ -1665,31 +1662,32 @@ function loadDemandMissingData() {
 
 function renderDemandMissingTable() {
     var wrapperEl = document.getElementById('demandMissingTableWrapper');
-    var columns = ['category', 'product_name', 'event_name', 'event_date'];
-    var columnLabels = ['카테고리', '제품명', '이벤트명', '이벤트일자'];
+    var summaryHtml = demandMissingDataState.summaryHtml || '';
+    wrapperEl.innerHTML = '';
 
-    var colgroupHtml = '<colgroup><col style="width: 50px;"><col style="width: 80px;"><col><col><col style="width: 120px;"></colgroup>';
-
-    var headerHtml = '<thead><tr><th>#</th>';
-    columnLabels.forEach(function(label) {
-        headerHtml += '<th>' + label + '</th>';
+    var table = new CommonTable(wrapperEl, {
+        columns: [
+            { key: '_no', label: 'No', width: 50 },
+            { key: 'category', label: '카테고리', width: 80 },
+            { key: 'product_name', label: '제품명' },
+            { key: 'event_name', label: '이벤트명' },
+            { key: 'event_date', label: '이벤트일자', width: 120 }
+        ],
+        showTotalCount: true,
+        countFormat: function(count) {
+            return '총 <strong>' + count.toLocaleString() + '</strong>건 부족' + summaryHtml;
+        }
     });
-    headerHtml += '</tr></thead>';
-
-    var bodyHtml = '<tbody>';
-    demandMissingDataState.data.forEach(function(item, idx) {
-        bodyHtml += '<tr>';
-        bodyHtml += '<td>' + (idx + 1) + '</td>';
-        bodyHtml += '<td>' + (item.category || '') + '</td>';
-        bodyHtml += '<td>' + (item.product_name || '') + '</td>';
-        bodyHtml += '<td>' + (item.event_name || '') + '</td>';
-        bodyHtml += '<td>' + (item.event_date || '') + '</td>';
-        bodyHtml += '</tr>';
+    table.render();
+    table.renderBody(demandMissingDataState.data, function(item, idx) {
+        return '<tr>' +
+            '<td style="text-align:center;">' + (idx + 1) + '</td>' +
+            '<td>' + esc(item.category || '') + '</td>' +
+            '<td>' + esc(item.product_name || '') + '</td>' +
+            '<td>' + esc(item.event_name || '') + '</td>' +
+            '<td>' + esc(item.event_date || '') + '</td>' +
+            '</tr>';
     });
-    bodyHtml += '</tbody>';
-
-    var tableHtml = '<table class="raw-data-table">' + colgroupHtml + headerHtml + bodyHtml + '</table>';
-    wrapperEl.innerHTML = tableHtml;
 }
 
 

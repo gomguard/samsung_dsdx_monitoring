@@ -172,7 +172,7 @@ function showMissingView(category) {
     document.getElementById('rawDataPagination').innerHTML = '';
     document.getElementById('raw-data-filter-bar').innerHTML = '';
 
-    var url = '/dx/layer1/api/market-demand-missing/?category=' + encodeURIComponent(category) +
+    var url = '/dx/layer1/market-demand/api/missing/?category=' + encodeURIComponent(category) +
               '&date=' + encodeURIComponent(currentDate);
 
     fetch(url)
@@ -194,27 +194,27 @@ function showMissingView(category) {
                 }
                 summaryHtml = summaryParts.length > 0 ? ' (' + summaryParts.join(', ') + ')' : '';
             }
-            countEl.innerHTML = '총 <strong>' + (data.total_missing || 0).toLocaleString() + '</strong>건 부족' + summaryHtml;
-
             if (missingData.length === 0) {
                 wrapperEl.innerHTML = '<div class="raw-data-empty">부족한 키워드가 없습니다</div>';
+                countEl.innerHTML = '';
                 return;
             }
 
-            // CommonTable로 미수집 키워드 테이블 생성
-            var missingColumns = [
-                { key: '_no', label: 'No.', width: 50, sortable: false, align: 'center' },
-                { key: 'category', label: '카테고리', width: 80, sortable: true },
-                { key: 'product_name', label: '제품명', sortable: true },
-                { key: 'event_name', label: '이벤트명', sortable: true },
-                { key: 'event_date', label: '이벤트일자', width: 120, sortable: true }
-            ];
-
             var missingTable = new CommonTable('#rawDataTableWrapper', {
                 variant: 'detail',
-                columns: missingColumns,
+                columns: [
+                    { key: '_no', label: 'No.', width: 50, sortable: false, align: 'center' },
+                    { key: 'category', label: '카테고리', width: 80, sortable: true },
+                    { key: 'product_name', label: '제품명', sortable: true },
+                    { key: 'event_name', label: '이벤트명', sortable: true },
+                    { key: 'event_date', label: '이벤트일자', width: 120, sortable: true }
+                ],
                 vlines: true,
-                padding: '10px 12px'
+                padding: '10px 12px',
+                countEl: countEl,
+                countFormat: function(count) {
+                    return '총 <strong>' + count.toLocaleString() + '</strong>건 부족' + summaryHtml;
+                }
             });
             missingTable.render();
 

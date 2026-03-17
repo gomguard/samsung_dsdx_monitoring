@@ -331,7 +331,8 @@ var DETAIL_COLUMNS = [
     { key: 'expected_count', label: '예상', numeric: true },
     { key: 'actual_count', label: '실제', numeric: true },
     { key: 'rate', label: '비율', numeric: true },
-    { key: 'status', label: '상태', center: true }
+    { key: 'status', label: '상태', center: true },
+    { key: 'missing_keywords', label: '부족 키워드' }
 ];
 
 function getParams() {
@@ -384,6 +385,22 @@ async function loadDetail() {
         renderSummary(sec);
         renderStepToggle(sec);
         var details = (sec.confirm_step === 1) ? (sec.details || []) : (_currentStep === 1 ? (sec.details_step1 || []) : (sec.details || []));
+        // 수요증감율: 부족 키워드를 1차 details에만 조인
+        if (sec.missing_keywords && sec.missing_keywords.length > 0) {
+            var kwByCategory = {};
+            sec.missing_keywords.forEach(function(kw) {
+                var cat = kw.category || '';
+                if (!kwByCategory[cat]) kwByCategory[cat] = [];
+                kwByCategory[cat].push(kw.product_name + ' - ' + kw.event_name + ' (' + kw.event_date + ')');
+            });
+            var step1Details = (sec.confirm_step === 1) ? (sec.details || []) : (sec.details_step1 || []);
+            step1Details.forEach(function(d) {
+                var cat = d.category || '';
+                if (kwByCategory[cat]) {
+                    d.missing_keywords = kwByCategory[cat].join(', ');
+                }
+            });
+        }
         renderDetailTable(details);
     } catch (e) {
         document.getElementById('detailTableContainer').innerHTML = '<div class="cl-empty-state">시스템 오류가 발생했습니다.</div>';
