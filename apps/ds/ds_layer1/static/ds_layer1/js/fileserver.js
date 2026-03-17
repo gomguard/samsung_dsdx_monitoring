@@ -228,7 +228,7 @@ function renderFileExplorer(data) {
                         <td></td>
                         <td class="col-icon">${ICON_FILE}</td>
                         <td class="col-name">${esc(f.name)}</td>
-                        <td class="col-size">${formatBytes(f.size)}</td>
+                        <td class="col-size">${formatFileSize(f.size)}</td>
                         <td class="col-type">${esc(ext)} 파일</td>
                         <td class="col-modified">${esc(f.modified)}</td>
                     </tr>`;
@@ -314,14 +314,6 @@ window.moveToBackup = async function() {
 };
 
 // ── 유틸 ──
-function formatBytes(bytes) {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-}
-
 function updateBackLink() {
     document.getElementById('backLabel').textContent = currentCountry ? '국가 목록' : 'DS Layer 1';
 }

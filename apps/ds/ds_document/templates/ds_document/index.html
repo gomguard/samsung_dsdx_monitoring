@@ -5,6 +5,7 @@
 
 {% block extra_css %}
 <style>
+    :root { --page-color: var(--color-document); }
     /* 문서 페이지 레이아웃 */
     .documents-layout {
         display: flex;
@@ -55,13 +56,13 @@
     }
 
     .category-item:hover {
-        background: rgba(124, 58, 237, 0.08);
+        background: color-mix(in srgb, var(--color-document) 8%, transparent);
         color: var(--text-primary);
     }
 
     .category-item.active {
-        background: rgba(124, 58, 237, 0.15);
-        color: #7c3aed;
+        background: color-mix(in srgb, var(--color-document) 15%, transparent);
+        color: var(--color-document);
         font-weight: 600;
     }
 
@@ -87,8 +88,8 @@
     }
 
     .category-item.active .category-item-count {
-        background: rgba(124, 58, 237, 0.2);
-        color: #7c3aed;
+        background: color-mix(in srgb, var(--color-document) 20%, transparent);
+        color: var(--color-document);
     }
 
     /* 우측 컨텐츠 영역 */
@@ -170,7 +171,7 @@
         width: 16px;
         height: 16px;
         cursor: pointer;
-        accent-color: #7c3aed;
+        accent-color: var(--color-document);
     }
 
     /* 보고서 팝업 */
@@ -409,7 +410,7 @@
     .share-memo-title svg {
         width: 18px;
         height: 18px;
-        color: #7c3aed;
+        color: var(--color-document);
     }
     .share-memo-label {
         font-size: 13px;
@@ -429,7 +430,7 @@
         transition: border-color 0.2s;
     }
     .share-memo-input:focus {
-        border-color: #7c3aed;
+        border-color: var(--color-document);
     }
     .share-memo-input::placeholder {
         color: #94a3b8;
@@ -621,7 +622,7 @@
 
 {% block extra_js %}
 <div id="app-data"
-    data-initial-category-id="{% if categories %}{{ categories.0.category_id|escapejs }}{% endif %}"
+    data-initial-category-id="{% if categories %}{{ categories.0.category_id }}{% endif %}"
     data-initial-category-type="{% if categories %}{{ categories.0.category_type|default:1 }}{% else %}1{% endif %}"
     data-new-doc-base-url="{% url 'ds_document:new' %}"
     data-api-list-url="{% url 'ds_document:api_list' %}"

@@ -56,8 +56,8 @@
 .app-btn-back { background: #6b7280; color: #fff; }
 .app-btn-back:hover { background: #4b5563; }
 
-.app-btn-save { background: #7c3aed; color: #fff; }
-.app-btn-save:hover { background: #6d28d9; }
+.app-btn-save { background: var(--page-color); color: #fff; }
+.app-btn-save:hover { background: color-mix(in srgb, var(--page-color) 85%, black); }
 
 .app-btn-cancel { background: #fff; color: var(--text-secondary); border: 1px solid var(--border-color); }
 .app-btn-cancel:hover { background: #f1f5f9; }
@@ -117,8 +117,8 @@
 .app-icon-btn-green { background: #dcfce7; color: #16a34a; }
 .app-icon-btn-green:hover { background: #bbf7d0; }
 
-.app-icon-btn-purple { background: #ede9fe; color: #7c3aed; }
-.app-icon-btn-purple:hover { background: #ddd6fe; }
+.app-icon-btn-purple { background: color-mix(in srgb, var(--page-color) 12%, transparent); color: var(--page-color); }
+.app-icon-btn-purple:hover { background: color-mix(in srgb, var(--page-color) 20%, transparent); }
 
 /* ghost: 배경 없는 인라인 아이콘 (테이블 셀 내 복사 등) */
 .app-icon-btn-ghost {

@@ -5,6 +5,7 @@
 
 {% block extra_css %}
 <style>
+    :root { --page-color: var(--color-document); }
     .edit-container {
         max-width: 1200px;
         margin: 0 auto;
@@ -98,8 +99,8 @@
 
     .form-input:focus {
         outline: none;
-        border-color: #7c3aed;
-        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+        border-color: var(--color-document);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-document) 10%, transparent);
     }
 
     .form-input::placeholder {
@@ -119,7 +120,7 @@
 
     .form-select:focus {
         outline: none;
-        border-color: #7c3aed;
+        border-color: var(--color-document);
     }
 
     /* 에디터 영역 */
@@ -164,8 +165,8 @@
 
     .file-dropzone:hover,
     .file-dropzone.dragover {
-        border-color: #7c3aed;
-        background: rgba(124, 58, 237, 0.05);
+        border-color: var(--color-document);
+        background: color-mix(in srgb, var(--color-document) 5%, transparent);
     }
 
     .file-dropzone svg {
@@ -255,8 +256,8 @@
 
     .file-content-textarea:focus {
         outline: none;
-        border-color: #7c3aed;
-        box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+        border-color: var(--color-document);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-document) 10%, transparent);
     }
 
     .file-section-label {
@@ -364,7 +365,7 @@
 {% endif %}
 
 <div id="app-data"
-    data-document-id="{{ document_id|default:'"|escapejs }}"
+    data-document-id="{{ document_id|default:'' }}"
     data-is-new="{{ is_new|yesno:'true,false' }}"
     data-category-type="{{ selected_category_type|default:1 }}"
     data-api-upload-url="{% url 'ds_document:api_upload' %}"
