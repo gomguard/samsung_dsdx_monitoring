@@ -485,7 +485,12 @@
             var html = '<tr' + trStyle + '>';
             visibleCols.forEach(function(col) {
                 var val = row[col.key];
-                html += '<td>' + L4.escapeHtml(val !== undefined && val !== '' ? String(val) : '-') + '</td>';
+                if (col.key === 'product_url' && val) {
+                    var urlText = L4.escapeHtml(String(val));
+                    html += '<td style="max-width:300px;"><a href="' + urlText + '" target="_blank" style="display:inline-flex;align-items:center;gap:4px;color:var(--page-color);text-decoration:none;word-break:break-all;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>' + urlText + '</a></td>';
+                } else {
+                    html += '<td>' + L4.escapeHtml(val !== undefined && val !== '' ? String(val) : '-') + '</td>';
+                }
             });
             html += '</tr>';
             return html;

@@ -285,14 +285,20 @@ def corrections_history(request):
 
     # id, date_col, item은 항상 포함 (고정 컬럼)
     fixed_cols = ['id', date_col, 'item']
-    other_cols = [c for c in retail_columns if c not in fixed_cols]
+    other_cols = [c for c in retail_columns if c not in fixed_cols and c != 'product_url']
     select_cols = fixed_cols + other_cols
+    # product_url이 있으면 마지막 열에 고정 배치
+    has_product_url = 'product_url' in retail_columns
+    if has_product_url:
+        select_cols.append('product_url')
     select_sql = ', '.join(select_cols)
 
-    # 초기 표시 컬럼: 고정 컬럼 + 수정된 컬럼
+    # 초기 표시 컬럼: 고정 컬럼 + 수정된 컬럼 + product_url
     default_visible = ['id', date_col, 'item']
     if column and column in retail_columns and column not in default_visible:
         default_visible.append(column)
+    if has_product_url:
+        default_visible.append('product_url')
 
     conn = None
     try:
