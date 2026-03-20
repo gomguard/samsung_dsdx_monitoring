@@ -524,6 +524,7 @@ function enablePagination(tbodySelector, options = {}) {
     // 페이지네이션 컨테이너 생성
     const paginationEl = document.createElement('div');
     paginationEl.className = 'pagination';
+    paginationEl.style.marginTop = '12px';
     const table = tbody.closest('table');
     const wrapper = table.parentElement;
     wrapper.parentElement.insertBefore(paginationEl, wrapper.nextSibling);

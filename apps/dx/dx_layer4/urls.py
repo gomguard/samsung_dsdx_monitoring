@@ -3,6 +3,7 @@ from .dashboard import views as dashboard_views, api as dashboard_api
 from .check_log import views as cl_views, api as cl_api
 from .corrections import views as corr_views, api as corr_api
 from .report import views as report_views, api as report_api
+from .tools import views as tools_views
 from .collection_issues import api as ci_api
 from apps.dx.dx_layer1.common import api as check_api
 
@@ -15,6 +16,7 @@ urlpatterns = [
     path('check-log/detail/', cl_views.check_log_detail, name='check_log_detail'),
     path('corrections/', corr_views.corrections, name='corrections'),
     path('report/', report_views.report, name='report'),
+    path('tools/', tools_views.tools, name='tools'),
 
     # API — 대시보드
     path('api/dashboard-stats/', dashboard_api.dashboard_stats, name='api_dashboard_stats'),
@@ -23,6 +25,7 @@ urlpatterns = [
     path('api/corrections/', corr_api.corrections_list, name='api_corrections'),
     path('api/corrections/cancel/', corr_api.corrections_cancel, name='api_corrections_cancel'),
     path('api/corrections/history/', corr_api.corrections_history, name='api_corrections_history'),
+    path('api/corrections/bulk-history/', corr_api.corrections_bulk_history, name='api_corrections_bulk_history'),
     path('api/review-reasons/', corr_api.review_reasons, name='api_review_reasons'),
 
     # API — 보고서

@@ -66,6 +66,12 @@
         }
 
         var section = (window.LAYER4 && window.LAYER4.section) || 'dashboard';
+
+        if (section === 'tools') {
+            filterBar = { getDate: function() { return ''; } };
+            return;
+        }
+
         var controls = [];
 
         if (section !== 'dashboard') {

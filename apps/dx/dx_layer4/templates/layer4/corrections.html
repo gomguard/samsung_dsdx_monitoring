@@ -88,6 +88,8 @@
 {% endblock %}
 
 {% block layer4_content %}
+<script>window.CORRECTIONS_IS_ADMIN = {{ is_admin|yesno:"true,false" }};</script>
+
 <!-- 조회 필터바 -->
 <div id="corrections-filter-bar"></div>
 
@@ -107,6 +109,14 @@
 
 <!-- 페이지네이션 -->
 <div id="corrections-pagination"></div>
+
+<!-- 일괄 이력 조회 (관리자 전용) -->
+<div id="bulk-history-section" style="display:none;">
+    <div id="bulk-history-filter-bar"></div>
+    <div class="corr-section" id="bulk-history-table-container">
+        <div class="l4-empty-state"><p>조회 중...</p></div>
+    </div>
+</div>
 {% endblock %}
 
 {% block layer4_js %}

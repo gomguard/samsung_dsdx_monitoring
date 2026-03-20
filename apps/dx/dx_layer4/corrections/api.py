@@ -262,6 +262,169 @@ _HISTORY_TABLES = {
 }
 
 
+def corrections_bulk_history(request):
+    """일괄 이력 조회 API (GET) — 관리자 전용, Retail 테이블 한정"""
+    if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
+        return JsonResponse({'error': '권한이 없습니다.'}, status=403)
+
+    target_date = parse_date(request.GET.get('date'))
+    if target_date is None:
+        return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
+
+    correction_type = request.GET.get('type', 'all')
+    category = request.GET.get('category', 'all')  # 'tv' | 'hhp' | 'all'
+    try:
+        days = min(int(request.GET.get('days', 3)), 30)
+    except (ValueError, TypeError):
+        days = 3
+
+    if category == 'tv':
+        allowed_tables = ('tv_retail_com',)
+    elif category == 'hhp':
+        allowed_tables = ('hhp_retail_com',)
+    else:
+        allowed_tables = ('tv_retail_com', 'hhp_retail_com')
+
+    table_placeholders = ','.join(['%s'] * len(allowed_tables))
+
+    conn = None
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+
+        extra_clause = "AND correction_type = %s" if correction_type != 'all' else ""
+        extra_params = [correction_type] if correction_type != 'all' else []
+
+        cursor.execute(f"""
+            SELECT record_id, table_name, retailer, item, column_name
+            FROM monitoring_corrections
+            WHERE crawl_date = %s
+              AND table_name IN ({table_placeholders})
+              AND status IN ('corrected', 'normal')
+              {extra_clause}
+        """, [str(target_date)] + list(allowed_tables) + extra_params)
+
+        rows_raw = cursor.fetchall()
+        if not rows_raw:
+            cursor.close()
+            conn.close()
+            return JsonResponse({
+                'success': True, 'rows': [], 'columns': [],
+                'default_visible': [], 'fixed': [], 'corrected_map': {}
+            })
+
+        # corrected_map: {str(record_id): [col_name, ...]}
+        corrected_map = {}
+        items_by_table = {}  # {table_name: {retailer: set(item)}}
+        corrected_columns = set()
+
+        for rec_id, table_name, retailer, item, col_name in rows_raw:
+            if rec_id:
+                key = str(rec_id)
+                if key not in corrected_map:
+                    corrected_map[key] = []
+                if col_name and col_name not in corrected_map[key]:
+                    corrected_map[key].append(col_name)
+            if col_name:
+                corrected_columns.add(col_name)
+            if table_name not in items_by_table:
+                items_by_table[table_name] = {}
+            if retailer and item:
+                items_by_table[table_name].setdefault(retailer, set()).add(item)
+
+        from apps.common.retail_columns import load_retail_columns
+        all_col_data = load_retail_columns()
+        since_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+        FIXED = ['id', 'crawl_datetime', 'account_name', 'item']
+        all_other = set()
+        has_product_url = False
+        all_rows = []
+
+        for table_name, retailers_items in items_by_table.items():
+            product_line = 'tv' if table_name == 'tv_retail_com' else 'hhp'
+            orig_date_col = 'crawl_datetime' if table_name == 'tv_retail_com' else 'crawl_strdatetime'
+
+            # 이 product_line 전체 리테일러 컬럼 union
+            pl_cols = set()
+            for r_cols in all_col_data.get(product_line, {}).values():
+                pl_cols.update(r_cols)
+
+            other_cols = sorted(
+                c for c in pl_cols
+                if c not in {'id', orig_date_col, 'item', 'account_name', 'product_url'}
+            )
+            table_has_url = 'product_url' in pl_cols
+            if table_has_url:
+                has_product_url = True
+            all_other.update(other_cols)
+
+            date_expr = 'crawl_datetime' if table_name == 'tv_retail_com' else 'crawl_strdatetime AS crawl_datetime'
+            select_parts = ['id', date_expr, 'account_name', 'item'] + other_cols
+            col_names_local = ['id', 'crawl_datetime', 'account_name', 'item'] + other_cols
+            if table_has_url:
+                select_parts.append('product_url')
+                col_names_local.append('product_url')
+
+            items_list = [(r, i) for r, items_set in retailers_items.items() for i in items_set]
+            if not items_list:
+                continue
+
+            cond_sql = ' OR '.join(['(account_name = %s AND item = %s)'] * len(items_list))
+            params = [p for r, i in items_list for p in (r, i)]
+
+            cursor.execute(
+                f"SELECT {', '.join(select_parts)} FROM {table_name} "
+                f"WHERE ({cond_sql}) AND ({orig_date_col})::date >= %s::date "
+                f"ORDER BY account_name, item, {orig_date_col} ASC",
+                params + [since_date]
+            )
+
+            for row in cursor.fetchall():
+                d = {}
+                for idx, val in enumerate(row):
+                    if hasattr(val, 'strftime'):
+                        d[col_names_local[idx]] = val.strftime('%Y-%m-%d %H:%M:%S')
+                    elif val is None:
+                        d[col_names_local[idx]] = ''
+                    else:
+                        d[col_names_local[idx]] = str(val)
+                all_rows.append(d)
+
+        cursor.close()
+        conn.close()
+
+        # 최종 컬럼 순서: FIXED + 기타(정렬) + product_url
+        other_sorted = sorted(all_other - set(FIXED))
+        final_columns = FIXED + other_sorted
+        if has_product_url:
+            final_columns.append('product_url')
+
+        # default_visible: FIXED + 오늘 수정된 컬럼 + product_url
+        default_visible = list(FIXED)
+        for col in sorted(corrected_columns):
+            if col in final_columns and col not in default_visible:
+                default_visible.append(col)
+        if has_product_url and 'product_url' not in default_visible:
+            default_visible.append('product_url')
+
+        return JsonResponse({
+            'success': True,
+            'columns': final_columns,
+            'fixed': ['id', 'crawl_datetime', 'item'],
+            'default_visible': default_visible,
+            'rows': all_rows,
+            'corrected_map': corrected_map,
+        })
+    except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return safe_error(e)
+
+
 def corrections_history(request):
     """원본 테이블 이력 조회 API (GET) — retailer+item 기준 최근 N일"""
     table_name = request.GET.get('table_name', '')

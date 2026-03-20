@@ -62,6 +62,8 @@
             window.location.href = '/dx/layer4/corrections/' + qs;
         } else if (groupKey === 'report') {
             window.location.href = '/dx/layer4/report/' + qs;
+        } else if (groupKey === 'tools') {
+            window.location.href = '/dx/layer4/tools/' + qs;
         }
     };
 

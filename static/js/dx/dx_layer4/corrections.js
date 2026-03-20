@@ -61,7 +61,20 @@
         correctionsFocus = focusParam;
         correctionsFixedType = FOCUS_TO_TYPE[focusParam] || '';
         buildCorrectionsFilterBar();
+        if (window.CORRECTIONS_IS_ADMIN) {
+            addBulkHistoryTab();
+        }
         initCorrectionsTabs();
+    }
+
+    function addBulkHistoryTab() {
+        var tabsContainer = document.getElementById('corrections-tabs');
+        if (!tabsContainer) return;
+        var tab = document.createElement('button');
+        tab.className = 'log-tab';
+        tab.dataset.status = 'bulk_history';
+        tab.innerHTML = '일괄 이력 <span style="font-size:10px;background:#7c3aed;color:white;border-radius:4px;padding:1px 5px;vertical-align:middle;margin-left:2px;">관리자</span>';
+        tabsContainer.appendChild(tab);
     }
 
     function initCorrectionsTabs() {
@@ -76,7 +89,21 @@
                 currentPage = 1;
                 correctionsTable = null;
                 updateCancelButton();
-                loadCorrections();
+
+                var isBulk = tab.dataset.status === 'bulk_history';
+                document.getElementById('corrections-table-container').style.display = isBulk ? 'none' : '';
+                document.getElementById('corrections-pagination').style.display = isBulk ? 'none' : '';
+                var bhs = document.getElementById('bulk-history-section');
+                if (bhs) bhs.style.display = isBulk ? '' : 'none';
+
+                if (isBulk) {
+                    var daysEl = document.getElementById('bulk-history-days');
+                    var days = daysEl ? (parseInt(daysEl.value) || 3) : 3;
+                    bulkHistoryTable = null;
+                    loadBulkHistory(days);
+                } else {
+                    loadCorrections();
+                }
             });
         });
         updateCancelButton();
@@ -149,6 +176,204 @@
 
     // window에 노출 (페이지네이션 onclick에서 호출)
     window.loadCorrections = loadCorrections;
+
+    // ── 일괄 이력 조회 ────────────────────────────────
+
+    var bulkHistoryTable = null;
+    var bulkHistoryFilterBar = null;
+    var bulkHistoryData = null;
+    var bulkHistoryCategory = 'tv'; // 'tv' | 'hhp'
+
+    function isBulkHistoryActive() {
+        var activeTab = document.querySelector('#corrections-tabs .log-tab.active');
+        return activeTab && activeTab.dataset.status === 'bulk_history';
+    }
+
+    function loadBulkHistory(days) {
+        var date = getSelectedDate();
+        if (!date) return;
+
+        var type = getActiveType();
+        var url = '/dx/layer4/api/corrections/bulk-history/'
+            + '?date=' + encodeURIComponent(date)
+            + '&type=' + encodeURIComponent(type)
+            + '&days=' + (days || 3)
+            + '&category=' + encodeURIComponent(bulkHistoryCategory);
+
+        var container = document.getElementById('bulk-history-table-container');
+        if (container) container.innerHTML = '<div class="l4-empty-state"><p>조회 중...</p></div>';
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) {
+                    if (container) container.innerHTML = '<div class="l4-empty-state"><p>' + L4.escapeHtml(data.error || '조회 실패') + '</p></div>';
+                    return;
+                }
+                bulkHistoryData = data;
+                renderBulkHistoryFilterBar(days || 3, data);
+                renderBulkHistoryTable();
+            })
+            .catch(function(e) {
+                console.error(e);
+                if (container) container.innerHTML = '<div class="l4-empty-state"><p>오류가 발생했습니다.</p></div>';
+            });
+    }
+
+    function renderBulkHistoryFilterBar(days, data) {
+        if (bulkHistoryFilterBar) return;
+
+        var COL_WIDTHS = { id: 70, crawl_datetime: 150, account_name: 100, item: 180, product_url: 200 };
+        var allCols = (data.columns || []).map(function(c) {
+            return { key: c, label: c, width: COL_WIDTHS[c] || 130 };
+        });
+        var defaultVisible = data.default_visible || [];
+        var fixedCols = data.fixed || [];
+
+        var catBtnStyle = 'padding:5px 14px;font-size:13px;font-weight:600;border:1px solid var(--border-color);border-radius:4px;cursor:pointer;background:var(--bg-primary);color:var(--text-secondary);';
+        var catBtnActiveStyle = 'padding:5px 14px;font-size:13px;font-weight:600;border:1px solid var(--page-color);border-radius:4px;cursor:pointer;background:var(--page-color);color:white;';
+
+        bulkHistoryFilterBar = new FilterBar('#bulk-history-filter-bar', {
+            plain: true, sticky: false,
+            controls: [
+                {
+                    type: 'custom',
+                    html: '<div style="display:flex;align-items:center;gap:4px;">'
+                        + '<button id="bulk-cat-tv" style="' + (bulkHistoryCategory === 'tv' ? catBtnActiveStyle : catBtnStyle) + '">TV</button>'
+                        + '<button id="bulk-cat-hhp" style="' + (bulkHistoryCategory === 'hhp' ? catBtnActiveStyle : catBtnStyle) + '">HHP</button>'
+                        + '</div>'
+                },
+                {
+                    type: 'custom',
+                    html: '<div style="display:flex;align-items:center;gap:6px;">'
+                        + '<label style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">일수:</label>'
+                        + '<input type="number" id="bulk-history-days" value="' + days + '" min="1" max="30"'
+                        + ' style="width:50px;padding:8px 6px;border:1px solid var(--border-color);border-radius:4px;font-size:14px;text-align:center;box-sizing:border-box;">'
+                        + '</div>'
+                }
+            ],
+            onSearch: function() {
+                var val = parseInt(document.getElementById('bulk-history-days').value) || 3;
+                bulkHistoryTable = null;
+                bulkHistoryFilterBar = null;
+                loadBulkHistory(val);
+            },
+            columnSelector: {
+                columns: allCols,
+                fixed: fixedCols,
+                defaultVisible: defaultVisible,
+                onUpdate: function() {
+                    bulkHistoryTable = null;
+                    renderBulkHistoryTable();
+                }
+            }
+        }).render();
+
+        ['tv', 'hhp'].forEach(function(cat) {
+            var btn = document.getElementById('bulk-cat-' + cat);
+            if (!btn) return;
+            btn.addEventListener('click', function() {
+                if (bulkHistoryCategory === cat) return;
+                bulkHistoryCategory = cat;
+                bulkHistoryTable = null;
+                bulkHistoryFilterBar = null;
+                var curDays = parseInt((document.getElementById('bulk-history-days') || {}).value) || 3;
+                loadBulkHistory(curDays);
+            });
+        });
+
+        var daysInput = document.getElementById('bulk-history-days');
+        if (daysInput) {
+            daysInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    var val = parseInt(daysInput.value) || 3;
+                    bulkHistoryTable = null;
+                    bulkHistoryFilterBar = null;
+                    loadBulkHistory(val);
+                }
+            });
+        }
+    }
+
+    function renderBulkHistoryTable() {
+        var container = document.getElementById('bulk-history-table-container');
+        if (!bulkHistoryData || !container) return;
+
+        var rows = bulkHistoryData.rows || [];
+        var correctedMap = bulkHistoryData.corrected_map || {};
+
+        if (rows.length === 0) {
+            container.innerHTML = '<div class="l4-empty-state"><p>이력 데이터가 없습니다.</p></div>';
+            return;
+        }
+
+        var visibleCols = bulkHistoryFilterBar ? bulkHistoryFilterBar.getVisibleColumns() : [];
+        if (visibleCols.length === 0) {
+            visibleCols = (bulkHistoryData.default_visible || []).map(function(c) { return { key: c, label: c }; });
+        }
+
+        container.innerHTML = '';
+        bulkHistoryTable = new CommonTable(container, {
+            variant: 'detail',
+            columns: visibleCols,
+            resize: true,
+            reorder: true,
+            fixedColumns: (bulkHistoryData.fixed || []),
+            vlines: true,
+            showTotalCount: true,
+            padding: '5px 14px',
+            onReorder: function(newColumns) {
+                if (bulkHistoryFilterBar) {
+                    bulkHistoryFilterBar.reorderColumns(newColumns.map(function(c) { return c.key; }));
+                }
+            }
+        });
+        bulkHistoryTable.render();
+
+        // item 컬럼 rowspan 계산 (연속된 동일 item끼리 묶기)
+        var itemSpans = {}; // rowIndex → span 수 (그룹 첫 행만 존재)
+        var itemSkip = {};  // rowIndex → true (그룹 중간/끝 행, td 생략)
+        var hasItemCol = visibleCols.some(function(c) { return c.key === 'item'; });
+        if (hasItemCol) {
+            var si = 0;
+            while (si < rows.length) {
+                var itemVal = rows[si].item;
+                var ei = si + 1;
+                while (ei < rows.length && rows[ei].item === itemVal) ei++;
+                itemSpans[si] = ei - si;
+                for (var k = si + 1; k < ei; k++) itemSkip[k] = true;
+                si = ei;
+            }
+        }
+
+        bulkHistoryTable.renderBody(rows, function(row, idx) {
+            var rowId = row.id;
+            var correctedCols = correctedMap[rowId] || [];
+            var isTarget = correctedCols.length > 0;
+            var trStyle = isTarget ? ' style="background:rgba(139,92,246,0.06);"' : '';
+            var html = '<tr' + trStyle + '>';
+            visibleCols.forEach(function(col) {
+                var val = row[col.key];
+                var isCorrectedCol = isTarget && correctedCols.indexOf(col.key) >= 0;
+                var cellStyle = isCorrectedCol ? 'background:rgba(139,92,246,0.18);font-weight:600;' : '';
+                if (col.key === 'item' && hasItemCol) {
+                    if (itemSkip[idx]) return; // rowspan 중간 행 — td 생략
+                    var span = itemSpans[idx] || 1;
+                    html += '<td rowspan="' + span + '" style="vertical-align:middle;' + cellStyle + '">'
+                        + L4.escapeHtml(val !== undefined && val !== '' ? String(val) : '-') + '</td>';
+                } else if (col.key === 'product_url' && val) {
+                    var urlText = L4.escapeHtml(String(val));
+                    html += '<td style="' + cellStyle + '"><a href="' + urlText + '" target="_blank" style="color:var(--page-color);text-decoration:none;">'
+                        + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'
+                        + urlText + '</a></td>';
+                } else {
+                    html += '<td style="' + cellStyle + '">' + L4.escapeHtml(val !== undefined && val !== '' ? String(val) : '-') + '</td>';
+                }
+            });
+            html += '</tr>';
+            return html;
+        });
+    }
 
     var correctionsTable = null;
     var correctionItems = [];
@@ -474,8 +699,15 @@
             variant: 'detail',
             columns: visibleCols,
             resize: true,
+            reorder: true,
+            fixedColumns: (historyData.fixed || []),
             vlines: true,
-            showTotalCount: true
+            showTotalCount: true,
+            onReorder: function(newColumns) {
+                if (historyFilterBar) {
+                    historyFilterBar.reorderColumns(newColumns.map(function(c) { return c.key; }));
+                }
+            }
         });
         historyTable.render();
 
@@ -566,7 +798,15 @@
     }
 
     // 핸들러/초기화 등록
-    L4._sectionHandler['corrections'] = loadCorrections;
+    L4._sectionHandler['corrections'] = function() {
+        if (isBulkHistoryActive()) {
+            bulkHistoryTable = null;
+            bulkHistoryFilterBar = null;
+            loadBulkHistory(3);
+        } else {
+            loadCorrections();
+        }
+    };
     L4._sectionInit['corrections'] = function() {
         initCorrectionsFilterBar();
         AppModal.create('corr-detail', { style: 'compact', closeOnOverlay: true });

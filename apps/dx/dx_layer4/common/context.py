@@ -14,6 +14,7 @@ SECTION_TITLES = {
     'check_log': '마감기록',
     'corrections': '검수기록',
     'report': '보고서',
+    'tools': '도구',
 }
 
 
@@ -53,11 +54,23 @@ def _build_sidebar_groups(section, focus=''):
                 {'name': '일일 보고서', 'active': section == 'report'},
             ],
         },
+        {
+            'key': 'tools',
+            'icon': '🛠',
+            'label': '도구',
+            'expanded': section == 'tools',
+            'active': section == 'tools',
+            'items': [
+                {'name': '리뷰 변환', 'active': section == 'tools' and focus == '리뷰 변환'},
+                {'name': 'HTML 파서', 'active': section == 'tools' and focus == 'HTML 파서'},
+            ],
+        },
     ]
 
 
 def build_context(section, request):
     focus = request.GET.get('focus', '')
+    is_admin = request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)
     return {
         'layer': LAYER_CONTEXT,
         'section': section,
@@ -67,4 +80,5 @@ def build_context(section, request):
         'sidebar_title': 'Layer 4 검수',
         'sidebar_base_url': '/dx/layer4/',
         'sidebar_groups': _build_sidebar_groups(section, focus),
+        'is_admin': is_admin,
     }

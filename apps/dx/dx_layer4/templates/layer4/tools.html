@@ -1,0 +1,212 @@
+{% extends 'layer4/base_layer4.html' %}
+{% load static %}
+
+{% block page_title %}도구{% endblock %}
+
+{% block layer4_css %}
+<style>
+.tools-section {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 24px;
+}
+.tools-section h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 16px;
+    color: var(--text-primary);
+}
+.tools-textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.6;
+    resize: vertical;
+    box-sizing: border-box;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+.tools-textarea:focus {
+    outline: none;
+    border-color: var(--page-color);
+}
+.review-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.review-label {
+    min-width: 70px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.review-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 36px;
+    box-sizing: border-box;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+.review-input:focus {
+    outline: none;
+    border-color: var(--page-color);
+}
+.review-drag-handle {
+    cursor: grab;
+    font-size: 16px;
+    color: var(--text-secondary);
+    opacity: 0.4;
+    user-select: none;
+}
+.review-drag-handle:hover { opacity: 0.8; }
+.review-row:active .review-drag-handle { cursor: grabbing; }
+.review-dragging {
+    opacity: 0.4;
+}
+.review-drag-over {
+    border-top: 2px solid var(--page-color);
+    padding-top: 6px;
+}
+.tools-btn-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+}
+.tools-btn {
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    color: white;
+    background: var(--page-color);
+}
+.tools-btn:hover { opacity: 0.85; }
+.tools-btn-secondary {
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+}
+.tools-btn-secondary:hover { background: var(--bg-secondary); }
+.tools-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 0 0 16px;
+    line-height: 1.5;
+}
+.tools-output-wrap {
+    position: relative;
+}
+.tools-copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 10px;
+    font-size: 11px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+}
+.tools-copy-btn:hover { background: var(--bg-secondary); }
+</style>
+{% endblock %}
+
+{% block layer4_content %}
+<!-- HTML 파서 -->
+<div id="tools-html-parser" style="display:none;">
+    <div class="tools-section">
+        <h3>HTML 파서</h3>
+        <p class="tools-hint">XPath를 입력하고 HTML을 붙여넣으면 매칭되는 텍스트를 추출하여 review 형식으로 변환합니다.</p>
+
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">XPath</label>
+            <input type="text" id="parser-xpath" class="review-input" style="min-height:auto;width:100%;"
+                placeholder="예) //div[@class='review-text']//p">
+        </div>
+
+        <div>
+            <label style="font-size:12px;color:var(--text-secondary);display:block;margin-bottom:4px;">HTML</label>
+            <textarea id="parser-html" class="tools-textarea" style="min-height:300px;font-family:monospace;font-size:12px;" placeholder="HTML을 붙여넣으세요..."></textarea>
+        </div>
+
+        <div class="tools-btn-row">
+            <button id="parser-run-btn" class="tools-btn">파싱</button>
+            <button id="parser-clear-btn" class="tools-btn-secondary">초기화</button>
+        </div>
+
+        <div id="parser-output-section" style="display:none;">
+            <h3>파싱 결과 <span id="parser-count" style="font-size:12px;color:var(--text-secondary);font-weight:400;"></span></h3>
+            <div class="tools-output-wrap">
+                <textarea id="parser-output" class="tools-textarea" readonly style="min-height:120px;"></textarea>
+                <button id="parser-copy-btn" class="tools-copy-btn">복사</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 리뷰 변환 -->
+<div id="tools-review-converter" style="display:none;">
+    <div class="tools-section">
+        <h3>리뷰 변환</h3>
+        <p class="tools-hint">각 입력란에 리뷰를 하나씩 입력하세요. 줄바꿈은 자동으로 공백으로 변환됩니다. 빈 입력란은 무시됩니다.</p>
+
+        <div id="review-inputs"></div>
+
+        <div class="tools-btn-row">
+            <button id="review-convert-btn" class="tools-btn">변환</button>
+            <button id="review-clear-btn" class="tools-btn-secondary">초기화</button>
+        </div>
+
+        <div id="review-output-section" style="display:none;">
+            <h3>변환 결과</h3>
+            <div class="tools-output-wrap">
+                <textarea id="review-output" class="tools-textarea" readonly style="min-height:120px;"></textarea>
+                <button id="review-copy-btn" class="tools-copy-btn">복사</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="tools-section" style="margin-top:16px;">
+        <div id="review-reverse-toggle" style="cursor:pointer;display:flex;align-items:center;gap:6px;">
+            <span id="review-reverse-arrow" style="font-size:11px;color:var(--text-secondary);transition:transform 0.2s;">▶</span>
+            <h3 style="margin:0;">역변환</h3>
+        </div>
+        <div id="review-reverse-body" style="display:none;margin-top:12px;">
+            <p class="tools-hint">review1 - ... ||| review2 - ... 형식의 텍스트를 붙여넣으면 위 입력란에 자동 분배됩니다.</p>
+            <textarea id="review-reverse-input" class="tools-textarea" style="min-height:100px;" placeholder="review1 - This phone is great. ||| review2 - Battery life is amazing. ||| ..."></textarea>
+            <div class="tools-btn-row">
+                <button id="review-reverse-btn" class="tools-btn">역변환</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block layer4_js %}
+<script src="{% static 'js/dx/dx_layer4/common.js' %}?v=1"></script>
+<script src="{% static 'js/dx/dx_layer4/tools.js' %}?v=1"></script>
+{% endblock %}
