@@ -75,7 +75,7 @@
         var controls = [];
 
         if (section !== 'dashboard') {
-            var sectionTitles = { corrections: '검수기록', report: '보고서' };
+            var sectionTitles = { corrections: '검수기록', report: '보고서', collection_status: '수집 현황' };
             controls.push({
                 type: 'custom',
                 html: '<div style="display:flex;align-items:center;gap:12px;"><span style="font-size:17px;font-weight:700;color:var(--layer-color);white-space:nowrap;line-height:1;">' + (sectionTitles[section] || '') + '</span><span style="width:2px;height:24px;background:#999;"></span></div>'

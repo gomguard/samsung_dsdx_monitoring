@@ -1,0 +1,81 @@
+{% extends 'layer4/base_layer4.html' %}
+{% load static %}
+
+{% block page_title %}수집 현황 — NULL 상세{% endblock %}
+
+{% block layer4_css %}
+<style>
+.csd-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.csd-back {
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+.csd-back:hover { background: var(--bg-secondary); }
+.csd-info {
+    font-size: 14px;
+    color: var(--text-primary);
+}
+.csd-info strong {
+    color: var(--page-color);
+}
+.csd-table-wrap {
+    overflow-x: auto;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+.csd-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.csd-table th {
+    padding: 9px 14px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+.csd-table td {
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+.csd-table tbody tr:hover {
+    background: rgba(118, 75, 162, 0.04);
+}
+.csd-null-cell {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+</style>
+{% endblock %}
+
+{% block layer4_content %}
+<div class="csd-header">
+    <a id="csd-back-btn" class="csd-back">← 목록</a>
+    <span class="csd-info" id="csd-info"></span>
+</div>
+<div id="csd-container">
+    <div class="l4-empty-state"><p>조회 중...</p></div>
+</div>
+{% endblock %}
+
+{% block layer4_js %}
+<script src="{% static 'js/dx/dx_layer4/common.js' %}?v=1"></script>
+<script src="{% static 'js/dx/dx_layer4/collection_status_detail.js' %}?v=1"></script>
+{% endblock %}

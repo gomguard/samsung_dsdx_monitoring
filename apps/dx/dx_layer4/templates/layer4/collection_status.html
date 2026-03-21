@@ -1,0 +1,277 @@
+{% extends 'layer4/base_layer4.html' %}
+{% load static %}
+
+{% block page_title %}수집 현황{% endblock %}
+
+{% block layer4_css %}
+<style>
+.cs-category-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 16px;
+}
+.cs-cat-btn {
+    padding: 6px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+}
+.cs-cat-btn.active {
+    border-color: var(--page-color);
+    background: var(--page-color);
+    color: white;
+}
+.cs-table-wrap {
+    overflow-x: auto;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+.cs-pivot-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.cs-pivot-table th,
+.cs-pivot-table td {
+    border: 1px solid var(--border-color);
+}
+.cs-col-header {
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+    min-width: 160px;
+}
+.cs-retailer-col {
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    text-align: center;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.cs-total-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--page-color);
+    margin-top: 2px;
+}
+.cs-sub-header {
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    text-align: center;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-secondary);
+    min-width: 70px;
+}
+.cs-col-name {
+    padding: 7px 14px;
+    font-weight: 500;
+    background: #fff;
+    color: var(--text-primary);
+}
+.cs-cell {
+    padding: 7px 12px;
+    text-align: right;
+}
+.cs-na {
+    text-align: center;
+    color: var(--text-secondary);
+}
+.cs-pivot-table tbody tr:hover {
+    background: rgba(118, 75, 162, 0.04);
+}
+
+/* 일일 수집 현황 */
+.ds-table-wrap {
+    overflow-x: auto;
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+.ds-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.ds-table th {
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-weight: 700;
+    text-align: center;
+    border: 1px solid var(--border-color);
+}
+.ds-table td {
+    padding: 8px 14px;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+.ds-table td.num {
+    text-align: right;
+}
+.ds-table tr.ds-total-row {
+    background: var(--bg-secondary);
+    font-weight: 700;
+}
+.ds-date-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+/* 이메일 보고 */
+.email-preview {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 32px;
+    font-family: 'Malgun Gothic', sans-serif;
+    font-size: 13px;
+    color: #222;
+    line-height: 1.7;
+}
+.email-subject {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #333;
+}
+.email-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 24px 0 10px;
+}
+.email-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+.email-table th {
+    padding: 6px 10px;
+    background: #f5f5f5;
+    border: 1px solid #ccc;
+    font-weight: 700;
+    text-align: center;
+}
+.email-table td {
+    padding: 5px 10px;
+    border: 1px solid #ccc;
+}
+.email-table td.num {
+    text-align: right;
+}
+.email-table tr.total-row {
+    background: #f5f5f5;
+    font-weight: 700;
+}
+.email-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.email-toolbar-btn {
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    color: white;
+    background: var(--page-color);
+}
+.email-toolbar-btn:hover { opacity: 0.85; }
+.email-note {
+    font-size: 11px;
+    color: #888;
+    margin-top: 4px;
+}
+.email-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.email-input-row label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.email-input {
+    padding: 7px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 13px;
+    width: 280px;
+    box-sizing: border-box;
+}
+.email-input:focus {
+    outline: none;
+    border-color: var(--page-color);
+}
+.email-send-btn {
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    color: white;
+    background: #3b82f6;
+}
+.email-send-btn:hover { opacity: 0.85; }
+.email-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+</style>
+{% endblock %}
+
+{% block layer4_content %}
+<!-- 일일 수집 현황 -->
+<div id="cs-daily-section" style="display:none;">
+    <div id="cs-daily-container">
+        <div class="l4-empty-state"><p>조회 버튼을 눌러주세요.</p></div>
+    </div>
+</div>
+
+<!-- 이메일 보고 -->
+<div id="cs-email-section" style="display:none;">
+    <div class="email-toolbar">
+        <button id="email-send-btn" class="email-send-btn">발송</button>
+        <button id="email-copy-btn" class="email-toolbar-btn">HTML 복사</button>
+    </div>
+    <div id="cs-email-container">
+        <div class="l4-empty-state"><p>조회 버튼을 눌러주세요.</p></div>
+    </div>
+</div>
+
+<!-- 항목별 NULL 현황 -->
+<div id="cs-null-section" style="display:none;">
+    <div class="cs-category-bar">
+        <button class="cs-cat-btn active" data-cat="tv">TV</button>
+        <button class="cs-cat-btn" data-cat="hhp">HHP</button>
+    </div>
+    <div id="cs-container">
+        <div class="l4-empty-state"><p>조회 버튼을 눌러주세요.</p></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block layer4_js %}
+<script src="{% static 'js/dx/dx_layer4/common.js' %}?v=1"></script>
+<script src="{% static 'js/dx/dx_layer4/collection_status.js' %}?v=1"></script>
+{% endblock %}

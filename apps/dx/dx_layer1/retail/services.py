@@ -369,6 +369,7 @@ def get_layer1_stats(cursor, target_date, now):
         'name': SECTION_TITLES['retail'],
         'description': f'{retail_ok_count}/2 카테고리 정상',
         'actual': total_retail_count,
+        'expected': total_retail_expected,
         'expected_min': total_retail_expected,
         'status': total_retail_status,
         'check_type': 'retail',

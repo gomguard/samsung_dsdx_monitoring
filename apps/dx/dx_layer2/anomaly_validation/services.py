@@ -649,11 +649,11 @@ def cleanup_duplicates(cursor, conn, table, ids, target_date, username):
         retailer_value = str(record_dict.get(retailer_col, '')) if retailer_col else ''
         cursor.execute("""
             INSERT INTO monitoring_corrections
-                (layer, correction_type, table_name, record_id,
+                (layer, correction_type, column_name, table_name, record_id,
                  crawl_date, created_id, created_at, status, memo, retailer, item)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            2, 'duplicate_check', actual_table, record_id,
+            2, 'duplicate_check', 'item', actual_table, record_id,
             target_date, username, now, 'corrected', '중복 삭제', retailer_value,
             item_value or None
         ))

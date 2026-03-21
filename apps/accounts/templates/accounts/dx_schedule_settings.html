@@ -343,7 +343,7 @@
                     data-check-type="{{ row.check_type }}"
                     data-name="{{ row.name }}"
                     data-category="{{ row.category|default:'' }}"
-                    data-us-start-hour="{{ row.us_start_hour|default:'' }}"
+                    data-us-start-hour="{% if row.us_start_hour is not None %}{{ row.us_start_hour }}{% endif %}"
                     data-duration="{{ row.collection_duration_min|default:'' }}"
                     data-schedule-type="{{ row.schedule_type|default:'' }}"
                     data-description="{{ row.description|default:'' }}"
@@ -353,7 +353,7 @@
                     <td class="col-check-type">{{ row.check_type }}</td>
                     <td class="col-name"><strong>{{ row.name }}</strong></td>
                     <td class="col-category">{{ row.category|default:'-'|upper }}</td>
-                    <td class="col-us-hour">{{ row.us_start_hour|default:'-' }}</td>
+                    <td class="col-us-hour">{% if row.us_start_hour is not None %}{{ row.us_start_hour }}{% else %}-{% endif %}</td>
                     <td class="col-duration">{{ row.collection_duration_min|default:'-' }}</td>
                     <td class="col-status">
                         <span class="badge {% if row.is_active %}badge-active{% else %}badge-inactive{% endif %}">

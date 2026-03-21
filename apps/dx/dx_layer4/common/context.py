@@ -14,6 +14,7 @@ SECTION_TITLES = {
     'check_log': '마감기록',
     'corrections': '검수기록',
     'report': '보고서',
+    'collection_status': '수집 현황',
     'tools': '도구',
 }
 
@@ -52,6 +53,18 @@ def _build_sidebar_groups(section, focus=''):
             'active': section == 'report',
             'items': [
                 {'name': '일일 보고서', 'active': section == 'report'},
+            ],
+        },
+        {
+            'key': 'collection_status',
+            'icon': '📊',
+            'label': '수집 현황',
+            'expanded': section == 'collection_status',
+            'active': section == 'collection_status',
+            'items': [
+                {'name': '일일 수집 현황', 'active': section == 'collection_status' and focus == '일일 수집 현황'},
+                {'name': '항목별 NULL 현황', 'active': section == 'collection_status' and focus == '항목별 NULL 현황'},
+                {'name': '이메일 보고', 'active': section == 'collection_status' and focus == '이메일 보고'},
             ],
         },
         {

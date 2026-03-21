@@ -4,6 +4,7 @@ from .check_log import views as cl_views, api as cl_api
 from .corrections import views as corr_views, api as corr_api
 from .report import views as report_views, api as report_api
 from .tools import views as tools_views
+from .collection_status import views as cs_views, api as cs_api
 from .collection_issues import api as ci_api
 from apps.dx.dx_layer1.common import api as check_api
 
@@ -17,6 +18,14 @@ urlpatterns = [
     path('corrections/', corr_views.corrections, name='corrections'),
     path('report/', report_views.report, name='report'),
     path('tools/', tools_views.tools, name='tools'),
+    path('collection-status/', cs_views.collection_status, name='collection_status'),
+    path('collection-status/detail/', cs_views.collection_status_detail, name='collection_status_detail'),
+
+    # API — 수집 현황
+    path('api/collection-status/', cs_api.collection_status_data, name='api_collection_status'),
+    path('api/collection-status/null-detail/', cs_api.collection_null_detail, name='api_collection_null_detail'),
+    path('api/collection-status/send-email/', cs_api.send_email_report, name='api_send_email'),
+    path('api/collection-status/email-check/', cs_api.email_sent_check, name='api_email_check'),
 
     # API — 대시보드
     path('api/dashboard-stats/', dashboard_api.dashboard_stats, name='api_dashboard_stats'),
