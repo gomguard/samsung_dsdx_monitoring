@@ -20,7 +20,7 @@
             <div class="sidebar-subitems">
                 {% for item in group.items %}
                 <a class="sidebar-subitem {% if item.active %}active{% endif %}"
-                   onclick="onSubitemClick('{{ group.key }}', '{{ item.name|escapejs }}')">
+                   onclick="onSubitemClick('{{ group.key }}', '{{ item.name|escapejs }}', '{{ item.detail_code|default:""|escapejs }}')">
                     {{ item.name }}
                 </a>
                 {% endfor %}

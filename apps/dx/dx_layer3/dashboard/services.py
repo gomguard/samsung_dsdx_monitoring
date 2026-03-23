@@ -3,7 +3,7 @@ Layer 3 대시보드 서비스 — 공통 규칙 로드, 검증, 상태 판정
 """
 
 import re
-from apps.common.db import get_dx_connection
+from apps.common.db import get_dx_connection, dx_table
 from apps.common.response import log_error
 
 
@@ -66,26 +66,25 @@ def validate_exclude_condition(condition):
 
 
 def load_timeseries_rules():
-    """DB에서 시계열 이상치 검증 규칙 로드 (monitoring_validation_rules 테이블)"""
+    """DB에서 시계열 이상치 검증 규칙 로드 (monitoring_timeseries_rules 테이블)"""
     rules = []
+    table = dx_table('monitoring_timeseries_rules')
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT id, detail_code, detail_name, section_code, section_name,
                    table_name, date_column, product_line,
-                   check_column, check_type, comparison_type,
-                   threshold_pct, threshold_min,
+                   check_type, threshold_pct,
                    error_message, query, sort_order
-            FROM monitoring_validation_rules
-            WHERE rule_type = 'timeseries' AND is_active = true
+            FROM {table}
+            WHERE is_active = true
             ORDER BY sort_order, id
         """)
         columns = [
             'rule_id', 'detail_code', 'detail_name', 'section_code', 'section_name',
             'table_name', 'date_column', 'product_line',
-            'check_column', 'check_type', 'comparison_type',
-            'threshold_pct', 'threshold_min',
+            'check_type', 'threshold_pct',
             'error_message', 'query', 'sort_order'
         ]
         for row in cursor.fetchall():

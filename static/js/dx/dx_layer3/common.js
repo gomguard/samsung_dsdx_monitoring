@@ -236,6 +236,10 @@ async function loadData() {
                 console.error('Error:', error);
                 if (catContainer) catContainer.innerHTML = '<div class="loading">데이터 로드 실패</div>';
             }
+        } else if (section === 'time_series' && SECTION_CATEGORY_MAP[section]) {
+            // 시계열 이상치: 사이드메뉴에서는 페이지 내 렌더링
+            var detailCodeParam = urlParams.get('detail_code') || '';
+            loadTimeSeriesPage(date, focusParam, detailCodeParam);
         } else if (SECTION_CATEGORY_MAP[section]) {
             showDetail(SECTION_CATEGORY_MAP[section], focusParam);
         }
@@ -366,7 +370,7 @@ function renderData(data) {
             const rulesBtn = hasRules ? `<button class="btn-rules" onclick="event.stopPropagation(); showRulesModal('${escJs(check.name)}')">검증 규칙</button>` : '';
 
             html += `
-                <div class="check-item clickable-row" onclick="showDetail('${escJs(categoryName)}', '${escJs(check.name)}')">
+                <div class="check-item clickable-row" onclick="showDetail('${escJs(categoryName)}', '${escJs(check.name)}', '${escJs(check.detail_code || '')}')">
                     <div class="check-info">
                         <div class="check-name">
                             ${esc(check.name)}
@@ -431,8 +435,15 @@ function toggleCategory(idx) {
 }
 
 // 상세 정보 표시
-async function showDetail(category, checkName) {
+async function showDetail(category, checkName, detailCode) {
     const date = getSelectedDate();
+    const section = (window.LAYER3 && window.LAYER3.section) || 'dashboard';
+
+    // 시계열 섹션 페이지에서는 모달 대신 페이지 내 렌더링
+    if (section === 'time_series' && category === '시계열 이상치') {
+        loadTimeSeriesPage(date, checkName, detailCode);
+        return;
+    }
 
     // 사이드바 하위메뉴 active 동기화
     var expGroup = document.querySelector('.sidebar-group.expanded');
@@ -447,18 +458,17 @@ async function showDetail(category, checkName) {
 
     // API URL 결정
     if (category === '시계열 이상치') {
-        // checkName에서 타입 결정 (TV/HHP)
         let itemType = checkName.includes('HHP') ? 'hhp' : 'tv';
-
-        if (checkName.includes('가격')) {
-            apiUrl = `/layer3/api/time-series-detail/?date=${date}&type=${itemType}&check=price`;
-            if (checkName.includes('전주')) {
-                apiUrl += '&period=weekly';
-            }
-        } else if (checkName.includes('순위')) {
-            apiUrl = `/layer3/api/time-series-detail/?date=${date}&type=${itemType}&check=rank`;
+        if (detailCode) {
+            apiUrl = `/layer3/api/time-series-detail/?date=${date}&detail_code=${encodeURIComponent(detailCode)}`;
         } else if (checkName.includes('리뷰')) {
             apiUrl = `/layer3/api/review-change-detail/?date=${date}&type=${itemType}`;
+        } else {
+            let code = '';
+            if (checkName.includes('HHP') && checkName.includes('중앙값')) code = 'hhp_price_median';
+            else if (checkName.includes('HHP') && checkName.includes('/mo')) code = 'hhp_price_format';
+            else if (checkName.includes('TV') && checkName.includes('중앙값')) code = 'tv_price_median';
+            if (code) apiUrl = `/layer3/api/time-series-detail/?date=${date}&detail_code=${code}`;
         }
     } else if (category === '크로스 필드 검증') {
         if (checkName.includes('Sentiment')) {
@@ -534,108 +544,16 @@ async function showDetail(category, checkName) {
 
 // 상세 모달 렌더링
 function renderDetailModal(title, category, data) {
-    AppModal.setTitle('detail', title + ` (${data.total_anomalies || data.total_changes || data.total_duplicates || 0}건)`);
+    AppModal.setTitle('detail', title + ` (${data.total_anomalies || data.anomaly_items || data.total_changes || data.total_duplicates || 0}건)`);
 
     let html = '';
 
     if (category === '시계열 이상치') {
-        const changes = data.changes || [];
-        if (changes.length === 0) {
+        const items = data.items || [];
+        if (items.length === 0) {
             html = '<p>이상치 데이터가 없습니다.</p>';
         } else {
-            const isPriceCheck = data.check_type === 'price';
-            const isReviewCheck = data.check_type === 'review';
-            const productLine = (data.product_line || 'TV').toUpperCase();
-            const tableName = productLine === 'HHP' ? 'hhp_retail_com' : 'tv_retail_com';
-            const dateColumn = productLine === 'HHP' ? 'crawl_strdatetime' : 'crawl_datetime';
-
-            // item 목록 추출
-            const items = [...new Set(changes.map(r => r.item).filter(Boolean))].sort();
-            const itemListDisplay = items.join(', ');
-            const inClause = items.map(item => `'${item}'`).join(', ');
-
-            // 조회 쿼리 생성
-            const queryDate = data.date || getSelectedDate();
-            let selectCols = 'id, item, account_name, retailer_sku_name, ' + dateColumn;
-            if (isPriceCheck) {
-                selectCols += ', final_sku_price';
-            } else if (isReviewCheck) {
-                selectCols += ', count_of_reviews';
-            } else {
-                selectCols += ', retailer_rank, is_own_brand';
-            }
-            selectCols += ', product_url';
-
-            const query = `SELECT ${selectCols}
-FROM ${tableName}
-WHERE item IN (${inClause})
-  AND DATE(${dateColumn}::timestamp) >= DATE('${queryDate}') - INTERVAL '2 days'
-  AND DATE(${dateColumn}::timestamp) <= DATE('${queryDate}')
-ORDER BY item, ${dateColumn} ASC;`;
-
-            // 쿼리 박스 표시
-            if (items.length > 0) {
-                html += `
-                <div class="query-section">
-                    <div class="item-list-box">
-                        <div class="query-box-header">
-                            <span class="query-box-title">Item 목록 (${items.length}개)</span>
-                            <button class="btn-copy" onclick="copyQueryToClipboard(this.parentElement.nextElementSibling)">복사</button>
-                        </div>
-                        <div class="item-list-content">${itemListDisplay}</div>
-                    </div>
-                    <div class="query-box">
-                        <div class="query-box-header">
-                            <span class="query-box-title">3일치 조회 쿼리</span>
-                            <button class="btn-copy" onclick="copyQueryToClipboard(this.parentElement.nextElementSibling)">복사</button>
-                        </div>
-                        <pre class="query-content">${query}</pre>
-                    </div>
-                </div>`;
-            }
-
-            html += '<div class="table-scroll-container"><table class="detail-table"><thead><tr>';
-            html += '<th>No.</th><th>Item</th><th>Retailer</th><th>제품명</th><th>수집 시점</th>';
-            if (isPriceCheck) {
-                html += '<th>이전 가격</th><th>현재 가격</th><th>변동률</th><th>URL</th>';
-            } else if (isReviewCheck) {
-                html += '<th>이전 리뷰 수</th><th>현재 리뷰 수</th><th>증가율</th><th>URL</th>';
-            } else {
-                html += '<th>이전 순위</th><th>현재 순위</th><th>변동</th><th>URL</th>';
-            }
-            html += '</tr></thead><tbody>';
-
-            changes.forEach((row, idx) => {
-                html += '<tr>';
-                html += `<td>${idx + 1}</td>`;
-                html += `<td>${esc(row.item || '-')}</td>`;
-                html += `<td>${esc(row.account_name || row.retailer || '-')}</td>`;
-                html += `<td>${esc(row.product_name || '-')}</td>`;
-                // 수집 시점 (오전/오후)
-                const periodText = row.period === 'AM' ? '오전' : (row.period === 'PM' ? '오후' : '-');
-                html += `<td>${periodText}</td>`;
-                if (isPriceCheck) {
-                    // HHP는 문자열($19.99), TV는 숫자
-                    const prevPrice = row.prev_price != null ? (typeof row.prev_price === 'string' ? row.prev_price : '$' + row.prev_price.toLocaleString()) : '-';
-                    const currPrice = row.curr_price != null ? (typeof row.curr_price === 'string' ? row.curr_price : '$' + row.curr_price.toLocaleString()) : '-';
-                    html += `<td>${prevPrice}</td>`;
-                    html += `<td>${currPrice}</td>`;
-                    html += `<td style="color: ${row.change_pct > 0 ? 'red' : 'green'};">${row.change_pct || 0}%</td>`;
-                } else if (isReviewCheck) {
-                    html += `<td>${row.prev_count != null ? row.prev_count.toLocaleString() : '-'}</td>`;
-                    html += `<td>${row.curr_count != null ? row.curr_count.toLocaleString() : '-'}</td>`;
-                    html += `<td style="color: red;">+${row.change_pct || 0}%</td>`;
-                } else {
-                    html += `<td>${row.prev_rank || '-'}</td>`;
-                    html += `<td>${row.curr_rank || '-'}</td>`;
-                    const change = row.rank_change || 0;
-                    html += `<td style="color: ${change > 0 ? 'red' : 'green'};">${change > 0 ? '+' : ''}${change}</td>`;
-                }
-                html += `<td>${renderProductUrl(row.product_url)}</td>`;
-                html += '</tr>';
-            });
-
-            html += '</tbody></table></div>';
+            html = '<div id="ts-detail-table"></div>';
         }
     } else if (category === '크로스 필드 검증') {
         // Sentiment 검증인 경우 기존 방식 유지
@@ -683,6 +601,46 @@ ORDER BY item, ${dateColumn} ASC;`;
 
     AppModal.setBody('detail', html);
     AppModal.open('detail');
+
+    // 시계열 이상치: CommonTable 렌더링
+    if (category === '시계열 이상치' && data.items && data.items.length > 0) {
+        var container = document.getElementById('ts-detail-table');
+        if (container) {
+            var columns = [
+                { key: 'id', label: 'id', width: 80 },
+                { key: 'item', label: 'Item', width: 160 },
+                { key: 'account_name', label: 'Retailer', width: 100 },
+                { key: 'final_sku_price', label: '가격', width: 120 },
+                { key: 'crawl_datetime', label: '수집시간', width: 160 },
+                { key: 'product_url', label: 'URL', width: 200 }
+            ];
+            var table = new CommonTable(container, {
+                variant: 'detail',
+                columns: columns,
+                resize: true,
+                vlines: true,
+                showTotalCount: true
+            });
+            table.render();
+            table.renderBody(data.items, function(row, idx) {
+                var html = '<tr>';
+                html += '<td>' + esc(String(row.id || '-')) + '</td>';
+                html += '<td>' + esc(row.item || '-') + '</td>';
+                html += '<td>' + esc(row.account_name || '-') + '</td>';
+                html += '<td>' + esc(row.final_sku_price || '-') + '</td>';
+                html += '<td>' + esc(row.crawl_datetime || '-') + '</td>';
+                if (row.product_url) {
+                    html += '<td><a href="' + esc(row.product_url) + '" target="_blank" style="color:var(--page-color);text-decoration:none;">'
+                        + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'
+                        + esc(row.product_url) + '</a></td>';
+                } else {
+                    html += '<td>-</td>';
+                }
+                html += '</tr>';
+                return html;
+            });
+        }
+    }
 }
 
 // 크로스필드 요약 렌더링 (모달 / 인라인 공용)
@@ -1145,21 +1103,127 @@ function getCsrfToken() {
     return cookieValue;
 }
 
-// 사이드메뉴 서브아이템 클릭
-function onSubitemClick(parentSection, checkName) {
-    // 시계열 이상치: 모달로 열림 → 페이지 전환 없이 바로 모달 오픈
-    if (parentSection === 'time_series') {
-        showDetail('시계열 이상치', checkName);
-        return;
-    }
+// 시계열 이상치: 사이드메뉴 페이지 렌더링
+async function loadTimeSeriesPage(date, checkName, detailCode, days) {
+    days = days || 1;
+    var catContainer = document.getElementById('categories-container') || document.getElementById('category-checks');
+    if (!catContainer) return;
 
+    // detail_code 결정
+    if (!detailCode) {
+        if (checkName.includes('HHP') && checkName.includes('중앙값')) detailCode = 'hhp_price_median';
+        else if (checkName.includes('HHP') && checkName.includes('/mo')) detailCode = 'hhp_price_format';
+        else if (checkName.includes('TV') && checkName.includes('중앙값')) detailCode = 'tv_price_median';
+    }
+    if (!detailCode) { catContainer.innerHTML = '<div class="l3-empty">알 수 없는 검증 유형입니다.</div>'; return; }
+
+    catContainer.innerHTML = '<div class="loading">데이터를 불러오는 중...</div>';
+
+    try {
+        var apiUrl = '/layer3/api/time-series-detail/?date=' + date + '&detail_code=' + encodeURIComponent(detailCode) + '&days=' + days;
+        var res = await fetch(apiUrl);
+        var data = await res.json();
+
+        var anomalyCount = data.anomaly_count || 0;
+        var itemCount = (data.items && data.items.length) || 0;
+
+        var html = '<button class="btn-back" onclick="window.location.href=\'/dx/layer3/time-series/?date=' + date + '\'">← 뒤로가기</button>';
+        html += '<div class="inline-detail-view">';
+        html += '<div class="inline-detail-header"><div>';
+        html += '<div class="inline-detail-title">' + esc(checkName) + ' (' + anomalyCount + '건)</div>';
+        html += '<div class="inline-detail-subtitle">' + esc(data.error_message || '') + '</div>';
+        html += '</div><div style="display:flex;align-items:center;">';
+        html += '<div style="display:flex;align-items:center;gap:6px;margin-right:12px;">';
+        html += '<label style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">일수:</label>';
+        html += '<input type="number" id="ts-days" value="' + days + '" min="1" max="30" style="width:50px;padding:3px 6px;border:1px solid var(--border-color,#e2e8f0);border-radius:4px;font-size:12px;text-align:center;" onkeydown="if(event.key===\'Enter\')loadTimeSeriesPage(\'' + date + '\',\'' + esc(checkName).replace(/'/g, "\\'") + '\',\'' + esc(detailCode) + '\',parseInt(document.getElementById(\'ts-days\').value)||1)">';
+        html += '<button onclick="loadTimeSeriesPage(\'' + date + '\',\'' + esc(checkName).replace(/'/g, "\\'") + '\',\'' + esc(detailCode) + '\',parseInt(document.getElementById(\'ts-days\').value)||1)" style="padding:3px 10px;font-size:12px;border:1px solid var(--border-color,#e2e8f0);border-radius:4px;background:var(--page-color,#0d9488);color:#fff;cursor:pointer;white-space:nowrap;">조회</button>';
+        html += '</div>';
+        html += '<div class="inline-detail-date">' + date + '</div>';
+        html += '</div></div>';
+
+        if (itemCount === 0) {
+            html += '<p style="padding:16px 24px;">이상치 데이터가 없습니다.</p>';
+        } else {
+            html += '<div id="ts-page-table"></div>';
+        }
+        html += '</div>';
+        catContainer.innerHTML = html;
+
+        if (itemCount === 0) return;
+
+        var container = document.getElementById('ts-page-table');
+        var columns = [
+            { key: 'id', label: 'id', width: 80 },
+            { key: 'item', label: 'Item', width: 160 },
+            { key: 'account_name', label: 'Retailer', width: 100 },
+            { key: 'final_sku_price', label: '가격', width: 120 },
+            { key: 'median_price', label: '중앙값(7일)', width: 120 },
+            { key: 'crawl_datetime', label: '수집시간', width: 160 },
+            { key: 'product_url', label: 'URL', width: 200 }
+        ];
+        var table = new CommonTable(container, {
+            variant: 'detail',
+            columns: columns,
+            resize: true,
+            vlines: true,
+            showTotalCount: true
+        });
+        table.render();
+
+        // item rowspan 계산
+        var items = data.items;
+        var itemSpans = {};
+        var itemSkip = {};
+        var si = 0;
+        while (si < items.length) {
+            var itemVal = items[si].item;
+            var ei = si + 1;
+            while (ei < items.length && items[ei].item === itemVal) ei++;
+            itemSpans[si] = ei - si;
+            for (var k = si + 1; k < ei; k++) itemSkip[k] = true;
+            si = ei;
+        }
+
+        table.renderBody(items, function(row, idx) {
+            var h = '<tr>';
+            h += '<td>' + esc(String(row.id || '-')) + '</td>';
+            if (itemSkip[idx]) {
+                // item rowspan 중간행 — td 생략
+            } else {
+                var span = itemSpans[idx] || 1;
+                h += '<td rowspan="' + span + '" style="vertical-align:middle;">' + esc(row.item || '-') + '</td>';
+            }
+            h += '<td>' + esc(row.account_name || '-') + '</td>';
+            h += '<td>' + esc(row.final_sku_price || '-') + '</td>';
+            h += '<td>' + esc(row.median_price || '-') + '</td>';
+            h += '<td>' + esc(row.crawl_datetime || '-') + '</td>';
+            if (row.product_url) {
+                h += '<td><a href="' + esc(row.product_url) + '" target="_blank" style="color:var(--page-color);text-decoration:none;">'
+                    + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:3px;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'
+                    + esc(row.product_url) + '</a></td>';
+            } else {
+                h += '<td>-</td>';
+            }
+            h += '</tr>';
+            return h;
+        });
+    } catch (e) {
+        console.error(e);
+        catContainer.innerHTML = '<div class="section-card"><h3>' + esc(checkName) + '</h3><p>오류가 발생했습니다.</p></div>';
+    }
+}
+
+// 사이드메뉴 서브아이템 클릭
+function onSubitemClick(parentSection, checkName, detailCode) {
     var date = getSelectedDate();
     var params = [];
     if (date) params.push('date=' + date);
     if (checkName) params.push('focus=' + encodeURIComponent(checkName));
+    if (detailCode) params.push('detail_code=' + encodeURIComponent(detailCode));
     var qs = params.length > 0 ? '?' + params.join('&') : '';
 
     var sectionUrls = {
+        time_series: 'time-series',
         cross_field: 'cross-field',
         category_spec: 'category-spec',
         field_missing: 'field-missing'

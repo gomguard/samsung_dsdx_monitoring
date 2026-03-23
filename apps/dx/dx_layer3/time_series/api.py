@@ -4,323 +4,114 @@
 
 from datetime import datetime, timedelta
 from django.http import JsonResponse
-from apps.common.db import get_dx_connection
+from apps.common.db import get_dx_connection, dx_table
 from apps.common.response import safe_error, log_error
+from apps.dx.dx_layer3.dashboard.services import validate_table_name as _validate_table_name
 
 
 def time_series_detail(request):
-    """시계열 이상치 상세 API"""
+    """시계열 이상치 상세 API — 이상치 item의 3일치 원본 데이터"""
     date_str = request.GET.get('date')
-    product_line = request.GET.get('type', 'tv')
-    check_type = request.GET.get('check', 'price')
-    period = request.GET.get('period', 'daily')
+    detail_code = request.GET.get('detail_code', '')
+    try:
+        days = min(int(request.GET.get('days', 1)), 30)
+    except (ValueError, TypeError):
+        days = 1
+
+    if not detail_code:
+        return JsonResponse({'items': [], 'total': 0, 'anomaly_items': 0})
 
     if date_str:
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
     else:
         target_date = (datetime.now() - timedelta(days=1)).date()
 
-    if period == 'weekly':
-        compare_date = target_date - timedelta(days=7)
-        threshold = 0.5
-    else:
-        compare_date = target_date - timedelta(days=1)
-        threshold = 0.5
+    prev_date = target_date - timedelta(days=1)
+    since_date = target_date - timedelta(days=days - 1)
+    rules_table = dx_table('monitoring_timeseries_rules')
 
+    conn = None
     try:
         conn = get_dx_connection()
         cursor = conn.cursor()
 
-        if product_line == 'tv':
-            if check_type == 'price':
-                cursor.execute("""
-                    WITH today_am AS (
-                        SELECT item, account_name, retailer_sku_name,
-                               final_sku_price as price_str,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price,
-                               crawl_datetime, product_url, 'AM' as period
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                        AND REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') ~ '^[0-9.]+$'
-                    ),
-                    today_pm AS (
-                        SELECT item, account_name, retailer_sku_name,
-                               final_sku_price as price_str,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price,
-                               crawl_datetime, product_url, 'PM' as period
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) >= 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                        AND REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') ~ '^[0-9.]+$'
-                    ),
-                    yesterday_pm AS (
-                        SELECT item, account_name,
-                               final_sku_price as price_str,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) >= 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                        AND REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') ~ '^[0-9.]+$'
-                    ),
-                    am_changes AS (
-                        SELECT t.item, t.account_name, t.retailer_sku_name,
-                               y.price_str as prev_price, t.price_str as curr_price,
-                               ROUND(((t.price - y.price) / NULLIF(y.price, 0) * 100)::numeric, 2) as change_pct,
-                               t.crawl_datetime, t.product_url, t.period,
-                               ABS(t.price - y.price) / NULLIF(y.price, 0) as abs_change
-                        FROM today_am t
-                        JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
-                        WHERE t.price > 0 AND y.price > 0
-                        AND ABS(t.price - y.price) / NULLIF(y.price, 0) > %s
-                    ),
-                    pm_changes AS (
-                        SELECT t.item, t.account_name, t.retailer_sku_name,
-                               a.price_str as prev_price, t.price_str as curr_price,
-                               ROUND(((t.price - a.price) / NULLIF(a.price, 0) * 100)::numeric, 2) as change_pct,
-                               t.crawl_datetime, t.product_url, t.period,
-                               ABS(t.price - a.price) / NULLIF(a.price, 0) as abs_change
-                        FROM today_pm t
-                        JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-                        WHERE t.price > 0 AND a.price > 0
-                        AND ABS(t.price - a.price) / NULLIF(a.price, 0) > %s
-                    )
-                    SELECT item, account_name, retailer_sku_name, prev_price, curr_price, change_pct, crawl_datetime, product_url, period
-                    FROM (
-                        SELECT * FROM am_changes
-                        UNION ALL
-                        SELECT * FROM pm_changes
-                    ) combined
-                    ORDER BY abs_change DESC
-                """, (target_date, target_date, compare_date, threshold, threshold))
-            else:  # rank
-                cursor.execute("""
-                    WITH today_am AS (
-                        SELECT item, account_name, retailer_sku_name, main_rank, crawl_datetime, product_url, 'AM' as period
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12
-                        AND main_rank IS NOT NULL
-                    ),
-                    today_pm AS (
-                        SELECT item, account_name, retailer_sku_name, main_rank, crawl_datetime, product_url, 'PM' as period
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) >= 12
-                        AND main_rank IS NOT NULL
-                    ),
-                    yesterday_pm AS (
-                        SELECT item, account_name, main_rank
-                        FROM tv_retail_com
-                        WHERE DATE(crawl_datetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_datetime::timestamp) >= 12
-                        AND main_rank IS NOT NULL
-                    ),
-                    am_changes AS (
-                        SELECT t.item, t.account_name, t.retailer_sku_name,
-                               y.main_rank as prev_rank, t.main_rank as curr_rank,
-                               (t.main_rank - y.main_rank) as rank_change,
-                               t.crawl_datetime, t.product_url, t.period,
-                               ABS(t.main_rank - y.main_rank) as abs_change
-                        FROM today_am t
-                        JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
-                        WHERE ABS(t.main_rank - y.main_rank) > 50
-                    ),
-                    pm_changes AS (
-                        SELECT t.item, t.account_name, t.retailer_sku_name,
-                               a.main_rank as prev_rank, t.main_rank as curr_rank,
-                               (t.main_rank - a.main_rank) as rank_change,
-                               t.crawl_datetime, t.product_url, t.period,
-                               ABS(t.main_rank - a.main_rank) as abs_change
-                        FROM today_pm t
-                        JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-                        WHERE ABS(t.main_rank - a.main_rank) > 50
-                    )
-                    SELECT item, account_name, retailer_sku_name, prev_rank, curr_rank, rank_change, crawl_datetime, product_url, period
-                    FROM (
-                        SELECT * FROM am_changes
-                        UNION ALL
-                        SELECT * FROM pm_changes
-                    ) combined
-                    ORDER BY abs_change DESC
-                """, (target_date, target_date, compare_date))
-        else:
-            if check_type == 'price':
-                cursor.execute("""
-                    WITH today_am AS (
-                        SELECT item, account_name, retailer_sku_name,
-                               final_sku_price as price_str,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price,
-                               crawl_strdatetime,
-                               product_url,
-                               'AM' as period
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) < 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                        AND final_sku_price !~ '[a-zA-Z]'
-                    ),
-                    today_pm AS (
-                        SELECT item, account_name, retailer_sku_name,
-                               final_sku_price as price_str,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price,
-                               crawl_strdatetime,
-                               product_url,
-                               'PM' as period
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) >= 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                        AND final_sku_price !~ '[a-zA-Z]'
-                    ),
-                    yesterday_pm AS (
-                        SELECT item, account_name,
-                               final_sku_price as price_str,
-                               CAST(REPLACE(REPLACE(SPLIT_PART(REPLACE(final_sku_price, '$', ''), '/', 1), ',', ''), ' ', '') AS NUMERIC) as price
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) >= 12
-                        AND final_sku_price IS NOT NULL
-                        AND final_sku_price LIKE '$%%'
-                        AND final_sku_price !~ '[a-zA-Z]'
-                    ),
-                    am_changes AS (
-                        SELECT t.item, t.account_name, t.retailer_sku_name as product_name,
-                               y.price_str as prev_price, t.price_str as curr_price,
-                               ROUND(((t.price - y.price) / NULLIF(y.price, 0) * 100)::numeric, 2) as change_pct,
-                               t.crawl_strdatetime, t.product_url, t.period,
-                               ABS(t.price - y.price) / NULLIF(y.price, 0) as abs_change
-                        FROM today_am t
-                        JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
-                        WHERE t.price > 0 AND y.price > 0
-                        AND ABS(t.price - y.price) / NULLIF(y.price, 0) > %s
-                    ),
-                    pm_changes AS (
-                        SELECT t.item, t.account_name, t.retailer_sku_name as product_name,
-                               a.price_str as prev_price, t.price_str as curr_price,
-                               ROUND(((t.price - a.price) / NULLIF(a.price, 0) * 100)::numeric, 2) as change_pct,
-                               t.crawl_strdatetime, t.product_url, t.period,
-                               ABS(t.price - a.price) / NULLIF(a.price, 0) as abs_change
-                        FROM today_pm t
-                        JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-                        WHERE t.price > 0 AND a.price > 0
-                        AND ABS(t.price - a.price) / NULLIF(a.price, 0) > %s
-                    )
-                    SELECT item, account_name, product_name, prev_price, curr_price, change_pct, crawl_strdatetime, product_url, period
-                    FROM (
-                        SELECT * FROM am_changes
-                        UNION ALL
-                        SELECT * FROM pm_changes
-                    ) combined
-                    ORDER BY abs_change DESC
-                """, (target_date, target_date, compare_date, threshold, threshold))
-            else:  # rank
-                cursor.execute("""
-                    WITH today_am AS (
-                        SELECT item, account_name, main_rank, crawl_strdatetime, product_url, 'AM' as period
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) < 12
-                        AND main_rank IS NOT NULL
-                    ),
-                    today_pm AS (
-                        SELECT item, account_name, main_rank, crawl_strdatetime, product_url, 'PM' as period
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) >= 12
-                        AND main_rank IS NOT NULL
-                    ),
-                    yesterday_pm AS (
-                        SELECT item, account_name, main_rank
-                        FROM hhp_retail_com
-                        WHERE DATE(crawl_strdatetime::timestamp) = %s
-                        AND EXTRACT(HOUR FROM crawl_strdatetime::timestamp) >= 12
-                        AND main_rank IS NOT NULL
-                    ),
-                    am_changes AS (
-                        SELECT t.item, t.account_name, t.item as product_name,
-                               y.main_rank as prev_rank, t.main_rank as curr_rank,
-                               (t.main_rank - y.main_rank) as rank_change,
-                               t.crawl_strdatetime, t.product_url, t.period,
-                               ABS(t.main_rank - y.main_rank) as abs_change
-                        FROM today_am t
-                        JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
-                        WHERE ABS(t.main_rank - y.main_rank) > 50
-                    ),
-                    pm_changes AS (
-                        SELECT t.item, t.account_name, t.item as product_name,
-                               a.main_rank as prev_rank, t.main_rank as curr_rank,
-                               (t.main_rank - a.main_rank) as rank_change,
-                               t.crawl_strdatetime, t.product_url, t.period,
-                               ABS(t.main_rank - a.main_rank) as abs_change
-                        FROM today_pm t
-                        JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-                        WHERE ABS(t.main_rank - a.main_rank) > 50
-                    )
-                    SELECT item, account_name, product_name, prev_rank, curr_rank, rank_change, crawl_strdatetime, product_url, period
-                    FROM (
-                        SELECT * FROM am_changes
-                        UNION ALL
-                        SELECT * FROM pm_changes
-                    ) combined
-                    ORDER BY abs_change DESC
-                """, (target_date, target_date, compare_date))
+        # 규칙 조회
+        cursor.execute(f"""
+            SELECT table_name, date_column, query
+            FROM {rules_table}
+            WHERE detail_code = %s AND is_active = true
+        """, [detail_code])
+        rule = cursor.fetchone()
+        if not rule:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'error': '규칙을 찾을 수 없습니다.'}, status=404)
 
-        rows = cursor.fetchall()
-        changes = []
+        source_table, date_column, stored_query = rule
+        _validate_table_name(source_table)
 
-        if check_type == 'price':
-            for row in rows:
-                changes.append({
-                    'item': row[0],
-                    'account_name': row[1],
-                    'product_name': str(row[2])[:50] + '...' if row[2] and len(str(row[2])) > 50 else row[2],
-                    'prev_price': row[3],
-                    'curr_price': row[4],
-                    'change_pct': float(row[5]) if row[5] else None,
-                    'crawl_datetime': str(row[6]),
-                    'product_url': row[7] if len(row) > 7 else None,
-                    'period': row[8] if len(row) > 8 else None
-                })
+        if not stored_query:
+            cursor.close()
+            conn.close()
+            return JsonResponse({'items': [], 'total': 0})
+
+        # 1) 이상치 item 카운트 (오늘 기준)
+        count_sql = f"SELECT COUNT(*) FROM ({stored_query}) x"
+        cursor.execute(count_sql, (target_date, target_date, prev_date))
+        anomaly_count = cursor.fetchone()[0] or 0
+
+        # 2) 이상치 item의 원본 데이터 조회 (일수 범위)
+        date_select = f'd.{date_column} AS crawl_datetime' if date_column != 'crawl_datetime' else 'd.crawl_datetime'
+
+        if days == 1:
+            date_filter = f"DATE(d.{date_column}::timestamp) = %s"
+            date_params = [str(target_date)]
         else:
-            for row in rows:
-                changes.append({
-                    'item': row[0],
-                    'account_name': row[1],
-                    'product_name': str(row[2])[:50] + '...' if row[2] and len(str(row[2])) > 50 else row[2],
-                    'prev_rank': row[3],
-                    'curr_rank': row[4],
-                    'rank_change': row[5],
-                    'crawl_datetime': str(row[6]),
-                    'product_url': row[7] if len(row) > 7 else None,
-                    'period': row[8] if len(row) > 8 else None
-                })
+            date_filter = f"DATE(d.{date_column}::timestamp) >= %s AND DATE(d.{date_column}::timestamp) <= %s"
+            date_params = [str(since_date), str(target_date)]
+
+        combined_sql = f"""
+            WITH _anomaly_items AS ({stored_query})
+            SELECT d.id, d.item, d.account_name, d.final_sku_price, d.product_url, {date_select}, a.median_val
+            FROM {source_table} d
+            JOIN _anomaly_items a ON d.item = a.item
+            WHERE {date_filter}
+            ORDER BY d.item, d.account_name, d.{date_column} ASC
+        """
+        cursor.execute(combined_sql, (target_date, target_date, prev_date) + tuple(date_params))
+
+        rows = []
+        for row in cursor.fetchall():
+            median = row[6]
+            rows.append({
+                'id': row[0],
+                'item': row[1],
+                'account_name': row[2],
+                'final_sku_price': row[3] or '',
+                'product_url': row[4] or '',
+                'crawl_datetime': row[5].strftime('%Y-%m-%d %H:%M:%S') if hasattr(row[5], 'strftime') else str(row[5]) if row[5] else '',
+                'median_price': f'${median:,.2f}' if median is not None else ''
+            })
 
         cursor.close()
         conn.close()
 
         return JsonResponse({
             'date': str(target_date),
-            'compare_date': str(compare_date),
-            'product_line': product_line.upper(),
-            'check_type': check_type,
-            'period': period,
-            'threshold': f'{threshold * 100}%' if check_type == 'price' else '50위',
-            'total_changes': len(changes),
-            'changes': changes
+            'detail_code': detail_code,
+            'total': len(rows),
+            'anomaly_count': anomaly_count,
+            'items': rows
         })
 
     except Exception as e:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
         log_error(e)
-        return safe_error(e, changes=[])
+        return safe_error(e, items=[])
 
 
 def duplicate_detail(request):

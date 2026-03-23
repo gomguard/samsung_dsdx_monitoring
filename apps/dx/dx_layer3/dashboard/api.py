@@ -105,7 +105,8 @@ def layer_stats(request):
             try:
                 stored_query = rule.get('query', '')
                 if stored_query:
-                    curr_cursor.execute(stored_query, (target_date, target_date, prev_date))
+                    count_sql = f"SELECT COUNT(*) FROM ({stored_query}) _sub"
+                    curr_cursor.execute(count_sql, (target_date, target_date, prev_date))
                     anomaly_count = curr_cursor.fetchone()[0] or 0
             except Exception as e:
                 log_error(e)
@@ -113,14 +114,19 @@ def layer_stats(request):
             total_checked += table_total
             total_anomalies += anomaly_count
 
-            if check_type == 'price':
-                threshold_str = f">{int(rule['threshold_pct'])}%"
+            pct = rule.get('threshold_pct')
+            if pct is not None:
+                if check_type == 'price':
+                    threshold_str = f">{int(pct)}%"
+                else:
+                    threshold_str = f"+{int(pct)}%"
             else:
-                threshold_str = f"+{int(rule['threshold_pct'])}%"
+                threshold_str = '-'
 
             results['checks'].append({
                 'category': '시계열 이상치',
                 'name': rule['detail_name'],
+                'detail_code': rule['detail_code'],
                 'description': rule['error_message'],
                 'checked': table_total,
                 'passed': table_total - anomaly_count,
