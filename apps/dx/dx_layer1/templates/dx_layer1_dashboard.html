@@ -146,9 +146,9 @@ async function loadStats() {
             failedCountEl.classList.add('ok');
         }
 
-        // 데일리 체크 타입과 분석대상일별 체크 타입 분류
-        const dailyCheckTypes = ['retail', 'sentiment', 'youtube', 'market_trend', 'market_demand'];
-        const periodCheckTypes = ['market_competitor', 'market_competitor_event', 'market_promotion'];
+        // 데일리 / 분석대상일별 분류 (API 응답의 display_group 기반)
+        const dailyChecks = data.checks.filter(c => c.display_group === 'daily');
+        const periodChecks = data.checks.filter(c => c.display_group === 'periodic');
 
         // 체크 렌더링 함수
         function renderCheck(check, checkIdx) {
@@ -199,7 +199,6 @@ async function loadStats() {
 
         // 데일리 체크 리스트
         const dailyChecksList = document.getElementById('daily-checks-list');
-        const dailyChecks = data.checks ? data.checks.filter(c => dailyCheckTypes.includes(c.check_type)) : [];
         if (dailyChecks.length > 0) {
             dailyChecksList.innerHTML = dailyChecks.map((check, idx) => {
                 const checkIdx = data.checks.indexOf(check);
@@ -211,7 +210,6 @@ async function loadStats() {
 
         // 분석대상일별 체크 리스트
         const periodChecksList = document.getElementById('period-checks-list');
-        const periodChecks = data.checks ? data.checks.filter(c => periodCheckTypes.includes(c.check_type)) : [];
         if (periodChecks.length > 0) {
             periodChecksList.innerHTML = periodChecks.map((check, idx) => {
                 const checkIdx = data.checks.indexOf(check);

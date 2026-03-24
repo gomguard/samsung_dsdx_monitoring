@@ -16,26 +16,43 @@ from apps.dx.dx_layer1.market_demand import services as market_demand_svc
 from apps.dx.dx_layer1.market_competitor import services as market_competitor_svc
 from apps.dx.dx_layer1.market_competitor_event import services as market_competitor_event_svc
 from apps.dx.dx_layer1.market_promotion import services as market_promotion_svc
+from apps.common.dx_schedules import load_collection_schedules
 
 
 # 리테일러 설정 (thresholds 표시용)
 EXPECTED_PER_RETAILER = 300
 OK_THRESHOLD = 200
 
-# 서비스 호출 순서 (check_type 필터 키 → 서비스 모듈)
-SERVICE_ORDER = [
-    ('retail', retail_svc),
-    ('sentiment', sentiment_svc),
-    ('youtube', youtube_svc),
-    ('market_trend', market_trend_svc),
-    ('market_demand', market_demand_svc),
-    ('market_competitor', market_competitor_svc),
-    ('market_competitor_event', market_competitor_event_svc),
-    ('market_promotion', market_promotion_svc),
-]
+# check_type → 서비스 모듈 매핑
+_SERVICE_MAP = {
+    'retail': retail_svc,
+    'sentiment': sentiment_svc,
+    'youtube': youtube_svc,
+    'market_trend': market_trend_svc,
+    'market_demand': market_demand_svc,
+    'market_competitor': market_competitor_svc,
+    'market_competitor_event': market_competitor_event_svc,
+    'market_promotion': market_promotion_svc,
+}
 
-# 항상 대상인 메뉴 (daily)
-ALWAYS_TARGET = {'retail', 'sentiment', 'youtube', 'market_trend', 'market_demand'}
+
+def _get_active_services():
+    """스케줄 DB에서 활성 서비스 목록과 daily 여부를 동적으로 구성"""
+    schedules = load_collection_schedules()
+    seen = set()
+    service_order = []
+    daily_types = set()
+
+    for s in schedules:
+        ct = s['check_type']
+        if ct in seen or ct not in _SERVICE_MAP:
+            continue
+        seen.add(ct)
+        service_order.append((ct, _SERVICE_MAP[ct]))
+        if s['schedule_type'] == 'daily':
+            daily_types.add(ct)
+
+    return service_order, daily_types
 
 
 def layer_stats(request):
@@ -77,9 +94,10 @@ def layer_stats(request):
         conn = get_dx_connection()
         cursor = conn.cursor()
 
+        service_order, daily_types = _get_active_services()
         comp_batch_id = None
 
-        for check_type, svc in SERVICE_ORDER:
+        for check_type, svc in service_order:
             if check_type_filter and check_type_filter != check_type:
                 continue
 
@@ -93,7 +111,9 @@ def layer_stats(request):
             if check_type == 'market_competitor' and 'comp_batch_id' in svc_result:
                 comp_batch_id = svc_result['comp_batch_id']
 
-            results['checks'].append(svc_result['check'])
+            check_data = svc_result['check']
+            check_data['display_group'] = 'daily' if check_type in daily_types else 'periodic'
+            results['checks'].append(check_data)
             results['failed_items'].extend(svc_result.get('failed_items', []))
 
         cursor.close()
@@ -104,7 +124,7 @@ def layer_stats(request):
             check_items = []
             for check in results['checks']:
                 check_type = check.get('check_type', '')
-                if check_type in ALWAYS_TARGET:
+                if check_type in daily_types:
                     is_target = True
                 else:
                     is_target = check.get('is_target_date', False)
