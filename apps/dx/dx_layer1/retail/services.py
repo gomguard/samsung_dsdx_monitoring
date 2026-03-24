@@ -22,6 +22,44 @@ ALLOWED_DATE_FIELDS = {'crawl_datetime::timestamp', 'crawl_strdatetime::timestam
 ALLOWED_RANK_FIELDS = {'promotion_position', 'trend_rank'}
 
 
+def query_retail_counts(cursor, table_name, date_field, extra_rank_field, slot_start, slot_end):
+    """
+    리테일러별 수집 건수 공통 쿼리 — 대시보드/섹션 페이지 동일 사용
+    Returns: list of tuples (account_name, cnt, main_count, bsr_count, extra_count)
+    """
+    cursor.execute(f"""
+        SELECT account_name,
+               COUNT(*) as cnt,
+               COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
+               COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
+               COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count
+        FROM {table_name}
+        WHERE {date_field} >= %s
+        AND {date_field} < %s
+        GROUP BY account_name
+    """, (slot_start, slot_end))
+    return cursor.fetchall()
+
+
+def query_retail_counts_by_retailer(cursor, table_name, date_field, extra_rank_field, slot_start, slot_end, retailer):
+    """
+    특정 리테일러 수집 건수 공통 쿼리 — 섹션 페이지 상세용
+    Returns: tuple (main_count, bsr_count, extra_count, total)
+    """
+    cursor.execute(f"""
+        SELECT
+            COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
+            COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
+            COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count,
+            COUNT(*) as total
+        FROM {table_name}
+        WHERE {date_field} >= %s
+        AND {date_field} < %s
+        AND LOWER(account_name) = LOWER(%s)
+    """, (slot_start, slot_end, retailer))
+    return cursor.fetchone()
+
+
 def check_retailer_data(rows, category='TV'):
     """
     리테일러별 데이터 검증
@@ -140,19 +178,7 @@ def get_layer1_stats(cursor, target_date, now):
 
     for slot in time_slots:
         # TV는 main_rank, bsr_rank, promotion_position (Bestbuy만) 수집
-        cursor.execute("""
-            SELECT account_name,
-                   COUNT(*) as cnt,
-                   COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
-                   COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-                   COUNT(CASE WHEN promotion_position IS NOT NULL THEN 1 END) as promotion_count
-            FROM tv_retail_com
-            WHERE crawl_datetime::timestamp >= %s
-            AND crawl_datetime::timestamp < %s
-            GROUP BY account_name
-        """, (slot['start'], slot['end']))
-
-        rows = cursor.fetchall()
+        rows = query_retail_counts(cursor, 'tv_retail_com', 'crawl_datetime::timestamp', 'promotion_position', slot['start'], slot['end'])
 
         if slot['is_pending']:
             # time_status가 COLLECTING이면 수집중, 아니면 대기중
@@ -238,19 +264,7 @@ def get_layer1_stats(cursor, target_date, now):
 
     for slot in time_slots:
         # HHP도 main_rank, bsr_rank, trend_rank 수집
-        cursor.execute("""
-            SELECT account_name,
-                   COUNT(*) as cnt,
-                   COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
-                   COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-                   COUNT(CASE WHEN trend_rank IS NOT NULL THEN 1 END) as trend_count
-            FROM hhp_retail_com
-            WHERE crawl_strdatetime::timestamp >= %s
-            AND crawl_strdatetime::timestamp < %s
-            GROUP BY account_name
-        """, (slot['start'], slot['end']))
-
-        rows = cursor.fetchall()
+        rows = query_retail_counts(cursor, 'hhp_retail_com', 'crawl_strdatetime::timestamp', 'trend_rank', slot['start'], slot['end'])
 
         if slot['is_pending']:
             # time_status가 COLLECTING이면 수집중, 아니면 대기중
@@ -508,20 +522,8 @@ def get_retail_summary(cursor, target_date, product_line):
         retailer_check_slots = []
 
         for slot in time_slots:
-            # 시간대별 페이지타입 카운트
-            cursor.execute(f"""
-                SELECT
-                    COUNT(CASE WHEN page_type = 'main' OR main_rank IS NOT NULL THEN 1 END) as main_count,
-                    COUNT(CASE WHEN page_type = 'bsr' OR bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-                    COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count,
-                    COUNT(*) as total
-                FROM {table_name}
-                WHERE {date_field} >= %s
-                AND {date_field} < %s
-                AND LOWER(account_name) = LOWER(%s)
-            """, (slot['start'], slot['end'], retailer))
-
-            row = cursor.fetchone()
+            # 시간대별 페이지타입 카운트 (대시보드와 동일 쿼리 사용)
+            row = query_retail_counts_by_retailer(cursor, table_name, date_field, extra_rank_field, slot['start'], slot['end'], retailer)
             main_count = row[0] or 0
             bsr_count = row[1] or 0
             extra_count = row[2] or 0
