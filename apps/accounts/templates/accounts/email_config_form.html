@@ -1,0 +1,183 @@
+{% extends 'accounts/admin_base.html' %}
+
+{% block title %}수신자 {% if is_edit %}수정{% else %}추가{% endif %} - 관리자{% endblock %}
+
+{% block admin_css %}
+<style>
+    .form-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .btn-back {
+        padding: 6px 14px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .btn-back:hover { background: var(--bg-primary); }
+
+    .form-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+
+    .form-container {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 28px 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .form-group-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #7c3aed;
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-group { margin-bottom: 18px; }
+
+    .form-group label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 5px;
+    }
+    .form-group label .required { color: #ef4444; margin-left: 2px; }
+
+    .form-group input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        box-sizing: border-box;
+    }
+    .form-group input:focus { outline: none; border-color: #7c3aed; }
+
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 24px;
+    }
+
+    .btn-save {
+        padding: 7px 18px;
+        background: #7c3aed;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+    }
+    .btn-save:hover { background: #6d28d9; }
+
+    .btn-cancel {
+        padding: 7px 18px;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .btn-cancel:hover { background: var(--bg-primary); }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div class="form-header">
+    <a href="{% url 'accounts:email_config_recipients' config_key %}" class="btn-back">← 목록</a>
+    <h1 class="form-title">수신자 {% if is_edit %}수정{% else %}추가{% endif %}</h1>
+</div>
+
+<div class="form-container">
+    <div class="form-group-name">{{ config_name }}</div>
+
+    <div style="display:flex;gap:16px;margin-bottom:18px;">
+        <div class="form-group" style="flex:1;margin-bottom:0;">
+            <label>이름</label>
+            <input type="text" id="recipientName" placeholder="예: 홍길동" value="{{ row.recipient_name|default:'' }}">
+        </div>
+        <div class="form-group" style="flex:1;margin-bottom:0;">
+            <label>이메일 주소 <span class="required">*</span></label>
+            <input type="email" id="recipientEmail" placeholder="예: user@example.com" value="{{ row.email|default:'' }}">
+        </div>
+    </div>
+    <div class="form-group">
+        <label>설명</label>
+        <input type="text" id="recipientDesc" placeholder="예: 프로젝트 담당자 (선택)" value="{{ row.description|default:'' }}">
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+        <input type="checkbox" id="recipientActive" style="width:15px;height:15px;" {% if row.is_active or not is_edit %}checked{% endif %}>
+        <label for="recipientActive" style="font-size:13px;color:var(--text-primary);">활성화</label>
+    </div>
+
+    <div class="form-actions">
+        <button class="btn-save" onclick="saveRecipient()">저장</button>
+        <a href="{% url 'accounts:email_config_recipients' config_key %}" class="btn-cancel">취소</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+var csrfToken = '{{ csrf_token }}';
+var isEdit = {{ is_edit|yesno:"true,false" }};
+var editId = {{ row.id|default:"null" }};
+var configKey = '{{ config_key }}';
+
+function saveRecipient() {
+    var email = document.getElementById('recipientEmail').value.trim();
+
+    if (!email) {
+        showToast('이메일 주소를 입력해주세요.', 'error');
+        return;
+    }
+
+    var url = isEdit
+        ? '/accounts/admin/email-config/' + editId + '/update/'
+        : '/accounts/admin/email-config/create/';
+
+    var recipientName = document.getElementById('recipientName').value.trim();
+    var description = document.getElementById('recipientDesc').value.trim();
+
+    var isActive = document.getElementById('recipientActive').checked;
+
+    var data = isEdit
+        ? { email: email, recipient_name: recipientName, description: description, is_active: isActive }
+        : { config_key: configKey, email: email, recipient_name: recipientName, description: description, is_active: isActive };
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.success) {
+            showToast(res.message, 'success');
+            setTimeout(function() { window.location.href = '/accounts/admin/email-config/' + configKey + '/'; }, 500);
+        } else {
+            showToast(res.error || '오류가 발생했습니다.', 'error');
+        }
+    })
+    .catch(function(e) { console.error(e); showToast('요청 실패', 'error'); });
+}
+</script>
+{% endblock %}

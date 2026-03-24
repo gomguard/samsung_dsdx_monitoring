@@ -15,6 +15,7 @@ from apps.common.params import parse_date
 from apps.common.db import dx_table
 from apps.common.retail_columns import load_retail_columns
 from config.config import EMAIL_CONFIG
+from apps.common.email_config import get_recipients
 
 _EMAIL_LOG_TABLE = dx_table('monitoring_email_logs')
 
@@ -205,7 +206,11 @@ def send_email_report(request):
         subject = body.get('subject', '')
         html_content = body.get('html', '')
         crawl_date = body.get('date', '')
-        receiver = body.get('receiver', EMAIL_CONFIG['receiver_email'])
+        recipients = get_recipients('collection_status_receiver')
+        if not recipients:
+            return JsonResponse({'error': '수신자가 등록되어 있지 않습니다. 관리자 페이지에서 수신자를 추가해주세요.'}, status=400)
+
+        receiver = ', '.join(recipients)
         sender = EMAIL_CONFIG['sender_email']
         sent_id = request.user.username if request.user.is_authenticated else 'anonymous'
 
@@ -216,8 +221,9 @@ def send_email_report(request):
             '<!DOCTYPE html>'
             '<html><head><meta charset="utf-8"></head>'
             '<body style="margin:0;padding:20px;font-family:Malgun Gothic,sans-serif;font-size:13px;color:#222;">'
+            '<div style="max-width:800px;">'
             + html_content
-            + '</body></html>'
+            + '</div></body></html>'
         )
 
         msg = MIMEMultipart('alternative')
@@ -230,7 +236,7 @@ def send_email_report(request):
         with smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port']) as server:
             server.starttls()
             server.login(sender, EMAIL_CONFIG['sender_password'])
-            server.sendmail(sender, receiver, msg.as_string())
+            server.sendmail(sender, recipients, msg.as_string())
 
         _save_email_log(crawl_date, subject, receiver, sender, sent_id, 'success')
         return JsonResponse({'success': True, 'message': '이메일이 발송되었습니다.'})

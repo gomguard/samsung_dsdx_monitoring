@@ -1,0 +1,69 @@
+{% extends 'accounts/admin_base.html' %}
+
+{% block title %}이메일 수신자 관리 - 관리자{% endblock %}
+
+{% block admin_css %}
+<style>
+    .admin-header { margin-bottom: 24px; }
+    .admin-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+    .admin-title-sub { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+
+    .content-card {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .rc-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .rc-table thead th { background: var(--bg-secondary); padding: 10px 12px; text-align: left; font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--border-color); }
+    .rc-table tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
+    .rc-table tbody tr { cursor: pointer; }
+    .rc-table tbody tr:hover { background: rgba(139, 92, 246, 0.03); }
+
+    .group-count {
+        display: inline-block;
+        padding: 2px 10px;
+        background: #f0e6ff;
+        color: #7c3aed;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .arrow-icon { color: var(--text-secondary); }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div>
+    <div class="admin-header">
+        <h1 class="admin-title">이메일 수신자 관리</h1>
+        <p class="admin-title-sub">이메일 발송 수신자를 관리합니다</p>
+    </div>
+
+    <div class="content-card">
+        <table class="rc-table">
+            <thead>
+                <tr>
+                    <th style="width:40px;">NO</th>
+                    <th>그룹명</th>
+                    <th style="width:100px;">수신자 수</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for group in groups %}
+                <tr onclick="location.href='{% url 'accounts:email_config_recipients' group.key %}'">
+                    <td style="text-align:center;">{{ forloop.counter }}</td>
+                    <td>{{ group.name }}</td>
+                    <td style="text-align:center;"><span class="group-count">{{ group.count }}명</span></td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-secondary);">등록된 그룹이 없습니다.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

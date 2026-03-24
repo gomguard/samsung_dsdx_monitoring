@@ -298,16 +298,16 @@
 
         var html = '';
         if (label) html += '<div style="font-size:13px;font-weight:700;margin:16px 0 8px;font-family:Malgun Gothic,sans-serif;">' + label + '</div>';
-        html += '<table style="' + TABLE + '"><tr><th style="' + TH + '" rowspan="2">수집항목</th>';
+        html += '<table style="' + TABLE + '"><tr><th style="' + TH + 'width:250px;" rowspan="2">수집항목</th>';
         retailers.forEach(function(r) { html += '<th style="' + TH + '" colspan="2">' + r.retailer + '</th>'; });
         html += '</tr><tr>';
         retailers.forEach(function() {
-            html += '<th style="' + TH + 'width:80px;">전체</th>';
-            html += '<th style="' + TH + 'width:80px;">Missing</th>';
+            html += '<th style="' + TH + 'width:60px;">전체</th>';
+            html += '<th style="' + TH + 'width:60px;">Missing</th>';
         });
         html += '</tr>';
         allColumns.forEach(function(colName) {
-            html += '<tr><td style="' + TD + '">' + colName + '</td>';
+            html += '<tr><td style="' + TD + 'white-space:nowrap;">' + colName + '</td>';
             retailers.forEach(function(r) {
                 var info = retailerMaps[r.retailer][colName];
                 if (!info || r.total_count === 0) {

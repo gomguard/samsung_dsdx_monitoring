@@ -2630,3 +2630,239 @@ def category_rules_delete_api(request):
 
     except Exception as e:
         return safe_error(e)
+
+
+# ============================================================
+# 이메일 수신자 관리
+# ============================================================
+
+@login_required
+@user_passes_test(is_admin)
+def email_config(request):
+    """1단계 — 그룹 목록 페이지"""
+    from apps.common.email_config import EMAIL_CONFIG_KEYS
+
+    table = dx_table('monitoring_email_recipients')
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            SELECT config_key, COUNT(*) as cnt
+            FROM {table}
+            WHERE is_del = 0 AND is_active = true
+            GROUP BY config_key
+        """)
+        count_map = {row[0]: row[1] for row in cursor.fetchall()}
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        count_map = {}
+        log_error(e, 'db')
+
+    groups = []
+    for key, name in EMAIL_CONFIG_KEYS.items():
+        groups.append({'key': key, 'name': name, 'count': count_map.get(key, 0)})
+
+    context = {
+        'admin_menu': 'email_config',
+        'groups': groups,
+    }
+    return render(request, 'accounts/email_config.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+def email_config_recipients(request, config_key):
+    """2단계 — 수신자 목록 페이지"""
+    from apps.common.email_config import EMAIL_CONFIG_KEYS
+
+    table = dx_table('monitoring_email_recipients')
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            SELECT id, config_key, email, recipient_name, description, is_active, created_at, created_id, updated_at, updated_id
+            FROM {table}
+            WHERE config_key = %s AND is_del = 0
+            ORDER BY id
+        """, [config_key])
+        columns_desc = [desc[0] for desc in cursor.description]
+        rows = [dict(zip(columns_desc, row)) for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        rows = []
+        log_error(e, 'db')
+
+    # datetime → 문자열 변환 (JSON 직렬화용)
+    for r in rows:
+        for k in ('created_at', 'updated_at'):
+            if r.get(k) and hasattr(r[k], 'strftime'):
+                r[k] = r[k].strftime('%Y-%m-%d %H:%M')
+
+    import json as json_mod
+    context = {
+        'admin_menu': 'email_config',
+        'config_key': config_key,
+        'config_name': EMAIL_CONFIG_KEYS.get(config_key, config_key),
+        'rows': json_mod.dumps(rows, ensure_ascii=False),
+    }
+    return render(request, 'accounts/email_config_recipients.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+def email_config_form(request, config_key=None, config_id=None):
+    """3단계 — 수신자 추가/수정 폼 페이지"""
+    from apps.common.email_config import EMAIL_CONFIG_KEYS
+
+    row = None
+    if config_id:
+        try:
+            table = dx_table('monitoring_email_recipients')
+            conn = get_dx_connection()
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT id, config_key, email, recipient_name, description, is_active
+                FROM {table}
+                WHERE id = %s AND is_del = 0
+            """, [config_id])
+            cols = [desc[0] for desc in cursor.description]
+            result = cursor.fetchone()
+            if result:
+                row = dict(zip(cols, result))
+                config_key = row['config_key']
+            cursor.close()
+            conn.close()
+        except Exception as e:
+            log_error(e, 'db')
+
+    context = {
+        'admin_menu': 'email_config',
+        'row': row,
+        'is_edit': config_id is not None,
+        'config_key': config_key,
+        'config_name': EMAIL_CONFIG_KEYS.get(config_key, config_key),
+    }
+    return render(request, 'accounts/email_config_form.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def email_config_create(request):
+    """이메일 수신자 추가"""
+    try:
+        data = json.loads(request.body)
+        config_key = data.get('config_key', '').strip()
+        email = data.get('email', '').strip()
+        recipient_name = data.get('recipient_name', '').strip()
+        description = data.get('description', '').strip()
+
+        if not config_key or not email:
+            return JsonResponse({'success': False, 'error': '이메일 주소는 필수입니다.'})
+
+        table = dx_table('monitoring_email_recipients')
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            INSERT INTO {table}
+                (config_key, email, recipient_name, description, is_active, is_del, created_at, created_id)
+            VALUES (%s, %s, %s, %s, true, 0, %s, %s)
+            RETURNING id
+        """, (config_key, email, recipient_name or None, description or None,
+              datetime.now(), request.user.username))
+        new_id = cursor.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'id': new_id, 'message': '수신자가 추가되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def email_config_update(request, config_id):
+    """이메일 수신자 수정"""
+    try:
+        data = json.loads(request.body)
+        email = data.get('email', '').strip()
+        recipient_name = data.get('recipient_name', '').strip()
+        description = data.get('description', '').strip()
+        is_active = data.get('is_active', True)
+
+        if not email:
+            return JsonResponse({'success': False, 'error': '이메일 주소는 필수입니다.'})
+
+        table = dx_table('monitoring_email_recipients')
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            UPDATE {table}
+            SET email = %s, recipient_name = %s, description = %s, is_active = %s,
+                updated_id = %s, updated_at = %s
+            WHERE id = %s
+        """, (email, recipient_name or None, description or None, is_active,
+              request.user.username, datetime.now(), config_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'message': '수신자가 수정되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def email_config_delete(request, config_id):
+    """이메일 수신자 삭제 (soft delete)"""
+    try:
+        table = dx_table('monitoring_email_recipients')
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            UPDATE {table}
+            SET is_del = 1, is_active = false, updated_id = %s, updated_at = %s
+            WHERE id = %s
+        """, (request.user.username, datetime.now(), config_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'message': '수신자가 삭제되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)
+
+
+@login_required
+@user_passes_test(is_admin)
+@require_POST
+def email_config_toggle(request, config_id):
+    """이메일 수신자 활성/비활성 토글"""
+    try:
+        table = dx_table('monitoring_email_recipients')
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            UPDATE {table}
+            SET is_active = NOT is_active, updated_id = %s, updated_at = %s
+            WHERE id = %s
+            RETURNING is_active
+        """, (request.user.username, datetime.now(), config_id))
+        result = cursor.fetchone()
+        if not result:
+            return JsonResponse({'success': False, 'error': '해당 수신자를 찾을 수 없습니다.'})
+        new_status = result[0]
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return JsonResponse({'success': True, 'is_active': new_status,
+                           'message': '활성화되었습니다.' if new_status else '비활성화되었습니다.'})
+    except Exception as e:
+        return safe_error(e, success=False)

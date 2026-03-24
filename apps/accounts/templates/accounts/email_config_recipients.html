@@ -1,0 +1,164 @@
+{% extends 'accounts/admin_base.html' %}
+
+{% block title %}{{ config_name }} 수신자 - 관리자{% endblock %}
+
+{% block admin_css %}
+<link rel="stylesheet" href="/static/css/table.css">
+<link rel="stylesheet" href="/static/css/button-bar.css">
+<link rel="stylesheet" href="/static/css/buttons.css">
+<style>
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .btn-back {
+        padding: 6px 14px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .btn-back:hover { background: var(--bg-primary); }
+
+    .page-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+
+    .content-card {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .empty-msg { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 13px; }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div>
+    <div class="page-header">
+        <div class="page-header-left">
+            <a href="{% url 'accounts:email_config' %}" class="btn-back">← 목록</a>
+            <h1 class="page-title">{{ config_name }}</h1>
+        </div>
+    </div>
+
+    <div id="recipients-btn-bar"></div>
+
+    <div class="content-card" style="overflow-x:auto;">
+        <div id="recipients-table"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+<script src="/static/js/table.js"></script>
+<script src="/static/js/buttons.js"></script>
+<script src="/static/js/button-bar.js"></script>
+<script>
+var csrfToken = '{{ csrf_token }}';
+var configKey = '{{ config_key }}';
+var rowsData = {{ rows|safe }};
+
+var recipientTable = null;
+
+new ButtonBar('#recipients-btn-bar', {
+    align: 'left',
+    buttons: [
+        { id: 'btnNew', label: '신규', icon: 'add', style: 'primary', href: '{% url "accounts:email_config_new" config_key %}' },
+        { id: 'btnEdit', label: '수정', icon: 'edit', style: 'outline', onClick: function() { editSelected(); } },
+        { id: 'btnDelete', label: '삭제', icon: 'delete', style: 'danger', onClick: function() { deleteSelected(); } }
+    ]
+}).render();
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function renderTable() {
+    var container = document.getElementById('recipients-table');
+
+    if (!rowsData || rowsData.length === 0) {
+        container.innerHTML = '<p class="empty-msg">등록된 수신자가 없습니다.</p>';
+        return;
+    }
+
+    recipientTable = new CommonTable(container, {
+        variant: 'detail',
+        columns: [
+            { key: 'no', label: 'NO', width: 40, align: 'center' },
+            { key: 'recipient_name', label: '이름', width: 100 },
+            { key: 'email', label: '이메일', width: 200 },
+            { key: 'description', label: '설명' },
+            { key: 'is_active', label: '상태', width: 55, align: 'center' },
+            { key: 'created_id', label: '등록자', width: 70 },
+            { key: 'created_at', label: '등록일', width: 120 }
+        ],
+        selectable: true,
+        vlines: true,
+        showTotalCount: true,
+        pageSize: 15,
+        onPageSizeChange: function(size) {
+            recipientTable.clearSelection();
+            renderTable();
+        }
+    });
+    recipientTable.render();
+    recipientTable.renderBody(rowsData, function(row, idx) {
+        var badge = row.is_active
+            ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:500;background:#dcfce7;color:#166534;">활성</span>'
+            : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:500;background:#fee2e2;color:#991b1b;">비활성</span>';
+        var dateStr = row.created_at ? row.created_at.substring(0, 16).replace('T', ' ') : '-';
+        var trStyle = row.is_active ? '' : ' style="opacity:0.5;"';
+        return '<tr' + trStyle + '>'
+            + '<td style="text-align:center;">' + (idx + 1) + '</td>'
+            + '<td>' + esc(row.recipient_name || '-') + '</td>'
+            + '<td>' + esc(row.email || '') + '</td>'
+            + '<td>' + esc(row.description || '-') + '</td>'
+            + '<td style="text-align:center;">' + badge + '</td>'
+            + '<td>' + esc(row.created_id || '-') + '</td>'
+            + '<td>' + dateStr + '</td>'
+            + '</tr>';
+    });
+}
+
+renderTable();
+
+function editSelected() {
+    if (!recipientTable) return;
+    var ids = recipientTable.getSelectedIds();
+    if (ids.length === 0) { showToast('수정할 항목을 선택해주세요.', 'info'); return; }
+    if (ids.length > 1) { showToast('수정은 1개만 선택해주세요.', 'info'); return; }
+    window.location.href = '/accounts/admin/email-config/' + ids[0] + '/edit/';
+}
+
+function deleteSelected() {
+    if (!recipientTable) return;
+    var ids = recipientTable.getSelectedIds();
+    if (ids.length === 0) { showToast('삭제할 항목을 선택해주세요.', 'info'); return; }
+    showConfirm(ids.length + '건을 삭제하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        var promises = ids.map(function(id) {
+            return fetch('/accounts/admin/email-config/' + id + '/delete/', {
+                method: 'POST', headers: { 'X-CSRFToken': csrfToken }
+            });
+        });
+        Promise.all(promises).then(function() {
+            showToast('삭제되었습니다.', 'success');
+            setTimeout(function() { location.reload(); }, 500);
+        });
+    });
+}
+
+</script>
+{% endblock %}

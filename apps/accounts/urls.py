@@ -96,6 +96,16 @@ urlpatterns = [
     path('admin/category-rules/api/save/', views.category_rules_save_api, name='category_rules_save_api'),
     path('admin/category-rules/api/delete/', views.category_rules_delete_api, name='category_rules_delete_api'),
 
+    # 관리자 페이지 - 이메일 수신자 관리
+    path('admin/email-config/', views.email_config, name='email_config'),
+    path('admin/email-config/create/', views.email_config_create, name='email_config_create'),
+    path('admin/email-config/<int:config_id>/edit/', views.email_config_form, name='email_config_edit'),
+    path('admin/email-config/<int:config_id>/update/', views.email_config_update, name='email_config_update'),
+    path('admin/email-config/<int:config_id>/delete/', views.email_config_delete, name='email_config_delete'),
+    path('admin/email-config/<int:config_id>/toggle/', views.email_config_toggle, name='email_config_toggle'),
+    path('admin/email-config/<str:config_key>/', views.email_config_recipients, name='email_config_recipients'),
+    path('admin/email-config/<str:config_key>/new/', views.email_config_form, name='email_config_new'),
+
     # 관리자 페이지 - DS 문서 카테고리 관리
     path('admin/ds-document-categories/', views.ds_document_categories, name='ds_document_categories'),
     path('admin/ds-document-categories/new/', views.ds_document_category_edit, name='ds_document_category_new'),

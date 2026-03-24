@@ -20,11 +20,17 @@
  *       - rowHeight: 행 콘텐츠 높이 px (미지정 시 CSS 기본값)
  *       - padding: 셀 패딩 문자열 (예: '8px 16px', 미지정 시 CSS 기본값)
  *       - onSort: (key, order) => {}
+ *       - selectable: true | { multiple: bool, selectAll: bool }
+ *           true → { multiple: true, selectAll: true }
+ *           { multiple: false } → 라디오 (단일 선택)
  *     메서드:
  *       - render(): thead 생성 + 리사이즈/리오더 적용
  *       - renderBody(rows, renderRow): tbody 업데이트
  *       - getTable(): table 엘리먼트 반환
  *       - getColumns(): 현재 컬럼 순서 반환
+ *       - getSelectedIds(): 선택된 행 ID 배열
+ *       - getSelectedRows(): 선택된 행 데이터 배열
+ *       - clearSelection(): 선택 초기화
  *
  * [페이지네이션]
  * - enablePagination(tbodySelector, options)
@@ -85,8 +91,18 @@ class CommonTable {
             showTotalCount: false,
             pageSize: null,
             onPageSizeChange: null,
+            selectable: false,
             ...options
         };
+        // selectable 정규화: true → { multiple: true, selectAll: true }
+        if (this.options.selectable === true) {
+            this.options.selectable = { multiple: true, selectAll: true };
+        } else if (this.options.selectable && typeof this.options.selectable === 'object') {
+            this.options.selectable = {
+                multiple: this.options.selectable.multiple !== false,
+                selectAll: this.options.selectable.selectAll !== false
+            };
+        }
         this.multiSort = options.multiSort || false;
         this.sortKey = null;
         this.sortOrder = null;
@@ -94,6 +110,7 @@ class CommonTable {
         this.tableEl = null;
         this.countEl = null;
         this._pageSizeInput = null;
+        this._selectedIds = new Set();
     }
 
     /**
@@ -110,6 +127,12 @@ class CommonTable {
 
         // colgroup — 열 너비 제어 (table-layout: fixed에서 width 지정된 열은 고정, 미지정 열은 나머지 공간 분배)
         const colgroup = document.createElement('colgroup');
+        const sel = this.options.selectable;
+        if (sel) {
+            const selCol = document.createElement('col');
+            selCol.style.width = '35px';
+            colgroup.appendChild(selCol);
+        }
         columns.forEach(col => {
             const colEl = document.createElement('col');
             if (col.width) colEl.style.width = col.width + 'px';
@@ -120,6 +143,21 @@ class CommonTable {
         // thead
         const thead = document.createElement('thead');
         const tr = document.createElement('tr');
+
+        if (sel) {
+            const selTh = document.createElement('th');
+            selTh.style.textAlign = 'center';
+            selTh.classList.add('ct-nc');
+            if (sel.multiple && sel.selectAll) {
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.style.cssText = 'width:15px;height:15px;cursor:pointer;';
+                cb.addEventListener('change', () => this._toggleSelectAll(cb.checked));
+                this._selectAllCb = cb;
+                selTh.appendChild(cb);
+            }
+            tr.appendChild(selTh);
+        }
 
         columns.forEach((col, idx) => {
             const th = document.createElement('th');
@@ -287,14 +325,60 @@ class CommonTable {
     renderBody(rows, renderRow) {
         const tbody = this.tableEl.querySelector('tbody');
         tbody.innerHTML = '';
+        this._selectedIds.clear();
+        this._lastRows = rows;
+        if (this._selectAllCb) this._selectAllCb.checked = false;
+        const sel = this.options.selectable;
         rows.forEach((row, i) => {
             const tr = renderRow(row, i);
-            if (typeof tr === 'string') {
-                tbody.insertAdjacentHTML('beforeend', tr);
+            if (sel) {
+                const rowId = row.id !== undefined ? row.id : i;
+                if (typeof tr === 'string') {
+                    const inputType = sel.multiple ? 'checkbox' : 'radio';
+                    const selTd = '<td style="text-align:center;" class="ct-nc"><input type="' + inputType + '" class="ct-row-sel" data-row-id="' + rowId + '" style="width:15px;height:15px;cursor:pointer;"' + (inputType === 'radio' ? ' name="ct-sel-radio"' : '') + '></td>';
+                    tbody.insertAdjacentHTML('beforeend', tr.replace(/^<tr/, '<tr data-row-id="' + rowId + '"').replace(/>/, '>' + selTd));
+                } else {
+                    tr.dataset.rowId = rowId;
+                    const selTd = document.createElement('td');
+                    selTd.style.textAlign = 'center';
+                    selTd.classList.add('ct-nc');
+                    const cb = document.createElement('input');
+                    cb.type = sel.multiple ? 'checkbox' : 'radio';
+                    if (!sel.multiple) cb.name = 'ct-sel-radio';
+                    cb.className = 'ct-row-sel';
+                    cb.dataset.rowId = rowId;
+                    cb.style.cssText = 'width:15px;height:15px;cursor:pointer;';
+                    selTd.appendChild(cb);
+                    tr.insertBefore(selTd, tr.firstChild);
+                    tbody.appendChild(tr);
+                }
             } else {
-                tbody.appendChild(tr);
+                if (typeof tr === 'string') {
+                    tbody.insertAdjacentHTML('beforeend', tr);
+                } else {
+                    tbody.appendChild(tr);
+                }
             }
         });
+        // 체크박스 이벤트 바인딩
+        if (sel) {
+            tbody.querySelectorAll('.ct-row-sel').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const rid = cb.dataset.rowId;
+                    if (sel.multiple) {
+                        if (cb.checked) this._selectedIds.add(rid);
+                        else this._selectedIds.delete(rid);
+                        if (this._selectAllCb) {
+                            const total = tbody.querySelectorAll('.ct-row-sel').length;
+                            this._selectAllCb.checked = this._selectedIds.size === total;
+                        }
+                    } else {
+                        this._selectedIds.clear();
+                        if (cb.checked) this._selectedIds.add(rid);
+                    }
+                });
+            });
+        }
         if (this.countEl) {
             if (typeof this.options.countFormat === 'function') {
                 this.countEl.innerHTML = this.options.countFormat(rows.length);
@@ -402,6 +486,40 @@ class CommonTable {
 
     getColumns() {
         return this.options.columns.slice();
+    }
+
+    /** 선택된 행 ID 배열 반환 */
+    getSelectedIds() {
+        return Array.from(this._selectedIds);
+    }
+
+    /** 선택된 행 데이터 반환 (renderBody에 전달된 rows 기준) */
+    getSelectedRows() {
+        if (!this._lastRows) return [];
+        return this._lastRows.filter((row, i) => {
+            const rid = row.id !== undefined ? String(row.id) : String(i);
+            return this._selectedIds.has(rid);
+        });
+    }
+
+    /** 선택 초기화 */
+    clearSelection() {
+        this._selectedIds.clear();
+        if (this._selectAllCb) this._selectAllCb.checked = false;
+        if (this.tableEl) {
+            this.tableEl.querySelectorAll('.ct-row-sel').forEach(cb => { cb.checked = false; });
+        }
+    }
+
+    /** 전체 선택/해제 (내부) */
+    _toggleSelectAll(checked) {
+        const tbody = this.tableEl.querySelector('tbody');
+        tbody.querySelectorAll('.ct-row-sel').forEach(cb => {
+            cb.checked = checked;
+            const rid = cb.dataset.rowId;
+            if (checked) this._selectedIds.add(rid);
+            else this._selectedIds.delete(rid);
+        });
     }
 
     /**
@@ -656,11 +774,6 @@ function enableColumnResize(tableOrSelector) {
             startWidth = th.offsetWidth;
             startTableWidth = table.offsetWidth;
 
-            // colgroup의 width 제한 해제 (리사이즈 시 자유롭게)
-            if (cols && cols[idx]) {
-                cols[idx].style.width = '';
-            }
-
             // 드래그 중 시각 표시
             handle.classList.add('active');
 
@@ -672,9 +785,13 @@ function enableColumnResize(tableOrSelector) {
             const diff = e.pageX - startX;
             const newWidth = Math.max(40, startWidth + diff);
             const actualDiff = newWidth - startWidth;
+            // colgroup의 해당 col 너비 직접 설정 (다른 열 영향 없음)
+            if (cols && cols[idx]) {
+                cols[idx].style.width = newWidth + 'px';
+            }
             th.style.width = newWidth + 'px';
             th.style.minWidth = newWidth + 'px';
-            // 테이블 전체 너비도 열 변화량과 동일하게 조정 (다른 열 영향 없음)
+            // 테이블 전체 너비도 열 변화량과 동일하게 조정
             table.style.width = (startTableWidth + actualDiff) + 'px';
         }
 
