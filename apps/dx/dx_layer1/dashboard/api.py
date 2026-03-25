@@ -5,7 +5,7 @@ Layer 1 API: 기본 통계 검수 (Foundational Integrity Check)
 
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import get_dx_connection
+from apps.common.db import dx_connection
 from apps.common.response import log_error
 
 from apps.dx.dx_layer1.retail import services as retail_svc
@@ -91,33 +91,28 @@ def layer_stats(request):
     }
 
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
+        with dx_connection() as (conn, cursor):
+            service_order, daily_types = _get_active_services()
+            comp_batch_id = None
 
-        service_order, daily_types = _get_active_services()
-        comp_batch_id = None
+            for check_type, svc in service_order:
+                if check_type_filter and check_type_filter != check_type:
+                    continue
 
-        for check_type, svc in service_order:
-            if check_type_filter and check_type_filter != check_type:
-                continue
+                # market_competitor_event는 competitor에서 얻은 batch_id 전달
+                if check_type == 'market_competitor_event':
+                    svc_result = svc.get_layer1_stats(cursor, target_date, now, comp_batch_id=comp_batch_id)
+                else:
+                    svc_result = svc.get_layer1_stats(cursor, target_date, now)
 
-            # market_competitor_event는 competitor에서 얻은 batch_id 전달
-            if check_type == 'market_competitor_event':
-                svc_result = svc.get_layer1_stats(cursor, target_date, now, comp_batch_id=comp_batch_id)
-            else:
-                svc_result = svc.get_layer1_stats(cursor, target_date, now)
+                # market_competitor 서비스가 comp_batch_id를 반환하면 저장
+                if check_type == 'market_competitor' and 'comp_batch_id' in svc_result:
+                    comp_batch_id = svc_result['comp_batch_id']
 
-            # market_competitor 서비스가 comp_batch_id를 반환하면 저장
-            if check_type == 'market_competitor' and 'comp_batch_id' in svc_result:
-                comp_batch_id = svc_result['comp_batch_id']
-
-            check_data = svc_result['check']
-            check_data['display_group'] = 'daily' if check_type in daily_types else 'periodic'
-            results['checks'].append(check_data)
-            results['failed_items'].extend(svc_result.get('failed_items', []))
-
-        cursor.close()
-        conn.close()
+                check_data = svc_result['check']
+                check_data['display_group'] = 'daily' if check_type in daily_types else 'periodic'
+                results['checks'].append(check_data)
+                results['failed_items'].extend(svc_result.get('failed_items', []))
 
         # Summary 계산 (대시보드 전용 - 섹션 페이지에서는 불필요)
         if not check_type_filter:

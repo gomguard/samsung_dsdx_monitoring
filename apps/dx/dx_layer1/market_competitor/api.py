@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import get_dx_connection
+from apps.common.db import dx_connection
 from apps.common.response import log_error
 from . import services
 
@@ -10,12 +10,9 @@ def market_competitor_keywords(request):
     category = request.GET.get('category', '')
 
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        result = services.get_competitor_keywords(cursor, category)
-        cursor.close()
-        conn.close()
-        return JsonResponse(result)
+        with dx_connection() as (conn, cursor):
+            result = services.get_competitor_keywords(cursor, category)
+            return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})
 
@@ -31,11 +28,8 @@ def market_competitor_raw_data(request):
         target_date = (datetime.now() - timedelta(days=1)).date()
 
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        result = services.get_competitor_raw_data(cursor, category, target_date)
-        cursor.close()
-        conn.close()
-        return JsonResponse(result)
+        with dx_connection() as (conn, cursor):
+            result = services.get_competitor_raw_data(cursor, category, target_date)
+            return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})

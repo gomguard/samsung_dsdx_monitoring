@@ -5,7 +5,7 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 import json
-from apps.common.db import get_dx_connection
+from apps.common.db import dx_connection
 from apps.common.response import safe_error
 from apps.dx.dx_layer1.common import services
 
@@ -19,16 +19,12 @@ def check_status(request):
     if not date_str:
         return JsonResponse({'success': False, 'error': '날짜를 지정하세요.'}, status=400)
 
-    conn = get_dx_connection()
-    cursor = conn.cursor()
     try:
-        result = services.get_check_status(cursor, date_str, layer, include_detail)
-        return JsonResponse(result)
+        with dx_connection() as (conn, cursor):
+            result = services.get_check_status(cursor, date_str, layer, include_detail)
+            return JsonResponse(result)
     except Exception as e:
         return safe_error(e, 'db')
-    finally:
-        cursor.close()
-        conn.close()
 
 
 @require_POST
@@ -45,16 +41,11 @@ def check_save(request):
         if not date_str or not sections:
             return JsonResponse({'success': False, 'error': '필수 파라미터가 누락되었습니다.'}, status=400)
 
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        try:
+        with dx_connection() as (conn, cursor):
             result = services.save_check(cursor, conn, date_str, layer, step, sections, username)
             if not result['success']:
                 return JsonResponse(result, status=400)
             return JsonResponse(result)
-        finally:
-            cursor.close()
-            conn.close()
     except Exception as e:
         return safe_error(e, 'save')
 
@@ -74,13 +65,8 @@ def check_delete(request):
         if not date_str:
             return JsonResponse({'success': False, 'error': '날짜를 지정하세요.'}, status=400)
 
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        try:
+        with dx_connection() as (conn, cursor):
             result = services.delete_check(cursor, conn, date_str, layer, section, step, delete_memo, username)
             return JsonResponse(result)
-        finally:
-            cursor.close()
-            conn.close()
     except Exception as e:
         return safe_error(e, 'delete')

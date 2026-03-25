@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import get_dx_connection
+from apps.common.db import dx_connection
 from apps.common.response import log_error
 from . import services
 
@@ -16,12 +16,9 @@ def sentiment_stats(request):
         target_date = today - timedelta(days=1)
 
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        result = services.get_sentiment_stats(cursor, target_date)
-        cursor.close()
-        conn.close()
-        return JsonResponse(result)
+        with dx_connection() as (conn, cursor):
+            result = services.get_sentiment_stats(cursor, target_date)
+            return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})
 
@@ -45,11 +42,8 @@ def sentiment_raw_data(request):
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
 
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        result = services.get_sentiment_raw_data(cursor, category, retailer, period, target_date)
-        cursor.close()
-        conn.close()
-        return JsonResponse(result)
+        with dx_connection() as (conn, cursor):
+            result = services.get_sentiment_raw_data(cursor, category, retailer, period, target_date)
+            return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})
