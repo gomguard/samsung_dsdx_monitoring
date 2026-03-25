@@ -1,4 +1,4 @@
-{% extends 'layer1/base_layer1.html' %}
+{% extends 'base_layer1.html' %}
 {% load static %}
 {% block page_title %}Market 수요증감율{% endblock %}
 
@@ -11,7 +11,7 @@
     </div>
 </div>
 
-{% include 'layer1/includes/_raw_data_view.html' with back_url='/dx/layer1/market-demand/' %}
+{% include '_raw_data_view.html' with back_url='/dx/layer1/market-demand/' %}
 {% endblock %}
 
 
