@@ -68,17 +68,12 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
     // TV, HHP 순서로 정렬
     const sortedCategories = hasCategories ? L1.sortCategories(check.categories, 'category') : [];
 
-    let categoriesHtml = '';
-    if (hasCategories) {
-        categoriesHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${scheduleHeader}
+    let detailContentHtml = '';
+    if (isTargetDate && hasCategories) {
+        detailContentHtml = `
                 <div class="sentiment-two-column show no-side-padding no-bg">
                     ${sortedCategories.map(cat => {
-                        // 분석대상일이 아니면 pending 상태로 표시
-                        const displayStatus = isTargetDate ? cat.status : 'PENDING';
-                        const catStatusClass = getStatusClass(displayStatus);
-                        const statusBadgeHtml = isTargetDate ? getStatusBadge(cat.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
+                        const catStatusClass = getStatusClass(cat.status);
                         return `
                             <div class="sentiment-column ${catStatusClass}">
                                 <a class="sentiment-column-header" href="/dx/layer1/market-competitor-event/?category=${encodeURIComponent(cat.category)}&date=${getSelectedDate()}" style="cursor: pointer; text-decoration: none; color: inherit;">
@@ -86,7 +81,7 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
                                     <div class="sentiment-column-stats">
                                         <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.expected.toLocaleString()}</span>
                                         <span class="sentiment-column-rate ${catStatusClass}">${cat.rate}%</span>
-                                        ${statusBadgeHtml}
+                                        ${getStatusBadge(cat.status)}
                                     </div>
                                 </a>
                             </div>
@@ -97,34 +92,15 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
                     <div style="padding: 8px 16px; font-size: 12px; color: var(--color-text-muted); border-top: 1px solid var(--color-border);">
                         배치: ${check.batch_id} | 마지막 실행: ${lastRunDisplay || 'N/A'}
                     </div>
-                ` : ''}
-            </div>
-        `;
-    } else {
-        // 카테고리가 없을 때 - 기본 카테고리(TV, HHP)를 표시
-        const defaultCategories = ['TV', 'HHP'];
-        categoriesHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${scheduleHeader}
-                <div class="sentiment-two-column show no-side-padding no-bg">
-                    ${defaultCategories.map(catName => {
-                        return `
-                            <div class="sentiment-column pending">
-                                <div class="sentiment-column-header">
-                                    <span class="sentiment-column-title">${catName}</span>
-                                    <div class="sentiment-column-stats">
-                                        <span class="sentiment-column-count">0/0</span>
-                                        <span class="sentiment-column-rate pending">0%</span>
-                                        <span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        `;
+                ` : ''}`;
     }
+
+    const categoriesHtml = `
+        <div class="time-slots-container" id="time-slots-${checkIdx}">
+            ${scheduleHeader}
+            ${detailContentHtml}
+        </div>
+    `;
 
     // 전체 수집률 계산
     const totalCollected = sortedCategories.reduce((sum, c) => sum + (c.collected || 0), 0);
@@ -155,12 +131,14 @@ function renderMarketCompetitorEventCheck(check, checkIdx) {
                         <span class="toggle-icon">▶</span>
                         ${esc(check.name)}
                     </div>
-                    <div class="check-description">${esc(check.description)}</div>
+                    <div class="check-description">${isTargetDate ? esc(check.description) : '분석대상일 아님'}</div>
                 </div>
+                ${isTargetDate ? `
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
                     <span class="criteria-item critical">심각: 100% 미만</span>
                 </div>
+                ` : ''}
                 <div class="check-stats">
                     ${statsHtml}
                 </div>
@@ -215,3 +193,5 @@ async function loadSectionData() {
 function loadAllData() { loadSectionData(); }
 
 L1.initLayer1Page();
+
+L1.renderers.market_competitor_event = renderMarketCompetitorEventCheck;

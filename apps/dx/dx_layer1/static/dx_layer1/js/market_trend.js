@@ -228,3 +228,5 @@ async function loadSectionData() {
 function loadAllData() { loadSectionData(); }
 
 L1.initLayer1Page();
+
+L1.renderers.market_trend = renderMarketTrendCheck;

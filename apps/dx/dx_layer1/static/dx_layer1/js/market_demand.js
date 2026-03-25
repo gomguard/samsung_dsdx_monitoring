@@ -4,6 +4,7 @@
 function renderMarketDemandCheck(check, checkIdx) {
     const statusClass = getStatusClass(check.status);
     const hasCategories = check.categories && check.categories.length > 0;
+    const isTargetDate = check.is_target_date;
     const isDst = check.is_dst || false;
     const kstLabel = isDst ? 'KST(DST)' : 'KST';
 
@@ -11,8 +12,10 @@ function renderMarketDemandCheck(check, checkIdx) {
     const usTime = check.us_time ? check.us_time.split(' ')[1] : '23:00';
     const krTime = check.kr_time || '';
 
-    // 수집 시간 헤더 (Market Trend와 동일)
-    const timeHeader = `
+    const nextTargetDate = check.next_target_date || '';
+
+    // 스케줄 헤더: 대상일이면 수집 시간, 비대상일이면 다음 분석일
+    const scheduleHeader = isTargetDate ? `
         <div class="time-slot-item" style="margin-bottom: 16px;">
             <div class="time-slot-header" style="cursor: default;">
                 <div class="time-slot-info">
@@ -21,22 +24,28 @@ function renderMarketDemandCheck(check, checkIdx) {
                         <span class="utc">US(NY) ${usTime}</span>
                         <span class="kst">${kstLabel} ${krTime}</span>
                     </span>
+                    <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">(매주 월요일)</span>
+                </div>
+            </div>
+        </div>
+    ` : `
+        <div class="time-slot-item" style="margin-bottom: 16px;">
+            <div class="time-slot-header" style="cursor: default;">
+                <div class="time-slot-info">
+                    <span class="time-slot-name">다음 분석일</span>
+                    <span class="time-slot-time">
+                        <span class="kst">${nextTargetDate}</span>
+                    </span>
+                    <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">(매주 월요일)</span>
                 </div>
             </div>
         </div>
     `;
 
-    let contentHtml = '';
-    const isPending = check.status === 'PENDING';
-    const isCollecting = check.status === 'COLLECTING';
-
-    if (hasCategories) {
-        // TV, HHP 순서로 정렬
+    let detailContentHtml = '';
+    if (isTargetDate && hasCategories) {
         const sortedCategories = L1.sortCategories(check.categories, 'category');
-
-        contentHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${timeHeader}
+        detailContentHtml = `
                 <div class="sentiment-two-column show no-side-padding no-bg">
                     ${sortedCategories.map((cat, catIdx) => {
                         const catStatusClass = getStatusClass(cat.status);
@@ -61,31 +70,15 @@ function renderMarketDemandCheck(check, checkIdx) {
                             </div>
                         `;
                     }).join('')}
-                </div>
-            </div>
-        `;
-    } else {
-        const defaultCategories = ['TV', 'HHP'];
-        contentHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${timeHeader}
-                <div class="sentiment-two-column show no-side-padding no-bg">
-                    ${defaultCategories.map(catName => `
-                        <div class="sentiment-column pending">
-                            <div class="sentiment-column-header">
-                                <span class="sentiment-column-title">${catName}</span>
-                                <div class="sentiment-column-stats">
-                                    <span class="sentiment-column-count">0/0</span>
-                                    <span class="sentiment-column-rate pending">0%</span>
-                                    <span class="status-badge pending"><span class="status-dot"></span>대기중</span>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
+                </div>`;
     }
+
+    const contentHtml = `
+        <div class="time-slots-container" id="time-slots-${checkIdx}">
+            ${scheduleHeader}
+            ${detailContentHtml}
+        </div>
+    `;
 
     return `
         <div class="check-item">
@@ -95,8 +88,9 @@ function renderMarketDemandCheck(check, checkIdx) {
                         <span class="toggle-icon">▶</span>
                         ${esc(check.name)}
                     </div>
-                    <div class="check-description">${esc(check.description)}</div>
+                    <div class="check-description">${isTargetDate ? esc(check.description) : '분석대상일 아님'}</div>
                 </div>
+                ${isTargetDate ? `
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
                     <span class="criteria-item critical">심각: 100% 미만</span>
@@ -108,6 +102,11 @@ function renderMarketDemandCheck(check, checkIdx) {
                     </div>
                     ${getStatusBadge(check.status)}
                 </div>
+                ` : `
+                <div class="check-stats">
+                    <span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>
+                </div>
+                `}
             </div>
             ${contentHtml}
         </div>
@@ -244,3 +243,5 @@ async function loadSectionData() {
 function loadAllData() { loadSectionData(); }
 
 L1.initLayer1Page();
+
+L1.renderers.market_demand = renderMarketDemandCheck;

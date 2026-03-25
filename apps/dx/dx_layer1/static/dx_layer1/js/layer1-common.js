@@ -129,12 +129,15 @@ var L1 = (function() {
         };
     }
 
+    var renderers = {};
+
     return {
         sortOrder: sortOrder,
         buildTimeHeader: buildTimeHeader,
         sortCategories: sortCategories,
         renderError: renderError,
-        initLayer1Page: initLayer1Page
+        initLayer1Page: initLayer1Page,
+        renderers: renderers
     };
 
 })();

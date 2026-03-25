@@ -54,18 +54,12 @@ function renderMarketPromotionCheck(check, checkIdx) {
     const isPending = check.status === 'PENDING';
     const isCollecting = check.status === 'COLLECTING';
 
-    if (hasRetailers) {
-        // retailer가 있으면 항상 카드 표시 (분석대상일 여부와 관계없이)
-        contentHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${scheduleHeader}
+    let detailContentHtml = '';
+    if (isTargetDate && hasRetailers) {
+        detailContentHtml = `
                 <div class="sentiment-two-column show no-side-padding no-bg">
                     ${check.retailers.map(r => {
-                        // 분석대상일이 아니면 pending으로 표시
-                        const displayStatus = isTargetDate ? r.status : 'PENDING';
-                        const retailerStatusClass = getStatusClass(displayStatus);
-                        // 분석대상일이 아니면 "분석대상일 아님" 배지 표시
-                        const statusBadgeHtml = isTargetDate ? getStatusBadge(r.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
+                        const retailerStatusClass = getStatusClass(r.status);
                         var detailUrl = '/dx/layer1/market-promotion/?retailer=' + encodeURIComponent(r.retailer) + '&date=' + getSelectedDate();
                         return `
                             <a class="sentiment-column ${retailerStatusClass}"
@@ -77,37 +71,21 @@ function renderMarketPromotionCheck(check, checkIdx) {
                                     <div class="sentiment-column-stats">
                                         <span class="sentiment-column-count">${r.collected.toLocaleString()}/${r.expected.toLocaleString()}</span>
                                         <span class="sentiment-column-rate ${retailerStatusClass}">${r.rate || 0}%</span>
-                                        ${statusBadgeHtml}
+                                        ${getStatusBadge(r.status)}
                                     </div>
                                 </div>
                             </a>
                         `;
                     }).join('')}
-                </div>
-            </div>
-        `;
-    } else {
-        const defaultRetailers = ['Walmart', "Sam's Club", 'Costco'];
-        contentHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${scheduleHeader}
-                <div class="sentiment-two-column show no-side-padding no-bg">
-                    ${defaultRetailers.map(ret => `
-                        <div class="sentiment-column pending">
-                            <div class="sentiment-column-header">
-                                <span class="sentiment-column-title">${ret}</span>
-                                <div class="sentiment-column-stats">
-                                    <span class="sentiment-column-count">0/0</span>
-                                    <span class="sentiment-column-rate pending">0%</span>
-                                    <span class="status-badge pending"><span class="status-dot"></span>대기중</span>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
+                </div>`;
     }
+
+    contentHtml = `
+        <div class="time-slots-container" id="time-slots-${checkIdx}">
+            ${scheduleHeader}
+            ${detailContentHtml}
+        </div>
+    `;
 
     // 분석률 또는 분석대상일 아님 표시
     let statsHtml;
@@ -146,12 +124,14 @@ function renderMarketPromotionCheck(check, checkIdx) {
                         <span class="toggle-icon">▶</span>
                         ${esc(check.name)}
                     </div>
-                    <div class="check-description">${esc(check.description)}</div>
+                    <div class="check-description">${isTargetDate ? esc(check.description) : '분석대상일 아님'}</div>
                 </div>
+                ${isTargetDate ? `
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
                     <span class="criteria-item critical">심각: 100% 미만</span>
                 </div>
+                ` : ''}
                 <div class="check-stats">
                     ${statsHtml}
                 </div>
@@ -207,3 +187,5 @@ async function loadSectionData() {
 function loadAllData() { loadSectionData(); }
 
 L1.initLayer1Page();
+
+L1.renderers.market_promotion = renderMarketPromotionCheck;

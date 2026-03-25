@@ -428,3 +428,5 @@ async function loadSectionData() {
 function loadAllData() { loadSectionData(); }
 
 L1.initLayer1Page({ modals: [{ name: 'columns', style: 'wide' }] });
+
+L1.renderers.retail = renderRetailCheck;

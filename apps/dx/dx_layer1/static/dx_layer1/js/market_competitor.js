@@ -74,22 +74,19 @@ function renderMarketCompetitorCheck(check, checkIdx) {
     const kwMissing = kwCoverage.total_missing || 0;
     const kwStatusClass = getStatusClass(check.status);
 
-    let categoriesHtml = '';
-    if (hasCategories) {
-        categoriesHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${scheduleHeader}
+    let detailContentHtml = '';
+    if (isTargetDate && hasCategories) {
+        detailContentHtml = `
                 <div class="sentiment-two-column show no-side-padding">
                     ${sortedCategories.map(cat => {
                         const catKw = cat.keyword_coverage || {};
                         const kwStatus = catKw.combo_rate >= 100 ? 'OK' : 'CRITICAL';
-                        const statusBadgeHtml = isTargetDate || check.batch_id ? getStatusBadge(kwStatus) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
                         return `
                             <div class="sentiment-column">
                                 <div class="sentiment-column-header">
                                     <span class="sentiment-column-title">${cat.category}</span>
                                     <div class="sentiment-column-stats">
-                                        ${statusBadgeHtml}
+                                        ${getStatusBadge(kwStatus)}
                                     </div>
                                 </div>
                                 <div class="sentiment-retailer-list">
@@ -116,49 +113,15 @@ function renderMarketCompetitorCheck(check, checkIdx) {
                     <div style="padding: 8px 16px; font-size: 12px; color: var(--color-text-muted); border-top: 1px solid var(--color-border);">
                         배치: ${check.batch_id} | 마지막 실행: ${lastRunDisplay || 'N/A'}
                     </div>
-                ` : ''}
-            </div>
-        `;
-    } else {
-        // 카테고리가 없을 때 - 기본 카테고리(TV, HHP)를 표시
-        const defaultCategories = ['TV', 'HHP'];
-        categoriesHtml = `
-            <div class="time-slots-container" id="time-slots-${checkIdx}">
-                ${scheduleHeader}
-                <div class="sentiment-two-column show no-side-padding">
-                    ${defaultCategories.map(catName => {
-                        return `
-                            <div class="sentiment-column">
-                                <div class="sentiment-column-header">
-                                    <span class="sentiment-column-title">${catName}</span>
-                                    <div class="sentiment-column-stats">
-                                        <span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>
-                                    </div>
-                                </div>
-                                <div class="sentiment-retailer-list">
-                                    <div class="sentiment-retailer-item pending">
-                                        <span class="sentiment-retailer-name">키워드</span>
-                                        <div class="sentiment-retailer-stats">
-                                            <span class="sentiment-retailer-count">0/0</span>
-                                            <span class="sentiment-retailer-rate pending">0%</span>
-                                            <span class="status-badge pending"><span class="status-dot"></span>대기중</span>
-                                        </div>
-                                    </div>
-                                    <div class="sentiment-retailer-item pending">
-                                        <span class="sentiment-retailer-name">수집량</span>
-                                        <div class="sentiment-retailer-stats">
-                                            <span class="sentiment-retailer-count large">0</span>
-                                            <span class="status-badge pending"><span class="status-dot"></span>대기중</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-            </div>
-        `;
+                ` : ''}`;
     }
+
+    const categoriesHtml = `
+        <div class="time-slots-container" id="time-slots-${checkIdx}">
+            ${scheduleHeader}
+            ${detailContentHtml}
+        </div>
+    `;
 
     // 분석률 또는 분석대상일 아님 표시 - 키워드 기준 (100% 아니면 심각)
     const statsHtml = isTargetDate
@@ -184,12 +147,14 @@ function renderMarketCompetitorCheck(check, checkIdx) {
                         <span class="toggle-icon">▶</span>
                         ${esc(check.name)}
                     </div>
-                    <div class="check-description">${esc(check.description)}</div>
+                    <div class="check-description">${isTargetDate ? esc(check.description) : '분석대상일 아님'}</div>
                 </div>
+                ${isTargetDate ? `
                 <div class="check-criteria">
                     <span class="criteria-item ok">정상: 100%</span>
                     <span class="criteria-item critical">심각: 100% 미만</span>
                 </div>
+                ` : ''}
                 <div class="check-stats">
                     ${statsHtml}
                 </div>
@@ -400,3 +365,5 @@ async function loadSectionData() {
 function loadAllData() { loadSectionData(); }
 
 L1.initLayer1Page();
+
+L1.renderers.market_competitor = renderMarketCompetitorCheck;
