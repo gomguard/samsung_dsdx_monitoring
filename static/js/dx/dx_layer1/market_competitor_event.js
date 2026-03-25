@@ -1,0 +1,217 @@
+function renderMarketCompetitorEventCheck(check, checkIdx) {
+    const hasCategories = check.categories && check.categories.length > 0;
+    const statusClass = getStatusClass(check.status);
+    const isTargetDate = check.is_target_date;
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // 월 정보
+    const monthName = check.month?.name || '';
+    const firstMonday = check.month?.first_monday || '';
+    const nextFirstMonday = check.month?.next_first_monday || '';
+    const monthDisplay = monthName && firstMonday
+        ? `${monthName} 대상 (첫번째 월요일: ${firstMonday})`
+        : '';
+
+    // 수집 시간 정보
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '';
+    const krTime = check.kr_time || '';
+
+    // 마지막 실행 시간 포맷팅
+    let lastRunDisplay = '';
+    if (check.last_run) {
+        const lastRunDate = new Date(check.last_run);
+        lastRunDisplay = lastRunDate.toLocaleString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // 스케줄 헤더 (한 섹션에 통합)
+    let scheduleHeader = '';
+    if (isTargetDate && usTime) {
+        // 분석대상일: 수집 시간 + 월 정보
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">수집 시간</span>
+                        <span class="time-slot-time">
+                            <span class="utc">US(NY) ${usTime}</span>
+                            <span class="kst">${kstLabel} ${krTime}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">${monthDisplay}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        // 분석대상일 아님: 다음 분석일 + 월 정보
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">다음 분석일</span>
+                        <span class="time-slot-time">
+                            <span class="kst">${nextFirstMonday}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">${monthDisplay}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // TV, HHP 순서로 정렬
+    const sortedCategories = hasCategories ? L1.sortCategories(check.categories, 'category') : [];
+
+    let categoriesHtml = '';
+    if (hasCategories) {
+        categoriesHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${scheduleHeader}
+                <div class="sentiment-two-column show no-side-padding no-bg">
+                    ${sortedCategories.map(cat => {
+                        // 분석대상일이 아니면 pending 상태로 표시
+                        const displayStatus = isTargetDate ? cat.status : 'PENDING';
+                        const catStatusClass = getStatusClass(displayStatus);
+                        const statusBadgeHtml = isTargetDate ? getStatusBadge(cat.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
+                        return `
+                            <div class="sentiment-column ${catStatusClass}">
+                                <a class="sentiment-column-header" href="/dx/layer1/market-competitor-event/?category=${encodeURIComponent(cat.category)}&date=${getSelectedDate()}" style="cursor: pointer; text-decoration: none; color: inherit;">
+                                    <span class="sentiment-column-title">${cat.category}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.expected.toLocaleString()}</span>
+                                        <span class="sentiment-column-rate ${catStatusClass}">${cat.rate}%</span>
+                                        ${statusBadgeHtml}
+                                    </div>
+                                </a>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                ${check.batch_id ? `
+                    <div style="padding: 8px 16px; font-size: 12px; color: var(--color-text-muted); border-top: 1px solid var(--color-border);">
+                        배치: ${check.batch_id} | 마지막 실행: ${lastRunDisplay || 'N/A'}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    } else {
+        // 카테고리가 없을 때 - 기본 카테고리(TV, HHP)를 표시
+        const defaultCategories = ['TV', 'HHP'];
+        categoriesHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${scheduleHeader}
+                <div class="sentiment-two-column show no-side-padding no-bg">
+                    ${defaultCategories.map(catName => {
+                        return `
+                            <div class="sentiment-column pending">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${catName}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">0/0</span>
+                                        <span class="sentiment-column-rate pending">0%</span>
+                                        <span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // 전체 수집률 계산
+    const totalCollected = sortedCategories.reduce((sum, c) => sum + (c.collected || 0), 0);
+    const totalExpected = sortedCategories.reduce((sum, c) => sum + (c.expected || 0), 0);
+    const totalRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
+
+    // 분석률 또는 분석대상일 아님 표시 (100% 아니면 심각)
+    const statsHtml = isTargetDate
+        ? `
+            <div class="check-stat">
+                <div class="value ${totalRate >= 100 ? 'ok' : 'critical'}">${totalRate}%</div>
+                <div class="label">수집률</div>
+            </div>
+            ${getStatusBadge(totalRate >= 100 ? 'OK' : 'CRITICAL')}
+        `
+        : `
+            <span class="status-badge pending">
+                <span class="status-dot"></span>
+                분석대상일 아님
+            </span>
+        `;
+
+    return `
+        <div class="check-item">
+            <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
+                <div class="check-info">
+                    <div class="check-name">
+                        <span class="toggle-icon">▶</span>
+                        ${esc(check.name)}
+                    </div>
+                    <div class="check-description">${esc(check.description)}</div>
+                </div>
+                <div class="check-criteria">
+                    <span class="criteria-item ok">정상: 100%</span>
+                    <span class="criteria-item critical">심각: 100% 미만</span>
+                </div>
+                <div class="check-stats">
+                    ${statsHtml}
+                </div>
+            </div>
+            ${categoriesHtml}
+        </div>
+    `;
+}
+
+// ============================================================
+// Raw Data View
+// ============================================================
+var rawView = new RawDataView({
+    apiUrl: '/dx/layer1/market-competitor-event/api/raw-data/',
+    backUrl: '/dx/layer1/market-competitor-event/',
+    title: function(p) { return 'Market Competitor Event - ' + p.category; },
+    urlParams: ['category']
+});
+
+// ============================================================
+// Section Data Loading
+// ============================================================
+async function loadSectionData() {
+    if (rawView.checkUrlAndShow()) return;
+
+    try {
+        var selectedDate = getSelectedDate();
+        try { currentCheckStatus = await loadCheckStatus(selectedDate); }
+        catch (e) { currentCheckStatus = null; }
+
+        var response = await fetch('/dx/layer1/api/stats/?date=' + selectedDate + '&check_type=market_competitor_event');
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var data = await response.json();
+        currentStatsData = data;
+
+        var check = data.checks ? data.checks.find(function(c) { return c.check_type === 'market_competitor_event'; }) : null;
+        var checkIdx = check ? data.checks.indexOf(check) : 0;
+        if (!check) check = { name: 'Market Competitor Event', description: '데이터 없음', check_type: 'market_competitor_event', status: 'PENDING', categories: [], is_target_date: false };
+
+        var container = document.getElementById('section-content');
+        var html = renderMarketCompetitorEventCheck(check, checkIdx);
+        html = html.replace('<div class="check-item">', '<div class="check-item" data-check-type="market_competitor_event">');
+        container.innerHTML = html;
+        addCheckBadges();
+        expandSectionContent();
+    } catch (error) {
+        console.error('Load failed:', error);
+        L1.renderError('section-content', error.message);
+    }
+}
+
+function loadAllData() { loadSectionData(); }
+
+L1.initLayer1Page();

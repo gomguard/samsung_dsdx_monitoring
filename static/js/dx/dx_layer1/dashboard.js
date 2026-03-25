@@ -1,0 +1,1632 @@
+var CHECK_TYPE_URL = {
+    retail: '/dx/layer1/retail/',
+    sentiment: '/dx/layer1/sentiment/',
+    youtube: '/dx/layer1/youtube/',
+    market_trend: '/dx/layer1/market-trend/',
+    market_demand: '/dx/layer1/market-demand/',
+    market_competitor: '/dx/layer1/market-competitor/',
+    market_competitor_event: '/dx/layer1/market-competitor-event/',
+    market_promotion: '/dx/layer1/market-promotion/'
+};
+
+async function loadStats() {
+    try {
+        const selectedDate = getSelectedDate();
+
+        // 1. 체크 상태 먼저 조회
+        let checkData = null;
+        try {
+            checkData = await loadCheckStatus(selectedDate);
+            currentCheckStatus = checkData;
+        } catch (e) {
+            currentCheckStatus = null;
+        }
+
+        const url = selectedDate
+            ? `/dx/layer1/api/stats/?date=${selectedDate}`
+            : '/dx/layer1/api/stats/';
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        currentStatsData = data;
+
+        // Retail Summary 데이터 로딩 (TV + HHP: rank별 건수 + NULL 컬럼)
+        try {
+            var [tvSum, hhpSum] = await Promise.all([
+                fetch('/dx/layer1/retail/api/summary/?type=tv&date=' + selectedDate).then(r => r.json()),
+                fetch('/dx/layer1/retail/api/summary/?type=hhp&date=' + selectedDate).then(r => r.json())
+            ]);
+            currentRetailSummary = { tv: tvSum, hhp: hhpSum };
+            currentNullData = { tv: tvSum.null_columns || [], hhp: hhpSum.null_columns || [] };
+        } catch (e) {
+            currentRetailSummary = null;
+            currentNullData = null;
+        }
+
+        // Summary stats
+        document.getElementById('total-checked').textContent = data.summary.total_checked;
+        document.getElementById('total-passed').textContent = data.summary.passed;
+        document.getElementById('total-failed').textContent = data.summary.failed;
+        updateConfirmedCount();
+
+        // Failed count badge
+        const failedCountEl = document.getElementById('failed-count');
+        const totalIssues = data.failed_items ? data.failed_items.length : 0;
+        failedCountEl.textContent = totalIssues + ' 건';
+        if (totalIssues === 0) {
+            failedCountEl.classList.add('ok');
+        }
+
+        // 데일리 / 분석대상일별 분류 (API 응답의 display_group 기반)
+        const dailyChecks = data.checks.filter(c => c.display_group === 'daily');
+        const periodChecks = data.checks.filter(c => c.display_group === 'periodic');
+
+        // 체크 렌더링 함수
+        function renderCheck(check, checkIdx) {
+            let html;
+            if (check.check_type === 'sentiment') {
+                html = renderSentimentCheck(check, checkIdx);
+            } else if (check.check_type === 'youtube') {
+                html = renderYouTubeCheck(check, checkIdx);
+            } else if (check.check_type === 'market_trend') {
+                html = renderMarketTrendCheck(check, checkIdx);
+            } else if (check.check_type === 'market_competitor') {
+                html = renderMarketCompetitorCheck(check, checkIdx);
+            } else if (check.check_type === 'market_competitor_event') {
+                html = renderMarketCompetitorEventCheck(check, checkIdx);
+            } else if (check.check_type === 'market_demand') {
+                html = renderMarketDemandCheck(check, checkIdx);
+            } else if (check.check_type === 'market_promotion') {
+                html = renderMarketPromotionCheck(check, checkIdx);
+            } else if (check.check_type === 'retail') {
+                html = renderRetailCheck(check, checkIdx);
+            } else {
+                html = `
+                    <div class="check-item">
+                        <div class="check-main">
+                            <div class="check-info">
+                                <div class="check-name">${esc(check.name)}</div>
+                                <div class="check-description">${esc(check.description || '')}</div>
+                            </div>
+                            <div class="check-stats">
+                                ${getStatusBadge(check.status)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return html;
+        }
+
+        // check-item에 data-check-type 속성만 추가 (배지는 addCheckBadges()에서 DOM으로 삽입)
+        function wrapWithCheckBadge(checkHtml, checkType) {
+            if (!checkType) return checkHtml;
+            return checkHtml.replace(
+                '<div class="check-item">',
+                `<div class="check-item" data-check-type="${checkType}">`
+            );
+        }
+
+        // 데일리 체크 리스트
+        const dailyChecksList = document.getElementById('daily-checks-list');
+        if (dailyChecks.length > 0) {
+            dailyChecksList.innerHTML = dailyChecks.map((check, idx) => {
+                const checkIdx = data.checks.indexOf(check);
+                return wrapWithCheckBadge(renderCheck(check, checkIdx), check.check_type);
+            }).join('');
+        } else {
+            dailyChecksList.innerHTML = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 없음</div></div></div></div>';
+        }
+
+        // 분석대상일별 체크 리스트
+        const periodChecksList = document.getElementById('period-checks-list');
+        if (periodChecks.length > 0) {
+            periodChecksList.innerHTML = periodChecks.map((check, idx) => {
+                const checkIdx = data.checks.indexOf(check);
+                return wrapWithCheckBadge(renderCheck(check, checkIdx), check.check_type);
+            }).join('');
+        } else {
+            periodChecksList.innerHTML = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 없음</div></div></div></div>';
+        }
+
+        // 체크 배지 삽입 (DOM API)
+        addCheckBadges();
+
+        // Failed items table
+        const tbody = document.getElementById('failed-table');
+        if (!data.failed_items || data.failed_items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">문제 항목 없음</td></tr>';
+        } else {
+            tbody.innerHTML = data.failed_items.map(item => `
+                <tr>
+                    <td><strong>${esc(item.source)}</strong></td>
+                    <td>${esc(item.error_type)}</td>
+                    <td>${esc(item.expected)}</td>
+                    <td style="color: ${item.actual === 0 ? 'var(--color-critical)' : 'var(--color-warning)'}; font-weight: 600;">
+                        ${item.actual.toLocaleString()}
+                    </td>
+                    <td>${esc(item.timestamp)}</td>
+                </tr>
+            `).join('');
+        }
+
+    } catch (error) {
+        console.error('Stats load failed:', error);
+        const errorHtml = '<div class="check-item"><div class="check-main"><div class="check-info"><div class="check-name">데이터 로드 실패</div><div class="check-description">' + esc(error.message) + '</div></div></div></div>';
+        document.getElementById('daily-checks-list').innerHTML = errorHtml;
+        document.getElementById('period-checks-list').innerHTML = errorHtml;
+    }
+}
+
+function renderRetailCategory(cat, checkIdx, catIdx) {
+    const catStatusClass = getStatusClass(cat.status);
+    const hasTimeSlots = cat.time_slots && cat.time_slots.length > 0;
+
+    // Sentiment와 동일하게 2열 레이아웃으로 오전/오후 표시
+    let timeSlotsHtml = '';
+    if (hasTimeSlots) {
+        timeSlotsHtml = '<div class="sentiment-two-column" id="retail-cat-' + checkIdx + '-' + catIdx + '">' +
+            cat.time_slots.map((slot, slotIdx) => renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, cat.name)).join('') +
+        '</div>';
+    }
+
+    return '<div class="sentiment-category-item">' +
+        '<div class="sentiment-category-header" onclick="toggleRetailCategory(this, ' + checkIdx + ', ' + catIdx + ')">' +
+            '<div class="sentiment-category-info">' +
+                '<span class="toggle-icon-small">▶</span>' +
+                '<span class="sentiment-category-name">' + cat.name + '</span>' +
+            '</div>' +
+            '<div class="sentiment-category-stats">' +
+                '<span class="sentiment-category-count">' + cat.total.toLocaleString() + '</span>' +
+                getStatusBadge(cat.status) +
+            '</div>' +
+        '</div>' +
+        timeSlotsHtml +
+    '</div>';
+}
+
+// 시간대별 NULL 컬럼 목록 조회 (categoryName: 'TV'/'HHP', slotName: '오전'/'오후')
+// 반환: [{retailer, columns}] 또는 빈 배열
+function getSlotNullColumns(categoryName, slotName) {
+    if (!currentNullData) return [];
+    var key = categoryName.toLowerCase();
+    var data = currentNullData[key];
+    if (!data) return [];
+    var result = [];
+    for (var i = 0; i < data.length; i++) {
+        for (var j = 0; j < data[i].time_slots.length; j++) {
+            var ts = data[i].time_slots[j];
+            if (ts.time_slot === slotName && ts.null_columns && ts.null_columns.length > 0) {
+                result.push({ retailer: data[i].retailer, columns: ts.null_columns.join(', ') });
+            }
+        }
+    }
+    return result;
+}
+
+// Retail 슬롯 — 테이블 렌더링 (오전/오후 각각)
+function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
+    var period = slot.name;
+    var key = categoryName.toLowerCase();
+
+    // retail-summary API에서 rank별 건수 가져오기
+    var summaryData = currentRetailSummary && currentRetailSummary[key];
+    var extraName = (summaryData && summaryData.extra_rank_name) || 'Extra';
+    var slotIdx2 = period === '오전' ? 0 : 1;
+
+    // 리테일러별 status 매핑 (slot.retailers에서 가져옴)
+    var statusMap = {};
+    if (slot.retailers) {
+        slot.retailers.forEach(function(r) { statusMap[r.retailer] = r.status; });
+    }
+
+    // 테이블 행 생성
+    var rowsHtml = '';
+    var totals = { main: 0, bsr: 0, extra: 0, total: 0 };
+
+    if (summaryData && summaryData.summary) {
+        summaryData.summary.forEach(function(ret) {
+            var row = ret.rows && ret.rows[slotIdx2];
+            if (!row) return;
+            totals.main += row.main;
+            totals.bsr += row.bsr;
+            totals.extra += row.extra;
+            totals.total += row.total;
+            var rStatus = statusMap[ret.retailer] || 'PENDING';
+            rowsHtml += '<tr>' +
+                '<td class="rt-name"><a href="/dx/layer1/retail/?category=' + encodeURIComponent(categoryName) + '&retailer=' + encodeURIComponent(ret.retailer) + '&period=' + encodeURIComponent(period) + '&date=' + getSelectedDate() + '">' + esc(ret.retailer) + '</a></td>' +
+                '<td>' + row.main.toLocaleString() + '</td>' +
+                '<td>' + row.bsr.toLocaleString() + '</td>' +
+                '<td class="rt-extra">' + row.extra.toLocaleString() + '</td>' +
+                '<td class="rt-total">' + row.total.toLocaleString() + '</td>' +
+                '<td class="rt-status ct-nc">' + getStatusBadge(rStatus) + '</td>' +
+            '</tr>';
+        });
+    }
+
+    // 합계 행
+    var totalRowHtml = '<tr class="rt-sum">' +
+        '<td>합계</td>' +
+        '<td>' + totals.main.toLocaleString() + '</td>' +
+        '<td>' + totals.bsr.toLocaleString() + '</td>' +
+        '<td>' + totals.extra.toLocaleString() + '</td>' +
+        '<td>' + totals.total.toLocaleString() + '</td>' +
+        '<td></td>' +
+    '</tr>';
+
+    // NULL 컬럼
+    var nullItems = getSlotNullColumns(categoryName, period);
+    var nullHtml = '';
+    if (nullItems.length > 0) {
+        nullHtml = '<div class="null-summary">' +
+            '<div class="null-summary-title">⚠ NULL 컬럼</div>' +
+            '<div class="null-summary-table-wrap">' +
+            '<table class="null-summary-table">' +
+                '<thead><tr><th>리테일러</th><th>NULL 컬럼</th></tr></thead>' +
+                '<tbody>' +
+                nullItems.map(function(n) {
+                    return '<tr><td>' + esc(n.retailer) + '</td><td class="null-col-cell">' + esc(n.columns) + '</td></tr>';
+                }).join('') +
+                '</tbody>' +
+            '</table>' +
+            '</div>' +
+        '</div>';
+    }
+
+    return '<div class="sentiment-column">' +
+        '<div class="sentiment-column-header">' +
+            '<span class="sentiment-column-title">' + period + '</span>' +
+            '<div class="sentiment-column-stats">' +
+                '<span class="sentiment-column-count">' + slot.total.toLocaleString() + '건</span>' +
+                getStatusBadge(slot.status) +
+            '</div>' +
+        '</div>' +
+        '<div class="retail-rank-wrap">' +
+            '<table class="ct ct-grid">' +
+                '<colgroup>' +
+                    '<col style="width:22%">' +
+                    '<col style="width:14%">' +
+                    '<col style="width:14%">' +
+                    '<col style="width:14%">' +
+                    '<col style="width:14%">' +
+                    '<col style="width:14%">' +
+                '</colgroup>' +
+                '<thead><tr>' +
+                    '<th style="text-align:left">리테일러</th>' +
+                    '<th>MAIN</th>' +
+                    '<th>BSR</th>' +
+                    '<th>' + esc(extraName) + '</th>' +
+                    '<th>총 건수</th>' +
+                    '<th></th>' +
+                '</tr></thead>' +
+                '<tbody>' + rowsHtml + totalRowHtml + '</tbody>' +
+            '</table>' +
+            nullHtml +
+        '</div>' +
+    '</div>';
+}
+
+function renderRetailCheck(check, checkIdx) {
+    const hasCategories = check.categories && check.categories.length > 0;
+    const statusClass = getStatusClass(check.status);
+
+    // 시간 정보 (날짜 포함): US(NY) 00:00 KST 2026-01-05 14:00
+    const timeInfo = check.time_info || { am: { us: '00:00', kst: '14:00' }, pm: { us: '12:00', kst: '02:00' } };
+    const isDst = timeInfo.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // US 시간에서 시간만 추출
+    const amUsTime = timeInfo.am.us ? timeInfo.am.us.split(' ')[1] || timeInfo.am.us : '00:00';
+    const pmUsTime = timeInfo.pm.us ? timeInfo.pm.us.split(' ')[1] || timeInfo.pm.us : '12:00';
+
+    // Retail은 오전/오후를 가로로 표시
+    const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
+        '<div class="time-slot-header" style="cursor: default;">' +
+            '<div class="time-slot-info">' +
+                '<span class="time-slot-name">수집 시간</span>' +
+                '<span class="time-slot-time" style="display: flex; flex-direction: row; align-items: center; gap: 24px;">' +
+                    '<span class="utc">[오전] US(NY) ' + amUsTime + ' ' + kstLabel + ' ' + timeInfo.am.kst + '</span>' +
+                    '<span class="utc">[오후] US(NY) ' + pmUsTime + ' ' + kstLabel + ' ' + timeInfo.pm.kst + '</span>' +
+                '</span>' +
+            '</div>' +
+            '<a href="' + CHECK_TYPE_URL.retail + '" class="check-detail-link" onclick="event.stopPropagation()">→ 상세보기</a>' +
+        '</div>' +
+    '</div>';
+
+    let categoriesHtml = '';
+    if (hasCategories) {
+        categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
+            timeHeader +
+            '<div class="sentiment-categories">' +
+                check.categories.map((cat, catIdx) => renderRetailCategory(cat, checkIdx, catIdx)).join('') +
+            '</div>' +
+        '</div>';
+    }
+
+    return '<div class="check-item">' +
+        '<div class="check-main" onclick="toggleTimeSlots(this, ' + checkIdx + ')">' +
+            '<div class="check-info">' +
+                '<div class="check-name">' +
+                    '<span class="toggle-icon">▶</span>' +
+                    check.name +
+                '</div>' +
+                '<div class="check-description">' + check.description + '</div>' +
+            '</div>' +
+            '<div class="check-criteria">' +
+                '<span class="criteria-item ok">정상: 200↑</span>' +
+                '<span class="criteria-item critical">심각: 200↓</span>' +
+            '</div>' +
+            '<div class="check-stats">' +
+                '<div class="check-stat">' +
+                    '<div class="value">' + (check.actual !== undefined ? check.actual.toLocaleString() : '-') + '</div>' +
+                    '<div class="label">총 수집량</div>' +
+                '</div>' +
+                getStatusBadge(check.status) +
+            '</div>' +
+        '</div>' +
+        categoriesHtml +
+    '</div>';
+}
+
+function toggleRetailCategory(element, checkIdx, catIdx) {
+    const container = document.getElementById('retail-cat-' + checkIdx + '-' + catIdx);
+    const icon = element.querySelector('.toggle-icon-small');
+
+    if (container) {
+        container.classList.toggle('show');
+        if (icon) {
+            icon.classList.toggle('expanded');
+        }
+    }
+}
+
+function renderSentimentRetailer(r, category, period) {
+    const rStatusClass = getStatusClass(r.status);
+    return '<div class="sentiment-retailer-item ' + rStatusClass + '">' +
+        '<span class="sentiment-retailer-name">' + r.name + '</span>' +
+        '<div class="sentiment-retailer-stats">' +
+            '<span class="sentiment-retailer-count">' + r.analyzed.toLocaleString() + '/' + r.target.toLocaleString() + '건</span>' +
+            '<span class="sentiment-retailer-rate ' + rStatusClass + '">' + r.rate + '%</span>' +
+            getStatusBadge(r.status) +
+        '</div>' +
+    '</div>';
+}
+
+function renderSentimentSlot(slot, category) {
+    const slotStatusClass = getStatusClass(slot.status);
+    const hasRetailers = slot.retailers && slot.retailers.length > 0;
+    const period = slot.time;  // '오전' 또는 '오후'
+    const retailersHtml = hasRetailers
+        ? slot.retailers.map(r => renderSentimentRetailer(r, category, period)).join('')
+        : '<div style="color: var(--text-secondary); padding: 8px;">데이터 없음</div>';
+
+    return '<div class="sentiment-column">' +
+        '<div class="sentiment-column-header">' +
+            '<span class="sentiment-column-title">' + slot.time + ' (' + slot.target.toLocaleString() + '건)</span>' +
+            '<div class="sentiment-column-stats">' +
+                '<span class="sentiment-column-count">' + slot.analyzed.toLocaleString() + '/' + slot.target.toLocaleString() + '</span>' +
+                '<span class="sentiment-column-rate ' + slotStatusClass + '">' + slot.rate + '%</span>' +
+                getStatusBadge(slot.status) +
+            '</div>' +
+        '</div>' +
+        '<div class="sentiment-retailer-list">' + retailersHtml + '</div>' +
+    '</div>';
+}
+
+function renderSentimentCategory(cat, checkIdx, catIdx) {
+    const catStatusClass = getStatusClass(cat.status);
+    const hasTimeSlots = cat.time_slots && cat.time_slots.length > 0;
+    const category = cat.name;  // 'TV' 또는 'HHP'
+
+    let timeSlotsHtml = '';
+    if (hasTimeSlots) {
+        timeSlotsHtml = '<div class="sentiment-two-column" id="sentiment-cat-' + checkIdx + '-' + catIdx + '">' +
+            cat.time_slots.map(slot => renderSentimentSlot(slot, category)).join('') +
+        '</div>';
+    }
+
+    return '<div class="sentiment-category-item">' +
+        '<div class="sentiment-category-header" onclick="toggleSentimentCategory(this, ' + checkIdx + ', ' + catIdx + ')">' +
+            '<div class="sentiment-category-info">' +
+                '<span class="toggle-icon-small">▶</span>' +
+                '<span class="sentiment-category-name">' + cat.name + '</span>' +
+            '</div>' +
+            '<div class="sentiment-category-stats">' +
+                '<span class="sentiment-category-count">' + cat.analyzed.toLocaleString() + '/' + cat.target.toLocaleString() + '</span>' +
+                '<span class="sentiment-category-rate ' + catStatusClass + '">' + cat.rate + '%</span>' +
+                getStatusBadge(cat.status) +
+            '</div>' +
+        '</div>' +
+        timeSlotsHtml +
+    '</div>';
+}
+
+function renderSentimentCheck(check, checkIdx) {
+    const hasCategories = check.categories && check.categories.length > 0;
+    const statusClass = getStatusClass(check.status);
+
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 2026-01-06 01:00 KST 2026-01-06 15:00
+    // 감성분석은 다음날 실행되므로 날짜 포함해서 표시
+    const usTime = check.us_time || '';
+    const krTime = check.kr_time || '';
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
+        '<div class="time-slot-header" style="cursor: default;">' +
+            '<div class="time-slot-info">' +
+                '<span class="time-slot-name">분석 시간</span>' +
+                '<span class="time-slot-time">' +
+                    '<span class="utc">US(NY) ' + usTime + '</span>' +
+                    '<span class="kst">' + kstLabel + ' ' + krTime + '</span>' +
+                '</span>' +
+            '</div>' +
+            '<a href="' + CHECK_TYPE_URL.sentiment + '" class="check-detail-link" onclick="event.stopPropagation()">→ 상세보기</a>' +
+        '</div>' +
+    '</div>';
+
+    let categoriesHtml = '';
+    if (hasCategories) {
+        categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
+            timeHeader +
+            '<div class="sentiment-categories">' +
+                check.categories.map((cat, catIdx) => renderSentimentCategory(cat, checkIdx, catIdx)).join('') +
+            '</div>' +
+        '</div>';
+    }
+
+    return '<div class="check-item">' +
+        '<div class="check-main" onclick="toggleTimeSlots(this, ' + checkIdx + ')">' +
+            '<div class="check-info">' +
+                '<div class="check-name">' +
+                    '<span class="toggle-icon">▶</span>' +
+                    check.name +
+                '</div>' +
+                '<div class="check-description">' + check.description + '</div>' +
+            '</div>' +
+            '<div class="check-criteria">' +
+                '<span class="criteria-item ok">정상: 100%</span>' +
+                '<span class="criteria-item critical">심각: 100% 미만</span>' +
+            '</div>' +
+            '<div class="check-stats">' +
+                '<div class="check-stat">' +
+                    '<div class="value ' + statusClass + '">' + check.rate + '%</div>' +
+                    '<div class="label">분석률</div>' +
+                '</div>' +
+                getStatusBadge(check.status) +
+            '</div>' +
+        '</div>' +
+        categoriesHtml +
+    '</div>';
+}
+
+function getYoutubeCardStyle(status) {
+    const styles = {
+        'OK': { border: '#4CAF50', bg: '#f0fff0', left: '#4CAF50' },
+        'WARNING': { border: '#FF9800', bg: '#fff8e1', left: '#FF9800' },
+        'CRITICAL': { border: '#f44336', bg: '#ffebee', left: '#f44336' },
+        'PENDING': { border: '#9e9e9e', bg: '#f5f5f5', left: '#9e9e9e' },
+        'COLLECTING': { border: '#2196F3', bg: '#e3f2fd', left: '#2196F3' }
+    };
+    return styles[status] || styles['PENDING'];
+}
+
+function renderYoutubeStatCard(catName, typeKey, typeLabel, typeDataType, value, status, extraInfo) {
+    const statusClass = getStatusClass(status);
+    let statsHtml = '';
+
+    if (extraInfo) {
+        // 로그: count/expected, rate%, 상태배지
+        statsHtml = '<span class="sentiment-retailer-count">' + extraInfo.count + '/' + extraInfo.expected + '</span>' +
+            '<span class="sentiment-retailer-rate ' + statusClass + '">' + extraInfo.rate + '%</span>' +
+            getStatusBadge(status);
+    } else {
+        // 비디오/댓글: 숫자, 상태배지
+        statsHtml = '<span class="sentiment-retailer-count">' + (value || 0).toLocaleString() + '</span>' +
+            getStatusBadge(status);
+    }
+
+    return '<div class="sentiment-retailer-item ' + statusClass + '">' +
+        '<span class="sentiment-retailer-name">' + typeLabel + '</span>' +
+        '<div class="sentiment-retailer-stats">' +
+            statsHtml +
+        '</div>' +
+    '</div>';
+}
+
+function getYoutubeItemStatus(type, value, logStatus) {
+    if (type === 'log') {
+        return logStatus;
+    } else if (type === 'video') {
+        return value >= 30 ? 'OK' : 'CRITICAL';
+    } else if (type === 'comment') {
+        return value >= 1000 ? 'OK' : 'CRITICAL';
+    }
+    return 'PENDING';
+}
+
+function renderYoutubeColumn(cat) {
+    // 각 항목별 상태 계산
+    const logStatus = cat.status;
+    const videoStatus = getYoutubeItemStatus('video', cat.video_count, logStatus);
+    const commentStatus = getYoutubeItemStatus('comment', cat.comment_count, logStatus);
+
+    // 전체 상태: 로그, 비디오, 댓글 모두 정상이면 정상
+    const allOk = logStatus === 'OK' && videoStatus === 'OK' && commentStatus === 'OK';
+    const overallStatus = allOk ? 'OK' : 'CRITICAL';
+    const overallStatusClass = getStatusClass(overallStatus);
+
+    // 로그는 상태 표시 포함
+    const logExtraInfo = {
+        count: cat.log_count.toLocaleString(),
+        expected: (cat.expected || 0).toLocaleString(),
+        rate: cat.rate || 0
+    };
+
+    const retailersHtml =
+        renderYoutubeStatCard(cat.name, 'log_count', '로그', 'logs', cat.log_count, logStatus, logExtraInfo) +
+        renderYoutubeStatCard(cat.name, 'video_count', '비디오', 'videos', cat.video_count, videoStatus, null) +
+        renderYoutubeStatCard(cat.name, 'comment_count', '댓글', 'comments', cat.comment_count, commentStatus, null);
+
+    return '<div class="sentiment-column">' +
+        '<div class="sentiment-column-header">' +
+            '<span class="sentiment-column-title">' + cat.name + '</span>' +
+            '<div class="sentiment-column-stats">' +
+                getStatusBadge(overallStatus) +
+            '</div>' +
+        '</div>' +
+        '<div class="sentiment-retailer-list">' +
+            retailersHtml +
+        '</div>' +
+    '</div>';
+}
+
+function renderYouTubeCheck(check, checkIdx) {
+    const hasCategories = check.categories && check.categories.length > 0;
+    const statusClass = getStatusClass(check.status);
+
+    const rateDisplay = (check.rate || 0) + '%';
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 04:00 KST 2026-01-05 18:00
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '04:00';
+    const krTime = check.kr_time || '';
+
+    const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
+        '<div class="time-slot-header" style="cursor: default;">' +
+            '<div class="time-slot-info">' +
+                '<span class="time-slot-name">수집 시간</span>' +
+                '<span class="time-slot-time">' +
+                    '<span class="utc">US(NY) ' + usTime + '</span>' +
+                    '<span class="kst">' + kstLabel + ' ' + krTime + '</span>' +
+                '</span>' +
+            '</div>' +
+            '<a href="' + CHECK_TYPE_URL.youtube + '" class="check-detail-link" onclick="event.stopPropagation()">→ 상세보기</a>' +
+        '</div>' +
+    '</div>';
+
+    let categoriesHtml = '';
+    if (hasCategories) {
+        const sortedCategories = L1.sortCategories(check.categories, 'name');
+
+        const columnsContent = '<div class="sentiment-two-column show no-side-padding">' +
+            sortedCategories.map(function(cat) {
+                return renderYoutubeColumn(cat);
+            }).join('') +
+        '</div>';
+
+        categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
+            timeHeader +
+            columnsContent +
+        '</div>';
+    } else {
+        // 카테고리가 없을 때도 동일한 형식으로 기본 구조 표시
+        const defaultCategories = ['TV', 'HHP'];
+        const defaultColumnsHtml = defaultCategories.map(function(catName) {
+            return '<div class="sentiment-column">' +
+                '<div class="sentiment-column-header">' +
+                    '<span class="sentiment-column-title">' + catName + '</span>' +
+                    '<div class="sentiment-column-stats">' +
+                        '<span class="status-badge pending"><span class="status-dot"></span>대기중</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="sentiment-retailer-list">' +
+                    '<div class="sentiment-retailer-item pending">' +
+                        '<span class="sentiment-retailer-name">로그</span>' +
+                        '<div class="sentiment-retailer-stats">' +
+                            '<span class="sentiment-retailer-count">0/0</span>' +
+                            '<span class="sentiment-retailer-rate pending">0%</span>' +
+                            '<span class="status-badge pending"><span class="status-dot"></span>대기중</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="sentiment-retailer-item pending">' +
+                        '<span class="sentiment-retailer-name">비디오</span>' +
+                        '<div class="sentiment-retailer-stats">' +
+                            '<span class="sentiment-retailer-count">0</span>' +
+                            '<span class="status-badge pending"><span class="status-dot"></span>대기중</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="sentiment-retailer-item pending">' +
+                        '<span class="sentiment-retailer-name">댓글</span>' +
+                        '<div class="sentiment-retailer-stats">' +
+                            '<span class="sentiment-retailer-count">0</span>' +
+                            '<span class="status-badge pending"><span class="status-dot"></span>대기중</span>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+
+        categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
+            timeHeader +
+            '<div class="sentiment-two-column show no-side-padding">' +
+                defaultColumnsHtml +
+            '</div>' +
+        '</div>';
+    }
+
+    return '<div class="check-item">' +
+        '<div class="check-main" onclick="toggleTimeSlots(this, ' + checkIdx + ')">' +
+            '<div class="check-info">' +
+                '<div class="check-name">' +
+                    '<span class="toggle-icon">▶</span>' +
+                    check.name +
+                '</div>' +
+                '<div class="check-description">' + check.description + '</div>' +
+            '</div>' +
+            '<div class="check-criteria">' +
+                '<span class="criteria-item ok">정상: 100%+</span>' +
+                '<span class="criteria-item critical">심각: 100% 미만</span>' +
+            '</div>' +
+            '<div class="check-stats">' +
+                '<div class="check-stat">' +
+                    '<div class="value ' + statusClass + '">' + rateDisplay + '</div>' +
+                    '<div class="label">수집률</div>' +
+                '</div>' +
+                getStatusBadge(check.status) +
+            '</div>' +
+        '</div>' +
+        categoriesHtml +
+    '</div>';
+}
+
+function renderMarketTrendCategory(cat, checkIdx, catIdx) {
+    const catStatusClass = getStatusClass(cat.status);
+    const hasItems = cat.items && cat.items.length > 0;
+
+    // Event/News를 2열 레이아웃으로 표시
+    let itemsHtml = '';
+    if (hasItems) {
+        itemsHtml = '<div class="sentiment-two-column no-side-padding" id="market-cat-' + checkIdx + '-' + catIdx + '">' +
+            cat.items.map(item => {
+                const itemStatusClass = getStatusClass(item.status);
+                return '<div class="sentiment-column ' + itemStatusClass + '">' +
+                    '<div class="sentiment-column-header">' +
+                        '<span class="sentiment-column-title">' + item.name + '</span>' +
+                        '<div class="sentiment-column-stats">' +
+                            '<span class="sentiment-column-count">' + item.collected.toLocaleString() + '/' + item.expected.toLocaleString() + '</span>' +
+                            '<span class="sentiment-column-rate ' + itemStatusClass + '">' + item.rate + '%</span>' +
+                            getStatusBadge(item.status) +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            }).join('') +
+        '</div>';
+    }
+
+    return '<div class="sentiment-category-item">' +
+        '<div class="sentiment-category-header" onclick="toggleMarketCategory(this, ' + checkIdx + ', ' + catIdx + ')">' +
+            '<div class="sentiment-category-info">' +
+                '<span class="toggle-icon-small">▶</span>' +
+                '<span class="sentiment-category-name">' + cat.name + '</span>' +
+            '</div>' +
+            '<div class="sentiment-category-stats">' +
+                '<span class="sentiment-category-count">' + cat.total.toLocaleString() + '/' + cat.expected.toLocaleString() + '</span>' +
+                '<span class="sentiment-category-rate ' + catStatusClass + '">' + cat.rate + '%</span>' +
+                getStatusBadge(cat.status) +
+            '</div>' +
+        '</div>' +
+        itemsHtml +
+    '</div>';
+}
+
+function toggleMarketCategory(element, checkIdx, catIdx) {
+    const container = document.getElementById('market-cat-' + checkIdx + '-' + catIdx);
+    const icon = element.querySelector('.toggle-icon-small');
+
+    if (container) {
+        container.classList.toggle('show');
+        if (icon) {
+            icon.classList.toggle('expanded');
+        }
+    }
+}
+
+function renderMarketTrendCheck(check, checkIdx) {
+    const hasCategories = check.categories && check.categories.length > 0;
+    const statusClass = getStatusClass(check.status);
+
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 23:00 KST 2026-01-06 13:00
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '23:00';
+    const krTime = check.kr_time || '';
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
+        '<div class="time-slot-header" style="cursor: default;">' +
+            '<div class="time-slot-info">' +
+                '<span class="time-slot-name">수집 시간</span>' +
+                '<span class="time-slot-time">' +
+                    '<span class="utc">US(NY) ' + usTime + '</span>' +
+                    '<span class="kst">' + kstLabel + ' ' + krTime + '</span>' +
+                '</span>' +
+            '</div>' +
+            '<a href="' + CHECK_TYPE_URL.market_trend + '" class="check-detail-link" onclick="event.stopPropagation()">→ 상세보기</a>' +
+        '</div>' +
+    '</div>';
+
+    let categoriesHtml = '';
+    if (hasCategories) {
+        // TV, HHP 순서로 정렬
+        const sortedCategories = L1.sortCategories(check.categories, 'name');
+
+        // TV/HHP 카드를 2열로 배치 (YouTube와 동일한 구조)
+        const categoryCardsHtml = sortedCategories.map(cat => {
+            const hasItems = cat.items && cat.items.length > 0;
+
+            // Event/News 아이템들을 세로로 표시 (YouTube의 로그/비디오/댓글과 동일한 스타일)
+            let itemsHtml = '';
+            if (hasItems) {
+                itemsHtml = cat.items.map(item => {
+                    const itemStatusClass = getStatusClass(item.status);
+                    return '<div class="sentiment-retailer-item ' + itemStatusClass + '">' +
+                        '<span class="sentiment-retailer-name">' + item.name + '</span>' +
+                        '<div class="sentiment-retailer-stats">' +
+                            '<span class="sentiment-retailer-count">' + item.collected.toLocaleString() + '/' + item.expected.toLocaleString() + '</span>' +
+                            '<span class="sentiment-retailer-rate ' + itemStatusClass + '">' + item.rate + '%</span>' +
+                            getStatusBadge(item.status) +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            }
+
+            // TV/HHP 카드 (YouTube와 동일한 구조)
+            return '<div class="sentiment-column">' +
+                '<div class="sentiment-column-header">' +
+                    '<span class="sentiment-column-title">' + cat.name + '</span>' +
+                    '<div class="sentiment-column-stats">' +
+                        getStatusBadge(cat.status) +
+                    '</div>' +
+                '</div>' +
+                '<div class="sentiment-retailer-list">' +
+                    itemsHtml +
+                '</div>' +
+            '</div>';
+        }).join('');
+
+        categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
+            timeHeader +
+            '<div class="sentiment-two-column show no-side-padding">' +
+                categoryCardsHtml +
+            '</div>' +
+        '</div>';
+    }
+
+    return '<div class="check-item">' +
+        '<div class="check-main" onclick="toggleTimeSlots(this, ' + checkIdx + ')">' +
+            '<div class="check-info">' +
+                '<div class="check-name">' +
+                    '<span class="toggle-icon">▶</span>' +
+                    check.name +
+                '</div>' +
+                '<div class="check-description">' + check.description + '</div>' +
+            '</div>' +
+            '<div class="check-criteria">' +
+                '<span class="criteria-item ok">정상: 100%</span>' +
+                '<span class="criteria-item critical">심각: 100% 미만</span>' +
+            '</div>' +
+            '<div class="check-stats">' +
+                '<div class="check-stat">' +
+                    '<div class="value ' + statusClass + '">' + check.rate + '%</div>' +
+                    '<div class="label">수집률</div>' +
+                '</div>' +
+                getStatusBadge(check.status) +
+            '</div>' +
+        '</div>' +
+        categoriesHtml +
+    '</div>';
+}
+
+function renderMarketCompetitorCheck(check, checkIdx) {
+    const hasCategories = check.categories && check.categories.length > 0;
+    const statusClass = getStatusClass(check.status);
+    const isTargetDate = check.is_target_date;
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // 분기 정보
+    const quarterStart = check.quarter?.start || '';
+    const quarterEnd = check.quarter?.end || '';
+    const nextQuarterStart = check.quarter?.next_start || '';
+    const quarterDisplay = quarterStart && quarterEnd
+        ? `이번분기 대상(${quarterStart} ~ ${quarterEnd})`
+        : '';
+
+    // 수집 시간 정보
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '';
+    const krTime = check.kr_time || '';
+
+    // 마지막 실행 시간 포맷팅
+    let lastRunDisplay = '';
+    if (check.last_run) {
+        const lastRunDate = new Date(check.last_run);
+        lastRunDisplay = lastRunDate.toLocaleString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // 스케줄 헤더 (한 섹션에 통합)
+    const detailLink = `<a href="${CHECK_TYPE_URL.market_competitor}" class="check-detail-link" onclick="event.stopPropagation()">→ 상세보기</a>`;
+    let scheduleHeader = '';
+    if (isTargetDate && usTime) {
+        // 분석대상일: 수집 시간 + 분기 정보
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">수집 시간</span>
+                        <span class="time-slot-time">
+                            <span class="utc">US(NY) ${usTime}</span>
+                            <span class="kst">${kstLabel} ${krTime}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">${quarterDisplay}</span>
+                    </div>
+                    ${detailLink}
+                </div>
+            </div>
+        `;
+    } else {
+        // 분석대상일 아님: 다음 분석일 + 분기 정보
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">다음 분석일</span>
+                        <span class="time-slot-time">
+                            <span class="kst">${nextQuarterStart}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">${quarterDisplay}</span>
+                    </div>
+                    ${detailLink}
+                </div>
+            </div>
+        `;
+    }
+
+    // TV, HHP 순서로 정렬
+    const sortedCategories = hasCategories ? L1.sortCategories(check.categories, 'category') : [];
+
+    // 키워드 커버리지 정보
+    const kwCoverage = check.keyword_coverage || {};
+    const kwComboRate = kwCoverage.total_combo_rate || 100;
+    const kwMissing = kwCoverage.total_missing || 0;
+    const kwStatusClass = getStatusClass(check.status);
+
+    let categoriesHtml = '';
+    if (hasCategories) {
+        categoriesHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${scheduleHeader}
+                <div class="sentiment-two-column show no-side-padding">
+                    ${sortedCategories.map(cat => {
+                        const catKw = cat.keyword_coverage || {};
+                        const kwStatus = catKw.combo_rate >= 100 ? 'OK' : 'CRITICAL';
+                        const statusBadgeHtml = isTargetDate || check.batch_id ? getStatusBadge(kwStatus) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
+                        return `
+                            <div class="sentiment-column">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${cat.category}</span>
+                                    <div class="sentiment-column-stats">
+                                        ${statusBadgeHtml}
+                                    </div>
+                                </div>
+                                <div class="sentiment-retailer-list">
+                                    <div class="sentiment-retailer-item ${getStatusClass(kwStatus)}">
+                                        <span class="sentiment-retailer-name">키워드</span>
+                                        <div class="sentiment-retailer-stats">
+                                            <span class="sentiment-retailer-count">${catKw.combo_collected || 0}/${catKw.combo_expected || 0}</span>
+                                            <span class="sentiment-retailer-rate ${getStatusClass(kwStatus)}">${catKw.combo_rate || 100}%</span>
+                                            ${getStatusBadge(kwStatus)}
+                                        </div>
+                                    </div>
+                                    <div class="sentiment-retailer-item ${getStatusClass(kwStatus)}">
+                                        <span class="sentiment-retailer-name">수집량</span>
+                                        <div class="sentiment-retailer-stats">
+                                            <span class="sentiment-retailer-count large">${cat.collected.toLocaleString()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                ${check.batch_id ? `
+                    <div style="padding: 8px 16px; font-size: 12px; color: var(--color-text-muted); border-top: 1px solid var(--color-border);">
+                        배치: ${check.batch_id} | 마지막 실행: ${lastRunDisplay || 'N/A'}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    } else {
+        // 카테고리가 없을 때 - 기본 카테고리(TV, HHP)를 표시
+        const defaultCategories = ['TV', 'HHP'];
+        categoriesHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${scheduleHeader}
+                <div class="sentiment-two-column show no-side-padding">
+                    ${defaultCategories.map(catName => {
+                        return `
+                            <div class="sentiment-column">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${catName}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>
+                                    </div>
+                                </div>
+                                <div class="sentiment-retailer-list">
+                                    <div class="sentiment-retailer-item pending">
+                                        <span class="sentiment-retailer-name">키워드</span>
+                                        <div class="sentiment-retailer-stats">
+                                            <span class="sentiment-retailer-count">0/0</span>
+                                            <span class="sentiment-retailer-rate pending">0%</span>
+                                            <span class="status-badge pending"><span class="status-dot"></span>대기중</span>
+                                        </div>
+                                    </div>
+                                    <div class="sentiment-retailer-item pending">
+                                        <span class="sentiment-retailer-name">수집량</span>
+                                        <div class="sentiment-retailer-stats">
+                                            <span class="sentiment-retailer-count large">0</span>
+                                            <span class="status-badge pending"><span class="status-dot"></span>대기중</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // 분석률 또는 분석대상일 아님 표시 - 키워드 기준 (100% 아니면 심각)
+    const statsHtml = isTargetDate
+        ? `
+            <div class="check-stat">
+                <div class="value ${kwComboRate >= 100 ? 'ok' : 'critical'}">${kwComboRate}%</div>
+                <div class="label">키워드</div>
+            </div>
+            ${getStatusBadge(kwComboRate >= 100 ? 'OK' : 'CRITICAL')}
+        `
+        : `
+            <span class="status-badge pending">
+                <span class="status-dot"></span>
+                분석대상일 아님
+            </span>
+        `;
+
+    return `
+        <div class="check-item">
+            <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
+                <div class="check-info">
+                    <div class="check-name">
+                        <span class="toggle-icon">▶</span>
+                        ${esc(check.name)}
+                    </div>
+                    <div class="check-description">${esc(check.description)}</div>
+                </div>
+                <div class="check-criteria">
+                    <span class="criteria-item ok">정상: 100%</span>
+                    <span class="criteria-item critical">심각: 100% 미만</span>
+                </div>
+                <div class="check-stats">
+                    ${statsHtml}
+                </div>
+            </div>
+            ${categoriesHtml}
+        </div>
+    `;
+}
+
+function renderMarketCompetitorEventCheck(check, checkIdx) {
+    const hasCategories = check.categories && check.categories.length > 0;
+    const statusClass = getStatusClass(check.status);
+    const isTargetDate = check.is_target_date;
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // 월 정보
+    const monthName = check.month?.name || '';
+    const firstMonday = check.month?.first_monday || '';
+    const nextFirstMonday = check.month?.next_first_monday || '';
+    const monthDisplay = monthName && firstMonday
+        ? `${monthName} 대상 (첫번째 월요일: ${firstMonday})`
+        : '';
+
+    // 수집 시간 정보
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '';
+    const krTime = check.kr_time || '';
+
+    // 마지막 실행 시간 포맷팅
+    let lastRunDisplay = '';
+    if (check.last_run) {
+        const lastRunDate = new Date(check.last_run);
+        lastRunDisplay = lastRunDate.toLocaleString('ko-KR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // 스케줄 헤더 (한 섹션에 통합)
+    const detailLink = `<a href="${CHECK_TYPE_URL.market_competitor_event}" class="check-detail-link" onclick="event.stopPropagation()">→ 상세보기</a>`;
+    let scheduleHeader = '';
+    if (isTargetDate && usTime) {
+        // 분석대상일: 수집 시간 + 월 정보
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">수집 시간</span>
+                        <span class="time-slot-time">
+                            <span class="utc">US(NY) ${usTime}</span>
+                            <span class="kst">${kstLabel} ${krTime}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">${monthDisplay}</span>
+                    </div>
+                    ${detailLink}
+                </div>
+            </div>
+        `;
+    } else {
+        // 분석대상일 아님: 다음 분석일 + 월 정보
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">다음 분석일</span>
+                        <span class="time-slot-time">
+                            <span class="kst">${nextFirstMonday}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">${monthDisplay}</span>
+                    </div>
+                    ${detailLink}
+                </div>
+            </div>
+        `;
+    }
+
+    // TV, HHP 순서로 정렬
+    const sortedCategories = hasCategories ? L1.sortCategories(check.categories, 'category') : [];
+
+    let categoriesHtml = '';
+    if (hasCategories) {
+        categoriesHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${scheduleHeader}
+                <div class="sentiment-two-column show no-side-padding no-bg">
+                    ${sortedCategories.map(cat => {
+                        // 분석대상일이 아니면 pending 상태로 표시
+                        const displayStatus = isTargetDate ? cat.status : 'PENDING';
+                        const catStatusClass = getStatusClass(displayStatus);
+                        const statusBadgeHtml = isTargetDate ? getStatusBadge(cat.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
+                        return `
+                            <div class="sentiment-column ${catStatusClass}"
+                                 style="cursor: pointer;"
+                                 title="${cat.category} 이벤트 분석">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${cat.category}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.expected.toLocaleString()}</span>
+                                        <span class="sentiment-column-rate ${catStatusClass}">${cat.rate}%</span>
+                                        ${statusBadgeHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                ${check.batch_id ? `
+                    <div style="padding: 8px 16px; font-size: 12px; color: var(--color-text-muted); border-top: 1px solid var(--color-border);">
+                        배치: ${check.batch_id} | 마지막 실행: ${lastRunDisplay || 'N/A'}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    } else {
+        // 카테고리가 없을 때 - 기본 카테고리(TV, HHP)를 표시
+        const defaultCategories = ['TV', 'HHP'];
+        categoriesHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${scheduleHeader}
+                <div class="sentiment-two-column show no-side-padding no-bg">
+                    ${defaultCategories.map(catName => {
+                        return `
+                            <div class="sentiment-column pending"
+                                 style="cursor: pointer;"
+                                 title="${catName} 이벤트 분석">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${catName}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">0/0</span>
+                                        <span class="sentiment-column-rate pending">0%</span>
+                                        <span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // 전체 수집률 계산
+    const totalCollected = sortedCategories.reduce((sum, c) => sum + (c.collected || 0), 0);
+    const totalExpected = sortedCategories.reduce((sum, c) => sum + (c.expected || 0), 0);
+    const totalRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
+
+    // 분석률 또는 분석대상일 아님 표시 (100% 아니면 심각)
+    const statsHtml = isTargetDate
+        ? `
+            <div class="check-stat">
+                <div class="value ${totalRate >= 100 ? 'ok' : 'critical'}">${totalRate}%</div>
+                <div class="label">수집률</div>
+            </div>
+            ${getStatusBadge(totalRate >= 100 ? 'OK' : 'CRITICAL')}
+        `
+        : `
+            <span class="status-badge pending">
+                <span class="status-dot"></span>
+                분석대상일 아님
+            </span>
+        `;
+
+    return `
+        <div class="check-item">
+            <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
+                <div class="check-info">
+                    <div class="check-name">
+                        <span class="toggle-icon">▶</span>
+                        ${esc(check.name)}
+                    </div>
+                    <div class="check-description">${esc(check.description)}</div>
+                </div>
+                <div class="check-criteria">
+                    <span class="criteria-item ok">정상: 100%</span>
+                    <span class="criteria-item critical">심각: 100% 미만</span>
+                </div>
+                <div class="check-stats">
+                    ${statsHtml}
+                </div>
+            </div>
+            ${categoriesHtml}
+        </div>
+    `;
+}
+
+function renderMarketDemandCheck(check, checkIdx) {
+    const statusClass = getStatusClass(check.status);
+    const hasCategories = check.categories && check.categories.length > 0;
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 23:00 KST 2026-01-06 13:00
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '23:00';
+    const krTime = check.kr_time || '';
+
+    // 수집 시간 헤더 (Market Trend와 동일)
+    const timeHeader = `
+        <div class="time-slot-item" style="margin-bottom: 16px;">
+            <div class="time-slot-header" style="cursor: default;">
+                <div class="time-slot-info">
+                    <span class="time-slot-name">수집 시간</span>
+                    <span class="time-slot-time">
+                        <span class="utc">US(NY) ${usTime}</span>
+                        <span class="kst">${kstLabel} ${krTime}</span>
+                    </span>
+                </div>
+                <a href="${CHECK_TYPE_URL.market_demand}" class="check-detail-link" onclick="event.stopPropagation()">→ 상세보기</a>
+            </div>
+        </div>
+    `;
+
+    let contentHtml = '';
+    const isPending = check.status === 'PENDING';
+    const isCollecting = check.status === 'COLLECTING';
+
+    if (hasCategories) {
+        // TV, HHP 순서로 정렬
+        const sortedCategories = L1.sortCategories(check.categories, 'category');
+
+        contentHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${timeHeader}
+                <div class="sentiment-two-column show no-side-padding no-bg">
+                    ${sortedCategories.map((cat, catIdx) => {
+                        const catStatusClass = getStatusClass(cat.status);
+                        const missingCount = cat.target - cat.collected;
+                        return `
+                            <div class="sentiment-column ${catStatusClass}">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${cat.category}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">${cat.collected.toLocaleString()}/${cat.target.toLocaleString()}</span>
+                                        <span class="sentiment-column-rate ${catStatusClass}">${cat.rate}%</span>
+                                        ${getStatusBadge(cat.status)}
+                                    </div>
+                                </div>
+                                ${missingCount > 0 ? `
+                                <div class="sentiment-column-actions" style="padding: 8px 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+                                    <button class="btn-missing-keywords" onclick="event.stopPropagation(); openDemandMissingModal('${cat.category}');" style="font-size: 12px; padding: 4px 8px; background: rgba(255,100,100,0.2); border: 1px solid rgba(255,100,100,0.5); color: #ff6b6b; border-radius: 4px; cursor: pointer;">
+                                        부족 키워드 보기 (${missingCount}건)
+                                    </button>
+                                </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="check-item">
+            <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
+                <div class="check-info">
+                    <div class="check-name">
+                        ${hasCategories ? '<span class="toggle-icon">▶</span>' : ''}
+                        ${esc(check.name)}
+                    </div>
+                    <div class="check-description">${esc(check.description)}</div>
+                </div>
+                <div class="check-criteria">
+                    <span class="criteria-item ok">정상: 100%</span>
+                    <span class="criteria-item critical">심각: 100% 미만</span>
+                </div>
+                <div class="check-stats">
+                    <div class="check-stat">
+                        <div class="value ${statusClass}">${check.rate || 0}%</div>
+                        <div class="label">수집률</div>
+                    </div>
+                    ${getStatusBadge(check.status)}
+                </div>
+            </div>
+            ${contentHtml}
+        </div>
+    `;
+}
+
+function renderMarketPromotionCheck(check, checkIdx) {
+    const hasRetailers = check.retailers && check.retailers.length > 0;
+    const statusClass = getStatusClass(check.status);
+    const isTargetDate = check.is_target_date;
+    const isDst = check.is_dst || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+
+    // US(NY) 시간과 KST 날짜+시간 형식: US(NY) 18:00 KST 2026-01-05 08:00
+    const usTime = check.us_time ? check.us_time.split(' ')[1] : '18:00';
+    const krTime = check.kr_time || '';
+
+    // 수집률 표시
+    const rateDisplay = `${check.rate || 0}%`;
+
+    // 다음 분석일 정보
+    const nextTargetDate = check.next_target_date || '';
+
+    // 스케줄 헤더 (Market Competitor Event와 동일한 스타일)
+    const detailLink = `<a href="${CHECK_TYPE_URL.market_promotion}" class="check-detail-link" onclick="event.stopPropagation()">→ 상세보기</a>`;
+    let scheduleHeader = '';
+    if (isTargetDate) {
+        // 분석대상일: 수집 시간 표시
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">수집 시간</span>
+                        <span class="time-slot-time">
+                            <span class="utc">US(NY) ${usTime}</span>
+                            <span class="kst">${kstLabel} ${krTime}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">(매주 월요일)</span>
+                    </div>
+                    ${detailLink}
+                </div>
+            </div>
+        `;
+    } else {
+        // 분석대상일 아님: 다음 분석일 표시
+        scheduleHeader = `
+            <div class="time-slot-item" style="margin-bottom: 16px;">
+                <div class="time-slot-header" style="cursor: default;">
+                    <div class="time-slot-info">
+                        <span class="time-slot-name">다음 분석일</span>
+                        <span class="time-slot-time">
+                            <span class="kst">${nextTargetDate}</span>
+                        </span>
+                        <span style="margin-left: 12px; font-size: 12px; color: var(--text-secondary);">(매주 월요일)</span>
+                    </div>
+                    ${detailLink}
+                </div>
+            </div>
+        `;
+    }
+
+    let contentHtml = '';
+    const isPending = check.status === 'PENDING';
+    const isCollecting = check.status === 'COLLECTING';
+
+    if (hasRetailers) {
+        // retailer가 있으면 항상 카드 표시 (분석대상일 여부와 관계없이)
+        contentHtml = `
+            <div class="time-slots-container" id="time-slots-${checkIdx}">
+                ${scheduleHeader}
+                <div class="sentiment-two-column show no-side-padding no-bg">
+                    ${check.retailers.map(r => {
+                        // 분석대상일이 아니면 pending으로 표시
+                        const displayStatus = isTargetDate ? r.status : 'PENDING';
+                        const retailerStatusClass = getStatusClass(displayStatus);
+                        // 분석대상일이 아니면 "분석대상일 아님" 배지 표시
+                        const statusBadgeHtml = isTargetDate ? getStatusBadge(r.status) : '<span class="status-badge pending"><span class="status-dot"></span>분석대상일 아님</span>';
+                        return `
+                            <div class="sentiment-column ${retailerStatusClass}">
+                                <div class="sentiment-column-header">
+                                    <span class="sentiment-column-title">${r.retailer}</span>
+                                    <div class="sentiment-column-stats">
+                                        <span class="sentiment-column-count">${r.collected.toLocaleString()}/${r.expected.toLocaleString()}</span>
+                                        <span class="sentiment-column-rate ${retailerStatusClass}">${r.rate || 0}%</span>
+                                        ${statusBadgeHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // 분석률 또는 분석대상일 아님 표시
+    let statsHtml;
+    if (!isTargetDate) {
+        // 분석대상일 아님
+        statsHtml = `
+            <span class="status-badge pending">
+                <span class="status-dot"></span>
+                분석대상일 아님
+            </span>
+        `;
+    } else if (isPending) {
+        // 분석대상일이지만 수집 시작 전
+        statsHtml = `
+            <span class="status-badge pending">
+                <span class="status-dot"></span>
+                대기중
+            </span>
+        `;
+    } else {
+        // 수집 중이거나 완료
+        statsHtml = `
+            <div class="check-stat">
+                <div class="value ${statusClass}">${rateDisplay}</div>
+                <div class="label">수집률</div>
+            </div>
+            ${getStatusBadge(check.status)}
+        `;
+    }
+
+    return `
+        <div class="check-item">
+            <div class="check-main" onclick="toggleTimeSlots(this, ${checkIdx})">
+                <div class="check-info">
+                    <div class="check-name">
+                        <span class="toggle-icon">▶</span>
+                        ${esc(check.name)}
+                    </div>
+                    <div class="check-description">${esc(check.description)}</div>
+                </div>
+                <div class="check-criteria">
+                    <span class="criteria-item ok">정상: 100%</span>
+                    <span class="criteria-item critical">심각: 100% 미만</span>
+                </div>
+                <div class="check-stats">
+                    ${statsHtml}
+                </div>
+            </div>
+            ${contentHtml}
+        </div>
+    `;
+}
+
+function loadAllData() {
+    loadStats();
+}
+
+// 수요증감율 부족 키워드 모달
+var demandMissingDataState = {
+    category: 'all',
+    data: []
+};
+
+function openDemandMissingModal(category) {
+    var currentDate = getSelectedDate();
+    demandMissingDataState.category = category;
+
+    AppModal.setTitle('demandMissing', '수요증감율 부족 키워드 - ' + category);
+    AppModal.setBody('demandMissing',
+        '<div class="raw-modal-header-sub">' +
+            '<div class="raw-data-modal-subtitle" id="demandMissingModalSubtitle">' + currentDate + '</div>' +
+            '<div class="raw-modal-actions"></div>' +
+        '</div>' +
+        '<div class="raw-data-table-wrapper" style="padding: 0 20px 20px;" id="demandMissingTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>'
+    );
+    AppModal.open('demandMissing');
+
+    loadDemandMissingData();
+}
+
+function closeDemandMissingModal() {
+    AppModal.close('demandMissing');
+}
+
+function loadDemandMissingData() {
+    var wrapperEl = document.getElementById('demandMissingTableWrapper');
+    var currentDate = getSelectedDate();
+
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+
+    var url = '/dx/layer1/market-demand/api/missing/?category=' + encodeURIComponent(demandMissingDataState.category) +
+              '&date=' + encodeURIComponent(currentDate);
+
+    fetch(url)
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+            if (data.error) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(data.error) + '</div>';
+                return;
+            }
+
+            demandMissingDataState.data = data.missing_keywords || [];
+
+            // 요약 정보 표시
+            var summaryHtml = '';
+            if (data.summary) {
+                var summaryParts = [];
+                for (var cat in data.summary) {
+                    var s = data.summary[cat];
+                    summaryParts.push(cat + ': ' + s.missing + '/' + s.total + '건 부족');
+                }
+                summaryHtml = summaryParts.length > 0 ? ' (' + summaryParts.join(', ') + ')' : '';
+            }
+            if (demandMissingDataState.data.length === 0) {
+                wrapperEl.innerHTML = '<div class="raw-data-empty">부족한 키워드가 없습니다</div>';
+                return;
+            }
+
+            demandMissingDataState.summaryHtml = summaryHtml;
+            renderDemandMissingTable();
+        })
+        .catch(function(error) {
+            wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(error.message) + '</div>';
+        });
+}
+
+function renderDemandMissingTable() {
+    var wrapperEl = document.getElementById('demandMissingTableWrapper');
+    var summaryHtml = demandMissingDataState.summaryHtml || '';
+    wrapperEl.innerHTML = '';
+
+    var table = new CommonTable(wrapperEl, {
+        columns: [
+            { key: '_no', label: 'No', width: 50 },
+            { key: 'category', label: '카테고리', width: 80 },
+            { key: 'product_name', label: '제품명' },
+            { key: 'event_name', label: '이벤트명' },
+            { key: 'event_date', label: '이벤트일자', width: 120 }
+        ],
+        showTotalCount: true,
+        countFormat: function(count) {
+            return '총 <strong>' + count.toLocaleString() + '</strong>건 부족' + summaryHtml;
+        }
+    });
+    table.render();
+    table.renderBody(demandMissingDataState.data, function(item, idx) {
+        return '<tr>' +
+            '<td style="text-align:center;">' + (idx + 1) + '</td>' +
+            '<td>' + esc(item.category || '') + '</td>' +
+            '<td>' + esc(item.product_name || '') + '</td>' +
+            '<td>' + esc(item.event_name || '') + '</td>' +
+            '<td>' + esc(item.event_date || '') + '</td>' +
+            '</tr>';
+    });
+}
+
+
+// 백업 실행
+function runBackup() {
+    var btn = document.getElementById('btn-backup');
+    var targetDate = getSelectedDate();
+    btn.disabled = true;
+    btn.textContent = '확인 중...';
+
+    // 1. 먼저 백업 대상 건수 조회 (GET)
+    fetch('/dx/layer1/retail/api/backup/?date=' + targetDate)
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            btn.disabled = false;
+            btn.textContent = '백업 실행';
+
+            if (!res.success) {
+                showToast('건수 조회 실패: ' + res.error, 'error');
+                return;
+            }
+
+            // 2. 건수 표시 및 확인 팝업
+            var msg = targetDate + ' 수집 데이터 백업\nTV: ' + res.tv_count + '건, HHP: ' + res.hhp_count + '건\n백업을 진행하시겠습니까?';
+            showConfirm(msg).then(function(confirmed) {
+                if (!confirmed) return;
+
+                // 3. 백업 실행 (POST)
+                btn.disabled = true;
+                btn.textContent = '백업 중...';
+
+                fetch('/dx/layer1/retail/api/backup/?date=' + targetDate, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(result) {
+                    btn.disabled = false;
+                    btn.textContent = '백업 실행';
+
+                    if (result.success) {
+                        showToast(result.message, 'success');
+                    } else {
+                        showToast('백업 실패: ' + result.error, 'error');
+                    }
+                })
+                .catch(function(err) {
+                    btn.disabled = false;
+                    btn.textContent = '백업 실행';
+                    showToast('백업 오류: ' + err, 'error');
+                });
+            });
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = '백업 실행';
+            showToast('건수 조회 오류: ' + err, 'error');
+        });
+}
+
+
+
+L1.initLayer1Page({
+    modals: [{ name: 'demandMissing', style: 'extra-wide' }],
+    filterBarOptions: {
+        right: [{ type: 'button', label: '백업 실행', style: 'save', onClick: function() { runBackup(); }, id: 'btn-backup' }]
+    }
+});

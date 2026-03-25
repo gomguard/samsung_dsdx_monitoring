@@ -10,6 +10,11 @@ def get_layer1_stats(cursor, target_date, now):
     Market 수요증감율 대시보드 통계.
     Returns {'check': {...}, 'failed_items': []}
     """
+    is_monday = target_date.weekday() == 0  # 0=월
+    days_until_monday = (7 - target_date.weekday()) % 7
+    if days_until_monday == 0:
+        days_until_monday = 7
+    next_monday = target_date + timedelta(days=days_until_monday) if not is_monday else None
     next_day = target_date + timedelta(days=1)
 
     # DB에서 Market Demand 스케줄 정보 가져오기 (KST 변환 포함)
@@ -153,7 +158,9 @@ def get_layer1_stats(cursor, target_date, now):
         'us_time': f'{target_date} {market_demand_info["us_start_hour"]:02d}:00',
         'kr_time': market_demand_info['kst_start']['full_display'],
         'kr_time_end': market_demand_info['kst_end']['full_display'],
-        'is_dst': market_demand_info['kst_start']['is_dst']
+        'is_dst': market_demand_info['kst_start']['is_dst'],
+        'is_target_date': is_monday,
+        'next_target_date': str(next_monday) if next_monday else None
     }
 
     return {'check': check, 'failed_items': []}

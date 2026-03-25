@@ -67,53 +67,7 @@
             return;
         }
 
-        var rows = [];
-        var no = 1;
-
-        checks.forEach(function(check) {
-            var checkType = check.check_type;
-            var category = CATEGORY_MAP[checkType] || '';
-
-            if (checkType === 'retail' && check.categories) {
-                check.categories.forEach(function(cat) {
-                    var key = cat.name === 'TV' ? 'retail_tv' : 'retail_hhp';
-                    rows.push({
-                        no: no++,
-                        category: 'Retail',
-                        name: '거래선 ' + cat.name + ' 제품 정보 / 감성점수',
-                        table_name: TABLE_NAME_MAP[key] || '',
-                        expected: 1500,
-                        actual: cat.total || 0
-                    });
-                });
-            } else if (checkType === 'sentiment' || checkType === 'market_competitor') {
-                return;
-            } else if (check.is_target_date === false) {
-                return;
-            } else if (checkType === 'youtube') {
-                var videoTotal = 0;
-                if (check.categories) {
-                    check.categories.forEach(function(cat) { videoTotal += (cat.video_count || 0); });
-                }
-                rows.push({
-                    no: no++,
-                    category: category,
-                    name: NAME_MAP[checkType] || check.name || checkType,
-                    table_name: TABLE_NAME_MAP[checkType] || '',
-                    expected: '-',
-                    actual: videoTotal
-                });
-            } else {
-                rows.push({
-                    no: no++,
-                    category: category,
-                    name: NAME_MAP[checkType] || check.name || checkType,
-                    table_name: TABLE_NAME_MAP[checkType] || '',
-                    expected: check.expected || '-',
-                    actual: check.actual || 0
-                });
-            }
-        });
+        var rows = buildDailyRows(data);
 
         var totalExpected = 0;
         var totalActual = 0;
@@ -256,6 +210,7 @@
         var no = 1;
         checks.forEach(function(check) {
             var checkType = check.check_type;
+
             if (checkType === 'retail' && check.categories) {
                 check.categories.forEach(function(cat) {
                     var key = cat.name === 'TV' ? 'retail_tv' : 'retail_hhp';
