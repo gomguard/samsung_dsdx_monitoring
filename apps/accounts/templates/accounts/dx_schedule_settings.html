@@ -1,5 +1,4 @@
 {% extends 'accounts/admin_base.html' %}
-{% load static %}
 
 {% block title %}DX 수집 스케줄 설정 - 관리자{% endblock %}
 
@@ -24,23 +23,13 @@
         margin-top: 4px;
     }
 
-    .btn-add {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 10px 20px;
-        background: #7c3aed;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: background 0.2s;
+    .content-card {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
-
-    .btn-add:hover { background: #6d28d9; }
-    .btn-add svg { width: 18px; height: 18px; }
 
     /* 필터 */
     .filter-section {
@@ -62,222 +51,7 @@
     .filter-select { min-width: 120px; }
     .filter-search { min-width: 200px; }
 
-    /* 통계 */
-    .stats-row {
-        display: flex;
-        gap: 16px;
-        margin-bottom: 20px;
-    }
-
-    .stat-chip {
-        padding: 6px 14px;
-        background: var(--bg-secondary);
-        border-radius: 20px;
-        font-size: 13px;
-        color: var(--text-secondary);
-    }
-
-    .stat-chip strong {
-        color: var(--text-primary);
-        margin-left: 4px;
-    }
-
-    /* 테이블 */
-    .table-wrapper {
-        overflow-x: auto;
-    }
-
-    .rc-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-        table-layout: fixed;
-    }
-
-    .rc-table thead th {
-        background: var(--bg-secondary);
-        padding: 10px 12px;
-        text-align: left;
-        font-weight: 600;
-        color: var(--text-secondary);
-        border-bottom: 2px solid var(--border-color);
-        border-right: 1px solid var(--border-color);
-        white-space: nowrap;
-    }
-
-    .rc-table thead th:last-child {
-        border-right: none;
-    }
-
-    /* 컬럼 너비 */
-    .rc-table .col-no { width: 45px; text-align: center; }
-    .rc-table .col-check-type { width: 120px; }
-    .rc-table .col-name { width: 180px; }
-    .rc-table .col-category { width: 70px; }
-    .rc-table .col-us-hour { width: 90px; }
-    .rc-table .col-duration { width: 80px; }
-    .rc-table .col-status { width: 65px; }
-    .rc-table .col-updater { width: 80px; }
-    .rc-table .col-date { width: 130px; }
-    .rc-table .col-actions { width: 140px; }
-
-    .rc-table tbody td {
-        padding: 8px 12px;
-        border-bottom: 1px solid var(--border-color);
-        border-right: 1px solid var(--border-color);
-        color: var(--text-primary);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .rc-table tbody td:last-child {
-        border-right: none;
-    }
-
-    .rc-table tbody tr:hover {
-        background: rgba(139, 92, 246, 0.03);
-    }
-
-    .rc-table tbody tr.inactive {
-        opacity: 0.5;
-    }
-
-    /* 뱃지 */
-    .badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: 500;
-    }
-    .badge-active { background: #dcfce7; color: #166534; }
-    .badge-inactive { background: #fee2e2; color: #991b1b; }
-
-    /* 액션 버튼 */
-    .action-buttons {
-        display: flex;
-        gap: 4px;
-    }
-
-    .btn-action {
-        padding: 4px 10px;
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        background: var(--bg-primary);
-        color: var(--text-secondary);
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: 500;
-        transition: all 0.2s;
-        white-space: nowrap;
-    }
-
-    .btn-action:hover { background: var(--bg-secondary); }
-    .btn-action.btn-edit:hover { color: #3b82f6; border-color: #3b82f6; }
-    .btn-action.btn-delete:hover { color: #ef4444; border-color: #ef4444; }
-
-    /* 모달 */
-    .modal-overlay {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-    }
-
-    .modal-overlay.show { display: flex; }
-
-    .modal {
-        background: var(--bg-primary);
-        border-radius: 12px;
-        padding: 28px;
-        width: 560px;
-        max-width: 90vw;
-        max-height: 80vh;
-        overflow-y: auto;
-    }
-
-    .modal-title {
-        font-size: 18px;
-        font-weight: 600;
-        margin-bottom: 20px;
-        color: var(--text-primary);
-    }
-
-    .form-group { margin-bottom: 16px; }
-
-    .form-group label {
-        display: block;
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--text-secondary);
-        margin-bottom: 4px;
-    }
-
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-        width: 100%;
-        padding: 8px 12px;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        font-size: 14px;
-        background: var(--bg-primary);
-        color: var(--text-primary);
-        box-sizing: border-box;
-    }
-
-    .form-group textarea {
-        resize: vertical;
-        font-family: inherit;
-    }
-
-    .form-group-inline {
-        display: flex;
-        gap: 16px;
-    }
-
-    .form-group-inline .form-group { flex: 1; }
-
-    .form-checkbox {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin-bottom: 12px;
-    }
-
-    .form-checkbox input[type="checkbox"] { width: 16px; height: 16px; }
-
-    .form-checkbox label {
-        font-size: 14px;
-        color: var(--text-primary);
-        margin-bottom: 0;
-    }
-
-    .modal-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 8px;
-        margin-top: 24px;
-    }
-
-    .btn-modal {
-        padding: 8px 20px;
-        border-radius: 6px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        border: none;
-        transition: all 0.2s;
-    }
-
-    .btn-modal-primary { background: #7c3aed; color: white; }
-    .btn-modal-primary:hover { background: #6d28d9; }
-    .btn-modal-cancel { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-color); }
-    .btn-modal-cancel:hover { background: var(--bg-primary); }
+    .empty-msg { text-align: center; padding: 40px; color: var(--text-secondary); font-size: 13px; }
 </style>
 {% endblock %}
 
@@ -288,400 +62,249 @@
             <h1 class="admin-title">수집 스케줄 설정</h1>
             <p class="admin-title-sub">DX 모니터링 수집 스케줄을 관리합니다</p>
         </div>
-        <button class="btn-add" onclick="openAddModal()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-            </svg>
-            스케줄 추가
-        </button>
     </div>
 
-    <!-- 통계 -->
-    <div class="stats-row">
-        <span class="stat-chip">전체<strong id="statTotal">{{ rows|length }}</strong></span>
-        <span class="stat-chip">활성<strong id="statActive">0</strong></span>
-    </div>
-
-    <!-- 필터 -->
-    <div class="filter-section">
-        <select class="filter-select" id="filterCheckType" onchange="applyFilter()">
-            <option value="">전체 타입</option>
-        </select>
-        <select class="filter-select" id="filterCategory" onchange="applyFilter()">
-            <option value="">전체 카테고리</option>
-        </select>
-        <select class="filter-select" id="filterActive" onchange="applyFilter()">
-            <option value="">전체 상태</option>
-            <option value="true">활성</option>
-            <option value="false">비활성</option>
-        </select>
-        <input class="filter-search" id="filterSearch" placeholder="이름/설명 검색..." oninput="applyFilter()">
-    </div>
-
-    <!-- 테이블 -->
-    <div class="table-wrapper">
-        <table class="rc-table">
-            <thead>
-                <tr>
-                    <th class="col-no">No</th>
-                    <th class="col-check-type">체크타입</th>
-                    <th class="col-name">이름</th>
-                    <th class="col-category">카테고리</th>
-                    <th class="col-us-hour">US시작(h)</th>
-                    <th class="col-duration">수집시간(m)</th>
-                    <th class="col-status">상태</th>
-                    <th class="col-updater">수정자</th>
-                    <th class="col-date">수정일</th>
-                    <th class="col-actions">관리</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody">
-                {% for row in rows %}
-                <tr ondblclick="openEditModal(this)" style="cursor:pointer"
-                    data-id="{{ row.id }}"
-                    data-check-type="{{ row.check_type }}"
-                    data-name="{{ row.name }}"
-                    data-category="{{ row.category|default:'' }}"
-                    data-us-start-hour="{% if row.us_start_hour is not None %}{{ row.us_start_hour }}{% endif %}"
-                    data-duration="{{ row.collection_duration_min|default:'' }}"
-                    data-schedule-type="{{ row.schedule_type|default:'' }}"
-                    data-description="{{ row.description|default:'' }}"
-                    data-active="{{ row.is_active }}"
-                    class="{% if not row.is_active %}inactive{% endif %}">
-                    <td class="col-no">{{ forloop.counter }}</td>
-                    <td class="col-check-type">{{ row.check_type }}</td>
-                    <td class="col-name"><strong>{{ row.name }}</strong></td>
-                    <td class="col-category">{{ row.category|default:'-'|upper }}</td>
-                    <td class="col-us-hour">{% if row.us_start_hour is not None %}{{ row.us_start_hour }}{% else %}-{% endif %}</td>
-                    <td class="col-duration">{{ row.collection_duration_min|default:'-' }}</td>
-                    <td class="col-status">
-                        <span class="badge {% if row.is_active %}badge-active{% else %}badge-inactive{% endif %}">
-                            {% if row.is_active %}활성{% else %}비활성{% endif %}
-                        </span>
-                    </td>
-                    <td class="col-updater">{{ row.updated_id|default:'-' }}</td>
-                    <td class="col-date">{% if row.updated_at %}{{ row.updated_at|date:"Y-m-d H:i" }}{% else %}-{% endif %}</td>
-                    <td class="col-actions">
-                        <div class="action-buttons">
-                            <button class="btn-action btn-edit" onclick="openEditModal(this.closest('tr'))">수정</button>
-                            <button class="btn-action btn-delete" onclick="deleteSchedule({{ row.id }})">삭제</button>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<!-- 추가/수정 모달 -->
-<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal">
-        <h2 class="modal-title" id="modalTitle">스케줄 추가</h2>
-        <input type="hidden" id="editId" value="">
-
-        <div class="form-group-inline">
-            <div class="form-group">
-                <label>체크타입 *</label>
-                <select id="formCheckType">
-                    <option value="retail">retail</option>
-                    <option value="sentiment">sentiment</option>
-                    <option value="youtube">youtube</option>
-                    <option value="market_trend">market_trend</option>
-                    <option value="market_demand">market_demand</option>
-                    <option value="market_promotion">market_promotion</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>카테고리</label>
-                <select id="formCategory">
-                    <option value="">선택</option>
-                    <option value="TV">TV</option>
-                    <option value="HHP">HHP</option>
-                    <option value="ALL">ALL</option>
-                </select>
-            </div>
+    <div class="content-card">
+        <!-- 필터 -->
+        <div class="filter-section">
+            <select class="filter-select" id="filterCheckType">
+                <option value="">전체 타입</option>
+            </select>
+            <select class="filter-select" id="filterCategory">
+                <option value="">전체 카테고리</option>
+            </select>
+            <select class="filter-select" id="filterActive">
+                <option value="">전체 상태</option>
+                <option value="true">활성</option>
+                <option value="false">비활성</option>
+            </select>
+            <select class="filter-select" id="filterSearchField">
+                <option value="">검색 항목</option>
+                <option value="check_type">체크타입</option>
+                <option value="check_name">체크명</option>
+                <option value="check_group">그룹</option>
+                <option value="retailer">리테일러</option>
+                <option value="country">국가</option>
+                <option value="view_table_name">뷰테이블</option>
+                <option value="description">설명</option>
+            </select>
+            <input class="filter-search" id="filterSearch" placeholder="검색어 입력...">
+            <button class="filter-search-btn" onclick="applyFilter()" style="padding:8px 16px;border:1px solid var(--page-color);background:var(--page-color);color:white;border-radius:6px;font-size:13px;cursor:pointer;">조회</button>
+            <button onclick="resetFilter()" style="padding:8px 16px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-secondary);border-radius:6px;font-size:13px;cursor:pointer;">해제</button>
         </div>
 
-        <div class="form-group">
-            <label>이름 *</label>
-            <input type="text" id="formName" placeholder="예: TV 리테일 수집">
-        </div>
+        <div id="schedule-btn-bar"></div>
 
-        <div class="form-group-inline">
-            <div class="form-group">
-                <label>US 시작시간 (0-23)</label>
-                <input type="number" id="formUsStartHour" min="0" max="23" placeholder="예: 9">
-            </div>
-            <div class="form-group">
-                <label>수집시간 (분)</label>
-                <input type="number" id="formDuration" min="0" placeholder="예: 120">
-            </div>
-        </div>
-
-        <div class="form-group">
-            <label>스케줄타입</label>
-            <input type="text" id="formScheduleType" placeholder="예: daily">
-        </div>
-
-        <div class="form-group">
-            <label>설명</label>
-            <textarea id="formDescription" rows="2" placeholder="스케줄 설명"></textarea>
-        </div>
-
-        <div class="form-checkbox">
-            <input type="checkbox" id="formIsActive" checked>
-            <label for="formIsActive">활성</label>
-        </div>
-
-        <div class="modal-actions">
-            <button class="btn-modal btn-modal-cancel" onclick="closeModal()">취소</button>
-            <button class="btn-modal btn-modal-primary" onclick="saveSchedule()">저장</button>
-        </div>
+        <div id="schedule-table"></div>
     </div>
 </div>
 {% endblock %}
 
 {% block admin_js %}
 <script>
-// 필터 옵션 동적 생성
+var csrfToken = '{{ csrf_token }}';
+var allRows = {{ rows|safe }};
+var filteredRows = allRows.slice();
+var scheduleTable = null;
+
+// ===== ButtonBar =====
+new ButtonBar('#schedule-btn-bar', {
+    align: 'left',
+    buttons: [
+        { id: 'btnNew', label: '신규', icon: 'plus', style: 'primary', onClick: function() { window.location.href = '{% url "accounts:dx_schedule_settings_new" %}'; } },
+        { id: 'btnEdit', label: '수정', icon: 'edit', style: 'outline', onClick: function() { editSelected(); } },
+        { id: 'btnDelete', label: '삭제', icon: 'delete', style: 'danger', onClick: function() { deleteSelected(); } }
+    ]
+}).render();
+
+// ===== 유틸 =====
+function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function getCsrfToken() {
+    return document.cookie.split('; ').find(function(r) { return r.startsWith('csrftoken='); });
+}
+
+// ===== 필터 옵션 생성 =====
 (function() {
-    const types = new Set();
-    const categories = new Set();
-    document.querySelectorAll('#tableBody tr').forEach(r => {
-        if (r.dataset.checkType) types.add(r.dataset.checkType);
-        if (r.dataset.category) categories.add(r.dataset.category);
+    var types = {}, categories = {};
+    allRows.forEach(function(r) {
+        if (r.check_type) types[r.check_type] = true;
+        if (r.category) categories[r.category] = true;
     });
-    const selType = document.getElementById('filterCheckType');
-    [...types].sort().forEach(t => {
-        const opt = document.createElement('option');
-        opt.value = t;
-        opt.textContent = t;
+    var selType = document.getElementById('filterCheckType');
+    Object.keys(types).sort().forEach(function(t) {
+        var opt = document.createElement('option');
+        opt.value = t; opt.textContent = t;
         selType.appendChild(opt);
     });
-    const selCat = document.getElementById('filterCategory');
-    [...categories].sort().forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c;
-        opt.textContent = c;
+    var selCat = document.getElementById('filterCategory');
+    Object.keys(categories).sort().forEach(function(c) {
+        var opt = document.createElement('option');
+        opt.value = c; opt.textContent = c;
         selCat.appendChild(opt);
     });
 })();
 
-// 통계 업데이트
-function updateStats() {
-    const rows = document.querySelectorAll('#tableBody tr');
-    let total = rows.length, active = 0;
-    rows.forEach(r => {
-        if (r.dataset.active === 'True' || r.dataset.active === 'true') active++;
-    });
-    document.getElementById('statTotal').textContent = total;
-    document.getElementById('statActive').textContent = active;
-}
-
-// 필터
-function applyFilter() {
-    const ct = document.getElementById('filterCheckType').value;
-    const cat = document.getElementById('filterCategory').value;
-    const act = document.getElementById('filterActive').value;
-    const search = document.getElementById('filterSearch').value.toLowerCase();
-
-    document.querySelectorAll('#tableBody tr').forEach(row => {
-        let show = true;
-        if (ct && row.dataset.checkType !== ct) show = false;
-        if (cat && row.dataset.category !== cat) show = false;
-        if (act === 'true' && (row.dataset.active !== 'True' && row.dataset.active !== 'true')) show = false;
-        if (act === 'false' && (row.dataset.active === 'True' || row.dataset.active === 'true')) show = false;
-        if (search && !row.dataset.name.toLowerCase().includes(search)
-            && !(row.dataset.description || '').toLowerCase().includes(search)) show = false;
-        if (show) {
-            row.removeAttribute('data-filtered');
-        } else {
-            row.setAttribute('data-filtered', 'hidden');
-        }
-    });
-}
-
-// CSRF
-function getCsrfToken() {
-    return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
-}
-
-// ========== 모달 ==========
-let _originalData = null;
-
-function openAddModal() {
-    _originalData = null;
-    document.getElementById('modalTitle').textContent = '스케줄 추가';
-    document.getElementById('editId').value = '';
-    document.getElementById('formCheckType').value = 'retail';
-    document.getElementById('formName').value = '';
-    document.getElementById('formCategory').value = '';
-    document.getElementById('formUsStartHour').value = '';
-    document.getElementById('formDuration').value = '';
-    document.getElementById('formScheduleType').value = '';
-    document.getElementById('formDescription').value = '';
-    document.getElementById('formIsActive').checked = true;
-    document.getElementById('modalOverlay').classList.add('show');
-}
-
-function openEditModal(tr) {
-    const d = tr.dataset;
-    const isBoolTrue = v => v === 'True' || v === 'true';
-    document.getElementById('modalTitle').textContent = '스케줄 수정';
-    document.getElementById('editId').value = d.id;
-    document.getElementById('formCheckType').value = d.checkType;
-    document.getElementById('formName').value = d.name;
-    document.getElementById('formCategory').value = d.category || '';
-    document.getElementById('formUsStartHour').value = d.usStartHour || '';
-    document.getElementById('formDuration').value = d.duration || '';
-    document.getElementById('formScheduleType').value = d.scheduleType || '';
-    document.getElementById('formDescription').value = d.description || '';
-    document.getElementById('formIsActive').checked = isBoolTrue(d.active);
-    _originalData = {
-        check_type: d.checkType,
-        name: d.name,
-        category: d.category || '',
-        us_start_hour: d.usStartHour || '',
-        collection_duration_min: d.duration || '',
-        schedule_type: d.scheduleType || '',
-        description: d.description || '',
-        is_active: isBoolTrue(d.active),
-    };
-    document.getElementById('modalOverlay').classList.add('show');
-}
-
-function closeModal() {
-    document.getElementById('modalOverlay').classList.remove('show');
-}
-
-function saveSchedule() {
-    const editId = document.getElementById('editId').value;
-    const usHour = document.getElementById('formUsStartHour').value;
-    const dur = document.getElementById('formDuration').value;
-    const data = {
-        check_type: document.getElementById('formCheckType').value,
-        name: document.getElementById('formName').value.trim(),
-        category: document.getElementById('formCategory').value,
-        us_start_hour: usHour !== '' ? parseInt(usHour) : null,
-        collection_duration_min: dur !== '' ? parseInt(dur) : null,
-        schedule_type: document.getElementById('formScheduleType').value.trim(),
-        description: document.getElementById('formDescription').value.trim(),
-        is_active: document.getElementById('formIsActive').checked,
-    };
-
-    if (!data.check_type) { alert('체크타입을 선택하세요.'); return; }
-    if (!data.name) { alert('이름을 입력하세요.'); return; }
-
-    // 수정 모드: 변경사항 확인
-    if (editId && _originalData) {
-        const hasChange = Object.keys(data).some(k => {
-            if (k === 'is_active') return data[k] !== _originalData[k];
-            const cur = data[k] === null ? '' : String(data[k]);
-            const orig = _originalData[k] === null ? '' : String(_originalData[k]);
-            return cur !== orig;
-        });
-        if (!hasChange) {
-            showToast('변경된 데이터가 없습니다.', 'info');
-            return;
-        }
-    }
-
-    const url = editId
-        ? `/accounts/admin/dx-schedule-settings/${editId}/update/`
-        : '/accounts/admin/dx-schedule-settings/create/';
-
-    fetch(url, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    })
-    .then(r => {
-        if (!r.ok) return r.text().then(t => { throw new Error('서버 ' + r.status + ': ' + t.substring(0, 200)); });
-        return r.json();
-    })
-    .then(res => {
-        if (res.success) {
-            closeModal();
-            reloadWithFilter();
-        } else {
-            alert(res.error || '오류가 발생했습니다.');
-        }
-    })
-    .catch(err => alert('요청 오류: ' + err.message));
-}
-
-// 필터 상태를 유지하며 새로고침
-function reloadWithFilter() {
-    const params = new URLSearchParams();
-    const ct = document.getElementById('filterCheckType').value;
-    const cat = document.getElementById('filterCategory').value;
-    const act = document.getElementById('filterActive').value;
-    const search = document.getElementById('filterSearch').value;
-    if (ct) params.set('ct', ct);
-    if (cat) params.set('cat', cat);
-    if (act) params.set('act', act);
-    if (search) params.set('q', search);
-    if (pager && pager.getCurrentPage() > 1) params.set('page', pager.getCurrentPage());
-    const qs = params.toString();
-    location.href = location.pathname + (qs ? '?' + qs : '');
-}
-
-// 삭제
-async function deleteSchedule(id) {
-    if (!await showConfirm('정말 삭제하시겠습니까?')) return;
-    fetch(`/accounts/admin/dx-schedule-settings/${id}/delete/`, {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' }
-    })
-    .then(r => r.json())
-    .then(res => {
-        if (res.success) reloadWithFilter();
-        else showToast(res.error, 'error');
-    });
-}
-
-// URL 파라미터에서 필터 복원
+// ===== URL 파라미터 복원 =====
 (function() {
-    const params = new URLSearchParams(location.search);
+    var params = new URLSearchParams(location.search);
     if (params.get('ct')) document.getElementById('filterCheckType').value = params.get('ct');
     if (params.get('cat')) document.getElementById('filterCategory').value = params.get('cat');
     if (params.get('act')) document.getElementById('filterActive').value = params.get('act');
     if (params.get('q')) document.getElementById('filterSearch').value = params.get('q');
 })();
 
-// 초기화
-updateStats();
-enableColumnResize('.rc-table');
-const hasUrlParams = !!location.search;
-const pager = enablePagination('#tableBody', {
-    perPage: 25,
-    deferRender: hasUrlParams,
-    onRender: function(visibleRows, start) {
-        visibleRows.forEach((row, i) => {
-            const noCell = row.querySelector('.col-no');
-            if (noCell) noCell.textContent = i + 1;
-        });
+// ===== 필터 =====
+function applyFilter() {
+    var ct = document.getElementById('filterCheckType').value;
+    var cat = document.getElementById('filterCategory').value;
+    var act = document.getElementById('filterActive').value;
+    var search = document.getElementById('filterSearch').value.toLowerCase();
+
+    filteredRows = allRows.filter(function(row) {
+        if (ct && row.check_type !== ct) return false;
+        if (cat && row.category !== cat) return false;
+        if (act === 'true' && !row.is_active) return false;
+        if (act === 'false' && row.is_active) return false;
+        if (search) {
+            var field = document.getElementById('filterSearchField').value;
+            if (field) {
+                var val = (row[field] || '').toLowerCase();
+                if (val.indexOf(search) === -1) return false;
+            }
+        }
+        return true;
+    });
+
+    renderTable();
+}
+
+// ===== 테이블 렌더링 =====
+function renderTable() {
+    var container = document.getElementById('schedule-table');
+
+    if (!filteredRows || filteredRows.length === 0) {
+        container.innerHTML = '<p class="empty-msg">등록된 스케줄이 없습니다.</p>';
+        scheduleTable = null;
+        return;
     }
+
+    scheduleTable = new CommonTable(container, {
+        variant: 'detail',
+        columns: [
+            { key: 'no', label: 'NO', width: 40, align: 'center' },
+            { key: 'check_group', label: '그룹', width: 100 },
+            { key: 'check_type', label: '체크타입', width: 120 },
+            { key: 'check_name', label: '체크명', width: 150 },
+            { key: 'category', label: '카테고리', width: 70, align: 'center' },
+            { key: 'country', label: '국가', width: 60, align: 'center' },
+            { key: 'retailer', label: '리테일러', width: 100 },
+            { key: 'schedule_type', label: '스케줄', width: 80 },
+            { key: 'schedule_value', label: '스케줄값', width: 90 },
+            { key: 'us_start_hour', label: 'US시작(h)', width: 80, align: 'center' },
+            { key: 'expected_count', label: '예상건수', width: 70, align: 'center' },
+            { key: 'collection_duration_min', label: '수집시간(m)', width: 80, align: 'center' },
+            { key: 'view_table_name', label: '뷰테이블', width: 140 },
+            { key: 'is_active', label: '상태', width: 65, align: 'center' },
+            { key: 'updated_id', label: '수정자', width: 80 },
+            { key: 'updated_at', label: '수정일', width: 120 }
+        ],
+        selectable: true,
+        vlines: true,
+        showTotalCount: true
+    });
+    scheduleTable.render();
+    scheduleTable.renderBody(filteredRows, function(row, idx) {
+        var badge = row.is_active
+            ? '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:500;background:#dcfce7;color:#166534;">활성</span>'
+            : '<span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:500;background:#fee2e2;color:#991b1b;">비활성</span>';
+        var dateStr = row.updated_at ? row.updated_at.substring(0, 16).replace('T', ' ') : '-';
+        var trStyle = row.is_active ? '' : ' style="opacity:0.5;"';
+        return '<tr' + trStyle + '>'
+            + '<td style="text-align:center;">' + (idx + 1) + '</td>'
+            + '<td>' + esc(row.check_group || '-') + '</td>'
+            + '<td>' + esc(row.check_type || '-') + '</td>'
+            + '<td><strong>' + esc(row.check_name || '-') + '</strong></td>'
+            + '<td style="text-align:center;">' + esc((row.category || '-').toUpperCase()) + '</td>'
+            + '<td style="text-align:center;">' + esc(row.country || '-') + '</td>'
+            + '<td>' + esc(row.retailer || '-') + '</td>'
+            + '<td>' + esc(row.schedule_type || '-') + '</td>'
+            + '<td>' + esc(row.schedule_value || '-') + '</td>'
+            + '<td style="text-align:center;">' + (row.us_start_hour !== null && row.us_start_hour !== undefined ? row.us_start_hour : '-') + '</td>'
+            + '<td style="text-align:center;">' + (row.expected_count !== null && row.expected_count !== undefined ? row.expected_count : '-') + '</td>'
+            + '<td style="text-align:center;">' + (row.collection_duration_min || '-') + '</td>'
+            + '<td title="' + esc(row.view_table_name || '') + '">' + esc(row.view_table_name || '-') + '</td>'
+            + '<td style="text-align:center;">' + badge + '</td>'
+            + '<td>' + esc(row.updated_id || '-') + '</td>'
+            + '<td>' + dateStr + '</td>'
+            + '</tr>';
+    });
+}
+
+function resetFilter() {
+    document.getElementById('filterCheckType').value = '';
+    document.getElementById('filterCategory').value = '';
+    document.getElementById('filterActive').value = '';
+    document.getElementById('filterSearchField').value = '';
+    document.getElementById('filterSearch').value = '';
+    applyFilter();
+}
+
+// 검색어 Enter 키 지원
+document.getElementById('filterSearch').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') applyFilter();
 });
 
-// 필터 후 페이지네이션 갱신
-const _origApplyFilter = applyFilter;
-applyFilter = function() {
-    _origApplyFilter();
-    if (pager) pager.reset();
-};
+// 초기 필터 적용 + 렌더
+applyFilter();
 
-// URL 파라미터가 있으면 필터 적용 후 페이지 이동
-if (hasUrlParams) {
-    _origApplyFilter();
-    const pageParam = new URLSearchParams(location.search).get('page');
-    if (pageParam && pager) {
-        pager.goTo(parseInt(pageParam));
-    } else {
-        pager.reset();
-    }
+// ===== 수정 =====
+function editSelected() {
+    if (!scheduleTable) return;
+    var ids = scheduleTable.getSelectedIds();
+    if (ids.length === 0) { showToast('수정할 항목을 선택해주세요.', 'info'); return; }
+    if (ids.length > 1) { showToast('수정은 1개만 선택해주세요.', 'info'); return; }
+    window.location.href = '/accounts/admin/dx-schedule-settings/' + ids[0] + '/edit/';
+}
+
+// ===== 삭제 =====
+function deleteSelected() {
+    if (!scheduleTable) return;
+    var ids = scheduleTable.getSelectedIds();
+    if (ids.length === 0) { showToast('삭제할 항목을 선택해주세요.', 'info'); return; }
+    showConfirm(ids.length + '건을 삭제하시겠습니까?').then(function(ok) {
+        if (!ok) return;
+        var promises = ids.map(function(id) {
+            return fetch('/accounts/admin/dx-schedule-settings/' + id + '/delete/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' }
+            }).then(function(r) { return r.json(); });
+        });
+        Promise.all(promises).then(function(results) {
+            var failed = results.filter(function(r) { return !r.success; });
+            if (failed.length === 0) {
+                showToast(ids.length + '건 삭제되었습니다.', 'success');
+            } else {
+                showToast(failed.length + '건 삭제 실패', 'error');
+            }
+            setTimeout(function() { reloadWithFilter(); }, 500);
+        }).catch(function(e) { console.error(e); showToast('요청 실패', 'error'); });
+    });
+}
+
+// ===== 필터 유지 새로고침 =====
+function reloadWithFilter() {
+    var params = new URLSearchParams();
+    var ct = document.getElementById('filterCheckType').value;
+    var cat = document.getElementById('filterCategory').value;
+    var act = document.getElementById('filterActive').value;
+    var search = document.getElementById('filterSearch').value;
+    if (ct) params.set('ct', ct);
+    if (cat) params.set('cat', cat);
+    if (act) params.set('act', act);
+    if (search) params.set('q', search);
+    var qs = params.toString();
+    location.href = location.pathname + (qs ? '?' + qs : '');
 }
 </script>
 {% endblock %}

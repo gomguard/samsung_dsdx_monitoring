@@ -1,0 +1,314 @@
+{% extends 'accounts/admin_base.html' %}
+
+{% block title %}스케줄 {% if is_edit %}수정{% else %}추가{% endif %} - 관리자{% endblock %}
+
+{% block admin_css %}
+<style>
+    .form-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .btn-back {
+        padding: 6px 14px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .btn-back:hover { background: var(--bg-primary); }
+
+    .form-title { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+
+    .form-container {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 28px 32px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .form-group { margin-bottom: 18px; }
+
+    .form-group label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 5px;
+    }
+    .form-group label .required { color: #ef4444; margin-left: 2px; }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        box-sizing: border-box;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus { outline: none; border-color: #7c3aed; }
+
+    .form-group input:disabled,
+    .form-group select:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .form-group textarea {
+        resize: vertical;
+        font-family: inherit;
+    }
+
+    .form-group-inline {
+        display: flex;
+        gap: 16px;
+    }
+    .form-group-inline .form-group { flex: 1; }
+
+    .form-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .form-checkbox input[type="checkbox"] { width: 16px; height: 16px; }
+    .form-checkbox label {
+        font-size: 14px;
+        color: var(--text-primary);
+        margin-bottom: 0;
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 24px;
+    }
+
+    .btn-save {
+        padding: 7px 18px;
+        background: #7c3aed;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+    }
+    .btn-save:hover { background: #6d28d9; }
+
+    .btn-cancel {
+        padding: 7px 18px;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .btn-cancel:hover { background: var(--bg-primary); }
+</style>
+{% endblock %}
+
+{% block admin_content %}
+<div class="form-header">
+    <a href="{% url 'accounts:dx_schedule_settings' %}" class="btn-back">← 목록</a>
+    <h1 class="form-title">스케줄 {% if is_edit %}수정{% else %}추가{% endif %}</h1>
+</div>
+
+<div class="form-container">
+    <div class="form-group-inline">
+        <div class="form-group">
+            <label>체크 그룹</label>
+            <input type="text" id="formCheckGroup" placeholder="예: retail_tv" value="{{ row.check_group|default:'' }}">
+        </div>
+        <div class="form-group">
+            <label>체크 타입 <span class="required">*</span></label>
+            <input type="text" id="formCheckType" placeholder="예: retail" value="{{ row.check_type|default:'' }}">
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>체크명</label>
+        <input type="text" id="formCheckName" placeholder="예: TV 리테일 수집" value="{{ row.check_name|default:'' }}">
+    </div>
+
+    <div class="form-group-inline">
+        <div class="form-group">
+            <label>카테고리 <span class="required">*</span></label>
+            <select id="formCategory">
+                <option value="">선택</option>
+                <option value="TV" {% if row.category == 'TV' %}selected{% endif %}>TV</option>
+                <option value="HHP" {% if row.category == 'HHP' %}selected{% endif %}>HHP</option>
+                <option value="ALL" {% if row.category == 'ALL' %}selected{% endif %}>ALL</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>스케줄 타입 <span class="required">*</span></label>
+            <select id="formScheduleType" onchange="toggleScheduleValue()">
+                <option value="">선택</option>
+                <option value="daily" {% if row.schedule_type == 'daily' %}selected{% endif %}>daily</option>
+                <option value="weekly" {% if row.schedule_type == 'weekly' %}selected{% endif %}>weekly</option>
+                <option value="monthly" {% if row.schedule_type == 'monthly' %}selected{% endif %}>monthly</option>
+                <option value="quarterly" {% if row.schedule_type == 'quarterly' %}selected{% endif %}>quarterly</option>
+                <option value="yearly" {% if row.schedule_type == 'yearly' %}selected{% endif %}>yearly</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>스케줄 값</label>
+        <input type="text" id="formScheduleValue" placeholder="예: MON,WED,FRI (daily일 때 비활성화)" value="{{ row.schedule_value|default:'' }}">
+    </div>
+
+    <div class="form-group-inline">
+        <div class="form-group">
+            <label>US 시작 시간 (0-23)</label>
+            <input type="number" id="formUsStartHour" min="0" max="23" placeholder="예: 9" value="{% if row.us_start_hour is not None %}{{ row.us_start_hour }}{% endif %}">
+        </div>
+        <div class="form-group">
+            <label>리테일러</label>
+            <input type="text" id="formRetailer" placeholder="예: bestbuy" value="{{ row.retailer|default:'' }}">
+        </div>
+    </div>
+
+    <div class="form-group-inline">
+        <div class="form-group">
+            <label>예상건수</label>
+            <input type="number" id="formExpectedCount" min="0" placeholder="예: 100" value="{% if row.expected_count is not None %}{{ row.expected_count }}{% endif %}">
+        </div>
+        <div class="form-group">
+            <label>국가 <span class="required">*</span></label>
+            <input type="text" id="formCountry" placeholder="예: US" value="{{ row.country|default:'' }}">
+        </div>
+    </div>
+
+    <div class="form-group-inline">
+        <div class="form-group">
+            <label>수집시간(분) <span class="required">*</span></label>
+            <input type="number" id="formDuration" min="0" placeholder="예: 120" value="{% if row.collection_duration_min is not None %}{{ row.collection_duration_min }}{% endif %}">
+        </div>
+        <div class="form-group">
+            <label>뷰 테이블명</label>
+            <input type="text" id="formViewTableName" placeholder="예: vw_retail_tv" value="{{ row.view_table_name|default:'' }}">
+        </div>
+    </div>
+
+    <div class="form-group-inline">
+        <div class="form-group">
+            <label>정렬순서</label>
+            <input type="number" id="formSortOrder" min="0" placeholder="0" value="{{ row.sort_order|default:'0' }}">
+        </div>
+        <div class="form-group">
+            <!-- 빈 칸으로 레이아웃 맞춤 -->
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label>설명</label>
+        <textarea id="formDescription" rows="3" placeholder="스케줄 설명">{{ row.description|default:'' }}</textarea>
+    </div>
+
+    <div class="form-checkbox">
+        <input type="checkbox" id="formIsActive" {% if row.is_active or not is_edit %}checked{% endif %}>
+        <label for="formIsActive">활성화</label>
+    </div>
+
+    <div class="form-actions">
+        <button class="btn-save" onclick="saveSchedule()">저장</button>
+        <a href="{% url 'accounts:dx_schedule_settings' %}" class="btn-cancel">취소</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block admin_js %}
+<script>
+var csrfToken = '{{ csrf_token }}';
+var isEdit = {{ is_edit|yesno:"true,false" }};
+var editId = {{ row.id|default:"null" }};
+
+// schedule_type에 따라 schedule_value 비활성화
+function toggleScheduleValue() {
+    var st = document.getElementById('formScheduleType').value;
+    var sv = document.getElementById('formScheduleValue');
+    if (st === 'daily') {
+        sv.value = '';
+        sv.disabled = true;
+    } else {
+        sv.disabled = false;
+    }
+}
+
+// 초기 상태 설정
+toggleScheduleValue();
+
+function saveSchedule() {
+    var usHour = document.getElementById('formUsStartHour').value;
+    var dur = document.getElementById('formDuration').value;
+    var expectedCnt = document.getElementById('formExpectedCount').value;
+    var sortOrd = document.getElementById('formSortOrder').value;
+
+    var data = {
+        check_group: document.getElementById('formCheckGroup').value.trim(),
+        check_type: document.getElementById('formCheckType').value.trim(),
+        check_name: document.getElementById('formCheckName').value.trim(),
+        category: document.getElementById('formCategory').value,
+        country: document.getElementById('formCountry').value.trim(),
+        retailer: document.getElementById('formRetailer').value.trim(),
+        expected_count: expectedCnt !== '' ? parseInt(expectedCnt) : null,
+        schedule_type: document.getElementById('formScheduleType').value,
+        schedule_value: document.getElementById('formScheduleValue').value.trim(),
+        us_start_hour: usHour !== '' ? parseInt(usHour) : null,
+        collection_duration_min: dur !== '' ? parseInt(dur) : null,
+        view_table_name: document.getElementById('formViewTableName').value.trim(),
+        sort_order: sortOrd !== '' ? parseInt(sortOrd) : 0,
+        description: document.getElementById('formDescription').value.trim(),
+        is_active: document.getElementById('formIsActive').checked
+    };
+
+    // 필수값 검증
+    if (!data.check_type) { showToast('체크 타입을 입력하세요.', 'error'); return; }
+    if (!data.category) { showToast('카테고리를 선택하세요.', 'error'); return; }
+    if (!data.schedule_type) { showToast('스케줄 타입을 선택하세요.', 'error'); return; }
+    if (!data.country) { showToast('국가를 입력하세요.', 'error'); return; }
+    if (data.collection_duration_min === null) { showToast('수집시간(분)을 입력하세요.', 'error'); return; }
+
+    var url = isEdit
+        ? '/accounts/admin/dx-schedule-settings/' + editId + '/update/'
+        : '/accounts/admin/dx-schedule-settings/create/';
+
+    fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify(data)
+    })
+    .then(function(r) {
+        if (!r.ok) return r.text().then(function(t) { throw new Error('서버 ' + r.status + ': ' + t.substring(0, 200)); });
+        return r.json();
+    })
+    .then(function(res) {
+        if (res.success) {
+            showToast(res.message || '저장되었습니다.', 'success');
+            setTimeout(function() { window.location.href = '{% url "accounts:dx_schedule_settings" %}'; }, 500);
+        } else {
+            showToast(res.error || '오류가 발생했습니다.', 'error');
+        }
+    })
+    .catch(function(e) { console.error(e); showToast('요청 오류: ' + e.message, 'error'); });
+}
+</script>
+{% endblock %}

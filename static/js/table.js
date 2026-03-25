@@ -181,13 +181,19 @@ class CommonTable {
         if (this.options.card) this.container.classList.add('card');
         this.container.innerHTML = '';
 
+        var scrollWrap = document.createElement('div');
+        scrollWrap.className = 'ct-scroll-wrap';
+        scrollWrap.style.overflowX = 'auto';
+
         if (this.options.section) {
             const sectionEl = document.createElement('div');
             sectionEl.className = 'ct-section';
+            sectionEl.appendChild(scrollWrap);
             this.container.appendChild(sectionEl);
-            sectionEl.appendChild(table);
+            scrollWrap.appendChild(table);
         } else {
-            this.container.appendChild(table);
+            this.container.appendChild(scrollWrap);
+            scrollWrap.appendChild(table);
         }
         this.tableEl = table;
 
@@ -334,8 +340,7 @@ class CommonTable {
             if (sel) {
                 const rowId = row.id !== undefined ? row.id : i;
                 if (typeof tr === 'string') {
-                    const inputType = sel.multiple ? 'checkbox' : 'radio';
-                    const selTd = '<td style="text-align:center;" class="ct-nc"><input type="' + inputType + '" class="ct-row-sel" data-row-id="' + rowId + '" style="width:15px;height:15px;cursor:pointer;"' + (inputType === 'radio' ? ' name="ct-sel-radio"' : '') + '></td>';
+                    const selTd = '<td style="text-align:center;" class="ct-nc"><input type="checkbox" class="ct-row-sel" data-row-id="' + rowId + '" style="width:15px;height:15px;cursor:pointer;"></td>';
                     tbody.insertAdjacentHTML('beforeend', tr.replace(/^<tr/, '<tr data-row-id="' + rowId + '"').replace(/>/, '>' + selTd));
                 } else {
                     tr.dataset.rowId = rowId;
@@ -343,8 +348,7 @@ class CommonTable {
                     selTd.style.textAlign = 'center';
                     selTd.classList.add('ct-nc');
                     const cb = document.createElement('input');
-                    cb.type = sel.multiple ? 'checkbox' : 'radio';
-                    if (!sel.multiple) cb.name = 'ct-sel-radio';
+                    cb.type = 'checkbox';
                     cb.className = 'ct-row-sel';
                     cb.dataset.rowId = rowId;
                     cb.style.cssText = 'width:15px;height:15px;cursor:pointer;';
@@ -374,6 +378,9 @@ class CommonTable {
                         }
                     } else {
                         this._selectedIds.clear();
+                        tbody.querySelectorAll('.ct-row-sel').forEach(function(other) {
+                            if (other !== cb) other.checked = false;
+                        });
                         if (cb.checked) this._selectedIds.add(rid);
                     }
                 });

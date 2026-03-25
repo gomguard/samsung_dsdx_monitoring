@@ -12,7 +12,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from .models import UserProfile
-from apps.common.db import get_dx_connection, get_ds_connection, dx_table
+from apps.common.db import get_dx_connection, get_ds_connection, dx_connection, dx_table
 from apps.common.retail_columns import reload_retail_columns, reload_missing_exclude_rules, reload_format_rules
 from apps.dx.dx_layer2.null_validation.services import reload_null_check_config
 from apps.common.targets import reload_targets, format_time
@@ -1534,29 +1534,65 @@ def schedule_settings_toggle(request, target_id):
 def dx_schedule_settings(request):
     """DX 수집 스케줄 설정 페이지"""
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT id, check_type, name, category, us_start_hour,
-                   collection_duration_min, schedule_type, description,
-                   is_active, updated_id, updated_at
-            FROM monitoring_collection_schedule
-            WHERE is_del = false
-            ORDER BY id
-        """)
-        columns_desc = [desc[0] for desc in cursor.description]
-        rows = [dict(zip(columns_desc, row)) for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
+        with dx_connection() as (conn, cursor):
+            cursor.execute(f"""
+                SELECT id, check_group, check_type, check_name, category,
+                       schedule_type, schedule_value, us_start_hour, retailer,
+                       expected_count, country, collection_duration_min,
+                       view_table_name, sort_order, description,
+                       is_active, updated_id, updated_at
+                FROM {dx_table('monitoring_collection_schedule')}
+                WHERE is_del = 0
+                ORDER BY sort_order, id
+            """)
+            columns_desc = [desc[0] for desc in cursor.description]
+            rows = [dict(zip(columns_desc, row)) for row in cursor.fetchall()]
     except Exception as e:
         rows = []
         log_error(e, 'db')
 
+    # datetime → 문자열 변환 (JSON 직렬화용)
+    for r in rows:
+        if r.get('updated_at') and hasattr(r['updated_at'], 'strftime'):
+            r['updated_at'] = r['updated_at'].strftime('%Y-%m-%d %H:%M')
+
+    import json as json_mod
     context = {
         'admin_menu': 'dx_schedule',
-        'rows': rows,
+        'rows': json_mod.dumps(rows, ensure_ascii=False),
     }
     return render(request, 'accounts/dx_schedule_settings.html', context)
+
+
+@login_required
+@user_passes_test(is_admin)
+def dx_schedule_settings_form(request, schedule_id=None):
+    """DX 수집 스케줄 추가/수정 폼 페이지"""
+    row = None
+    if schedule_id:
+        try:
+            with dx_connection() as (conn, cursor):
+                cursor.execute(f"""
+                    SELECT id, check_group, check_type, check_name, category,
+                           schedule_type, schedule_value, us_start_hour, retailer,
+                           expected_count, country, collection_duration_min,
+                           view_table_name, sort_order, description, is_active
+                    FROM {dx_table('monitoring_collection_schedule')}
+                    WHERE id = %s AND is_del = 0
+                """, [schedule_id])
+                cols = [desc[0] for desc in cursor.description]
+                result = cursor.fetchone()
+                if result:
+                    row = dict(zip(cols, result))
+        except Exception as e:
+            log_error(e, 'db')
+
+    context = {
+        'admin_menu': 'dx_schedule',
+        'row': row,
+        'is_edit': schedule_id is not None,
+    }
+    return render(request, 'accounts/dx_schedule_form.html', context)
 
 
 @login_required
@@ -1566,33 +1602,54 @@ def dx_schedule_settings_create(request):
     """DX 수집 스케줄 추가"""
     try:
         data = json.loads(request.body)
+        check_group = data.get('check_group', '').strip()
         check_type = data.get('check_type', '').strip()
-        name = data.get('name', '').strip()
+        check_name = data.get('check_name', '').strip()
         category = data.get('category', '').strip()
-        us_start_hour = data.get('us_start_hour')
-        collection_duration_min = data.get('collection_duration_min')
         schedule_type = data.get('schedule_type', '').strip()
+        schedule_value = data.get('schedule_value', '').strip()
+        us_start_hour = data.get('us_start_hour')
+        retailer = data.get('retailer', '').strip()
+        expected_count = data.get('expected_count')
+        country = data.get('country', '').strip()
+        collection_duration_min = data.get('collection_duration_min')
+        view_table_name = data.get('view_table_name', '').strip()
+        sort_order = data.get('sort_order')
         description = data.get('description', '').strip()
         is_active = data.get('is_active', True)
 
-        if not check_type or not name:
-            return JsonResponse({'success': False, 'error': 'check_type, name은 필수입니다.'})
+        if not check_type:
+            return JsonResponse({'success': False, 'error': 'check_type은 필수입니다.'})
+        if not category:
+            return JsonResponse({'success': False, 'error': 'category는 필수입니다.'})
+        if not schedule_type:
+            return JsonResponse({'success': False, 'error': 'schedule_type은 필수입니다.'})
+        if not country:
+            return JsonResponse({'success': False, 'error': 'country는 필수입니다.'})
+        if collection_duration_min is None or collection_duration_min == '':
+            return JsonResponse({'success': False, 'error': 'collection_duration_min은 필수입니다.'})
 
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO monitoring_collection_schedule
-                (check_type, name, category, us_start_hour, collection_duration_min,
-                 schedule_type, description, is_active, updated_id, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """, (check_type, name, category or None, us_start_hour, collection_duration_min,
-              schedule_type or None, description or None, is_active,
-              request.user.username, datetime.now()))
-        new_id = cursor.fetchone()[0]
-        conn.commit()
-        cursor.close()
-        conn.close()
+        now = datetime.now()
+
+        with dx_connection() as (conn, cursor):
+            cursor.execute(f"""
+                INSERT INTO {dx_table('monitoring_collection_schedule')}
+                    (check_group, check_type, check_name, category,
+                     schedule_type, schedule_value, us_start_hour, retailer,
+                     expected_count, country, collection_duration_min,
+                     view_table_name, sort_order, description, is_active,
+                     created_at, created_id, updated_id, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (check_group or None, check_type, check_name or None, category,
+                  schedule_type, schedule_value or None, us_start_hour, retailer or None,
+                  expected_count, country, collection_duration_min,
+                  view_table_name or None, sort_order if sort_order is not None else 0,
+                  description or None, is_active,
+                  now, request.user.username,
+                  request.user.username, now))
+            new_id = cursor.fetchone()[0]
+            conn.commit()
 
         reload_schedules()
         return JsonResponse({'success': True, 'id': new_id, 'message': '스케줄이 추가되었습니다.'})
@@ -1607,33 +1664,51 @@ def dx_schedule_settings_update(request, schedule_id):
     """DX 수집 스케줄 수정"""
     try:
         data = json.loads(request.body)
+        check_group = data.get('check_group', '').strip()
         check_type = data.get('check_type', '').strip()
-        name = data.get('name', '').strip()
+        check_name = data.get('check_name', '').strip()
         category = data.get('category', '').strip()
-        us_start_hour = data.get('us_start_hour')
-        collection_duration_min = data.get('collection_duration_min')
         schedule_type = data.get('schedule_type', '').strip()
+        schedule_value = data.get('schedule_value', '').strip()
+        us_start_hour = data.get('us_start_hour')
+        retailer = data.get('retailer', '').strip()
+        expected_count = data.get('expected_count')
+        country = data.get('country', '').strip()
+        collection_duration_min = data.get('collection_duration_min')
+        view_table_name = data.get('view_table_name', '').strip()
+        sort_order = data.get('sort_order')
         description = data.get('description', '').strip()
         is_active = data.get('is_active', True)
 
-        if not check_type or not name:
-            return JsonResponse({'success': False, 'error': 'check_type, name은 필수입니다.'})
+        if not check_type:
+            return JsonResponse({'success': False, 'error': 'check_type은 필수입니다.'})
+        if not category:
+            return JsonResponse({'success': False, 'error': 'category는 필수입니다.'})
+        if not schedule_type:
+            return JsonResponse({'success': False, 'error': 'schedule_type은 필수입니다.'})
+        if not country:
+            return JsonResponse({'success': False, 'error': 'country는 필수입니다.'})
+        if collection_duration_min is None or collection_duration_min == '':
+            return JsonResponse({'success': False, 'error': 'collection_duration_min은 필수입니다.'})
 
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE monitoring_collection_schedule
-            SET check_type = %s, name = %s, category = %s,
-                us_start_hour = %s, collection_duration_min = %s,
-                schedule_type = %s, description = %s, is_active = %s,
-                updated_id = %s, updated_at = %s
-            WHERE id = %s
-        """, (check_type, name, category or None, us_start_hour, collection_duration_min,
-              schedule_type or None, description or None, is_active,
-              request.user.username, datetime.now(), schedule_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
+        with dx_connection() as (conn, cursor):
+            cursor.execute(f"""
+                UPDATE {dx_table('monitoring_collection_schedule')}
+                SET check_group = %s, check_type = %s, check_name = %s, category = %s,
+                    schedule_type = %s, schedule_value = %s, us_start_hour = %s,
+                    retailer = %s, expected_count = %s, country = %s,
+                    collection_duration_min = %s, view_table_name = %s,
+                    sort_order = %s, description = %s, is_active = %s,
+                    updated_id = %s, updated_at = %s
+                WHERE id = %s
+            """, (check_group or None, check_type, check_name or None, category,
+                  schedule_type, schedule_value or None, us_start_hour,
+                  retailer or None, expected_count, country,
+                  collection_duration_min, view_table_name or None,
+                  sort_order if sort_order is not None else 0,
+                  description or None, is_active,
+                  request.user.username, datetime.now(), schedule_id))
+            conn.commit()
 
         reload_schedules()
         return JsonResponse({'success': True, 'message': '스케줄이 수정되었습니다.'})
@@ -1647,16 +1722,13 @@ def dx_schedule_settings_update(request, schedule_id):
 def dx_schedule_settings_delete(request, schedule_id):
     """DX 수집 스케줄 삭제"""
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE monitoring_collection_schedule
-            SET is_del = true, is_active = false, updated_id = %s, updated_at = NOW()
-            WHERE id = %s
-        """, (request.user.username, schedule_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
+        with dx_connection() as (conn, cursor):
+            cursor.execute(f"""
+                UPDATE {dx_table('monitoring_collection_schedule')}
+                SET is_del = 1, is_active = false, updated_id = %s, updated_at = %s
+                WHERE id = %s
+            """, (request.user.username, datetime.now(), schedule_id))
+            conn.commit()
 
         reload_schedules()
         return JsonResponse({'success': True, 'message': '스케줄이 삭제되었습니다.'})
@@ -1670,21 +1742,18 @@ def dx_schedule_settings_delete(request, schedule_id):
 def dx_schedule_settings_toggle(request, schedule_id):
     """DX 수집 스케줄 활성/비활성 토글"""
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE monitoring_collection_schedule
-            SET is_active = NOT is_active, updated_id = %s, updated_at = %s
-            WHERE id = %s
-            RETURNING is_active
-        """, (request.user.username, datetime.now(), schedule_id))
-        result = cursor.fetchone()
-        if not result:
-            return JsonResponse({'success': False, 'error': '해당 스케줄을 찾을 수 없습니다.'})
-        new_status = result[0]
-        conn.commit()
-        cursor.close()
-        conn.close()
+        with dx_connection() as (conn, cursor):
+            cursor.execute(f"""
+                UPDATE {dx_table('monitoring_collection_schedule')}
+                SET is_active = NOT is_active, updated_id = %s, updated_at = %s
+                WHERE id = %s
+                RETURNING is_active
+            """, (request.user.username, datetime.now(), schedule_id))
+            result = cursor.fetchone()
+            if not result:
+                return JsonResponse({'success': False, 'error': '해당 스케줄을 찾을 수 없습니다.'})
+            new_status = result[0]
+            conn.commit()
 
         reload_schedules()
         status = '활성화' if new_status else '비활성화'
