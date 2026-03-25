@@ -16,7 +16,7 @@ from apps.dx.dx_layer1.market_demand import services as market_demand_svc
 from apps.dx.dx_layer1.market_competitor import services as market_competitor_svc
 from apps.dx.dx_layer1.market_competitor_event import services as market_competitor_event_svc
 from apps.dx.dx_layer1.market_promotion import services as market_promotion_svc
-from apps.common.dx_schedules import load_collection_schedules
+from apps.common.dx_schedules import load_collection_schedules, is_target_date as check_target_date
 
 
 # 리테일러 설정 (thresholds 표시용)
@@ -36,23 +36,27 @@ _SERVICE_MAP = {
 }
 
 
-def _get_active_services():
-    """스케줄 DB에서 활성 서비스 목록과 daily 여부를 동적으로 구성"""
+def _get_active_services(target_date=None):
+    """스케줄 DB에서 활성 서비스 목록, daily 여부, target_date 여부를 동적으로 구성"""
     schedules = load_collection_schedules()
     seen = set()
     service_order = []
     daily_types = set()
+    target_date_types = set()
 
     for s in schedules:
         ct = s['check_type']
-        if ct in seen or ct not in _SERVICE_MAP:
+        if ct not in _SERVICE_MAP:
             continue
-        seen.add(ct)
-        service_order.append((ct, _SERVICE_MAP[ct]))
+        if ct not in seen:
+            seen.add(ct)
+            service_order.append((ct, _SERVICE_MAP[ct]))
         if s['schedule_type'] == 'daily':
             daily_types.add(ct)
+        if target_date and check_target_date(s, target_date):
+            target_date_types.add(ct)
 
-    return service_order, daily_types
+    return service_order, daily_types, target_date_types
 
 
 def layer_stats(request):
@@ -92,7 +96,7 @@ def layer_stats(request):
 
     try:
         with dx_connection() as (conn, cursor):
-            service_order, daily_types = _get_active_services()
+            service_order, daily_types, target_date_types = _get_active_services(target_date)
             comp_batch_id = None
 
             for check_type, svc in service_order:
@@ -111,6 +115,7 @@ def layer_stats(request):
 
                 check_data = svc_result['check']
                 check_data['display_group'] = 'daily' if check_type in daily_types else 'periodic'
+                check_data['is_target_date'] = check_type in target_date_types
                 results['checks'].append(check_data)
                 results['failed_items'].extend(svc_result.get('failed_items', []))
 
@@ -119,10 +124,7 @@ def layer_stats(request):
             check_items = []
             for check in results['checks']:
                 check_type = check.get('check_type', '')
-                if check_type in daily_types:
-                    is_target = True
-                else:
-                    is_target = check.get('is_target_date', False)
+                is_target = check.get('is_target_date', False)
                 check_items.append({'status': check['status'], 'is_target': is_target})
 
             target_items = [item for item in check_items if item['is_target']]

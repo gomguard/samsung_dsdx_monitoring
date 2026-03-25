@@ -6,7 +6,7 @@ US(NY) 시간 → KST 자동 변환 (서머타임 고려)
 
 from datetime import datetime, timedelta
 import pytz
-from apps.common.db import execute_dx_query
+from apps.common.db import execute_dx_query, dx_table
 
 # 타임존 설정
 NY_TZ = pytz.timezone('America/New_York')
@@ -109,24 +109,35 @@ def load_collection_schedules():
         return _schedules_cache
 
     try:
-        query = """
-            SELECT check_type, name, category, us_start_hour,
-                   collection_duration_min, schedule_type, description
-            FROM monitoring_collection_schedule
-            WHERE is_active = TRUE
-            ORDER BY id
+        table = dx_table('monitoring_collection_schedule')
+        query = f"""
+            SELECT check_group, check_type, check_name, category,
+                   schedule_type, schedule_value, us_start_hour,
+                   retailer, expected_count, country,
+                   collection_duration_min, view_table_name,
+                   sort_order, description
+            FROM {table}
+            WHERE is_active = TRUE AND is_del = 0
+            ORDER BY sort_order, id
         """
         rows = execute_dx_query(query)
 
         schedules = []
         for row in rows:
             schedules.append({
+                'check_group': row['check_group'],
                 'check_type': row['check_type'],
-                'name': row['name'],
+                'check_name': row['check_name'],
                 'category': row['category'],
-                'us_start_hour': int(row['us_start_hour']),
-                'collection_duration_min': int(row['collection_duration_min']),
                 'schedule_type': row['schedule_type'],
+                'schedule_value': row['schedule_value'],
+                'us_start_hour': int(row['us_start_hour']) if row['us_start_hour'] is not None else None,
+                'retailer': row['retailer'],
+                'expected_count': row['expected_count'],
+                'country': row['country'],
+                'collection_duration_min': int(row['collection_duration_min']),
+                'view_table_name': row['view_table_name'],
+                'sort_order': row['sort_order'],
                 'description': row['description']
             })
         _schedules_cache = schedules
@@ -173,7 +184,7 @@ def get_time_status(schedule, target_date, now=None):
         now = datetime.now()
 
     # US 시간에서 KST 자동 계산
-    us_start = schedule['us_start_hour']
+    us_start = schedule['us_start_hour'] if schedule['us_start_hour'] is not None else 0
     duration_min = schedule['collection_duration_min']
 
     kr_start_hour, kr_start_next_day, _ = us_to_kst(us_start, target_date)
@@ -216,10 +227,20 @@ def get_time_slots(check_type, category, target_date, now=None):
 
     schedules = get_schedules_by_type(check_type, category)
 
-    time_slots = []
+    # 같은 us_start_hour 끼리 묶어서 하나의 슬롯으로 (리테일러별 행 중복 방지)
+    # 슬롯별 리테일러 목록도 수집
+    hour_groups = {}  # us_start_hour → { schedule, retailers: [] }
     for schedule in schedules:
-        # 미국(뉴욕) 시간 범위 계산
-        us_start = schedule['us_start_hour']
+        us_start = schedule['us_start_hour'] if schedule['us_start_hour'] is not None else 0
+        if us_start not in hour_groups:
+            hour_groups[us_start] = {'schedule': schedule, 'retailers': []}
+        if schedule.get('retailer'):
+            hour_groups[us_start]['retailers'].append(schedule['retailer'])
+
+    time_slots = []
+    for us_start, group in sorted(hour_groups.items()):
+        schedule = group['schedule']
+        slot_retailers = group['retailers']
         duration_min = schedule['collection_duration_min']
 
         # 시작 시간 문자열 생성
@@ -268,7 +289,7 @@ def get_time_slots(check_type, category, target_date, now=None):
         is_pending = time_status in ['PENDING', 'COLLECTING']
 
         time_slots.append({
-            'name': schedule['name'],
+            'name': '오전' if us_start < 12 else '오후',
             'start': start_str,
             'end': end_str,
             'us_time': f'{target_date} {us_start:02d}:00',
@@ -277,10 +298,59 @@ def get_time_slots(check_type, category, target_date, now=None):
             'is_dst': kst_start_info['is_dst'],
             'is_pending': is_pending,
             'time_status': time_status,
-            'schedule': schedule
+            'schedule': schedule,
+            'retailers': slot_retailers
         })
 
     return time_slots
+
+
+def is_target_date(schedule, target_date):
+    """
+    스케줄 DB 기반으로 해당 날짜가 수집 대상일인지 판단
+
+    Args:
+        schedule: 스케줄 dict (schedule_type, schedule_value 포함)
+        target_date: 조회 대상 날짜 (date 객체)
+
+    Returns:
+        bool: 수집 대상일이면 True
+    """
+    st = schedule['schedule_type']
+    sv = schedule.get('schedule_value') or ''
+
+    if st == 'daily':
+        return True
+
+    elif st == 'weekly':
+        day_map = {'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3, 'fri': 4, 'sat': 5, 'sun': 6}
+        days = [d.strip().lower() for d in sv.split(',') if d.strip()]
+        return target_date.weekday() in [day_map.get(d, -1) for d in days]
+
+    elif st == 'monthly':
+        try:
+            return target_date.day == int(sv)
+        except (ValueError, TypeError):
+            return False
+
+    elif st == 'quarterly':
+        # 분기 첫 월(1,4,7,10)의 첫 날 또는 지정일
+        if target_date.month not in (1, 4, 7, 10):
+            return False
+        try:
+            return target_date.day == int(sv) if sv else target_date.day == 1
+        except (ValueError, TypeError):
+            return target_date.day == 1
+
+    elif st == 'yearly':
+        # 'MM-DD' 형식
+        try:
+            parts = sv.split('-')
+            return target_date.month == int(parts[0]) and target_date.day == int(parts[1])
+        except (ValueError, TypeError, IndexError):
+            return False
+
+    return False
 
 
 def reload_schedules():
