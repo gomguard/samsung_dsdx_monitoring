@@ -4,6 +4,12 @@
 """
 
 from datetime import datetime, timedelta
+from apps.common.db import dx_table
+
+_CHECK_LOG = dx_table('monitoring_check_log')
+_CHECK_LOG_DETAIL = dx_table('monitoring_check_log_detail')
+_CHECK_LOG_KEYWORDS = dx_table('monitoring_check_log_keywords')
+_CHECK_LOG_ISSUES = dx_table('monitoring_check_log_issues')
 
 
 ALL_SECTIONS = [
@@ -41,10 +47,10 @@ def get_target_sections(date_str):
 
 def get_check_status(cursor, date_str, layer, include_detail=False):
     """날짜별 검수 확인 상태 조회"""
-    cursor.execute("""
+    cursor.execute(f"""
         SELECT id, section, expected_count, actual_count, rate, status, memo,
                created_id, created_at, updated_id, updated_at, confirm_step
-        FROM monitoring_check_log
+        FROM {_CHECK_LOG}
         WHERE crawl_date = %s AND layer = %s AND is_del = 0
         ORDER BY id
     """, (date_str, layer))
@@ -73,7 +79,7 @@ def get_check_status(cursor, date_str, layer, include_detail=False):
             SELECT d.id, d.section, d.category, d.time_slot, d.retailer,
                    d.item_name, d.expected_count, d.actual_count, d.rate, d.status,
                    d.issue_id, d.confirm_step
-            FROM monitoring_check_log_detail d
+            FROM {_CHECK_LOG_DETAIL} d
             WHERE d.check_log_id IN ({placeholders})
             ORDER BY d.confirm_step, d.id
         """, check_log_ids)
@@ -99,7 +105,7 @@ def get_check_status(cursor, date_str, layer, include_detail=False):
         kw_map = {}
         cursor.execute(f"""
             SELECT check_log_id, category, product_name, event_name, event_date
-            FROM monitoring_check_log_keywords
+            FROM {_CHECK_LOG_KEYWORDS}
             WHERE check_log_id IN ({','.join(['%s'] * len(check_log_ids))})
             ORDER BY id
         """, check_log_ids)
@@ -142,8 +148,8 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
 
         if step == 2:
             # 2차 완료: 미해결 이슈 체크
-            cursor.execute("""
-                SELECT COUNT(*) FROM monitoring_check_log_issues
+            cursor.execute(f"""
+                SELECT COUNT(*) FROM {_CHECK_LOG_ISSUES}
                 WHERE crawl_date = %s AND section = %s AND is_del = 0
                   AND resolution_status = 'open'
             """, (date_str, section))
@@ -158,8 +164,8 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
             # 2차 완료: NULL 상태 detail 체크 (이슈 미등록 시에만 차단)
             null_items = [d for d in details if d.get('status') == 'NULL']
             if null_items:
-                cursor.execute("""
-                    SELECT COUNT(*) FROM monitoring_check_log_issues
+                cursor.execute(f"""
+                    SELECT COUNT(*) FROM {_CHECK_LOG_ISSUES}
                     WHERE crawl_date = %s AND section = %s AND is_del = 0
                 """, (date_str, section))
                 issue_count = cursor.fetchone()[0]
@@ -173,8 +179,8 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
                     }
 
             # check_log UPDATE (confirm_step=2, 최신 수치 반영)
-            cursor.execute("""
-                UPDATE monitoring_check_log
+            cursor.execute(f"""
+                UPDATE {_CHECK_LOG}
                 SET confirm_step = 2, expected_count = %s, actual_count = %s,
                     rate = %s, status = %s, updated_id = %s, updated_at = %s
                 WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
@@ -182,15 +188,15 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
                   username, now, date_str, layer, section))
 
             # 기존 check_log_id 조회
-            cursor.execute("""
-                SELECT id FROM monitoring_check_log
+            cursor.execute(f"""
+                SELECT id FROM {_CHECK_LOG}
                 WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
             """, (date_str, layer, section))
             row = cursor.fetchone()
             if not row:
                 # 1차 없이 바로 2차 (100% 섹션)
-                cursor.execute("""
-                    INSERT INTO monitoring_check_log
+                cursor.execute(f"""
+                    INSERT INTO {_CHECK_LOG}
                         (crawl_date, layer, section, expected_count, actual_count,
                          rate, status, memo, confirm_step, created_id, created_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 2, %s, %s)
@@ -205,8 +211,8 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
 
             # detail 전체 INSERT (confirm_step=2)
             for d in details:
-                cursor.execute("""
-                    INSERT INTO monitoring_check_log_detail
+                cursor.execute(f"""
+                    INSERT INTO {_CHECK_LOG_DETAIL}
                         (check_log_id, crawl_date, layer, section,
                          category, time_slot, retailer, item_name,
                          expected_count, actual_count, rate, status, confirm_step)
@@ -221,14 +227,14 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
 
         else:
             # 1차 확인: 기존 soft-delete → INSERT 패턴
-            cursor.execute("""
-                UPDATE monitoring_check_log
+            cursor.execute(f"""
+                UPDATE {_CHECK_LOG}
                 SET is_del = 1, updated_id = %s, updated_at = %s
                 WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
             """, (username, now, date_str, layer, section))
 
-            cursor.execute("""
-                INSERT INTO monitoring_check_log
+            cursor.execute(f"""
+                INSERT INTO {_CHECK_LOG}
                     (crawl_date, layer, section, expected_count, actual_count,
                      rate, status, memo, confirm_step, created_id, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, %s, %s)
@@ -244,8 +250,8 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
             # detail: 이상치(status≠OK)만 INSERT (confirm_step=1)
             for d in details:
                 if d.get('status', 'OK') != 'OK':
-                    cursor.execute("""
-                        INSERT INTO monitoring_check_log_detail
+                    cursor.execute(f"""
+                        INSERT INTO {_CHECK_LOG_DETAIL}
                             (check_log_id, crawl_date, layer, section,
                              category, time_slot, retailer, item_name,
                              expected_count, actual_count, rate, status, confirm_step)
@@ -262,8 +268,8 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
             keywords = s.get('keywords', [])
             if keywords:
                 for kw in keywords:
-                    cursor.execute("""
-                        INSERT INTO monitoring_check_log_keywords
+                    cursor.execute(f"""
+                        INSERT INTO {_CHECK_LOG_KEYWORDS}
                             (check_log_id, crawl_date, category, event_name,
                              product_name, event_date, created_id, created_at)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -284,48 +290,48 @@ def delete_check(cursor, conn, date_str, layer, section, step, delete_memo, user
 
     if step == 2 and section:
         # 2차 완료 취소
-        cursor.execute("""
-            SELECT id, updated_at FROM monitoring_check_log
+        cursor.execute(f"""
+            SELECT id, updated_at FROM {_CHECK_LOG}
             WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
         """, (date_str, layer, section))
         row = cursor.fetchone()
         if row:
             check_log_id = row[0]
             has_step1 = row[1] is not None
-            cursor.execute("""
-                DELETE FROM monitoring_check_log_detail
+            cursor.execute(f"""
+                DELETE FROM {_CHECK_LOG_DETAIL}
                 WHERE check_log_id = %s AND confirm_step = 2
             """, (check_log_id,))
             if has_step1:
-                cursor.execute("""
-                    UPDATE monitoring_check_log
+                cursor.execute(f"""
+                    UPDATE {_CHECK_LOG}
                     SET confirm_step = 1, updated_id = %s, updated_at = %s, delete_memo = %s
                     WHERE id = %s
                 """, (username, now, delete_memo, check_log_id))
             else:
-                cursor.execute("DELETE FROM monitoring_check_log_keywords WHERE check_log_id = %s", (check_log_id,))
-                cursor.execute("""
-                    UPDATE monitoring_check_log
+                cursor.execute(f"DELETE FROM {_CHECK_LOG_KEYWORDS} WHERE check_log_id = %s", (check_log_id,))
+                cursor.execute(f"""
+                    UPDATE {_CHECK_LOG}
                     SET is_del = 1, updated_id = %s, updated_at = %s, delete_memo = %s
                     WHERE id = %s
                 """, (username, now, delete_memo, check_log_id))
     elif section:
         # 1차 확인 취소
-        cursor.execute("""
-            SELECT id FROM monitoring_check_log
+        cursor.execute(f"""
+            SELECT id FROM {_CHECK_LOG}
             WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
         """, (date_str, layer, section))
         del_row = cursor.fetchone()
         if del_row:
-            cursor.execute("DELETE FROM monitoring_check_log_keywords WHERE check_log_id = %s", (del_row[0],))
-        cursor.execute("""
-            UPDATE monitoring_check_log
+            cursor.execute(f"DELETE FROM {_CHECK_LOG_KEYWORDS} WHERE check_log_id = %s", (del_row[0],))
+        cursor.execute(f"""
+            UPDATE {_CHECK_LOG}
             SET is_del = 1, updated_id = %s, updated_at = %s, delete_memo = %s
             WHERE crawl_date = %s AND layer = %s AND section = %s AND is_del = 0
         """, (username, now, delete_memo, date_str, layer, section))
     else:
-        cursor.execute("""
-            UPDATE monitoring_check_log
+        cursor.execute(f"""
+            UPDATE {_CHECK_LOG}
             SET is_del = 1, updated_id = %s, updated_at = %s, delete_memo = %s
             WHERE crawl_date = %s AND layer = %s AND is_del = 0
         """, (username, now, delete_memo, date_str, layer))

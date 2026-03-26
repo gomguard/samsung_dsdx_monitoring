@@ -60,8 +60,12 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
 
     // 리테일러별 status 매핑 (slot.retailers에서 가져옴)
     var statusMap = {};
+    var slotRetailerSet = {};
     if (slot.retailers) {
-        slot.retailers.forEach(function(r) { statusMap[r.retailer] = r.status; });
+        slot.retailers.forEach(function(r) {
+            statusMap[r.retailer] = r.status;
+            slotRetailerSet[r.retailer.toLowerCase()] = true;
+        });
     }
 
     // 테이블 행 생성
@@ -70,6 +74,8 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
 
     if (summaryData && summaryData.summary) {
         summaryData.summary.forEach(function(ret) {
+            // 해당 슬롯에 속하는 리테일러만 표시
+            if (Object.keys(slotRetailerSet).length > 0 && !slotRetailerSet[ret.retailer.toLowerCase()]) return;
             var row = ret.rows && ret.rows[slotIdx2];
             if (!row) return;
             totals.main += row.main;

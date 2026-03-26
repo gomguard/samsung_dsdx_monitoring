@@ -11,9 +11,7 @@ from apps.dx.dx_layer1.common.context import SECTION_TITLES
 from apps.common.dx_schedules import get_retail_time_slots, get_kst_time_info, get_schedule_kst_info
 
 
-# 리테일러 설정
-RETAILERS = ['amazon', 'bestbuy', 'walmart']
-EXPECTED_PER_RETAILER = 300  # 기대값
+# 리테일러 설정 — 스케줄 DB에서 동적 로드 (RETAILERS, EXPECTED_PER_RETAILER 제거)
 OK_THRESHOLD = 200           # 정상 기준 (200개 이상이면 OK, 미만이면 CRITICAL)
 
 # SQL Injection 방지용 화이트리스트
@@ -22,22 +20,53 @@ ALLOWED_DATE_FIELDS = {'crawl_datetime::timestamp', 'crawl_strdatetime::timestam
 ALLOWED_RANK_FIELDS = {'promotion_position', 'trend_rank'}
 
 
-def query_retail_counts(cursor, table_name, date_field, extra_rank_field, slot_start, slot_end):
+def _get_daily_retailers(all_slots):
+    """1일 1회 수집 리테일러 판별 — 슬롯이 1개만 있는 리테일러"""
+    retailer_slot_count = {}
+    for slot in all_slots:
+        for r in slot.get('retailers', []):
+            name = r['name'].lower()
+            retailer_slot_count[name] = retailer_slot_count.get(name, 0) + 1
+    return {name for name, count in retailer_slot_count.items() if count == 1}
+
+
+def query_retail_counts(cursor, table_name, date_field, extra_rank_field, slot_start, slot_end, daily_retailers=None):
     """
     리테일러별 수집 건수 공통 쿼리 — 대시보드/섹션 페이지 동일 사용
+    daily_retailers: 1일 1회 수집 리테일러 set (DATE 기준 조회)
     Returns: list of tuples (account_name, cnt, main_count, bsr_count, extra_count)
     """
-    cursor.execute(f"""
-        SELECT account_name,
-               COUNT(*) as cnt,
-               COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
-               COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-               COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count
-        FROM {table_name}
-        WHERE {date_field} >= %s
-        AND {date_field} < %s
-        GROUP BY account_name
-    """, (slot_start, slot_end))
+    if daily_retailers:
+        # 1일 1회 리테일러: DATE 기준, 나머지: 슬롯 범위 기준
+        date_only = slot_start[:10]  # 'YYYY-MM-DD'
+        daily_list = list(daily_retailers)
+        daily_placeholders = ','.join(['%s'] * len(daily_list))
+        cursor.execute(f"""
+            SELECT account_name,
+                   COUNT(*) as cnt,
+                   COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
+                   COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
+                   COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count
+            FROM {table_name}
+            WHERE (
+                (LOWER(account_name) IN ({daily_placeholders}) AND DATE({date_field}) = %s)
+                OR
+                (LOWER(account_name) NOT IN ({daily_placeholders}) AND {date_field} >= %s AND {date_field} < %s)
+            )
+            GROUP BY account_name
+        """, daily_list + [date_only] + daily_list + [slot_start, slot_end])
+    else:
+        cursor.execute(f"""
+            SELECT account_name,
+                   COUNT(*) as cnt,
+                   COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
+                   COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
+                   COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count
+            FROM {table_name}
+            WHERE {date_field} >= %s
+            AND {date_field} < %s
+            GROUP BY account_name
+        """, (slot_start, slot_end))
     return cursor.fetchall()
 
 
@@ -60,7 +89,7 @@ def query_retail_counts_by_retailer(cursor, table_name, date_field, extra_rank_f
     return cursor.fetchone()
 
 
-def check_retailer_data(rows, category='TV'):
+def check_retailer_data(rows, category='TV', slot_retailers=None):
     """
     리테일러별 데이터 검증
     Returns: (retailer_details, total_count, all_ok)
@@ -68,8 +97,14 @@ def check_retailer_data(rows, category='TV'):
     rows 형식:
     - TV: (account_name, cnt, main_count, bsr_count, promotion_count)
     - HHP: (account_name, cnt, main_count, bsr_count, trend_count)
+
+    slot_retailers: 스케줄 DB에서 가져온 리테일러 목록 [{'name': 'Amazon', 'expected_count': 300}, ...]
     """
-    retailer_counts = {r.lower(): {'count': 0, 'main': 0, 'bsr': 0, 'extra': 0} for r in RETAILERS}
+    if slot_retailers:
+        retailer_names = [r['name'].lower() for r in slot_retailers]
+    else:
+        retailer_names = ['amazon', 'bestbuy', 'walmart']  # fallback
+    retailer_counts = {r: {'count': 0, 'main': 0, 'bsr': 0, 'extra': 0} for r in retailer_names}
 
     # 수집된 데이터 카운트
     for row in rows:
@@ -83,14 +118,21 @@ def check_retailer_data(rows, category='TV'):
                 'extra': row[4] if len(row) > 4 else 0  # TV: promotion_rank (Bestbuy만), HHP: trend_rank
             }
 
+    # 리테일러별 expected_count 매핑
+    expected_map = {}
+    if slot_retailers:
+        for r in slot_retailers:
+            expected_map[r['name'].lower()] = r.get('expected_count', 0) or 0
+
     retailer_details = []
     total_count = 0
     statuses = []
 
-    for retailer in RETAILERS:
+    for retailer in retailer_names:
         data = retailer_counts[retailer]
         count = data['count']
         total_count += count
+        retailer_expected = expected_map.get(retailer, 300)
 
         # 상태 판정: 200 이상 = OK, 200 미만 = CRITICAL
         if count >= OK_THRESHOLD:
@@ -131,7 +173,7 @@ def check_retailer_data(rows, category='TV'):
         retailer_details.append({
             'retailer': retailer.capitalize(),
             'count': count,
-            'expected': EXPECTED_PER_RETAILER,
+            'expected': retailer_expected,
             'ok_threshold': OK_THRESHOLD,
             'status': status,
             'items': items
@@ -166,8 +208,9 @@ def get_layer1_stats(cursor, target_date, now):
     # 시간대 정의 - DB에서 로드
     # ============================================================
 
-    # DB에서 시간대 슬롯 정보 가져오기 (TV/HHP 공통으로 사용)
+    # DB에서 시간대 슬롯 정보 가져오기
     time_slots = get_retail_time_slots('TV', target_date)
+    tv_daily_retailers = _get_daily_retailers(time_slots)
 
     # ============================================================
     # TV Retail 검증 (통합)
@@ -177,14 +220,16 @@ def get_layer1_stats(cursor, target_date, now):
     tv_slot_statuses = []
 
     for slot in time_slots:
+        slot_retailers = slot.get('retailers', [])
+        slot_expected = sum(r.get('expected_count', 0) for r in slot_retailers) if slot_retailers else 0
         # TV는 main_rank, bsr_rank, promotion_position (Bestbuy만) 수집
-        rows = query_retail_counts(cursor, 'tv_retail_com', 'crawl_datetime::timestamp', 'promotion_position', slot['start'], slot['end'])
+        rows = query_retail_counts(cursor, 'tv_retail_com', 'crawl_datetime::timestamp', 'promotion_position', slot['start'], slot['end'], tv_daily_retailers)
 
         if slot['is_pending']:
             # time_status가 COLLECTING이면 수집중, 아니면 대기중
             slot_display_status = slot['time_status'] if slot['time_status'] else 'PENDING'
             # 수집중일 때도 현재까지 수집된 데이터 표시
-            retailer_details, total, _ = check_retailer_data(rows)
+            retailer_details, total, _ = check_retailer_data(rows, 'TV', slot_retailers)
             tv_total_count += total  # PENDING/COLLECTING 상태에서도 수집량 합계에 포함
             tv_time_slots.append({
                 'name': slot['name'],
@@ -192,12 +237,12 @@ def get_layer1_stats(cursor, target_date, now):
                 'kr_time': slot['kr_time'],
                 'is_dst': slot.get('is_dst', False),
                 'total': total,
-                'expected': EXPECTED_PER_RETAILER * len(RETAILERS),
+                'expected': slot_expected,
                 'status': slot_display_status,
                 'retailers': retailer_details  # 수집중에도 리테일러 데이터 표시
             })
         else:
-            retailer_details, total, slot_status = check_retailer_data(rows)
+            retailer_details, total, slot_status = check_retailer_data(rows, 'TV', slot_retailers)
             tv_total_count += total
             tv_slot_statuses.append(slot_status)
 
@@ -207,7 +252,7 @@ def get_layer1_stats(cursor, target_date, now):
                 'kr_time': slot['kr_time'],
                 'is_dst': slot.get('is_dst', False),
                 'total': total,
-                'expected': EXPECTED_PER_RETAILER * len(RETAILERS),
+                'expected': slot_expected,
                 'status': slot_status,
                 'retailers': retailer_details
             })
@@ -250,7 +295,7 @@ def get_layer1_stats(cursor, target_date, now):
     tv_retail_data = {
         'name': 'TV',
         'total': tv_total_count,
-        'expected': EXPECTED_PER_RETAILER * len(RETAILERS) * tv_active_slots,
+        'expected': sum(s['expected'] for s in tv_time_slots if s['status'] not in ['PENDING', 'COLLECTING']),
         'status': tv_overall_status,
         'time_slots': tv_time_slots
     }
@@ -258,19 +303,23 @@ def get_layer1_stats(cursor, target_date, now):
     # ============================================================
     # HHP Retail 검증 (통합)
     # ============================================================
+    hhp_time_slots_data = get_retail_time_slots('HHP', target_date)
+    hhp_daily_retailers = _get_daily_retailers(hhp_time_slots_data)
     hhp_time_slots = []
     hhp_total_count = 0
     hhp_slot_statuses = []
 
-    for slot in time_slots:
+    for slot in hhp_time_slots_data:
+        slot_retailers = slot.get('retailers', [])
+        slot_expected = sum(r.get('expected_count', 0) for r in slot_retailers) if slot_retailers else 0
         # HHP도 main_rank, bsr_rank, trend_rank 수집
-        rows = query_retail_counts(cursor, 'hhp_retail_com', 'crawl_strdatetime::timestamp', 'trend_rank', slot['start'], slot['end'])
+        rows = query_retail_counts(cursor, 'hhp_retail_com', 'crawl_strdatetime::timestamp', 'trend_rank', slot['start'], slot['end'], hhp_daily_retailers)
 
         if slot['is_pending']:
             # time_status가 COLLECTING이면 수집중, 아니면 대기중
             slot_display_status = slot['time_status'] if slot['time_status'] else 'PENDING'
             # 수집중일 때도 현재까지 수집된 데이터 표시
-            retailer_details, total, _ = check_retailer_data(rows, category='HHP')
+            retailer_details, total, _ = check_retailer_data(rows, 'HHP', slot_retailers)
             hhp_total_count += total  # PENDING/COLLECTING 상태에서도 수집량 합계에 포함
             hhp_time_slots.append({
                 'name': slot['name'],
@@ -278,12 +327,12 @@ def get_layer1_stats(cursor, target_date, now):
                 'kr_time': slot['kr_time'],
                 'is_dst': slot.get('is_dst', False),
                 'total': total,
-                'expected': EXPECTED_PER_RETAILER * len(RETAILERS),
+                'expected': slot_expected,
                 'status': slot_display_status,
                 'retailers': retailer_details  # 수집중에도 리테일러 데이터 표시
             })
         else:
-            retailer_details, total, slot_status = check_retailer_data(rows, category='HHP')
+            retailer_details, total, slot_status = check_retailer_data(rows, 'HHP', slot_retailers)
             hhp_total_count += total
             hhp_slot_statuses.append(slot_status)
 
@@ -293,7 +342,7 @@ def get_layer1_stats(cursor, target_date, now):
                 'kr_time': slot['kr_time'],
                 'is_dst': slot.get('is_dst', False),
                 'total': total,
-                'expected': EXPECTED_PER_RETAILER * len(RETAILERS),
+                'expected': slot_expected,
                 'status': slot_status,
                 'retailers': retailer_details
             })
@@ -335,14 +384,14 @@ def get_layer1_stats(cursor, target_date, now):
     hhp_retail_data = {
         'name': 'HHP',
         'total': hhp_total_count,
-        'expected': EXPECTED_PER_RETAILER * len(RETAILERS) * hhp_active_slots,
+        'expected': sum(s['expected'] for s in hhp_time_slots if s['status'] not in ['PENDING', 'COLLECTING']),
         'status': hhp_overall_status,
         'time_slots': hhp_time_slots
     }
 
     # Retail 통합 (TV + HHP)
     total_retail_count = tv_total_count + hhp_total_count
-    total_retail_expected = (tv_active_slots + hhp_active_slots) * EXPECTED_PER_RETAILER * len(RETAILERS)
+    total_retail_expected = tv_retail_data['expected'] + hhp_retail_data['expected']
 
     # 통합 상태 결정 (둘 중 더 나쁜 상태)
     status_priority = {'OK': 0, 'WARNING': 1, 'COLLECTING': 2, 'CRITICAL': 3, 'PENDING': 4}
@@ -495,8 +544,13 @@ def get_retail_summary(cursor, target_date, product_line):
     if extra_rank_field not in ALLOWED_RANK_FIELDS:
         raise ValueError(f"허용되지 않은 랭크 필드: {extra_rank_field}")
 
-    # 리테일러 목록
-    retailers = ['Amazon', 'Bestbuy', 'Walmart']
+    # 리테일러 목록 — 스케줄 DB에서 동적 로드
+    all_slots = get_retail_time_slots(product_line, target_date)
+    retailer_set = set()
+    for s in all_slots:
+        for r in s.get('retailers', []):
+            retailer_set.add(r['name'])
+    retailers = sorted(retailer_set) if retailer_set else ['Amazon', 'Bestbuy', 'Walmart']
 
     # 결과 데이터 구조
     summary_data = []

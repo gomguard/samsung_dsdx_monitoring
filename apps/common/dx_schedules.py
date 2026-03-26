@@ -235,7 +235,10 @@ def get_time_slots(check_type, category, target_date, now=None):
         if us_start not in hour_groups:
             hour_groups[us_start] = {'schedule': schedule, 'retailers': []}
         if schedule.get('retailer'):
-            hour_groups[us_start]['retailers'].append(schedule['retailer'])
+            hour_groups[us_start]['retailers'].append({
+                'name': schedule['retailer'],
+                'expected_count': schedule.get('expected_count', 0) or 0,
+            })
 
     time_slots = []
     for us_start, group in sorted(hour_groups.items()):
