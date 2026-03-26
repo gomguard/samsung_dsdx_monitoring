@@ -251,10 +251,20 @@
             retailerMaps[r.retailer] = map;
         });
 
+        // 비고 매핑 수집
+        var remarkMap = {};
+        retailers.forEach(function(r) {
+            r.columns.forEach(function(c) {
+                if (c.remark) remarkMap[c.column] = c.remark;
+            });
+        });
+        var hasRemarks = Object.keys(remarkMap).length > 0;
+
         var html = '';
         if (label) html += '<div style="font-size:13px;font-weight:700;margin:16px 0 8px;font-family:Malgun Gothic,sans-serif;">' + label + '</div>';
         html += '<table style="' + TABLE + '"><tr><th style="' + TH + 'width:250px;" rowspan="2">수집항목</th>';
         retailers.forEach(function(r) { html += '<th style="' + TH + '" colspan="2">' + r.retailer + '</th>'; });
+        if (hasRemarks) html += '<th style="' + TH + '" rowspan="2">비고</th>';
         html += '</tr><tr>';
         retailers.forEach(function() {
             html += '<th style="' + TH + 'width:60px;">전체</th>';
@@ -265,11 +275,12 @@
             html += '<tr><td style="' + TD + 'white-space:nowrap;">' + colName + '</td>';
             retailers.forEach(function(r) {
                 var info = retailerMaps[r.retailer][colName];
-                if (!info || r.total_count === 0) {
+                if (!info) {
                     html += '<td style="' + TD + 'text-align:center;">-</td>';
                     html += '<td style="' + TD + 'text-align:center;">-</td>';
                 } else {
-                    html += '<td style="' + TD_NUM + '">' + L4.formatNumber(r.total_count) + '</td>';
+                    var colTotal = info.total_count !== undefined ? info.total_count : r.total_count;
+                    html += '<td style="' + TD_NUM + '">' + L4.formatNumber(colTotal) + '</td>';
                     if (withLinks && info.null_count > 0) {
                         var detailUrl = '/dx/layer4/collection-status/detail/'
                             + '?date=' + encodeURIComponent(getSelectedDate())
@@ -283,6 +294,9 @@
                     }
                 }
             });
+            if (hasRemarks) {
+                html += '<td style="' + TD + 'font-size:12px;color:var(--text-secondary);">' + (remarkMap[colName] || '') + '</td>';
+            }
             html += '</tr>';
         });
         html += '</table>';

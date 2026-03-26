@@ -60,12 +60,21 @@ def collection_status_data(request):
             if not columns:
                 continue
 
-            # 컬럼별 NULL 카운트 SQL 동적 생성
+            # 컬럼별 NULL 카운트 + 특수 전체건수 계산용 SQL 동적 생성
             null_parts = []
             for col in columns:
                 null_parts.append(
                     f"SUM(CASE WHEN {col} IS NULL OR CAST({col} AS TEXT) = '' THEN 1 ELSE 0 END) AS null_{col}"
                 )
+            # savings NOT NULL 건수 (original_sku_price 전체건수 계산용)
+            null_parts.append(
+                "SUM(CASE WHEN savings IS NOT NULL AND CAST(savings AS TEXT) != '' THEN 1 ELSE 0 END) AS savings_count"
+            )
+            # savings 있는데 original_sku_price 없는 건수
+            null_parts.append(
+                "SUM(CASE WHEN (savings IS NOT NULL AND CAST(savings AS TEXT) != '') "
+                "AND (original_sku_price IS NULL OR CAST(original_sku_price AS TEXT) = '') THEN 1 ELSE 0 END) AS original_price_missing"
+            )
 
             sql = (
                 f"SELECT COUNT(*) AS total_count, {', '.join(null_parts)} "
@@ -76,14 +85,50 @@ def collection_status_data(request):
             row = cursor.fetchone()
 
             total_count = row[0] if row else 0
+            savings_count = row[len(columns) + 1] if row else 0
+            original_price_missing = row[len(columns) + 2] if row else 0
+
+            # 컬럼별 전체건수 규칙 (TV: promotion 18 고정, HHP: 전체건수)
+            CUSTOM_TOTALS = {
+                'bsr_rank': 100 if retailer == 'Bestbuy' else 200,
+            }
+            if category == 'tv':
+                CUSTOM_TOTALS['promotion_type'] = 18
+                CUSTOM_TOTALS['promotion_position'] = 18
+
+            # 비고 매핑
+            REMARKS = {
+                'bsr_rank': 'BSR 페이지 수집 항목 (오전/오후 100건씩)',
+                'promotion_type': '프로모션 페이지 수집 항목 (TV 최대 18개)',
+                'promotion_position': '프로모션 페이지 수집 항목 (TV 최대 18개)',
+                'trend_rank': '트렌드 수집 항목 (최대 10개)',
+                'original_sku_price': '할인가 존재 시에만 원본가 존재 (Amazon 제외)',
+            }
+
             column_nulls = []
             for i, col in enumerate(columns):
-                null_count = row[i + 1] if row else 0
-                column_nulls.append({
+                raw_null = row[i + 1] if row else 0
+                not_null = total_count - raw_null
+                if col == 'original_sku_price' and retailer in ('Bestbuy', 'Walmart'):
+                    col_total = savings_count
+                    null_count = original_price_missing
+                elif col == 'trend_rank':
+                    col_total = not_null
+                    null_count = 0
+                elif col in CUSTOM_TOTALS:
+                    col_total = CUSTOM_TOTALS[col]
+                    null_count = col_total - not_null if col_total > not_null else 0
+                else:
+                    col_total = total_count
+                    null_count = raw_null
+                item = {
                     'column': col,
+                    'total_count': col_total,
                     'null_count': null_count,
-                    'fill_rate': round((1 - null_count / total_count) * 100, 1) if total_count > 0 else 0,
-                })
+                }
+                if col in REMARKS:
+                    item['remark'] = REMARKS[col]
+                column_nulls.append(item)
 
             retailers.append({
                 'retailer': retailer,
