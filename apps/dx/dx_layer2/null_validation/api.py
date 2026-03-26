@@ -6,7 +6,7 @@ import json
 import re
 
 from django.http import JsonResponse
-from apps.common.db import get_dx_connection
+from apps.common.db import dx_connection
 from apps.common.response import safe_error
 from apps.common.params import parse_date
 from .services import get_all_categories
@@ -34,20 +34,12 @@ def null_detail(request):
     if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', column):
         return JsonResponse({'error': '잘못된 컬럼명'}, status=400)
 
-    conn = None
-    cursor = None
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        result = services.get_null_detail(cursor, target_date, category, retailer, days, column)
-        return JsonResponse(result)
+        with dx_connection() as (conn, cursor):
+            result = services.get_null_detail(cursor, target_date, category, retailer, days, column)
+            return JsonResponse(result)
     except Exception as e:
         return safe_error(e)
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 
 def null_review(request):
@@ -78,30 +70,15 @@ def null_review(request):
 
     username = request.user.username if request.user.is_authenticated else 'anonymous'
 
-    conn = None
-    cursor = None
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        result = services.save_null_review(
-            cursor, conn, table_name, record_id, column_name,
-            status, memo, reason, crawl_date, correction_type, username
-        )
-
-        status_code = result.pop('status_code', 200)
-        if 'error' in result:
-            return JsonResponse(result, status=status_code)
-        return JsonResponse(result)
-
+        with dx_connection() as (conn, cursor):
+            result = services.save_null_review(
+                cursor, conn, table_name, record_id, column_name,
+                status, memo, reason, crawl_date, correction_type, username
+            )
+            status_code = result.pop('status_code', 200)
+            if 'error' in result:
+                return JsonResponse(result, status=status_code)
+            return JsonResponse(result)
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
         return safe_error(e)
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()

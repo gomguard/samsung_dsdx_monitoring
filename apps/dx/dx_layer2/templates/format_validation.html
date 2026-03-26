@@ -1,7 +1,7 @@
-{% extends 'layer2/base_layer2.html' %}
+{% extends 'base_layer2.html' %}
 {% load static %}
 
-{% block page_title %}중복 검증{% endblock %}
+{% block page_title %}형식 검증{% endblock %}
 
 {% block layer2_content %}
 <div id="dx-validation-container">
@@ -14,6 +14,6 @@
 
 {% block layer2_js %}
 <script src="{% static 'dx_layer2/js/layer2-common.js' %}"></script>
-<script src="{% static 'dx_layer2/js/anomaly_validation.js' %}"></script>
+<script src="{% static 'dx_layer2/js/format_validation.js' %}"></script>
 <script src="{% static 'dx_layer2/js/dashboard.js' %}"></script>
 {% endblock %}

@@ -5,7 +5,7 @@ connection/cursor 관리, 파라미터 파싱, JsonResponse 반환
 
 import json as json_mod
 from django.http import JsonResponse
-from apps.common.db import get_dx_connection
+from apps.common.db import dx_connection
 from apps.common.response import safe_error
 from apps.common.params import parse_date
 from . import services
@@ -31,20 +31,12 @@ def anomaly_detail(request):
     except (ValueError, TypeError):
         return JsonResponse({'error': '잘못된 페이지 파라미터'}, status=400)
 
-    conn = None
-    cursor = None
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        result = services.get_anomaly_detail(cursor, target_date, table, retailer, days, page, page_size)
-        return JsonResponse(result)
+        with dx_connection() as (conn, cursor):
+            result = services.get_anomaly_detail(cursor, target_date, table, retailer, days, page, page_size)
+            return JsonResponse(result)
     except Exception as e:
         return safe_error(e)
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 
 def duplicate_cleanup(request):
@@ -74,23 +66,10 @@ def duplicate_cleanup(request):
     target_date = parse_date(data.get('date')) or None
     username = request.user.username if request.user.is_authenticated else 'anonymous'
 
-    conn = None
-    cursor = None
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        result = services.cleanup_duplicates(cursor, conn, table, delete_ids, target_date, username)
-        conn.commit()
-        return JsonResponse(result)
+        with dx_connection() as (conn, cursor):
+            result = services.cleanup_duplicates(cursor, conn, table, delete_ids, target_date, username)
+            conn.commit()
+            return JsonResponse(result)
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
         return safe_error(e)
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()

@@ -3,7 +3,7 @@ Layer 2 Dashboard API: HTTP 래퍼 (request 파싱 + services 호출 + JsonRespo
 """
 
 from django.http import JsonResponse
-from apps.common.db import get_dx_connection
+from apps.common.db import dx_connection
 from apps.common.response import log_error
 from apps.common.params import parse_date
 from apps.dx.dx_layer2.dashboard import services
@@ -15,12 +15,9 @@ def layer_stats(request):
     if target_date is None:
         return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
 
-    conn = None
-    cursor = None
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        results = services.get_layer_stats(cursor, target_date)
+        with dx_connection() as (conn, cursor):
+            results = services.get_layer_stats(cursor, target_date)
     except Exception as e:
         results = {
             'timestamp': None,
@@ -37,11 +34,6 @@ def layer_stats(request):
             },
             'error': log_error(e)
         }
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
     return JsonResponse(results)
 
@@ -57,12 +49,9 @@ def retailer_detail(request):
     if target_date is None:
         return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
 
-    conn = None
-    cursor = None
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        results = services.get_retailer_detail(cursor, validation_type, table_name, retailer, target_date)
+        with dx_connection() as (conn, cursor):
+            results = services.get_retailer_detail(cursor, validation_type, table_name, retailer, target_date)
     except Exception as e:
         results = {
             'type': validation_type,
@@ -73,10 +62,5 @@ def retailer_detail(request):
             'total': 0,
             'error': log_error(e)
         }
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
     return JsonResponse(results)

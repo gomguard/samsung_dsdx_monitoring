@@ -6,7 +6,7 @@ connection/cursor 관리, 파라미터 파싱/검증, JsonResponse 반환
 import re
 import json
 from django.http import JsonResponse
-from apps.common.db import get_dx_connection
+from apps.common.db import dx_connection
 from apps.common.response import safe_error
 from . import services
 from .services import VALID_TABLES_UPDATE
@@ -47,34 +47,21 @@ def update_cell(request):
 
     username = request.user.username if request.user.is_authenticated else 'anonymous'
 
-    conn = None
-    cursor = None
     try:
-        conn = get_dx_connection()
-        cursor = conn.cursor()
-        result = services.update_cell_value(
-            cursor, conn, table_name, row_id, column_name, new_value,
-            crawl_date, correction_type, username, memo
-        )
+        with dx_connection() as (conn, cursor):
+            result = services.update_cell_value(
+                cursor, conn, table_name, row_id, column_name, new_value,
+                crawl_date, correction_type, username, memo
+            )
 
-        # 서비스에서 에러 반환 시 처리
-        if 'error' in result:
-            return JsonResponse({'error': result['error']}, status=result.get('status', 400))
+            # 서비스에서 에러 반환 시 처리
+            if 'error' in result:
+                return JsonResponse({'error': result['error']}, status=result.get('status', 400))
 
-        conn.commit()
-        return JsonResponse(result)
+            conn.commit()
+            return JsonResponse(result)
     except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except Exception:
-                pass
         return safe_error(e)
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
 
 
 def review_reasons(request):
