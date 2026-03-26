@@ -4,7 +4,7 @@ Layer 3 카테고리별 특성 API
 
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import get_dx_connection
+from apps.common.db import get_dx_connection, dx_connection
 from apps.common.response import safe_error, log_error
 from apps.dx.dx_layer3.dashboard.services import (
     load_category_rules,

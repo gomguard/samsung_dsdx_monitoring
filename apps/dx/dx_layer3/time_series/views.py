@@ -8,4 +8,4 @@ from apps.dx.dx_layer3.common.context import build_context
 
 def time_series(request):
     """시계열 이상치"""
-    return render(request, 'layer3/time_series.html', build_context('time_series', request))
+    return render(request, 'layer3_time_series.html', build_context('time_series', request))

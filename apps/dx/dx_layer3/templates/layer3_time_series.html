@@ -1,4 +1,4 @@
-{% extends 'layer3/base_layer3.html' %}
+{% extends 'base_layer3.html' %}
 {% load static %}
 
 {% block page_title %}시계열 이상치{% endblock %}
@@ -11,5 +11,6 @@
 {% endblock %}
 
 {% block layer3_js %}
-<script src="{% static 'js/dx/dx_layer3/common.js' %}?v=1"></script>
+<script src="{% static 'dx_layer3/js/common.js' %}?v=1"></script>
+<script src="{% static 'dx_layer3/js/time-series.js' %}"></script>
 {% endblock %}

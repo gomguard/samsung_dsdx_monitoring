@@ -4,7 +4,7 @@ Layer 3 대시보드 API — 전체 통계 오케스트레이터
 
 from datetime import datetime, timedelta
 from django.http import JsonResponse
-from apps.common.db import get_dx_connection
+from apps.common.db import get_dx_connection, dx_connection
 from apps.common.response import log_error
 from .services import (
     validate_table_name as _validate_table_name,

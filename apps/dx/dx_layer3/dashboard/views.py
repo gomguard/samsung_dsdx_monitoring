@@ -8,4 +8,4 @@ from apps.dx.dx_layer3.common.context import build_context
 
 def dashboard(request):
     """Layer 3 대시보드"""
-    return render(request, 'layer3/dashboard.html', build_context('dashboard', request))
+    return render(request, 'layer3_dashboard.html', build_context('dashboard', request))

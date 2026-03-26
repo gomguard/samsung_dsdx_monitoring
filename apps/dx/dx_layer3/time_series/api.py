@@ -4,7 +4,7 @@
 
 from datetime import datetime, timedelta
 from django.http import JsonResponse
-from apps.common.db import get_dx_connection, dx_table
+from apps.common.db import get_dx_connection, dx_connection, dx_table
 from apps.common.response import safe_error, log_error
 from apps.dx.dx_layer3.dashboard.services import validate_table_name as _validate_table_name
 

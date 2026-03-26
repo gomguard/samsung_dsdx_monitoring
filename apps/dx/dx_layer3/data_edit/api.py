@@ -4,7 +4,7 @@ from datetime import datetime
 
 from django.http import JsonResponse
 
-from apps.common.db import get_dx_connection
+from apps.common.db import get_dx_connection, dx_connection
 from apps.common.retail_columns import get_editable_columns
 from apps.common.response import safe_error
 

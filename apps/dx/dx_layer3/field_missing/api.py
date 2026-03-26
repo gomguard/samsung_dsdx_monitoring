@@ -4,7 +4,7 @@ Layer 3 필드 누락 API
 
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import get_dx_connection
+from apps.common.db import get_dx_connection, dx_connection
 from apps.common.retail_columns import get_editable_columns
 from apps.common.response import safe_error, log_error
 from apps.dx.dx_layer3.dashboard.services import validate_exclude_condition
