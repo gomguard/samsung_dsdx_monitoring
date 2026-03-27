@@ -111,7 +111,7 @@ function showFormatFieldDetail(fieldName, pushStack = true) {
         ];
     }
 
-    // Item 목록 HTML (섹션 페이지에서)
+    // Item 목록 HTML
     var itemQueryHtml = '';
     if (!isInlineMode()) {
         itemQueryHtml += `<div class="modal-toolbar">
@@ -155,6 +155,22 @@ function showFormatFieldDetail(fieldName, pushStack = true) {
                 <div class="item-toggle-content" style="display:none;">
                     <div class="item-copy-header"><span class="item-copy-title">Item 목록 (${items.length}개)</span><button class="btn-copy" onclick="event.stopPropagation();copyToClipboard(this.parentElement.nextElementSibling)">복사</button></div>
                     <div class="item-copy-content">${items.join(', ')}</div>
+                </div>
+            </div>`;
+        } else if (!isInlineMode() && items.length > 0) {
+            const tblName = tableParam === 'tv_retail' ? 'tv_retail_com' : 'hhp_retail_com';
+            const retailerName = modalState.retailer || '';
+            const dateCol = tableParam === 'hhp_retail' ? 'crawl_strdatetime' : 'crawl_datetime';
+            const inClause = items.map(item => `'${item}'`).join(', ');
+            const query3Days = `SELECT id, ${dateCol}, account_name, item, ${fieldName}\nFROM ${tblName}\nWHERE account_name = '${retailerName}'\n  AND item IN (${inClause})\n  AND DATE(${dateCol}::timestamp) >= DATE('${date}') - INTERVAL '2 days'\n  AND DATE(${dateCol}::timestamp) <= DATE('${date}')\nORDER BY item, ${dateCol} ASC;`;
+            itemQueryHtml += `<div class="item-query-section">
+                <div class="item-list-box">
+                    <div class="item-copy-header"><span class="item-copy-title">Item 목록 (${items.length}개)</span><button class="btn-copy" onclick="copyToClipboard(this.parentElement.nextElementSibling)">복사</button></div>
+                    <div class="item-copy-content">${items.join(', ')}</div>
+                </div>
+                <div class="query-box">
+                    <div class="item-copy-header"><span class="item-copy-title">3일치 조회 쿼리 (${date} 기준)</span><button class="btn-copy" onclick="copyToClipboard(this.parentElement.nextElementSibling)">복사</button></div>
+                    <pre class="query-content">${query3Days}</pre>
                 </div>
             </div>`;
         }
