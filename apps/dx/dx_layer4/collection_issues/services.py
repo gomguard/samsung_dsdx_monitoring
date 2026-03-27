@@ -68,6 +68,7 @@ def save_issue(issue_id, detail_id, crawl_date, section, title, issue_date,
                         resolution_status = 'open', resolved_at = NULL, resolved_id = NULL
                     WHERE id = %s
                 """, (title, issue_date, symptom, cause, action, username, now, issue_id))
+            conn.commit()
             return {'success': True, 'id': issue_id}
         else:
             if already_resolved:
@@ -100,6 +101,7 @@ def save_issue(issue_id, detail_id, crawl_date, section, title, issue_date,
                     WHERE id = %s
                 """, (new_id, detail_id))
 
+            conn.commit()
             return {'success': True, 'id': new_id}
 
 
@@ -119,6 +121,8 @@ def delete_issue(issue_id, username):
             WHERE issue_id = %s
         """, (issue_id,))
 
+        conn.commit()
+
     return {'success': True}
 
 
@@ -133,5 +137,7 @@ def resolve_issue(issue_id, resolution_memo, username):
                 updated_id = %s, updated_at = %s
             WHERE id = %s AND is_del = 0
         """, (now, username, resolution_memo, username, now, issue_id))
+
+        conn.commit()
 
     return {'success': True, 'id': issue_id}

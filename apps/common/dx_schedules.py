@@ -163,7 +163,8 @@ def get_schedules_by_type(check_type, category=None):
     filtered = [s for s in schedules if s['check_type'] == check_type]
 
     if category:
-        filtered = [s for s in filtered if s['category'] in (category, 'ALL')]
+        cat_upper = category.upper()
+        filtered = [s for s in filtered if (s['category'] or '').upper() in (cat_upper, 'ALL')]
 
     return filtered
 

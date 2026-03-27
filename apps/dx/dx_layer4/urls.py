@@ -6,7 +6,6 @@ from .report import views as report_views, api as report_api
 from .tools import views as tools_views
 from .collection_status import views as cs_views, api as cs_api
 from .collection_issues import api as ci_api
-from apps.dx.dx_layer1.common import api as check_api
 
 app_name = 'layer4'
 
@@ -41,7 +40,7 @@ urlpatterns = [
     path('api/report/', report_api.report_data, name='api_report'),
 
     # API — 마감기록 (status는 Layer 1 common 참조)
-    path('api/check/status/', check_api.check_status, name='api_check_status'),
+    path('api/check/status/', cl_api.check_status, name='api_check_status'),
     path('api/check/log/', cl_api.check_log_list, name='api_check_log_list'),
     path('api/check/memo/', cl_api.check_memo_update, name='api_check_memo_update'),
 

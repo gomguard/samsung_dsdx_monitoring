@@ -552,6 +552,9 @@ def get_retail_summary(cursor, target_date, product_line):
             retailer_set.add(r['name'])
     retailers = sorted(retailer_set) if retailer_set else ['Amazon', 'Bestbuy', 'Walmart']
 
+    # 1일 1회 리테일러 판별 (오전에 하루치 전체 조회, 오후 건너뜀)
+    daily_retailers = _get_daily_retailers(all_slots)
+
     # 결과 데이터 구조
     summary_data = []
     null_columns_data = []
@@ -575,9 +578,35 @@ def get_retail_summary(cursor, target_date, product_line):
                 raise ValueError(f"허용되지 않은 컬럼명: {col}")
         retailer_check_slots = []
 
+        is_daily = retailer.lower() in daily_retailers
+
         for slot in time_slots:
-            # 시간대별 페이지타입 카운트 (대시보드와 동일 쿼리 사용)
-            row = query_retail_counts_by_retailer(cursor, table_name, date_field, extra_rank_field, slot['start'], slot['end'], retailer)
+            # 1일 1회 리테일러: 오후 슬롯 건너뛰기 (오전에 하루치 전체 표시)
+            if is_daily and slot['name'] == '오후':
+                retailer_rows.append({
+                    'time_slot': slot['name'],
+                    'main': 0, 'bsr': 0, 'extra': 0,
+                    'extra_name': extra_rank_name, 'total': 0
+                })
+                continue
+
+            # 1일 1회 리테일러: DATE 기준 조회, 나머지: 슬롯 범위 기준
+            if is_daily:
+                date_only = slot['start'][:10]
+                cursor.execute(f"""
+                    SELECT
+                        COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
+                        COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
+                        COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count,
+                        COUNT(*) as total
+                    FROM {table_name}
+                    WHERE DATE({date_field}) = %s
+                    AND LOWER(account_name) = LOWER(%s)
+                """, (date_only, retailer))
+                row = cursor.fetchone()
+            else:
+                row = query_retail_counts_by_retailer(cursor, table_name, date_field, extra_rank_field, slot['start'], slot['end'], retailer)
+
             main_count = row[0] or 0
             bsr_count = row[1] or 0
             extra_count = row[2] or 0
@@ -597,14 +626,24 @@ def get_retail_summary(cursor, target_date, product_line):
             if total > 0 and check_columns:
                 total_check_count += len(check_columns)
                 count_parts = [f"COUNT({col}) as {col}_cnt" for col in check_columns]
-                query = f"""
-                    SELECT {', '.join(count_parts)}
-                    FROM {table_name}
-                    WHERE {date_field} >= %s
-                    AND {date_field} < %s
-                    AND LOWER(account_name) = LOWER(%s)
-                """
-                cursor.execute(query, (slot['start'], slot['end'], retailer))
+                if is_daily:
+                    date_only = slot['start'][:10]
+                    query = f"""
+                        SELECT {', '.join(count_parts)}
+                        FROM {table_name}
+                        WHERE DATE({date_field}) = %s
+                        AND LOWER(account_name) = LOWER(%s)
+                    """
+                    cursor.execute(query, (date_only, retailer))
+                else:
+                    query = f"""
+                        SELECT {', '.join(count_parts)}
+                        FROM {table_name}
+                        WHERE {date_field} >= %s
+                        AND {date_field} < %s
+                        AND LOWER(account_name) = LOWER(%s)
+                    """
+                    cursor.execute(query, (slot['start'], slot['end'], retailer))
                 count_row = cursor.fetchone()
                 if count_row:
                     # 컬럼별 카운트 저장

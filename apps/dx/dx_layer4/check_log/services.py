@@ -82,5 +82,89 @@ def update_check_memo(log_id, memo, username):
             WHERE id = %s AND is_del = 0
         """, (memo, username, now, log_id))
         updated = cursor.rowcount
+        conn.commit()
 
     return {'success': True, 'updated': updated}
+
+
+def get_check_status(date_str, layer, include_detail=False):
+    """날짜별 검수 확인 상태 조회 (운영 테이블 직접 참조)"""
+    with dx_connection() as (conn, cursor):
+        cursor.execute("""
+            SELECT id, section, expected_count, actual_count, rate, status, memo,
+                   created_id, created_at, updated_id, updated_at, confirm_step
+            FROM monitoring_check_log
+            WHERE crawl_date = %s AND layer = %s AND is_del = 0
+            ORDER BY id
+        """, (date_str, layer))
+
+        sections = {}
+        for row in cursor.fetchall():
+            sections[row[1]] = {
+                'id': row[0],
+                'expected_count': row[2],
+                'actual_count': row[3],
+                'rate': float(row[4]) if row[4] else 0,
+                'status': row[5],
+                'memo': row[6] or '',
+                'created_id': row[7],
+                'created_at': row[8].isoformat() if row[8] else None,
+                'updated_id': row[9],
+                'updated_at': row[10].isoformat() if row[10] else None,
+                'confirm_step': row[11],
+            }
+
+        check_log_ids = [sections[s]['id'] for s in sections]
+        if include_detail and check_log_ids:
+            placeholders = ','.join(['%s'] * len(check_log_ids))
+            cursor.execute(f"""
+                SELECT d.id, d.section, d.category, d.time_slot, d.retailer,
+                       d.item_name, d.expected_count, d.actual_count, d.rate, d.status,
+                       d.issue_id, d.confirm_step
+                FROM monitoring_check_log_detail d
+                WHERE d.check_log_id IN ({placeholders})
+                ORDER BY d.confirm_step, d.id
+            """, check_log_ids)
+            for dr in cursor.fetchall():
+                sec_key = dr[1]
+                step = dr[11]
+                if sec_key in sections:
+                    cur_step = sections[sec_key]['confirm_step']
+                    detail_key = 'details' if step == cur_step else 'details_step1'
+                    if detail_key not in sections[sec_key]:
+                        sections[sec_key][detail_key] = []
+                    sections[sec_key][detail_key].append({
+                        'detail_id': dr[0],
+                        'category': dr[2], 'time_slot': dr[3],
+                        'retailer': dr[4], 'item_name': dr[5],
+                        'expected_count': dr[6], 'actual_count': dr[7],
+                        'rate': float(dr[8]) if dr[8] else 0, 'status': dr[9],
+                        'issue_id': dr[10],
+                    })
+
+        # 수요증감율: 부족 키워드 조인
+        if include_detail and check_log_ids:
+            kw_map = {}
+            cursor.execute(f"""
+                SELECT check_log_id, category, product_name, event_name, event_date
+                FROM monitoring_check_log_keywords
+                WHERE check_log_id IN ({','.join(['%s'] * len(check_log_ids))})
+                ORDER BY id
+            """, check_log_ids)
+            for kr in cursor.fetchall():
+                kw_map.setdefault(kr[0], []).append({
+                    'category': kr[1], 'product_name': kr[2],
+                    'event_name': kr[3], 'event_date': str(kr[4]) if kr[4] else ''
+                })
+            for sec_key, sec_data in sections.items():
+                if sec_data['id'] in kw_map:
+                    sec_data['missing_keywords'] = kw_map[sec_data['id']]
+
+    target_count = _get_target_sections(date_str)
+    return {
+        'success': True,
+        'checked_all': len(sections) >= target_count,
+        'checked_count': len(sections),
+        'total_sections': target_count,
+        'sections': sections
+    }

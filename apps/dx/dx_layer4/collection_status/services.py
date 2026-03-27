@@ -162,6 +162,7 @@ def save_email_log(crawl_date, subject, receiver, sender, sent_id, status, error
                     (crawl_date, subject, receiver_email, sender_email, sent_at, sent_id, status, error_message)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """, [crawl_date, subject, receiver, sender, datetime.now(), sent_id, status, error_message])
+            conn.commit()
     except Exception:
         pass
 

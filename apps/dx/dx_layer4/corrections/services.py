@@ -190,6 +190,7 @@ def cancel_corrections(ids, cancel_memo, username):
             WHERE id IN ({placeholders}) AND status = 'normal'
         """, [username, now, cancel_memo or None] + ids)
         cancelled = cursor.rowcount
+        conn.commit()
 
     return {'success': True, 'cancelled': cancelled}
 
