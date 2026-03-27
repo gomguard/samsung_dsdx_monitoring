@@ -6,8 +6,14 @@ DX 문서 관리 (이슈보고서, 검수 보고서, 검수 매뉴얼 등)
 from django.shortcuts import render
 from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
 from django.http import HttpResponse, HttpResponseNotFound
-from apps.common.db import dx_connection, DX_SHARE_TOKEN_TABLE
 from apps.common.response import log_error
+from apps.dx.dx_document.services import (
+    get_categories_with_doc_count,
+    get_categories_for_edit,
+    is_token_revoked,
+    get_shared_document,
+    get_shared_file,
+)
 
 # 문서 공유 토큰 서명
 SHARE_SIGNER = TimestampSigner(salt='document-share')
@@ -17,22 +23,7 @@ SHARE_MAX_AGE = 86400  # 24시간
 def index(request):
     """DX 문서 페이지"""
     try:
-        with dx_connection() as (conn, cursor):
-            cursor.execute("""
-                SELECT c.category_id, c.category_name, c.description, c.sort_order, c.category_type,
-                       COALESCE(d.doc_count, 0) as doc_count
-                FROM monitoring_document_categories c
-                LEFT JOIN (
-                    SELECT category_id, COUNT(*) as doc_count
-                    FROM monitoring_documents
-                    WHERE is_del = false
-                    GROUP BY category_id
-                ) d ON c.category_id = d.category_id
-                WHERE c.is_del = false AND c.is_active = true
-                ORDER BY c.sort_order, c.created_at
-            """)
-            columns = [desc[0] for desc in cursor.description]
-            categories = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        categories = get_categories_with_doc_count()
     except Exception as e:
         categories = []
         log_error(e, 'db')
@@ -55,15 +46,7 @@ def edit(request, document_id=None):
     template_content = ''
 
     try:
-        with dx_connection() as (conn, cursor):
-            cursor.execute("""
-                SELECT category_id, category_name, template_content, category_type
-                FROM monitoring_document_categories
-                WHERE is_del = false AND is_active = true
-                ORDER BY sort_order, created_at
-            """)
-            columns = [desc[0] for desc in cursor.description]
-            categories = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        categories = get_categories_for_edit()
     except Exception as e:
         categories = []
         log_error(e, 'db')
@@ -123,46 +106,27 @@ def share(request, token):
         document_id = signed_value
         category_id = None
 
-    # DB에서 토큰 차단 여부 확인
+    # DB에서 토큰 차단 여부 + 문서 조회
     try:
-        with dx_connection() as (conn, cursor):
-            cursor.execute(f"""
-                SELECT is_revoked FROM {DX_SHARE_TOKEN_TABLE}
-                WHERE token = %s
-            """, [token])
-            token_row = cursor.fetchone()
-            if token_row and token_row[0]:
-                return render(request, 'dx_document/share.html', {
-                    'error': '공유가 취소된 링크입니다.',
-                    'error_type': 'revoked',
-                })
+        if is_token_revoked(token):
+            return render(request, 'dx_document/share.html', {
+                'error': '공유가 취소된 링크입니다.',
+                'error_type': 'revoked',
+            })
 
-            # 문서 조회
-            cursor.execute("""
-                SELECT d.document_id, d.title, d.content,
-                       c.category_name,
-                       TO_CHAR(d.created_at, 'YYYY-MM-DD HH24:MI') as created_at
-                FROM monitoring_documents d
-                LEFT JOIN monitoring_document_categories c ON d.category_id = c.category_id
-                WHERE d.document_id = %s AND d.is_del = false
-            """, [document_id])
-            row = cursor.fetchone()
+        document = get_shared_document(document_id)
+        if not document:
+            return render(request, 'dx_document/share.html', {
+                'error': '문서를 찾을 수 없습니다.',
+                'error_type': 'not_found',
+            })
 
-            if not row:
-                return render(request, 'dx_document/share.html', {
-                    'error': '문서를 찾을 수 없습니다.',
-                    'error_type': 'not_found',
-                })
-
-            columns = ['document_id', 'title', 'content', 'category_name', 'created_at']
-            document = dict(zip(columns, row))
-
-            # 이미지 URL을 공유 전용 프록시로 치환
-            if document.get('content'):
-                document['content'] = document['content'].replace(
-                    '/api/dx/documents/file/',
-                    f'/dx-share/file/{token}/'
-                )
+        # 이미지 URL을 공유 전용 프록시로 치환
+        if document.get('content'):
+            document['content'] = document['content'].replace(
+                '/api/dx/documents/file/',
+                f'/dx-share/file/{token}/'
+            )
     except Exception as e:
         log_error(e, 'db')
         return render(request, 'dx_document/share.html', {
@@ -189,30 +153,18 @@ def share_file(request, token, file_name):
 
     # 토큰 차단 여부 확인
     try:
-        with dx_connection() as (conn, cursor):
-            cursor.execute(f"""
-                SELECT is_revoked FROM {DX_SHARE_TOKEN_TABLE}
-                WHERE token = %s
-            """, [token])
-            token_row = cursor.fetchone()
-            if token_row and token_row[0]:
-                return HttpResponseNotFound('유효하지 않은 링크입니다.')
+        if is_token_revoked(token):
+            return HttpResponseNotFound('유효하지 않은 링크입니다.')
     except Exception:
         pass
 
     # 파일 조회 + S3에서 직접 읽어서 전달
     try:
-        with dx_connection() as (conn, cursor):
-            cursor.execute("""
-                SELECT file_name, file_path FROM monitoring_files
-                WHERE file_name = %s AND is_del = false
-            """, (file_name,))
-            row = cursor.fetchone()
-
-        if not row:
+        file_info = get_shared_file(file_name)
+        if not file_info:
             return HttpResponseNotFound('파일을 찾을 수 없습니다.')
 
-        s3_key = f'{row[1]}/{row[0]}'
+        s3_key = f'{file_info["file_path"]}/{file_info["file_name"]}'
         s3_client = boto3.client(
             's3',
             region_name=S3_CONFIG['region'],
