@@ -74,11 +74,12 @@ def get_collection_status(target_date, category):
 
             REMARKS = {
                 'bsr_rank': 'BSR 페이지 수집 항목 (오전/오후 100건씩)',
-                'promotion_type': '프로모션 페이지 수집 항목 (TV 최대 18개)',
-                'promotion_position': '프로모션 페이지 수집 항목 (TV 최대 18개)',
                 'trend_rank': '트렌드 수집 항목 (최대 10개)',
                 'original_sku_price': '할인가 존재 시에만 원본가 존재 (Amazon 제외)',
             }
+            if category == 'tv':
+                REMARKS['promotion_type'] = '프로모션 페이지 수집 항목 (TV 최대 18개)'
+                REMARKS['promotion_position'] = '프로모션 페이지 수집 항목 (TV 최대 18개)'
 
             column_nulls = []
             for i, col in enumerate(columns):
