@@ -1,0 +1,68 @@
+<div id="collectionTabContent">
+<!-- FilterBar: 수집현황 -->
+<div id="collectionFilterBar"></div>
+
+<!-- Summary -->
+<div class="summary-grid">
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">전체 리테일러</span>
+            <div class="summary-icon" style="background: #dbeafe; color: #2563eb;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalTables">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">예상 건수</span>
+            <div class="summary-icon" style="background: #fef3c7; color: #d97706;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalExpected">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">실제 수집</span>
+            <div class="summary-icon" style="background: #d1fae5; color: #059669;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalActual">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">전체 완료율</span>
+            <div class="summary-icon" style="background: #ede9fe; color: #7c3aed;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"/>
+                    <line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalRate">-</div>
+    </div>
+</div>
+
+<!-- All Table View -->
+<div id="allView" class="all-table-section">
+    <div class="all-table-header">
+        <div class="all-table-title">전체 리테일러 수집 현황</div>
+    </div>
+    <div class="loading" id="allLoading">
+        <div class="loading-spinner"></div>
+        데이터를 불러오는 중...
+    </div>
+    <div id="allContent"></div>
+</div>
+</div><!-- End of collectionTabContent -->

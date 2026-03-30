@@ -1,0 +1,29 @@
+<div id="fileserverTabContent" class="hidden">
+    <!-- FilterBar: 파일용량 -->
+    <div id="fileserverFilterBar"></div>
+
+    <div class="fileserver-section">
+        <div class="fileserver-header">
+            <div class="fileserver-title">파일서버 용량 현황</div>
+            <div class="fileserver-summary" id="fileserverSummary">
+                <div class="fileserver-stat">
+                    <div class="fileserver-stat-value" id="fsTotalCountries">-</div>
+                    <div class="fileserver-stat-label">국가</div>
+                </div>
+                <div class="fileserver-stat">
+                    <div class="fileserver-stat-value" id="fsTotalFiles">-</div>
+                    <div class="fileserver-stat-label">파일</div>
+                </div>
+                <div class="fileserver-stat">
+                    <div class="fileserver-stat-value" id="fsTotalSize">-</div>
+                    <div class="fileserver-stat-label">총 용량</div>
+                </div>
+            </div>
+        </div>
+        <div class="loading" id="fileserverLoading">
+            <div class="loading-spinner"></div>
+            데이터를 불러오는 중...
+        </div>
+        <div id="fileserverContent"></div>
+    </div>
+</div>

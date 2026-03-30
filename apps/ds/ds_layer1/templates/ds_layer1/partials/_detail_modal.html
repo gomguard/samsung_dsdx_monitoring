@@ -1,0 +1,19 @@
+<div id="detailModal" class="modal-overlay hidden">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="modalTitle">리테일러 상세</div>
+                <div class="modal-subtitle" id="modalSubtitle"></div>
+            </div>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="loading" id="modalLoading">
+                <div class="loading-spinner"></div>
+                데이터를 불러오는 중...
+            </div>
+            <div id="modalContent"></div>
+        </div>
+        <div class="modal-footer" id="modalPagination"></div>
+    </div>
+</div>

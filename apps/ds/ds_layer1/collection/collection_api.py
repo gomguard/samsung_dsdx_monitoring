@@ -1,13 +1,12 @@
 """
 DS Layer 1 - 수집 현황 API
-request 파싱 + services 호출 + JsonResponse 반환
+request 파싱 + collection_services 호출 + JsonResponse 반환
 """
 
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import ds_connection
 from apps.common.response import log_error
-from . import services
+from . import collection_services
 
 
 def layer_stats(request):
@@ -30,16 +29,13 @@ def layer_stats(request):
     }
 
     try:
-        with ds_connection() as (conn, cursor):
-            result = services.get_layer_stats(cursor, target_date, batch_view, conn=conn)
-
-            data['results'] = result['results']
-            data['summary'] = result['summary']
-
+        result = collection_services.get_layer_stats(target_date, batch_view)
+        data['results'] = result['results']
+        data['summary'] = result['summary']
     except Exception as e:
         data['error'] = log_error(e)
         data['summary'] = {
-            'total_tables': len(services.get_monitoring_targets()),
+            'total_tables': len(collection_services.get_monitoring_targets()),
             'total_expected': 0,
             'total_actual': 0,
             'total_completion_rate': 0,
@@ -65,9 +61,7 @@ def instances_stats(request):
     }
 
     try:
-        with ds_connection() as (conn, cursor):
-            data['regions'] = services.get_instances_stats(cursor, target_date)
-
+        data['regions'] = collection_services.get_instances_stats(target_date)
     except Exception as e:
         data['error'] = log_error(e)
 
@@ -91,8 +85,7 @@ def table_detail(request):
     if not table_name:
         return JsonResponse({'error': '테이블명을 입력하세요.'})
 
-    # 테이블명 검증
-    valid_tables = [t[0] for t in services.get_monitoring_targets()]
+    valid_tables = [t[0] for t in collection_services.get_monitoring_targets()]
     if table_name not in valid_tables:
         return JsonResponse({'error': '유효하지 않은 테이블명입니다.'})
 
@@ -115,11 +108,8 @@ def table_detail(request):
     }
 
     try:
-        with ds_connection() as (conn, cursor):
-            result = services.get_table_detail(cursor, table_name, target_date, page, page_size, start_time, end_time, sort_by, sort_order)
-
-            data.update(result)
-
+        result = collection_services.get_table_detail(table_name, target_date, page, page_size, start_time, end_time, sort_by, sort_order)
+        data.update(result)
     except Exception as e:
         data['error'] = log_error(e)
 

@@ -47,6 +47,18 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('targetDate').value = initialDate;
     document.getElementById('fileserverDate').value = initialDate;
 
+    // 이벤트 리스너 바인딩 (인라인 onclick 제거 대응)
+    const tabColl = document.getElementById('tabCollection');
+    if (tabColl) tabColl.addEventListener('click', () => setMainTab('collection'));
+
+    const tabFS = document.getElementById('tabFileserver');
+    if (tabFS) tabFS.addEventListener('click', () => setMainTab('fileserver'));
+
+    const fsLink = document.getElementById('fileserverLink');
+    if (fsLink && typeof goFileserver === 'function') {
+        fsLink.addEventListener('click', () => goFileserver());
+    }
+
     loadData();
 });
 

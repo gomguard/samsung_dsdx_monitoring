@@ -1,0 +1,36 @@
+{% if user.is_staff %}
+<div id="batchModal" class="modal-overlay batch-modal hidden" onclick="closeBatchModalOnOverlay(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title">배치 관리</div>
+                <div class="modal-subtitle" id="batchModalDate"></div>
+            </div>
+            <button class="modal-close" onclick="closeBatchModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="batch-toolbar">
+                <div>
+                    <label>리테일러: </label>
+                    <select id="batchRetailerFilter" onchange="filterBatches()">
+                        <option value="">전체</option>
+                    </select>
+                </div>
+                <div>
+                    <button class="app-btn app-btn-sm btn-init" onclick="initBatches()">기본 배치 생성</button>
+                    <button class="app-btn app-btn-sm btn-add" onclick="showAddBatchForm()">+ 배치 추가</button>
+                </div>
+            </div>
+            <div class="loading hidden" id="batchLoading">
+                <div class="loading-spinner"></div>
+                데이터를 불러오는 중...
+            </div>
+            <div id="batchContent"></div>
+        </div>
+        <div class="modal-footer">
+            <span class="batch-info" id="batchInfo"></span>
+            <button class="app-btn app-btn-md app-btn-primary" onclick="closeBatchModal()">닫기</button>
+        </div>
+    </div>
+</div>
+{% endif %}
