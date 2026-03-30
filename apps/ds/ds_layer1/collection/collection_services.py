@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_instance, get_retailer_map
 from apps.ds.ds_layer1.batch.batch_services import get_batches_for_date
 from apps.ds.ds_layer2.stats.stats_repositories import fetch_quality_counts_by_time_range as get_quality_counts_by_time_range
-from apps.ds.ds_layer4.report.services import is_report_closed
+from apps.ds.ds_layer4.report.report_services import is_report_closed
 from .collection_repositories import (
     get_crawl_count_db, get_expected_count_db, get_closed_report_stats_db,
     get_table_detail_count_db, get_table_detail_db

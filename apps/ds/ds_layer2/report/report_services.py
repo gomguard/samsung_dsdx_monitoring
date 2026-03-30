@@ -9,6 +9,7 @@ from apps.ds.ds_layer2.stats.stats_repositories import (
     fetch_quality_counts, fetch_quality_counts_by_time_range
 )
 from . import report_repositories
+from apps.ds.ds_layer4.report.report_services import get_file_info_for_date
 
 def get_retailer_stats(cursor, retailer, target_date, include_file_info=False):
     target_row = report_repositories.fetch_target_info(cursor, retailer)
@@ -38,7 +39,6 @@ def get_retailer_stats(cursor, retailer, target_date, include_file_info=False):
 
     file_name, file_size = '', 0
     if include_file_info:
-        from apps.ds.ds_layer4.report.services import get_file_info_for_date
         retailer_file = get_file_info_for_date(target_date).get(retailer, {})
         file_name, file_size = retailer_file.get('file_name', ''), retailer_file.get('file_size', 0)
 

@@ -5,13 +5,13 @@ from datetime import datetime
 from apps.common.db import ds_connection
 from apps.common.targets import load_monitoring_targets, load_monitoring_targets_with_instance
 from apps.common.response import log_error
+from apps.ds.ds_layer4.report.report_services import is_report_closed
 from . import stats_repositories
 
 def get_layer_stats(target_date, batch_view):
     data = {'timestamp': datetime.now().isoformat(), 'date': str(target_date), 'layer': 2, 'data_source': 'ds', 'results': [], 'summary': {}}
     try:
         with ds_connection() as (conn, cursor):
-            from apps.ds.ds_layer4.report.services import is_report_closed
             close_result = is_report_closed(str(target_date), existing=(conn, cursor))
             is_closed = close_result.get('is_closed', False)
             closed_data = {}

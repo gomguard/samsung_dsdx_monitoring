@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from apps.common.response import safe_error
-from apps.ds.ds_layer4.report.services import is_report_closed
+from apps.ds.ds_layer4.report.report_services import is_report_closed
 from . import report_services
 
 def report_status(request):

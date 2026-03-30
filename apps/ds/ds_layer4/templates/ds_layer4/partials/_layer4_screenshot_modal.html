@@ -1,0 +1,16 @@
+<!-- 스크린샷 수동 업로드용 hidden input -->
+<input type="file" id="screenshotFileInput" accept="image/png,image/jpeg" style="display:none" onchange="handleScreenshotUpload(this)">
+
+<!-- 스크린샷 모달 -->
+<div class="screenshot-modal" id="screenshotModal" onclick="closeScreenshotModal(event)">
+    <div class="screenshot-modal-content" onclick="event.stopPropagation()" style="position: relative;">
+        <div class="screenshot-modal-header">
+            <div>
+                <span class="screenshot-modal-title" id="screenshotTitle">스크린샷</span>
+                <span class="screenshot-counter" id="screenshotCounter"></span>
+            </div>
+            <div>
+                <button class="screenshot-delete-btn" id="screenshotDeleteBtn" onclick="deleteScreenshot()" title="스크린샷 삭제" style="display:none;">🗑 삭제</button>
+                <button class="screenshot-modal-close" onclick="closeScreenshotModal()">&times;</button>
+            </div>
+        </div>
