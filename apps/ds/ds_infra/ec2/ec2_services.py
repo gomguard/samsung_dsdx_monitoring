@@ -6,7 +6,7 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from apps.common.targets import load_ec2_instances
-from .infra_adapters import EC2Adapter
+from .ec2_adapters import EC2Adapter
 
 logger = logging.getLogger(__name__)
 

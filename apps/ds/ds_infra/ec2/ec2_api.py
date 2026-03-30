@@ -5,13 +5,13 @@
 import json
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
-from . import infra_services
+from . import ec2_services
 
 
 @require_GET
 def ec2_status(request):
     """EC2 인스턴스 상태 조회 API"""
-    result = infra_services.get_ec2_status()
+    result = ec2_services.get_ec2_status()
     return JsonResponse({'success': True, 'instances': result})
 
 
@@ -23,7 +23,7 @@ def ec2_action(request):
     except (json.JSONDecodeError, ValueError):
         return JsonResponse({'success': False, 'message': 'Invalid JSON'}, status=400)
 
-    result = infra_services.perform_ec2_action(
+    result = ec2_services.perform_ec2_action(
         key=body.get('key'),
         action=body.get('action'),
         username=request.user.username if request.user.is_authenticated else 'system'
