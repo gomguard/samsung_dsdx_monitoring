@@ -1,0 +1,86 @@
+<div id="layer2FilterBar"></div>
+
+<div class="closed-banner hidden" id="closedBanner">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+    </svg>
+    <span id="closedBannerText">이 날짜는 마감되었습니다.</span>
+</div>
+
+<div class="summary-grid">
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">전체 리테일러</span>
+            <div class="summary-icon" style="background: #dbeafe; color: #2563eb;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalTables">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">전체 레코드</span>
+            <div class="summary-icon" style="background: #fef3c7; color: #d97706;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <line x1="3" y1="9" x2="21" y2="9"/>
+                    <line x1="9" y1="21" x2="9" y2="9"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalRecords">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">비정상 건수</span>
+            <div class="summary-icon" style="background: #fef2f2; color: #dc2626;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="15" y1="9" x2="9" y2="15"/>
+                    <line x1="9" y1="9" x2="15" y2="15"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value danger" id="totalError">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">품질 상태</span>
+            <div class="summary-icon" style="background: #d1fae5; color: #059669;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="overallStatus">-</div>
+    </div>
+</div>
+
+<div class="table-section">
+    <div class="table-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="table-title">리테일러별 NULL 검증 현황</div>
+        <div class="bulk-actions" id="bulkActionsTop" style="margin-top: 0;"></div>
+    </div>
+    <div class="loading hidden" id="nullTableLoading">
+        <div class="loading-spinner"></div>
+        데이터를 불러오는 중...
+    </div>
+    <div id="nullTableContent"></div>
+</div>
+
+<div class="table-section hidden">
+    <div class="table-header">
+        <div class="table-title">리테일러별 품질 현황</div>
+    </div>
+    <div class="loading" id="tableLoading">
+        <div class="loading-spinner"></div>
+        데이터를 불러오는 중...
+    </div>
+    <div id="tableContent"></div>
+</div>
