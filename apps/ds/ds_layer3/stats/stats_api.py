@@ -1,12 +1,10 @@
 """
-DS Layer 3 API: HTTP 요청/응답 처리
+DS Layer 3 Stats API: HTTP 요청/응답 처리 컨트롤러
 """
-
 from datetime import datetime, timedelta
 from django.http import JsonResponse
 from apps.common.response import safe_error
-from apps.ds.ds_layer3.services import get_layer_stats, get_sku_detail, get_sku_history
-
+from . import stats_services
 
 def layer_stats(request):
     """SKU 이상치 요약 통계 API"""
@@ -21,9 +19,8 @@ def layer_stats(request):
     else:
         target_date = (datetime.now() - timedelta(days=1)).date()
 
-    data = get_layer_stats(target_date, days)
+    data = stats_services.get_layer_stats(target_date, days)
     return JsonResponse(data)
-
 
 def sku_detail(request):
     """특정 리테일러 SKU 이상치 상세 API"""
@@ -54,9 +51,8 @@ def sku_detail(request):
     else:
         target_date = (datetime.now() - timedelta(days=1)).date()
 
-    data = get_sku_detail(target_date, days, retailer, filter_type, sort_by, sort_order, page, page_size)
+    data = stats_services.get_sku_detail(target_date, days, retailer, filter_type, sort_by, sort_order, page, page_size)
     return JsonResponse(data)
-
 
 def sku_history(request):
     """단일 SKU 이력 API"""
@@ -77,5 +73,5 @@ def sku_history(request):
     else:
         target_date = (datetime.now() - timedelta(days=1)).date()
 
-    data = get_sku_history(target_date, days, retailer, retailersku)
+    data = stats_services.get_sku_history(target_date, days, retailer, retailersku)
     return JsonResponse(data)

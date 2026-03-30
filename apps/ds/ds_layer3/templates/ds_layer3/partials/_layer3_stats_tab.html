@@ -1,0 +1,62 @@
+<div id="controlsBar"></div>
+
+<div class="info-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <div class="info-banner-text">
+        <strong style="color: #1d4ed8;">신규(1일)</strong>는 기준일에만 발생,
+        <strong style="color: #dc2626;">반복(2일+)</strong>은 연속 발생하는 이상치입니다.
+    </div>
+</div>
+
+<div class="summary-grid">
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">전체 리테일러</span>
+            <div class="summary-icon" style="background: #dbeafe; color: #2563eb;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" id="totalTables">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">신규 SKU (1일)</span>
+            <div class="summary-icon" style="background: #dbeafe; color: #2563eb;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value" style="color: #2563eb;" id="newTotal">-</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-card-header">
+            <span class="summary-label">반복 SKU (2일+)</span>
+            <div class="summary-icon" style="background: #fef2f2; color: #dc2626;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+            </div>
+        </div>
+        <div class="summary-value danger" id="recurringTotal">-</div>
+    </div>
+</div>
+
+<div class="table-section">
+    <div class="table-header">
+        <div class="table-title">리테일러별 SKU 이상치 현황</div>
+    </div>
+    <div class="loading" id="tableLoading">
+        <div class="loading-spinner"></div>
+        데이터를 불러오는 중...
+    </div>
+    <div id="tableContent"></div>
+</div>

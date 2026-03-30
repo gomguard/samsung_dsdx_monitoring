@@ -1,0 +1,27 @@
+<div id="detailModal" class="modal-overlay hidden" onclick="if(event.target===this)closeModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="modalTitle">SKU 이상치 상세</div>
+                <div class="modal-subtitle" id="modalSubtitle"></div>
+            </div>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="filter-selector" id="filterSelector"></div>
+            <div class="loading" id="modalLoading">
+                <div class="loading-spinner"></div>
+                데이터를 불러오는 중...
+            </div>
+            <div id="modalContent"></div>
+        </div>
+        <div class="modal-footer">
+            <span id="modalInfo"></span>
+            <div class="pagination">
+                <button class="app-btn app-btn-sm app-btn-cancel" onclick="prevPage()" id="prevBtn" disabled>이전</button>
+                <span id="pageInfo">1 / 1</span>
+                <button class="app-btn app-btn-sm app-btn-cancel" onclick="nextPage()" id="nextBtn" disabled>다음</button>
+            </div>
+        </div>
+    </div>
+</div>

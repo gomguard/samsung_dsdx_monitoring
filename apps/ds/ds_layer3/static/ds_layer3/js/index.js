@@ -48,10 +48,7 @@ function updateSummary(data) {
     document.getElementById('newTotal').textContent = (data.summary.new_skus || 0).toLocaleString();
     document.getElementById('recurringTotal').textContent = (data.summary.repeat_skus || 0).toLocaleString();
 
-    var status = data.summary.status || 'pending';
-    var statusEl = document.getElementById('overallStatus');
-    statusEl.textContent = status === 'success' ? '정상' : '이상';
-    statusEl.className = 'summary-value ' + status;
+
 }
 
 function renderTable(data) {
