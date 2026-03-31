@@ -14,46 +14,7 @@ def index(request):
 
 def item_master(request):
     """아이템 마스터 관리 페이지"""
-    context = {
-        'search_fields': [
-            {'value': 'item', 'label': 'item'},
-            {'value': 'sku', 'label': 'SKU'},
-            {'value': 'product_url', 'label': 'URL'},
-        ],
-        'extra_filters': [
-            {
-                'id': 'filterProduct',
-                'options': [
-                    {'value': '', 'label': '제품여부 (전체)'},
-                    {'value': 'true', 'label': '제품'},
-                    {'value': 'false', 'label': '비제품'},
-                ],
-            },
-            {
-                'id': 'filterChecked',
-                'options': [
-                    {'value': '', 'label': '확인완료 (전체)'},
-                    {'value': 'true', 'label': '확인완료'},
-                    {'value': 'false', 'label': '미확인'},
-                ],
-            },
-            {
-                'id': 'filterAccount',
-                'options': [
-                    {'value': '', 'label': '리테일러 (전체)'},
-                    {'value': 'Amazon', 'label': 'Amazon'},
-                    {'value': 'Bestbuy', 'label': 'Bestbuy'},
-                    {'value': 'Walmart', 'label': 'Walmart'},
-                ],
-            },
-        ],
-        'stat_list': [
-            {'id': 'statTotal', 'label': '전체', 'value': 0},
-            {'id': 'statProduct', 'label': '제품', 'value': 0},
-            {'id': 'statNonProduct', 'label': '비제품', 'value': 0},
-            {'id': 'statChecked', 'label': '확인완료', 'value': 0},
-        ],
-    }
+    context = {}
     return render(request, 'dx_data/item_master.html', context)
 
 

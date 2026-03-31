@@ -7,8 +7,7 @@ from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from apps.common.response import safe_error
-from .services import (
-    cleanup_orphan_files,
+from apps.dx.dx_document.document.document_services import (
     get_documents_list,
     get_document_detail,
     create_document,

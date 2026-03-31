@@ -218,13 +218,9 @@ class CommonTable {
         if (typeof this.options.pageSize === 'number') {
             var toolbar = document.createElement('div');
             toolbar.className = 'ct-toolbar';
-            if (this.options.showTotalCount) {
-                this.countEl = document.createElement('div');
-                this.countEl.className = 'ct-count';
-                toolbar.appendChild(this.countEl);
-            }
             var right = document.createElement('div');
             right.className = 'ct-toolbar-right';
+            right.style.marginLeft = 'auto'; // 우측 정렬
             var lbl = document.createElement('label');
             lbl.textContent = '건수';
             var psInput = document.createElement('input');
@@ -253,7 +249,10 @@ class CommonTable {
             right.appendChild(psBtn);
             toolbar.appendChild(right);
             this.container.insertBefore(toolbar, this.container.firstChild);
-        } else if (this.options.showTotalCount) {
+        }
+        
+        // 총 건수는 항상 테이블 최하단 좌측에 독립적으로 배치
+        if (this.options.showTotalCount) {
             this.countEl = document.createElement('div');
             this.countEl.className = 'ct-count';
             this.countEl.style.cssText = 'padding: 10px 12px; font-size: 13px; color: var(--text-secondary);';

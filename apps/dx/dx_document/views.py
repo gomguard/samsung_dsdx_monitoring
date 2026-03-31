@@ -7,7 +7,7 @@ from django.shortcuts import render
 from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
 from django.http import HttpResponse, HttpResponseNotFound
 from apps.common.response import log_error
-from apps.dx.dx_document.services import (
+from apps.dx.dx_document.document.document_services import (
     get_categories_with_doc_count,
     get_categories_for_edit,
     is_token_revoked,

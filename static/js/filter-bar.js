@@ -107,6 +107,8 @@ class FilterBar {
         if (this.options.plain) bar.classList.add('fb-plain');
         if (this.options.fit) bar.classList.add('fb-fit');
         if (this.options.padding) bar.style.padding = this.options.padding;
+        if (this.options.margin !== undefined) bar.style.margin = this.options.margin;
+        if (this.options.marginBottom !== undefined) bar.style.marginBottom = this.options.marginBottom;
 
         // before 영역 (네비게이션 등 필터와 무관한 요소)
         if (this.options.before && this.options.before.length > 0) {

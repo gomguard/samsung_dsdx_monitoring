@@ -8,7 +8,7 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from apps.common.response import safe_error
-from apps.dx.dx_data.api.services import ALLOWED_TABLES, get_item_master_list, save_item_master, get_item_master_history
+from apps.dx.dx_data.item_master.item_master_services import ALLOWED_TABLES, get_item_master_list, save_item_master, get_item_master_history
 
 
 def item_master_list(request):

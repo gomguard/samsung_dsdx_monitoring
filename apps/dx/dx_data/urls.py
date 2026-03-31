@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .api import views as api_views
+from apps.dx.dx_data.item_master import item_master_api
 
 app_name = 'dx_data'
 
@@ -11,7 +11,7 @@ urlpatterns = [
     path('history/', views.history, name='history'),
 
     # API
-    path('api/item-master/list/', api_views.item_master_list, name='api_item_master_list'),
-    path('api/item-master/save/', api_views.item_master_save, name='api_item_master_save'),
-    path('api/item-master/history/', api_views.item_master_history, name='api_item_master_history'),
+    path('api/item-master/list/', item_master_api.item_master_list, name='api_item_master_list'),
+    path('api/item-master/save/', item_master_api.item_master_save, name='api_item_master_save'),
+    path('api/item-master/history/', item_master_api.item_master_history, name='api_item_master_history'),
 ]
