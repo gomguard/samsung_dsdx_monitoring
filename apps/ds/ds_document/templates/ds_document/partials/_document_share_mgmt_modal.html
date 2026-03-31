@@ -1,0 +1,14 @@
+<!-- 공유 관리 팝업 -->
+<div class="share-mgmt-overlay" id="shareMgmtOverlay" onclick="closeShareMgmt(event)">
+    <div class="share-mgmt-popup" onclick="event.stopPropagation()">
+        <div class="share-mgmt-header">
+            <h3>공유 관리</h3>
+            <button class="share-mgmt-close" onclick="closeShareMgmt()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="share-mgmt-body" id="shareMgmtBody">
+            <div class="share-mgmt-empty">불러오는 중...</div>
+        </div>
+    </div>
+</div>

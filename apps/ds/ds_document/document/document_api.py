@@ -1,5 +1,5 @@
 """
-DS Document API: HTTP 요청/응답 처리
+DS Document API: HTTP 요청/응답 처리 (Thin Controller)
 """
 
 import json
@@ -7,13 +7,8 @@ from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 from apps.common.response import safe_error
-from .services import (
-    upload_file, get_file_proxy_url,
-    get_documents_list, get_document_detail,
-    create_document, update_document, delete_document,
-    get_document_files, delete_file,
-    create_share_token, get_share_list, revoke_share_token
-)
+
+from . import document_services as svc
 
 
 @login_required
@@ -25,7 +20,7 @@ def upload(request):
     except (ValueError, TypeError):
         upload_type = 1
 
-    result = upload_file(
+    result = svc.upload_file(
         file=request.FILES.get('file'),
         object_document_id=request.POST.get('object_document_id', '').strip(),
         username=request.user.username,
@@ -37,7 +32,7 @@ def upload(request):
 @login_required
 def file_proxy(request, file_name):
     """DS 문서 이미지 프록시 - S3 pre-signed URL로 리다이렉트"""
-    result = get_file_proxy_url(file_name)
+    result = svc.get_file_proxy_url(file_name)
     if result.get('success'):
         return HttpResponseRedirect(result['url'])
     return JsonResponse(result, status=result.get('status', 500))
@@ -46,7 +41,7 @@ def file_proxy(request, file_name):
 @login_required
 def documents_list(request):
     """DS 문서 목록 조회 API"""
-    result = get_documents_list(
+    result = svc.get_documents_list(
         category_id=request.GET.get('category_id', ''),
         search_field=request.GET.get('search_field', ''),
         search_text=request.GET.get('search_text', ''),
@@ -58,7 +53,7 @@ def documents_list(request):
 @login_required
 def document_detail(request):
     """DS 문서 상세 조회 API"""
-    result = get_document_detail(request.GET.get('document_id', ''))
+    result = svc.get_document_detail(request.GET.get('document_id', ''))
     return JsonResponse(result)
 
 
@@ -68,7 +63,7 @@ def document_create(request):
     """DS 문서 생성 API"""
     try:
         data = json.loads(request.body)
-        result = create_document(
+        result = svc.create_document(
             category_id=data.get('category_id', '').strip(),
             title=data.get('title', '').strip(),
             content=data.get('content', ''),
@@ -87,7 +82,7 @@ def document_update(request, document_id):
     """DS 문서 수정 API"""
     try:
         data = json.loads(request.body)
-        result = update_document(
+        result = svc.update_document(
             document_id=document_id,
             title=data.get('title', '').strip(),
             content=data.get('content', ''),
@@ -102,14 +97,14 @@ def document_update(request, document_id):
 @require_POST
 def document_delete(request, document_id):
     """DS 문서 삭제 API"""
-    result = delete_document(document_id=document_id, username=request.user.username)
+    result = svc.delete_document(document_id=document_id, username=request.user.username)
     return JsonResponse(result)
 
 
 @login_required
 def document_files(request):
     """DS 문서 첨부파일 목록 조회 API"""
-    result = get_document_files(request.GET.get('object_document_id', ''))
+    result = svc.get_document_files(request.GET.get('object_document_id', ''))
     return JsonResponse(result)
 
 
@@ -117,7 +112,7 @@ def document_files(request):
 @require_POST
 def file_delete(request, file_id):
     """DS 첨부파일 개별 삭제 API"""
-    result = delete_file(file_id=file_id, username=request.user.username)
+    result = svc.delete_file(file_id=file_id, username=request.user.username)
     return JsonResponse(result)
 
 
@@ -127,7 +122,7 @@ def share_token(request):
     """DS 문서 공유 토큰 생성 API"""
     try:
         data = json.loads(request.body)
-        result = create_share_token(
+        result = svc.create_share_token(
             document_id=data.get('document_id', '').strip(),
             category_id=data.get('category_id', '').strip(),
             memo=data.get('memo', '').strip(),
@@ -141,7 +136,7 @@ def share_token(request):
 @login_required
 def share_list(request):
     """DS 문서 공유 이력 조회 API"""
-    result = get_share_list(request.GET.get('document_id', ''))
+    result = svc.get_share_list(request.GET.get('document_id', ''))
     return JsonResponse(result)
 
 
@@ -151,7 +146,7 @@ def share_revoke(request):
     """DS 공유 토큰 차단 API"""
     try:
         data = json.loads(request.body)
-        result = revoke_share_token(
+        result = svc.revoke_share_token(
             token_id=data.get('token_id', ''),
             username=request.user.username
         )

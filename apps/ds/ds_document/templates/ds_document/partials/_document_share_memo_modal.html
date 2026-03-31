@@ -1,0 +1,15 @@
+<!-- 공유 메모 팝업 -->
+<div class="share-memo-overlay" id="shareMemoOverlay" onclick="closeShareMemo(event)">
+    <div class="share-memo-popup" onclick="event.stopPropagation()">
+        <div class="share-memo-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            공유 링크 생성
+        </div>
+        <div class="share-memo-label">공유 대상 메모</div>
+        <input type="text" class="share-memo-input" id="shareMemoInput" placeholder="예: 김과장, 마케팅팀" maxlength="100">
+        <div class="share-memo-actions">
+            <button class="app-btn app-btn-md app-btn-cancel" onclick="closeShareMemo()">취소</button>
+            <button class="app-btn app-btn-md app-btn-save" id="shareMemoSubmitBtn" onclick="submitShareMemo()">링크 생성</button>
+        </div>
+    </div>
+</div>

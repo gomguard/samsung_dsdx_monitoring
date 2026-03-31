@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .api import views as api_views
+from .document import document_api
 
 app_name = 'ds_document'
 
@@ -13,16 +13,16 @@ urlpatterns = [
     path('ds-share/<path:token>/', views.share, name='share'),
 
     # Document API
-    path('api/ds/documents/list/', api_views.documents_list, name='api_list'),
-    path('api/ds/documents/detail/', api_views.document_detail, name='api_detail'),
-    path('api/ds/documents/create/', api_views.document_create, name='api_create'),
-    path('api/ds/documents/<str:document_id>/update/', api_views.document_update, name='api_update'),
-    path('api/ds/documents/<str:document_id>/delete/', api_views.document_delete, name='api_delete'),
-    path('api/ds/documents/upload/', api_views.upload, name='api_upload'),
-    path('api/ds/documents/files/', api_views.document_files, name='api_files'),
-    path('api/ds/documents/files/<str:file_id>/delete/', api_views.file_delete, name='api_file_delete'),
-    path('api/ds/documents/file/<str:file_name>', api_views.file_proxy, name='api_file'),
-    path('api/ds/documents/share-token/', api_views.share_token, name='api_share_token'),
-    path('api/ds/documents/share-list/', api_views.share_list, name='api_share_list'),
-    path('api/ds/documents/share-revoke/', api_views.share_revoke, name='api_share_revoke'),
+    path('api/ds/documents/list/', document_api.documents_list, name='api_list'),
+    path('api/ds/documents/detail/', document_api.document_detail, name='api_detail'),
+    path('api/ds/documents/create/', document_api.document_create, name='api_create'),
+    path('api/ds/documents/<str:document_id>/update/', document_api.document_update, name='api_update'),
+    path('api/ds/documents/<str:document_id>/delete/', document_api.document_delete, name='api_delete'),
+    path('api/ds/documents/upload/', document_api.upload, name='api_upload'),
+    path('api/ds/documents/files/', document_api.document_files, name='api_files'),
+    path('api/ds/documents/files/<str:file_id>/delete/', document_api.file_delete, name='api_file_delete'),
+    path('api/ds/documents/file/<str:file_name>', document_api.file_proxy, name='api_file'),
+    path('api/ds/documents/share-token/', document_api.share_token, name='api_share_token'),
+    path('api/ds/documents/share-list/', document_api.share_list, name='api_share_list'),
+    path('api/ds/documents/share-revoke/', document_api.share_revoke, name='api_share_revoke'),
 ]
