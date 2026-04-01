@@ -1,0 +1,317 @@
+:root { --page-color: var(--color-document); }
+
+.edit-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    /* 헤더 */
+    .edit-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .edit-header-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: var(--border-color);
+    }
+
+    .btn-back svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .edit-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .edit-header-right {
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn-delete {
+        padding: 10px 20px;
+        background: #fee2e2;
+        color: #dc2626;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-delete:hover {
+        background: #fecaca;
+    }
+
+    .btn-save {
+        padding: 10px 24px;
+        background: var(--page-color);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-save:hover {
+        filter: brightness(0.9);
+    }
+
+    /* 폼 영역 */
+    .edit-form {
+        background: white;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .form-section {
+        padding: 24px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-section:last-child {
+        border-bottom: none;
+    }
+
+    .form-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .form-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .form-group {
+        flex: 1;
+    }
+
+    .form-label {
+        flex-shrink: 0;
+        width: 70px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 0;
+    }
+
+    .form-label .required {
+        color: #dc2626;
+        margin-left: 2px;
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 15px;
+        color: var(--text-primary);
+        background: var(--bg-primary);
+        transition: all 0.2s;
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: var(--page-color);
+        box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05); /* 공통 색조 단순화 */
+    }
+
+    .form-input::placeholder {
+        color: var(--text-secondary);
+    }
+
+    .form-select {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 15px;
+        color: var(--text-primary);
+        background: var(--bg-primary);
+        cursor: pointer;
+    }
+
+    .form-select:focus {
+        outline: none;
+        border-color: var(--page-color);
+    }
+
+    /* 에디터 영역 */
+    .editor-section {
+        padding: 0;
+    }
+
+    .editor-header {
+        padding: 16px 24px 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .editor-header .form-label {
+        margin-bottom: 0;
+    }
+
+    .editor-header-right {
+        margin-left: auto;
+    }
+
+    #editor {
+        border-top: 1px solid var(--border-color);
+    }
+
+    /* 파일 업로드 모드 (category_type=2) */
+    .file-upload-section {
+        padding: 24px;
+    }
+
+    .file-dropzone {
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 40px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--bg-primary);
+        margin-bottom: 16px;
+    }
+
+    .file-dropzone:hover,
+    .file-dropzone.dragover {
+        border-color: var(--page-color);
+        background: rgba(0, 0, 0, 0.02);
+    }
+
+    .file-dropzone svg {
+        width: 48px;
+        height: 48px;
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+        opacity: 0.5;
+    }
+
+    .file-dropzone p {
+        color: var(--text-secondary);
+        font-size: 14px;
+        margin: 0 0 4px;
+    }
+
+    .file-dropzone .hint {
+        font-size: 12px;
+        opacity: 0.7;
+    }
+
+    .file-list {
+        margin-top: 16px;
+    }
+
+    .file-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        margin-bottom: 8px;
+        font-size: 13px;
+    }
+
+    .file-item svg {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+        color: var(--text-secondary);
+    }
+
+    .file-item-name {
+        flex: 1;
+        color: var(--text-primary);
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .file-item-size {
+        color: var(--text-secondary);
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+
+    .file-item-remove {
+        background: none;
+        border: none;
+        color: #dc2626;
+        cursor: pointer;
+        padding: 2px;
+        display: flex;
+        align-items: center;
+    }
+
+    .file-item-remove:hover {
+        opacity: 0.7;
+    }
+
+    .file-content-textarea {
+        width: 100%;
+        min-height: 200px;
+        padding: 14px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+        color: var(--text-primary);
+        background: var(--bg-primary);
+        resize: vertical;
+        box-sizing: border-box;
+        line-height: 1.6;
+    }
+
+    .file-content-textarea:focus {
+        outline: none;
+        border-color: var(--page-color);
+        box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .file-section-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-bottom: 10px;
+    }

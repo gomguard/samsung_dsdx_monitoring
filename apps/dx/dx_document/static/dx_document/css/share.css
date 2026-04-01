@@ -1,0 +1,178 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: "Malgun Gothic", "맑은 고딕", -apple-system, sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
+            min-height: 100vh;
+        }
+        /* 헤더 */
+        .share-header {
+            background: #fff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .share-header-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: #64748b;
+        }
+        .share-header-info .category-badge {
+            background: #0d9488;
+            color: #fff;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .share-header-actions button {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            color: #475569;
+            transition: all 0.2s;
+        }
+        .share-header-actions button:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+        .share-header-actions button svg {
+            width: 16px;
+            height: 16px;
+        }
+        /* 문서 콘텐츠 */
+        .share-content {
+            max-width: 900px;
+            margin: 32px auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 48px;
+        }
+        .share-doc-title {
+            font-size: 22px;
+            font-weight: 700;
+            text-align: center;
+            padding-bottom: 20px;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #1e293b;
+            color: #1e293b;
+        }
+        /* CKEditor 콘텐츠 스타일 */
+        .ck-content { font-size: 14px; line-height: 1.7; }
+        .ck-content h2 { font-size: 18px; margin: 1em 0 0.5em; }
+        .ck-content h3 { font-size: 16px; margin: 0.8em 0 0.4em; }
+        .ck-content h4 { font-size: 15px; margin: 0.6em 0 0.3em; }
+        .ck-content p { margin: 0.4em 0; }
+        .ck-content img { max-width: 100%; height: auto; }
+        .ck-content figure { margin: 1em 0; }
+        .ck-content figure.image { max-width: 100%; overflow: hidden; }
+        .ck-content figure.table { float: none !important; margin: 1em 0; }
+        .ck-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.5em 0;
+        }
+        .ck-content table td,
+        .ck-content table th {
+            border: 1px solid #d1d5db;
+            padding: 8px 12px;
+            font-size: 13px;
+            word-break: break-word;
+        }
+        .ck-content table th {
+            background: #f3f4f6;
+            font-weight: 600;
+        }
+        .ck-content blockquote {
+            border-left: 4px solid #0d9488;
+            padding: 8px 16px;
+            margin: 1em 0;
+            background: #f0fdfa;
+            color: #475569;
+        }
+        .ck-content hr {
+            border: none;
+            border-top: 1px solid #e2e8f0;
+            margin: 1em 0;
+        }
+        .ck-content code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        .ck-content pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+        .ck-content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+        /* 에러 페이지 */
+        .share-error {
+            max-width: 500px;
+            margin: 80px auto;
+            text-align: center;
+            padding: 48px;
+        }
+        .share-error-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            color: #94a3b8;
+        }
+        .share-error-icon.expired { color: #f59e0b; }
+        .share-error-icon.invalid { color: #ef4444; }
+        .share-error h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 12px;
+        }
+        .share-error p {
+            font-size: 14px;
+            color: #64748b;
+            line-height: 1.6;
+        }
+        /* 푸터 */
+        .share-footer {
+            text-align: center;
+            padding: 24px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        /* 반응형 */
+        @media (max-width: 768px) {
+            .share-content { margin: 16px; padding: 24px; }
+            .share-doc-title { font-size: 18px; }
+        }
+        /* 인쇄 */
+        @media print {
+            body { background: #fff; }
+            .share-header, .share-footer { display: none; }
+            .share-content {
+                box-shadow: none;
+                margin: 0;
+                padding: 0;
+                max-width: 100%;
+            }
+        }

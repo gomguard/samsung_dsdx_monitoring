@@ -56,10 +56,10 @@ def cleanup_orphan_files(cursor, object_document_id, content, username, now=None
     _delete_s3_objects([(f[1], f[2]) for f in orphans])
 
 
-def get_categories_with_doc_count():
-    """카테고리 목록 + 문서 수 조회 (index 페이지)"""
+def get_categories_list():
+    """카테고리 목록 조회 (index 페이지)"""
     with dx_connection() as (conn, cursor):
-        return get_categories_with_doc_count_db(cursor)
+        return get_categories_list_db(cursor)
 
 
 def get_categories_for_edit():
@@ -86,10 +86,10 @@ def get_shared_file(file_name):
         return get_file_info_by_name_db(cursor, file_name)
 
 
-def get_documents_list(category_id):
+def get_documents_list(category_id, search_field='', search_text='', date_from='', date_to=''):
     """문서 목록 조회 (카테고리별)"""
     with dx_connection() as (conn, cursor):
-        documents = get_documents_list_db(cursor, category_id)
+        documents = get_documents_list_db(cursor, category_id, search_field, search_text, date_from, date_to)
     return {'success': True, 'documents': documents, 'total': len(documents)}
 
 

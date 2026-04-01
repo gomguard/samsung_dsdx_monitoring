@@ -8,7 +8,7 @@ from django.core.signing import TimestampSigner, SignatureExpired, BadSignature
 from django.http import HttpResponse, HttpResponseNotFound
 from apps.common.response import log_error
 from apps.dx.dx_document.document.document_services import (
-    get_categories_with_doc_count,
+    get_categories_list,
     get_categories_for_edit,
     is_token_revoked,
     get_shared_document,
@@ -23,7 +23,7 @@ SHARE_MAX_AGE = 86400  # 24시간
 def index(request):
     """DX 문서 페이지"""
     try:
-        categories = get_categories_with_doc_count()
+        categories = get_categories_list()
     except Exception as e:
         categories = []
         log_error(e, 'db')

@@ -190,6 +190,7 @@ class FilterBar {
         var el;
         switch (ctrl.type) {
             case 'date':   el = this._createDate(ctrl);   break;
+            case 'date-range': el = this._createDateRange(ctrl); break;
             case 'button': el = this._createButton(ctrl);  break;
             case 'select': el = this._createSelect(ctrl);  break;
             case 'input':  el = this._createInput(ctrl);  break;
@@ -202,49 +203,50 @@ class FilterBar {
     }
 
     _createDate(ctrl) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'fb-date';
+        if (!this._datePickers) this._datePickers = {};
+        
+        const modeOpts = {
+            mode: 'single',
+            key: ctrl.key,
+            label: ctrl.label,
+            value: ctrl.value,
+            default: ctrl.default,
+            max: ctrl.max,
+            showWeekday: ctrl.showWeekday,
+            maxToday: ctrl.maxToday !== undefined ? ctrl.maxToday : true
+        };
+        
+        const div = document.createElement('div');
+        const picker = new AppDatePicker(div, modeOpts);
+        
+        if (ctrl.key) this._datePickers[ctrl.key] = picker;
+        
+        // AppDatePicker adds wrapper into div. We can return div directly
+        return div;
+    }
 
-        if (ctrl.label) {
-            const label = document.createElement('label');
-            label.textContent = ctrl.label;
-            wrapper.appendChild(label);
-        }
-
-        const input = document.createElement('input');
-        input.type = 'date';
-        if (ctrl.key) input.id = ctrl.key;
-        if (ctrl.value) input.value = ctrl.value;
-        if (ctrl.max) input.max = ctrl.max;
-        wrapper.appendChild(input);
-
-        if (ctrl.key) {
-            this.elements[ctrl.key] = input;
-            this._defaults[ctrl.key] = ctrl.default !== undefined ? ctrl.default : (ctrl.value || '');
-        }
-
-        // 요일 표시 옵션
-        if (ctrl.showWeekday) {
-            const weekdayEl = document.createElement('span');
-            weekdayEl.className = 'fb-weekday';
-            wrapper.appendChild(weekdayEl);
-
-            const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-            const self = this;
-            function updateWeekday() {
-                var val = input.value;
-                if (!val) { weekdayEl.textContent = ''; return; }
-                var d = new Date(val + 'T00:00:00');
-                var day = d.getDay();
-                weekdayEl.textContent = '(' + weekdays[day] + ')';
-                weekdayEl.className = 'fb-weekday' + (day === 0 || day === 6 ? ' fb-weekday-weekend' : '');
-            }
-            input.addEventListener('change', updateWeekday);
-            this._weekdayUpdater = updateWeekday;
-            updateWeekday();
-        }
-
-        return wrapper;
+    _createDateRange(ctrl) {
+        if (!this._datePickers) this._datePickers = {};
+        
+        const modeOpts = {
+            mode: 'range',
+            keyFrom: ctrl.keyFrom,
+            keyTo: ctrl.keyTo,
+            label: ctrl.label,
+            max: ctrl.max,
+            defaultFrom: ctrl.defaultFrom,
+            defaultTo: ctrl.defaultTo,
+            maxToday: ctrl.maxToday !== undefined ? ctrl.maxToday : true,
+            preset: ctrl.preset !== undefined ? ctrl.preset : 'week'
+        };
+        
+        const div = document.createElement('div');
+        const picker = new AppDatePicker(div, modeOpts);
+        
+        if (ctrl.keyFrom) this._datePickers[ctrl.keyFrom] = picker;
+        if (ctrl.keyTo) this._datePickers[ctrl.keyTo] = picker;
+        
+        return div;
     }
 
     _createInput(ctrl) {
@@ -412,22 +414,40 @@ class FilterBar {
     // ── 값 접근 ──────────────────────────────────
 
     getValue(key) {
+        if (this._datePickers && this._datePickers[key]) {
+            return this._datePickers[key].getValue(key);
+        }
         const el = this.elements[key];
         return el ? el.value : null;
     }
 
     setValue(key, val) {
+        if (this._datePickers && this._datePickers[key]) {
+            this._datePickers[key].setValue(key, val);
+            return this;
+        }
         const el = this.elements[key];
         if (el) el.value = val;
         return this;
     }
 
     getDate() {
+        if (this._datePickers) {
+            const keys = Object.keys(this._datePickers);
+            if (keys.length > 0) return this._datePickers[keys[0]].getValue(keys[0]);
+        }
         const input = this.barEl.querySelector('input[type="date"]');
         return input ? input.value : null;
     }
 
     setDate(val) {
+        if (this._datePickers) {
+            const keys = Object.keys(this._datePickers);
+            if (keys.length > 0) {
+                this._datePickers[keys[0]].setValue(keys[0], val);
+                return this;
+            }
+        }
         const input = this.barEl.querySelector('input[type="date"]');
         if (input) input.value = val;
         return this;
@@ -459,6 +479,16 @@ class FilterBar {
         for (var key in this._defaults) {
             var el = this.elements[key];
             if (el) el.value = this._defaults[key];
+        }
+        if (this._datePickers) {
+            const seen = new Set();
+            for (const key in this._datePickers) {
+                const picker = this._datePickers[key];
+                if (!seen.has(picker)) {
+                    picker.reset();
+                    seen.add(picker);
+                }
+            }
         }
         if (this.options.onReset) this.options.onReset();
         return this;

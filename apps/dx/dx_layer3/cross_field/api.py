@@ -31,7 +31,7 @@ def cross_field_detail(request):
 
     try:
         if rule_id:
-            with dx_connection() as cursor:
+            with dx_connection() as (conn, cursor):
                 result = services.get_cross_field_rule_detail(cursor, target_date, product_line, section, rule_id, days)
 
             if not result.get('found'):
@@ -59,7 +59,7 @@ def sentiment_cross_detail(request):
         target_date = (datetime.now() - timedelta(days=1)).date()
 
     try:
-        with dx_connection() as cursor:
+        with dx_connection() as (conn, cursor):
             result = services.get_sentiment_cross_detail(cursor, target_date, product_line)
         return JsonResponse(result)
 
@@ -78,7 +78,7 @@ def comp_product_cross_detail(request):
         target_date = (datetime.now() - timedelta(days=1)).date()
 
     try:
-        with dx_connection() as cursor:
+        with dx_connection() as (conn, cursor):
             result = services.get_comp_product_cross_detail(cursor, target_date)
         return JsonResponse(result)
 

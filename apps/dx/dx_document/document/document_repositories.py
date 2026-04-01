@@ -2,20 +2,13 @@
 DX Document Repositories: 데이터베이스 I/O 쿼리 전담 계층 (PostgreSQL 기반)
 """
 
-def get_categories_with_doc_count_db(cursor):
-    """카테고리 목록 + 문서 수 조회 (index 페이지)"""
+def get_categories_list_db(cursor):
+    """카테고리 목록 조회 (문서 건수 미처리)"""
     cursor.execute("""
-        SELECT c.category_id, c.category_name, c.description, c.sort_order, c.category_type,
-               COALESCE(d.doc_count, 0) as doc_count
-        FROM monitoring_document_categories c
-        LEFT JOIN (
-            SELECT category_id, COUNT(*) as doc_count
-            FROM monitoring_documents
-            WHERE is_del = false
-            GROUP BY category_id
-        ) d ON c.category_id = d.category_id
-        WHERE c.is_del = false AND c.is_active = true
-        ORDER BY c.sort_order, c.created_at
+        SELECT category_id, category_name, description, sort_order, category_type
+        FROM monitoring_document_categories
+        WHERE is_del = false AND is_active = true
+        ORDER BY sort_order, created_at
     """)
     columns = [desc[0] for desc in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -67,15 +60,32 @@ def soft_delete_orphan_files_db(cursor, orphan_ids, username, now):
     """, (username, now, orphan_ids))
 
 
-def get_documents_list_db(cursor, category_id):
+def get_documents_list_db(cursor, category_id, search_field='', search_text='', date_from='', date_to=''):
     """문서 목록 조회 (카테고리별)"""
-    cursor.execute("""
+    query = """
         SELECT document_id, category_id, title, created_id,
-               TO_CHAR(updated_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD HH24:MI') as updated_at
+               TO_CHAR(updated_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD HH24:MI') as updated_at,
+               TO_CHAR(created_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM-DD HH24:MI') as created_at
         FROM monitoring_documents
         WHERE category_id = %s AND is_del = false
-        ORDER BY created_at DESC
-    """, (category_id,))
+    """
+    params = [category_id]
+
+    if date_from:
+        query += " AND created_at >= %s::timestamp"
+        params.append(date_from + " 00:00:00")
+        
+    if date_to:
+        query += " AND created_at <= %s::timestamp"
+        params.append(date_to + " 23:59:59")
+
+    if search_text and search_field in ('title', 'document_id', 'created_id'):
+        query += f" AND {search_field} ILIKE %s"
+        params.append(f"%{search_text}%")
+
+    query += " ORDER BY created_at DESC"
+
+    cursor.execute(query, params)
     columns = [desc[0] for desc in cursor.description]
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 

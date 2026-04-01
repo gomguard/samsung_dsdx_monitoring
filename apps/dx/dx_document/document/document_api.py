@@ -27,12 +27,16 @@ import json
 def documents_list(request):
     """문서 목록 조회 API (카테고리별)"""
     category_id = request.GET.get('category_id', '')
+    search_field = request.GET.get('search_field', '')
+    search_text = request.GET.get('search_text', '')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
 
     if not category_id:
         return JsonResponse({'success': False, 'error': '카테고리 ID가 필요합니다.'})
 
     try:
-        return JsonResponse(get_documents_list(category_id))
+        return JsonResponse(get_documents_list(category_id, search_field, search_text, date_from, date_to))
     except Exception as e:
         return safe_error(e, success=False)
 

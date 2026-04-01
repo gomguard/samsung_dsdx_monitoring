@@ -1,5 +1,9 @@
 /**
- * 날짜 유지 및 검증 함수
+ * [DEPRECATED] 레거시 날짜 유지 및 검증 함수
+ * 주의: 이 함수들은 향후 신규 AppDatePicker 컴포넌트로 완전히 대체되고 삭제될 예정입니다.
+ * 신규 메뉴 개발 시에는 하단에 새롭게 정의된 통합 AppDatePicker 클래스를 직접 사용하거나 
+ * FilterBar 인스턴스를 통해 주입받아 사용하십시오.
+ *
  * (의존: format.js — formatLocalDate, ui.js — showToast)
  *
  * - getPersistedDate()             : 저장된 조회 날짜 반환 (URL파라미터 > sessionStorage > 어제)
@@ -104,3 +108,196 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+/**
+ * ============================================================
+ * 신규 통합 AppDatePicker 클래스 (단일 일자 / 기간 검색)
+ * ============================================================
+ * 
+ * 모드 (mode): 'single' 또는 'range'
+ * 옵션 (options): 
+ *  - maxToday: true일 경우 오늘까지로 제한
+ *  - preset: 'week' (1주일 전 ~ 오늘 세팅), 'month' 등 (range 모드 전용)
+ *  - 시작일/종료일 교차 검증 (range 모드 전용) 내장
+ */
+class AppDatePicker {
+    constructor(container, options = {}) {
+        this.container = typeof container === 'string' ? document.querySelector(container) : container;
+        this.options = { 
+            mode: 'single', // 'single' | 'range'
+            maxToday: false,
+            preset: null,   // 'week', 'month', etc.
+            ...options 
+        };
+        
+        this.elements = {};
+        this._defaults = {};
+        this.ui = null;
+        
+        this.render();
+    }
+    
+    _getTodayStr() {
+        return new Date().toISOString().slice(0, 10);
+    }
+    
+    _calcPresetDateStr(presetType) {
+        if (!presetType) return '';
+        const d = new Date();
+        if (presetType === 'week') d.setDate(d.getDate() - 6);
+        else if (presetType === 'month') d.setMonth(d.getMonth() - 1);
+        return d.toISOString().slice(0, 10);
+    }
+    
+    render() {
+        this.container.innerHTML = '';
+        const wrapper = document.createElement('div');
+        wrapper.className = 'app-datepicker-wrapper fb-date' + (this.options.mode === 'range' ? ' fb-date-range' : '');
+        if (this.options.mode === 'range') {
+            wrapper.style.display = 'flex';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.gap = '4px';
+        }
+
+        if (this.options.label) {
+            const label = document.createElement('label');
+            label.textContent = this.options.label;
+            wrapper.appendChild(label);
+        }
+        
+        const maxLimit = this.options.maxToday ? this._getTodayStr() : (this.options.max || '');
+        
+        if (this.options.mode === 'single') {
+            const input = document.createElement('input');
+            input.type = 'date';
+            const key = this.options.key || 'date';
+            input.id = key;
+            if (maxLimit) input.max = maxLimit;
+            
+            const defVal = this.options.default !== undefined ? this.options.default : (this.options.value || '');
+            this._defaults[key] = defVal;
+            this.elements[key] = input;
+            
+            wrapper.appendChild(input);
+            
+            if (this.options.showWeekday) {
+                const weekdayEl = document.createElement('span');
+                weekdayEl.className = 'fb-weekday';
+                wrapper.appendChild(weekdayEl);
+
+                const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+                const updateWeekday = () => {
+                    var val = input.value;
+                    if (!val) { weekdayEl.textContent = ''; return; }
+                    var d = new Date(val + 'T00:00:00');
+                    var day = d.getDay();
+                    weekdayEl.textContent = '(' + weekdays[day] + ')';
+                    weekdayEl.className = 'fb-weekday' + (day === 0 || day === 6 ? ' fb-weekday-weekend' : '');
+                };
+                input.addEventListener('change', updateWeekday);
+                updateWeekday();
+            }
+        } else {
+            // Range mode
+            const keyFrom = this.options.keyFrom || 'dateFrom';
+            const keyTo = this.options.keyTo || 'dateTo';
+            
+            const inputFrom = document.createElement('input');
+            inputFrom.type = 'date';
+            inputFrom.id = keyFrom;
+            if (maxLimit) inputFrom.max = maxLimit;
+            wrapper.appendChild(inputFrom);
+
+            const sep = document.createElement('span');
+            sep.textContent = '~';
+            sep.style.color = 'var(--text-secondary)';
+            sep.style.fontWeight = 'bold';
+            sep.style.margin = '0 2px';
+            wrapper.appendChild(sep);
+
+            const inputTo = document.createElement('input');
+            inputTo.type = 'date';
+            inputTo.id = keyTo;
+            if (maxLimit) inputTo.max = maxLimit;
+            wrapper.appendChild(inputTo);
+
+            this.elements[keyFrom] = inputFrom;
+            this.elements[keyTo] = inputTo;
+            
+            let defFrom = this.options.defaultFrom !== undefined ? this.options.defaultFrom : '';
+            let defTo = this.options.defaultTo !== undefined ? this.options.defaultTo : '';
+            
+            if (this.options.preset === 'week') {
+                if (!defTo) defTo = this._getTodayStr();
+                if (!defFrom) defFrom = this._calcPresetDateStr('week');
+            } else if (this.options.preset === 'month') {
+                if (!defTo) defTo = this._getTodayStr();
+                if (!defFrom) defFrom = this._calcPresetDateStr('month');
+            }
+            
+            this._defaults[keyFrom] = defFrom;
+            this._defaults[keyTo] = defTo;
+
+            // Cross validation
+            inputFrom.addEventListener('change', () => {
+                inputTo.min = inputFrom.value;
+                if (inputTo.value && inputTo.value < inputFrom.value) {
+                    inputTo.value = inputFrom.value;
+                    inputTo.dispatchEvent(new Event('change'));
+                }
+            });
+            inputTo.addEventListener('change', () => {
+                const maxVal = inputTo.value > maxLimit && maxLimit ? maxLimit : inputTo.value;
+                inputFrom.max = maxVal;
+                if (inputFrom.value && inputFrom.value > inputTo.value) {
+                    inputFrom.value = inputTo.value;
+                    inputFrom.dispatchEvent(new Event('change'));
+                }
+            });
+        }
+        
+        this.container.appendChild(wrapper);
+        this.ui = wrapper;
+        this.reset();
+        
+        // Ensure browser 'max' limit for native auto correction
+        Array.from(wrapper.querySelectorAll('input[type="date"]')).forEach(el => {
+            el.addEventListener('input', function() {
+                const raw = this.value.replace(/-/g, '');
+                if (/^\d{8}$/.test(raw)) {
+                    this.value = `${raw.substring(0,4)}-${raw.substring(4,6)}-${raw.substring(6,8)}`;
+                } else if (this.value) {
+                    const parts = this.value.split('-');
+                    if (parts[0] && parts[0].length > 4) {
+                        parts[0] = parts[0].substring(0, 4);
+                        this.value = parts.join('-');
+                    }
+                }
+            });
+        });
+        
+        return this;
+    }
+
+    reset() {
+        for (const [key, defVal] of Object.entries(this._defaults)) {
+            if (this.elements[key]) {
+                this.elements[key].value = defVal;
+                // Dispatch event so cross-validation resets limits too
+                this.elements[key].dispatchEvent(new Event('change'));
+            }
+        }
+    }
+    
+    getValue(key) {
+        return this.elements[key] ? this.elements[key].value : null;
+    }
+    
+    setValue(key, val) {
+        if (this.elements[key]) {
+            this.elements[key].value = val;
+            this.elements[key].dispatchEvent(new Event('change'));
+        }
+    }
+}
+
