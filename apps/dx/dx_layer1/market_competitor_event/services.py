@@ -195,11 +195,13 @@ def get_layer1_stats(cursor, target_date, now, comp_batch_id=None):
         })
 
         if status in ('WARNING', 'CRITICAL'):
+            error_type = '커버리지 미달' if status == 'CRITICAL' else '주의'
             failed_items.append({
-                'category': category,
-                'collected': collected,
+                'source': f"Market Competitor Event - {category}",
+                'error_type': error_type,
                 'expected': expected,
-                'rate': round(rate, 1),
+                'actual': collected,
+                'timestamp': f"커버리지 {combo_rate}%",
                 'status': status,
                 'combo_rate': combo_rate
             })
@@ -351,5 +353,79 @@ def get_competitor_event_raw_data(cursor, category, target_date):
     results['columns'] = columns
     results['data'] = data
     results['total_count'] = len(data)
+
+    return results
+
+
+def get_missing_keywords(cursor, category, target_date):
+    """
+    Market Competitor Event 부족 키워드(누락된 Comp Brand x Comp Sku Name 조합) 상세 조회
+    """
+    month_start = target_date.replace(day=1)
+    if target_date.month == 12:
+        month_end = target_date.replace(year=target_date.year + 1, month=1, day=1) - timedelta(days=1)
+    else:
+        month_end = target_date.replace(month=target_date.month + 1, day=1) - timedelta(days=1)
+
+    cursor.execute("""
+        SELECT batch_id FROM market_comp_event
+        WHERE batch_id IS NOT NULL
+          AND created_at >= %s AND created_at < %s::date + INTERVAL '1 day'
+        GROUP BY batch_id
+        ORDER BY MAX(created_at) DESC
+        LIMIT 1
+    """, (str(month_start), str(month_end)))
+    event_batch_row = cursor.fetchone()
+    event_batch_id = event_batch_row[0] if event_batch_row else None
+
+    from apps.dx.dx_layer1.common.quarter_utils import get_quarter_info, get_competitor_batch
+    q_info = get_quarter_info(target_date)
+    comp_batch_id, _ = get_competitor_batch(cursor, q_info['quarter_start'], q_info['quarter_end'])
+
+    results = {
+        'date': str(target_date),
+        'category': category,
+        'missing_keywords': [],
+        'summary': {}
+    }
+
+    cats = ['TV', 'HHP'] if category == 'all' else [category]
+
+    for cat in cats:
+        expected_combos = set()
+        if comp_batch_id:
+            cursor.execute("""
+                SELECT comp_brand, comp_series_name
+                FROM market_comp_product
+                WHERE batch_id = %s AND category = %s AND comp_series_name != 'info_not_available'
+                GROUP BY comp_brand, comp_series_name
+            """, (comp_batch_id, cat))
+            for row in cursor.fetchall():
+                expected_combos.add((row[0], row[1]))
+
+        collected_combos = set()
+        if event_batch_id:
+            cursor.execute("""
+                SELECT comp_brand, comp_sku_name
+                FROM market_comp_event
+                WHERE batch_id = %s AND category = %s
+                GROUP BY comp_brand, comp_sku_name
+            """, (event_batch_id, cat))
+            for row in cursor.fetchall():
+                collected_combos.add((row[0], row[1]))
+
+        missing_combos = expected_combos - collected_combos
+
+        for c_b, c_s in missing_combos:
+            results['missing_keywords'].append({
+                'category': cat,
+                'comp_brand': c_b,
+                'comp_sku_name': c_s
+            })
+
+        results['summary'][cat] = {
+            'total': len(expected_combos),
+            'missing': len(missing_combos)
+        }
 
     return results

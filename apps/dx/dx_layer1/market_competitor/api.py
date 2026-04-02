@@ -33,3 +33,21 @@ def market_competitor_raw_data(request):
             return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})
+
+
+def market_competitor_missing_keywords(request):
+    """Market Competitor 부족 키워드 상세 API"""
+    date_str = request.GET.get('date')
+    category = request.GET.get('category', 'all')
+
+    if date_str:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    else:
+        target_date = (datetime.now() - timedelta(days=1)).date()
+
+    try:
+        with dx_connection() as (conn, cursor):
+            result = services.get_missing_keywords(cursor, category, target_date)
+            return JsonResponse(result)
+    except Exception as e:
+        return JsonResponse({'error': log_error(e)})

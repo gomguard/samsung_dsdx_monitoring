@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from apps.common.dx_schedules import get_schedule_kst_info
 from apps.dx.dx_layer1.common.context import SECTION_TITLES
 from apps.dx.dx_layer1.common.quarter_utils import get_quarter_info, get_competitor_batch
 
@@ -11,6 +12,9 @@ def get_layer1_stats(cursor, target_date, now):
     """
     target_month = target_date.month
     target_year = target_date.year
+
+    # 스케줄 시간 정보
+    comp_schedule_info = get_schedule_kst_info('market_competitor', target_date, now)
 
     # 분기 정보
     q_info = get_quarter_info(target_date)
@@ -206,11 +210,13 @@ def get_layer1_stats(cursor, target_date, now):
         })
 
         if status in ('WARNING', 'CRITICAL'):
+            error_type = '커버리지 미달' if status == 'CRITICAL' else '주의'
             failed_items.append({
-                'category': category,
-                'collected': collected,
+                'source': f"Market Competitor - {category}",
+                'error_type': error_type,
                 'expected': expected,
-                'rate': round(rate, 1),
+                'actual': collected,
+                'timestamp': f"커버리지 {combo_rate}%",
                 'status': status,
                 'combo_rate': combo_rate
             })
@@ -264,6 +270,9 @@ def get_layer1_stats(cursor, target_date, now):
             'next_start': next_quarter_start
         },
         'is_target_date': is_quarter_first,
+        'us_time': f'{target_date} {comp_schedule_info["us_start_hour"]:02d}:00' if comp_schedule_info else '',
+        'kr_time': comp_schedule_info['kst_start']['full_display'] if comp_schedule_info else '',
+        'is_dst': comp_schedule_info['kst_start']['is_dst'] if comp_schedule_info else False,
         'keyword_coverage': {
             'total_combo_expected': total_combo_expected,
             'total_combo_collected': total_combo_collected,
@@ -384,5 +393,63 @@ def get_competitor_raw_data(cursor, category, target_date):
     results['columns'] = columns
     results['data'] = data
     results['total_count'] = len(data)
+
+    return results
+
+
+def get_missing_keywords(cursor, category, target_date):
+    """
+    Market Competitor 부족 키워드(누락된 Samsung Series x Comp Brand 조합) 상세 조회
+    """
+    from apps.dx.dx_layer1.common.quarter_utils import get_quarter_info, get_competitor_batch
+    q_info = get_quarter_info(target_date)
+    comp_batch_id, _ = get_competitor_batch(cursor, q_info['quarter_start'], q_info['quarter_end'])
+
+    results = {
+        'date': str(target_date),
+        'category': category,
+        'missing_keywords': [],
+        'summary': {}
+    }
+
+    cats = ['TV', 'HHP'] if category == 'all' else [category]
+
+    for cat in cats:
+        # 삼성 및 경쟁사 키워드
+        cursor.execute("SELECT keyword FROM market_mst WHERE analysis_type = 'competitor' AND content_type = 'samsung' AND is_active = true AND product_line = %s", (cat,))
+        samsung_kws = [r[0] for r in cursor.fetchall()]
+
+        cursor.execute("SELECT keyword FROM market_mst WHERE analysis_type = 'competitor' AND content_type = 'comp' AND is_active = true AND product_line = %s", (cat,))
+        comp_kws = [r[0] for r in cursor.fetchall()]
+
+        expected_combos = set()
+        for s_kw in samsung_kws:
+            for c_kw in comp_kws:
+                expected_combos.add((s_kw, c_kw))
+
+        collected_combos = set()
+        if comp_batch_id:
+            cursor.execute("""
+                SELECT samsung_series_name, comp_brand
+                FROM market_comp_product
+                WHERE batch_id = %s AND category = %s
+                GROUP BY samsung_series_name, comp_brand
+            """, (comp_batch_id, cat))
+            for row in cursor.fetchall():
+                collected_combos.add((row[0], row[1]))
+
+        missing_combos = expected_combos - collected_combos
+
+        for m_s, m_c in missing_combos:
+            results['missing_keywords'].append({
+                'category': cat,
+                'samsung_series': m_s,
+                'comp_brand': m_c
+            })
+
+        results['summary'][cat] = {
+            'total': len(expected_combos),
+            'missing': len(missing_combos)
+        }
 
     return results

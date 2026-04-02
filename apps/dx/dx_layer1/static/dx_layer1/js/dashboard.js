@@ -129,7 +129,7 @@ async function loadStats() {
                     <td>${esc(item.error_type)}</td>
                     <td>${esc(item.expected)}</td>
                     <td style="color: ${item.actual === 0 ? 'var(--color-critical)' : 'var(--color-warning)'}; font-weight: 600;">
-                        ${item.actual.toLocaleString()}
+                        ${item.actual != null ? item.actual.toLocaleString() : '-'}
                     </td>
                     <td>${esc(item.timestamp)}</td>
                 </tr>
@@ -311,8 +311,104 @@ function runBackup() {
 
 
 
+// Market Competitor 부족 키워드 모달
+var compMissingDataState = { category: 'all', data: [] };
+function openCompMissingModal(category) {
+    var currentDate = getSelectedDate();
+    compMissingDataState.category = category;
+    AppModal.setTitle('compMissing', 'Market Competitor 부족 키워드 - ' + category);
+    AppModal.setBody('compMissing', '<div class="raw-modal-header-sub"><div class="raw-data-modal-subtitle" id="compMissingModalSubtitle">' + currentDate + '</div></div><div class="raw-data-table-wrapper" style="padding: 0 20px 20px;" id="compMissingTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>');
+    AppModal.open('compMissing');
+    loadCompMissingData();
+}
+function loadCompMissingData() {
+    var wrapperEl = document.getElementById('compMissingTableWrapper');
+    var currentDate = getSelectedDate();
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+    fetch('/dx/layer1/market-competitor/api/missing/?category=' + encodeURIComponent(compMissingDataState.category) + '&date=' + encodeURIComponent(currentDate))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(data.error) + '</div>'; return; }
+            compMissingDataState.data = data.missing_keywords || [];
+            if (compMissingDataState.data.length === 0) { wrapperEl.innerHTML = '<div class="raw-data-empty">부족한 기워드가 없습니다</div>'; return; }
+            renderCompMissingTable(data.summary || {});
+        }).catch(function(e) { wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(e.message) + '</div>'; });
+}
+function renderCompMissingTable(summary) {
+    var wrapperEl = document.getElementById('compMissingTableWrapper');
+    var summaryHtml = '';
+    var parts = [];
+    for (var cat in summary) { parts.push(cat + ': ' + summary[cat].missing + '/' + summary[cat].total + '건 부족'); }
+    if (parts.length > 0) summaryHtml = ' (' + parts.join(', ') + ')';
+
+    var table = new CommonTable(wrapperEl, {
+        columns: [
+            { key: '_no', label: 'No', width: 50 },
+            { key: 'category', label: '카테고리', width: 80 },
+            { key: 'samsung_series', label: '삼성 시리즈명' },
+            { key: 'comp_brand', label: '경쟁사 브랜드' }
+        ],
+        showTotalCount: true,
+        countFormat: function(c) { return '총 <strong>' + c.toLocaleString() + '</strong>건 부족' + summaryHtml; }
+    });
+    table.render();
+    table.renderBody(compMissingDataState.data, function(item, idx) {
+        return '<tr><td style="text-align:center;">' + (idx + 1) + '</td><td>' + esc(item.category || '') + '</td><td>' + esc(item.samsung_series || '') + '</td><td>' + esc(item.comp_brand || '') + '</td></tr>';
+    });
+}
+
+// Market Competitor Event 부족 키워드 모달
+var eventMissingDataState = { category: 'all', data: [] };
+function openEventMissingModal(category) {
+    var currentDate = getSelectedDate();
+    eventMissingDataState.category = category;
+    AppModal.setTitle('eventMissing', 'Market Competitor Event 부족 키워드 - ' + category);
+    AppModal.setBody('eventMissing', '<div class="raw-modal-header-sub"><div class="raw-data-modal-subtitle" id="eventMissingModalSubtitle">' + currentDate + '</div></div><div class="raw-data-table-wrapper" style="padding: 0 20px 20px;" id="eventMissingTableWrapper"><div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div></div>');
+    AppModal.open('eventMissing');
+    loadEventMissingData();
+}
+function loadEventMissingData() {
+    var wrapperEl = document.getElementById('eventMissingTableWrapper');
+    var currentDate = getSelectedDate();
+    wrapperEl.innerHTML = '<div class="raw-data-loading"><div class="raw-data-loading-spinner"></div>데이터를 불러오는 중...</div>';
+    fetch('/dx/layer1/market-competitor-event/api/missing/?category=' + encodeURIComponent(eventMissingDataState.category) + '&date=' + encodeURIComponent(currentDate))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) { wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(data.error) + '</div>'; return; }
+            eventMissingDataState.data = data.missing_keywords || [];
+            if (eventMissingDataState.data.length === 0) { wrapperEl.innerHTML = '<div class="raw-data-empty">부족한 기워드가 없습니다</div>'; return; }
+            renderEventMissingTable(data.summary || {});
+        }).catch(function(e) { wrapperEl.innerHTML = '<div class="raw-data-empty">오류: ' + esc(e.message) + '</div>'; });
+}
+function renderEventMissingTable(summary) {
+    var wrapperEl = document.getElementById('eventMissingTableWrapper');
+    var summaryHtml = '';
+    var parts = [];
+    for (var cat in summary) { parts.push(cat + ': ' + summary[cat].missing + '/' + summary[cat].total + '건 부족'); }
+    if (parts.length > 0) summaryHtml = ' (' + parts.join(', ') + ')';
+
+    var table = new CommonTable(wrapperEl, {
+        columns: [
+            { key: '_no', label: 'No', width: 50 },
+            { key: 'category', label: '카테고리', width: 80 },
+            { key: 'comp_brand', label: '경쟁사 브랜드' },
+            { key: 'comp_sku_name', label: '경쟁사 Sku (제품)명' }
+        ],
+        showTotalCount: true,
+        countFormat: function(c) { return '총 <strong>' + c.toLocaleString() + '</strong>건 부족' + summaryHtml; }
+    });
+    table.render();
+    table.renderBody(eventMissingDataState.data, function(item, idx) {
+        return '<tr><td style="text-align:center;">' + (idx + 1) + '</td><td>' + esc(item.category || '') + '</td><td>' + esc(item.comp_brand || '') + '</td><td>' + esc(item.comp_sku_name || '') + '</td></tr>';
+    });
+}
+
 L1.initLayer1Page({
-    modals: [{ name: 'demandMissing', style: 'extra-wide' }],
+    modals: [
+        { name: 'demandMissing', style: 'extra-wide' },
+        { name: 'compMissing', style: 'extra-wide' },
+        { name: 'eventMissing', style: 'extra-wide' }
+    ],
     filterBarOptions: {
         right: [{ type: 'button', label: '백업 실행', style: 'save', onClick: function() { runBackup(); }, id: 'btn-backup' }]
     }

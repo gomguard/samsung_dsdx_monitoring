@@ -166,6 +166,15 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
                     'error': '미해결 이슈 ' + str(open_count) + '건이 있습니다. 이슈를 먼저 처리하세요.'
                 }
 
+            # 2차 완료: 완료율 100% 체크 (retail 제외)
+            if section != 'retail' and rate < 100:
+                conn.rollback()
+                return {
+                    'success': False,
+                    'error': f'완료율이 {rate}%입니다. 100% 달성 후 완료 처리하세요.',
+                    'level': 'warning'
+                }
+
             # 2차 완료: NULL 상태 detail 체크 (이슈 미등록 시에만 차단)
             null_items = [d for d in details if d.get('status') == 'NULL']
             if null_items:

@@ -32,7 +32,7 @@ function renderMarketCompetitorCheck(check, checkIdx) {
 
     // 스케줄 헤더 (한 섹션에 통합)
     let scheduleHeader = '';
-    if (isTargetDate && usTime) {
+    if (isTargetDate) {
         // 분석대상일: 수집 시간 + 분기 정보
         scheduleHeader = `
             <div class="time-slot-item" style="margin-bottom: 16px;">
@@ -105,6 +105,13 @@ function renderMarketCompetitorCheck(check, checkIdx) {
                                         </div>
                                     </a>
                                 </div>
+                                ${kwStatus !== 'OK' ? `
+                                <div class="sentiment-column-actions" style="padding: 8px 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+                                    <button class="btn-missing-keywords" onclick="event.stopPropagation(); if(typeof openCompMissingModal === 'function') openCompMissingModal('${cat.category}'); else alert('대시보드 메인 페이지에서 지원되는 기능입니다.');" style="font-size: 12px; padding: 4px 8px; background: rgba(255,100,100,0.2); border: 1px solid rgba(255,100,100,0.5); color: #ff6b6b; border-radius: 4px; cursor: pointer; display: block; width: 100%; box-sizing: border-box;">
+                                        부족 키워드 보기
+                                    </button>
+                                </div>
+                                ` : ''}
                             </div>
                         `;
                     }).join('')}
