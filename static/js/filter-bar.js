@@ -453,12 +453,20 @@ class FilterBar {
         return this;
     }
 
+    _toLocalDateStr(d) {
+        var yyyy = d.getFullYear();
+        var mm = String(d.getMonth() + 1).padStart(2, '0');
+        var dd = String(d.getDate()).padStart(2, '0');
+        return yyyy + '-' + mm + '-' + dd;
+    }
+
     prevDay() {
         const input = this.barEl.querySelector('input[type="date"]');
         if (!input || !input.value) return this;
-        const d = new Date(input.value);
+        const parts = input.value.split('-');
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
         d.setDate(d.getDate() - 1);
-        input.value = d.toISOString().slice(0, 10);
+        input.value = this._toLocalDateStr(d);
         input.dispatchEvent(new Event('change'));
         return this;
     }
@@ -466,9 +474,10 @@ class FilterBar {
     nextDay() {
         const input = this.barEl.querySelector('input[type="date"]');
         if (!input || !input.value) return this;
-        const d = new Date(input.value);
+        const parts = input.value.split('-');
+        const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
         d.setDate(d.getDate() + 1);
-        const next = d.toISOString().slice(0, 10);
+        const next = this._toLocalDateStr(d);
         if (input.max && next > input.max) return this;
         input.value = next;
         input.dispatchEvent(new Event('change'));
