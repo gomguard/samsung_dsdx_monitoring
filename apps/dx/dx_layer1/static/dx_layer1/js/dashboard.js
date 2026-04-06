@@ -51,13 +51,6 @@ async function loadStats() {
         document.getElementById('total-failed').textContent = data.summary.failed;
         updateConfirmedCount();
 
-        // Failed count badge
-        const failedCountEl = document.getElementById('failed-count');
-        const totalIssues = data.failed_items ? data.failed_items.length : 0;
-        failedCountEl.textContent = totalIssues + ' 건';
-        if (totalIssues === 0) {
-            failedCountEl.classList.add('ok');
-        }
 
         // 데일리 / 분석대상일별 분류 (API 응답의 display_group 기반)
         const dailyChecks = data.checks.filter(c => c.display_group === 'daily');
@@ -118,23 +111,6 @@ async function loadStats() {
         // 체크 배지 삽입 (DOM API)
         addCheckBadges();
 
-        // Failed items table
-        const tbody = document.getElementById('failed-table');
-        if (!data.failed_items || data.failed_items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">문제 항목 없음</td></tr>';
-        } else {
-            tbody.innerHTML = data.failed_items.map(item => `
-                <tr>
-                    <td><strong>${esc(item.source)}</strong></td>
-                    <td>${esc(item.error_type)}</td>
-                    <td>${esc(item.expected)}</td>
-                    <td style="color: ${item.actual === 0 ? 'var(--color-critical)' : 'var(--color-warning)'}; font-weight: 600;">
-                        ${item.actual != null ? item.actual.toLocaleString() : '-'}
-                    </td>
-                    <td>${esc(item.timestamp)}</td>
-                </tr>
-            `).join('');
-        }
 
     } catch (error) {
         console.error('Stats load failed:', error);

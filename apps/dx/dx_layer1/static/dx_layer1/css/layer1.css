@@ -154,11 +154,7 @@
     .retailer-count { font-size: 24px; font-weight: 700; }
     .retailer-expected { font-size: 13px; color: var(--text-secondary); }
 
-    .failed-section { background: white; border-radius: 12px; border: 1px solid var(--border-color); }
-    .failed-header { padding: 20px 24px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; }
-    .failed-count { background: var(--color-critical); color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
-    .failed-count.warning { background: var(--color-warning); }
-    .failed-count.ok { background: var(--color-ok); }
+
 
     .toggle-icon-small { font-size: 10px; color: var(--text-secondary); transition: transform 0.2s; margin-right: 8px; }
     .toggle-icon-small.expanded { transform: rotate(90deg); }

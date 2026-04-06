@@ -96,10 +96,11 @@ function renderMarketDemandCheck(check, checkIdx) {
                     <span class="criteria-item critical">심각: 100% 미만</span>
                 </div>
                 <div class="check-stats">
+                    ${check.status !== 'PENDING' ? `
                     <div class="check-stat">
                         <div class="value ${statusClass}">${check.rate || 0}%</div>
                         <div class="label">수집률</div>
-                    </div>
+                    </div>` : ''}
                     ${getStatusBadge(check.status)}
                 </div>
                 ` : `
