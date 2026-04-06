@@ -125,6 +125,16 @@ def get_document_count_by_crawl_date(cursor, category_id, crawl_date):
     return cursor.fetchone()[0]
 
 
+def get_document_by_crawl_date(cursor, category_id, crawl_date):
+    """해당 일자 문서 조회 (document_id, object_document_id 반환)"""
+    cursor.execute("""
+        SELECT document_id, object_document_id FROM ssd_crawl_db.ds_monitoring_documents
+        WHERE category_id = %s AND crawl_date = %s AND is_del = 0
+        LIMIT 1
+    """, (category_id, crawl_date))
+    return cursor.fetchone()
+
+
 def insert_document_record(cursor, document_id, category_id, title, content, object_document_id, crawl_date, username, now):
     """신규 문서 데이터 저장"""
     cursor.execute("""

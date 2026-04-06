@@ -8,9 +8,12 @@ from config.config import FILE_SERVER_CONFIG
 from . import report_repositories
 
 def get_file_info_for_date(target_date):
-    """특정 날짜의 리테일러별 파일 정보 조회 (SFTP)"""
+    """특정 날짜의 리테일러별 파일 정보 조회 (SFTP)
+    Returns: (file_info dict, duplicate_retailers list)
+    """
     date_folder = target_date.strftime('%Y%m%d')
     file_info = {}
+    file_count = {}
 
     try:
         transport = paramiko.Transport((FILE_SERVER_CONFIG['host'], FILE_SERVER_CONFIG['port']))
@@ -60,6 +63,7 @@ def get_file_info_for_date(target_date):
                     else:
                         retailer_name = country_code.upper()
 
+                    file_count[retailer_name] = file_count.get(retailer_name, 0) + 1
                     file_info[retailer_name] = {
                         'file_name': filename,
                         'file_size': f.st_size
@@ -72,7 +76,8 @@ def get_file_info_for_date(target_date):
     except Exception as e:
         log_error(e)
 
-    return file_info
+    duplicate_retailers = [r for r, cnt in file_count.items() if cnt > 1]
+    return file_info, duplicate_retailers
 
 def is_report_closed(target_date, existing=None):
     """보고서 마감 여부 외부 도메인 노출용"""
@@ -85,10 +90,10 @@ def save_file_info(crawl_date, user_id):
             return {'success': False, 'error': 'crawl_date가 필요합니다.'}
 
         target_date = datetime.strptime(crawl_date, '%Y-%m-%d').date()
-        file_info_cache = get_file_info_for_date(target_date)
+        file_info_cache, duplicate_retailers = get_file_info_for_date(target_date)
         targets = report_repositories.get_monitoring_targets()
 
-        return report_repositories.execute_save_file_info(crawl_date, user_id, file_info_cache, targets)
+        return report_repositories.execute_save_file_info(crawl_date, user_id, file_info_cache, targets, duplicate_retailers)
     except Exception as e:
         log_error(e)
         return {'success': False, 'error': str(e)}

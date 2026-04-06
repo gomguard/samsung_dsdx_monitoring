@@ -244,13 +244,36 @@ def create_document(category_id, title, content, object_document_id, crawl_date,
         now = datetime.now()
         with ds_connection() as (conn, cursor):
             if crawl_date:
-                cnt = repo.get_document_count_by_crawl_date(cursor, category_id, crawl_date)
-                if cnt > 0:
-                    return {'success': False, 'error': '해당 일자의 보고서는 이미 저장되었습니다.'}
+                # 마감 여부 체크
+                cursor.execute("""
+                    SELECT is_closed FROM ssd_crawl_db.ds_monitoring_report_close
+                    WHERE crawl_date = %s
+                """, (crawl_date,))
+                close_row = cursor.fetchone()
+                if close_row and close_row[0] == 1:
+                    return {'success': False, 'error': '마감된 날짜입니다.'}
+
+                # 기존 문서 존재 여부 확인 → 있으면 업데이트
+                existing_doc = repo.get_document_by_crawl_date(cursor, category_id, crawl_date)
+                if existing_doc:
+                    document_id = existing_doc[0]
+                    repo.update_document_record(cursor, document_id, title, content, username, now)
+
+                    category_type = repo.get_category_type(cursor, category_id)
+                    if category_type != 2:
+                        obj_doc_id = existing_doc[1] if len(existing_doc) > 1 else object_document_id
+                        ds_cleanup_orphan_files(cursor, obj_doc_id, content, username)
+                    conn.commit()
+
+                    return {
+                        'success': True,
+                        'document_id': document_id,
+                        'message': '검수 보고서가 수정되었습니다.'
+                    }
 
             document_id = generate_ds_id(cursor, 'ssd_crawl_db.ds_monitoring_documents', 'document_id')
             repo.insert_document_record(cursor, document_id, category_id, title, content, object_document_id, crawl_date, username, now)
-            
+
             category_type = repo.get_category_type(cursor, category_id)
             if category_type != 2:
                 ds_cleanup_orphan_files(cursor, object_document_id, content, username)
@@ -260,7 +283,7 @@ def create_document(category_id, title, content, object_document_id, crawl_date,
             'success': True,
             'document_id': document_id,
             'object_document_id': object_document_id,
-            'message': '문서가 저장되었습니다.'
+            'message': '검수 보고서가 저장되었습니다.'
         }
     except Exception as e:
         return {'success': False, 'error': log_error(e, 'save')}

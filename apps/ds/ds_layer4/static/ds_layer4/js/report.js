@@ -124,8 +124,6 @@ function renderStatusTable(data) {
                     <th class="text-center">이상치</th>
                     <th class="text-center">캡쳐</th>
                     <th style="min-width: 300px;">메모</th>
-                    <th>파일명</th>
-                    <th class="text-center">파일용량</th>
                     <th class="text-center">상세</th>
                 </tr>
             </thead>
@@ -159,8 +157,6 @@ function renderStatusTable(data) {
                 <td>
                     <input type="text" id="statusMemo_${report.id}" class="inline-input" value="${escMemo}" placeholder="메모 입력" disabled data-original="${escMemo}">
                 </td>
-                <td style="font-size: 13px; max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${report.file_name || ''}">${report.file_name || '-'}</td>
-                <td class="text-center">${report.file_size ? report.file_size.toLocaleString() : '-'}</td>
                 <td class="text-center">
                     ${AppButton.iconHtml('info', "showStatusDetail('" + report.retailer + "', '" + (report.created_id || '-') + "', '" + (report.created_at || '-') + "')", { size: 'sm', bg: '#6b7280', title: '상세보기' })}
                 </td>
@@ -196,13 +192,11 @@ function toggleStatusSelectAll() {
         if (memoInput) {
             memoInput.disabled = !selectAll.checked;
             if (selectAll.checked) {
-                // 체크 시 원인별 현황 자동 입력 (DB 저장값이 비어있을 때만)
                 if (!memoInput.dataset.original) {
                     const causeSummary = cb.dataset.causeSummary || '';
                     if (causeSummary) memoInput.value = causeSummary;
                 }
             } else {
-                // 체크 해제 시 원래 값으로 복원
                 memoInput.value = memoInput.dataset.original || '';
             }
         }
@@ -216,18 +210,15 @@ function toggleStatusInput(dailyId) {
     if (checkbox && memoInput) {
         memoInput.disabled = !checkbox.checked;
         if (checkbox.checked) {
-            // 체크 시 원인별 현황 자동 입력 (DB 저장값이 비어있을 때만)
             if (!memoInput.dataset.original) {
                 const causeSummary = checkbox.dataset.causeSummary || '';
                 if (causeSummary) memoInput.value = causeSummary;
             }
             memoInput.focus();
         } else {
-            // 체크 해제 시 원래 값으로 복원
             memoInput.value = memoInput.dataset.original || '';
         }
     }
-    // 전체 선택 체크박스 상태 업데이트
     updateStatusSelectAllState();
 }
 
@@ -696,15 +687,6 @@ async function saveCheckedAnomalies(retailer) {
 // 파일용량 저장
 async function saveFileInfo() {
     const date = document.getElementById('targetDate').value;
-    const savedCount = reportData?.daily_reports?.length || 0;
-    const totalRetailers = reportData?.total_retailers || 17;
-
-    // 리테일러 마감 완료 여부 체크
-    if (savedCount < totalRetailers) {
-        showToast(`리테일러 마감이 완료되지 않았습니다. (${savedCount}/${totalRetailers})`, 'warning');
-        return;
-    }
-
     const confirmed = await showConfirm('파일용량을 저장하시겠습니까?', 'info');
     if (!confirmed) {
         return;
@@ -746,15 +728,9 @@ async function closeReport() {
     const savedCount = reportData?.daily_reports?.length || 0;
     const fileSavedCount = reportData?.daily_reports?.filter(r => r.file_size > 0).length || 0;
 
-    // 현황 저장 완료 체크
+    // 현황 저장 완료 체크 (전체 리테일러)
     if (savedCount < totalRetailers) {
-        showToast(`리테일러 마감이 완료되지 않았습니다. (${savedCount}/${totalRetailers})`, 'warning');
-        return;
-    }
-
-    // 파일용량 저장 완료 체크
-    if (fileSavedCount < totalRetailers) {
-        showToast(`파일용량 저장이 완료되지 않았습니다. (${fileSavedCount}/${totalRetailers})`, 'warning');
+        showToast(`현황 저장이 완료되지 않았습니다. (${savedCount}/${totalRetailers})`, 'warning');
         return;
     }
 
@@ -925,8 +901,8 @@ function closeReportOutput() {
 
 // 보고서를 DS 문서(검수 보고서 카테고리)에 저장
 function saveReportToDocument() {
-    if (!isClosed) {
-        showToast('마감 후 저장이 가능합니다.', 'warning');
+    if (isClosed) {
+        showToast('마감된 날짜입니다.', 'warning');
         return;
     }
 
@@ -962,7 +938,7 @@ function saveReportToDocument() {
     .then(res => {
         btn.disabled = false;
         if (res.success) {
-            showToast('검수 보고서가 저장되었습니다.', 'success');
+            showToast(res.message || '검수 보고서가 저장되었습니다.', 'success');
         } else {
             showToast(res.error || '보고서 저장에 실패했습니다.', 'info');
         }
@@ -1133,6 +1109,16 @@ function generateReportContent(fileSizeHistory) {
             html += `</tr>`;
         });
         html += `</tbody></table>`;
+
+        // 파일메모가 있는 리테일러 표시
+        const fileMemoReports = (reportData.daily_reports || []).filter(r => r.file_memo && r.file_memo.trim());
+        if (fileMemoReports.length > 0) {
+            html += `<h3 ${S.h3}>파일 비고</h3><ul>`;
+            fileMemoReports.forEach(r => {
+                html += `<li>${r.retailer} : ${r.file_memo}</li>`;
+            });
+            html += `</ul>`;
+        }
     } else {
         html += `<p>데이터 없음</p>`;
     }

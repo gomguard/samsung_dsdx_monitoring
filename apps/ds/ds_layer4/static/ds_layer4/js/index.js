@@ -34,8 +34,8 @@ const reportBar = new FilterBar('#reportControlsBar', {
 // ── 뷰 토글 초기화 ──────────────────────────────
 (function() {
     const wrapper = document.getElementById('reportViewToggle');
-    const options = ['현황', '상세'];
-    const views = ['status', 'detail'];
+    const options = ['현황', '파일', '상세'];
+    const views = ['status', 'file', 'detail'];
     options.forEach((opt, i) => {
         const btn = document.createElement('button');
         btn.textContent = opt;
@@ -54,6 +54,9 @@ const reportBar = new FilterBar('#reportControlsBar', {
 
 // 페이지 로드 시 초기화
 document.addEventListener('DOMContentLoaded', () => {
+    // 모달 생성
+    AppModal.create('fileHistory', { style: 'wide' });
+
     // 저장된 날짜 또는 어제 날짜로 초기화 (URL파라미터 우선)
     document.getElementById('targetDate').value = getPersistedDate();
     loadReportList();
@@ -171,8 +174,18 @@ function updateCloseButton(data) {
 // 뷰 전환
 function setReportView(view) {
     currentReportView = view;
-    // 탭 전환 시 데이터 새로 조회
-    loadReportList();
+    const reportTableArea = document.getElementById('reportTableArea');
+    const fileSection = document.getElementById('fileTabSection');
+
+    if (view === 'file') {
+        reportTableArea.style.display = 'none';
+        fileSection.style.display = 'block';
+        loadFileTab();
+    } else {
+        reportTableArea.style.display = 'block';
+        fileSection.style.display = 'none';
+        loadReportList();
+    }
 }
 
 // loadReportData alias (조회 버튼에서 사용)

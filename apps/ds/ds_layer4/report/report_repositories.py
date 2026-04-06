@@ -33,29 +33,36 @@ def check_all_retailers_saved(cursor, crawl_date, total_count):
     """, (crawl_date,))
     return cursor.fetchone()[0]
 
-def execute_save_file_info(crawl_date, user_id, file_info_cache, targets_list):
+def execute_save_file_info(crawl_date, user_id, file_info_cache, targets_list, duplicate_retailers=None):
     with ds_connection() as (conn, cursor):
         if check_close_status(cursor, crawl_date):
             return {'success': False, 'error': '이미 마감된 날짜입니다.'}
 
-        all_retailers_count = len(get_monitoring_targets())
-        saved_count = check_all_retailers_saved(cursor, crawl_date, all_retailers_count)
+        # 저장된 리테일러 목록 조회
+        cursor.execute("""
+            SELECT d.retailer_id, t.retailer
+            FROM ssd_crawl_db.ds_monitoring_report_daily d
+            JOIN ssd_crawl_db.ds_monitoring_targets t ON d.retailer_id = t.retailer_id
+            WHERE d.crawl_date = %s AND d.is_del = 0
+        """, (crawl_date,))
+        saved_retailers = {row[1]: row[0] for row in cursor.fetchall()}
 
-        if saved_count < all_retailers_count:
-            return {'success': False, 'error': f'일괄 현황 저장이 먼저 필요합니다. (저장: {saved_count}/{all_retailers_count})'}
+        if not saved_retailers:
+            return {'success': False, 'error': '현황 저장이 먼저 필요합니다.'}
+
+        # 저장된 리테일러 중 파일서버에 중복 파일이 있는지 체크
+        if duplicate_retailers:
+            saved_duplicates = [r for r in duplicate_retailers if r in saved_retailers]
+            if saved_duplicates:
+                return {
+                    'success': False,
+                    'error': f'파일서버에 중복 파일이 있는 리테일러가 있습니다. ({", ".join(sorted(saved_duplicates))})'
+                }
 
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        cursor.execute("""
-            SELECT retailer_id, retailer FROM ssd_crawl_db.ds_monitoring_targets
-            WHERE is_active = 1
-        """)
-        targets_list = cursor.fetchall()
-
         updated_count = 0
-        for target_row in targets_list:
-            retailer_id = target_row[0]
-            retailer = target_row[1]
+        for retailer, retailer_id in saved_retailers.items():
             retailer_file = file_info_cache.get(retailer, {})
             file_name = retailer_file.get('file_name', '')
             file_size = retailer_file.get('file_size', 0)
@@ -71,10 +78,19 @@ def execute_save_file_info(crawl_date, user_id, file_info_cache, targets_list):
 
         return {
             'success': True,
-            'message': f'{crawl_date} 파일 정보 저장 완료',
+            'message': f'{crawl_date} 파일 정보 저장 완료 ({updated_count}건)',
             'updated_count': updated_count,
             'file_info_count': len(file_info_cache)
         }
+
+def check_report_saved(cursor, crawl_date):
+    """보고서(문서) 저장 여부 확인"""
+    cursor.execute("""
+        SELECT COUNT(*) FROM ssd_crawl_db.ds_monitoring_documents
+        WHERE crawl_date = %s AND is_del = 0
+    """, (crawl_date,))
+    return cursor.fetchone()[0] > 0
+
 
 def execute_close_report(crawl_date, user_id):
     with ds_connection() as (conn, cursor):
@@ -86,6 +102,9 @@ def execute_close_report(crawl_date, user_id):
 
         if saved_count < all_retailers_count:
             return {'success': False, 'error': f'일괄 현황 저장이 먼저 필요합니다. (저장: {saved_count}/{all_retailers_count})'}
+
+        if not check_report_saved(cursor, crawl_date):
+            return {'success': False, 'error': '보고서 저장이 먼저 필요합니다.'}
 
         now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
@@ -206,12 +225,20 @@ def update_daily_memo_db(body, user_id):
             for item in memos:
                 daily_id = item.get('daily_id')
                 memo = item.get('memo', '')
+                file_memo = item.get('file_memo')
                 if daily_id:
-                    cursor.execute("""
-                        UPDATE ssd_crawl_db.ds_monitoring_report_daily
-                        SET memo = %s, updated_at = %s, updated_id = %s
-                        WHERE id = %s AND is_del = 0
-                    """, (memo, now, user_id, daily_id))
+                    if file_memo is not None:
+                        cursor.execute("""
+                            UPDATE ssd_crawl_db.ds_monitoring_report_daily
+                            SET memo = %s, file_memo = %s, updated_at = %s, updated_id = %s
+                            WHERE id = %s AND is_del = 0
+                        """, (memo, file_memo, now, user_id, daily_id))
+                    else:
+                        cursor.execute("""
+                            UPDATE ssd_crawl_db.ds_monitoring_report_daily
+                            SET memo = %s, updated_at = %s, updated_id = %s
+                            WHERE id = %s AND is_del = 0
+                        """, (memo, now, user_id, daily_id))
                     updated_count += cursor.rowcount
 
             conn.commit()
@@ -219,13 +246,24 @@ def update_daily_memo_db(body, user_id):
 
         daily_id = body.get('daily_id')
         if not daily_id: return {'success': False, 'error': 'daily_id가 필요합니다.'}
-        if 'memo' not in body: return {'success': False, 'error': 'memo 필드가 필요합니다.'}
+        if 'memo' not in body and 'file_memo' not in body: return {'success': False, 'error': 'memo 또는 file_memo 필드가 필요합니다.'}
 
-        cursor.execute("""
+        update_fields = []
+        update_values = []
+        if 'memo' in body:
+            update_fields.append('memo = %s')
+            update_values.append(body['memo'])
+        if 'file_memo' in body:
+            update_fields.append('file_memo = %s')
+            update_values.append(body['file_memo'])
+        update_fields.extend(['updated_at = %s', 'updated_id = %s'])
+        update_values.extend([now, user_id, daily_id])
+
+        cursor.execute(f"""
             UPDATE ssd_crawl_db.ds_monitoring_report_daily
-            SET memo = %s, updated_at = %s, updated_id = %s
+            SET {', '.join(update_fields)}
             WHERE id = %s AND is_del = 0
-        """, (body['memo'], now, user_id, daily_id))
+        """, update_values)
         updated = cursor.rowcount
         conn.commit()
 
@@ -248,7 +286,7 @@ def get_report_list_db(target_date, retailer_filter, view_mode):
                    d.completion_rate, d.rerun_count, d.anomaly_total, d.anomaly_title_null,
                    d.anomaly_image_null, d.anomaly_partial_null, d.anomaly_price_zero,
                    d.memo, d.created_at, d.created_id, d.file_name, d.file_size,
-                   t.instance_id
+                   t.instance_id, d.file_memo
             FROM ssd_crawl_db.ds_monitoring_report_daily d
             LEFT JOIN ssd_crawl_db.ds_monitoring_targets t ON d.retailer_id = t.retailer_id
             WHERE d.crawl_date = %s AND d.is_del = 0
@@ -271,7 +309,8 @@ def get_report_list_db(target_date, retailer_filter, view_mode):
                 'anomaly_image_null': row[9], 'anomaly_partial_null': row[10], 'anomaly_price_zero': row[11],
                 'memo': row[12] or '', 'created_at': row[13].strftime('%Y-%m-%d %H:%M:%S') if row[13] else None,
                 'created_id': row[14], 'file_name': row[15] or '', 'file_size': row[16] or 0,
-                'has_screenshot': bool(instance_id)
+                'has_screenshot': bool(instance_id),
+                'file_memo': row[18] if len(row) > 18 else ''
             })
 
         anomalies = []
