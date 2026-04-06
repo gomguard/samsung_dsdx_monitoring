@@ -11,7 +11,6 @@ urlpatterns = [
 
     # API
     path('api/dashboard/', api_views.dashboard_stats, name='api_dashboard'),
-    path('api/ds/dashboard/', api_views.ds_dashboard_stats, name='api_ds_dashboard'),
     path('api/schedule/', api_views.collection_schedule, name='api_schedule'),
     path('api/health/', api_views.health_check, name='api_health'),
 ]

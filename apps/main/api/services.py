@@ -204,59 +204,6 @@ def get_dashboard_stats(target_date):
     }
 
 
-def get_ds_dashboard_stats(target_date):
-    """DS 대시보드 통계 조회 -- Layer 1 API 호출 기반
-
-    Returns:
-        dict with keys: layer_status, passed_layers, warning_layers, failed_layers
-    """
-    from apps.ds.ds_layer1.collection.api import layer_stats as ds_layer1_stats
-    from django.test import RequestFactory
-    import json
-
-    factory = RequestFactory()
-    fake_request = factory.get(f'/api/ds/layer1/stats/?date={target_date}')
-    layer1_response = ds_layer1_stats(fake_request)
-    layer1_data = layer1_response.content.decode('utf-8')
-    layer1_json = json.loads(layer1_data)
-
-    total_completion_rate = layer1_json.get('summary', {}).get('total_completion_rate', 0)
-
-    results = layer1_json.get('results', [])
-    success_count = sum(1 for r in results if r.get('status') == 'success')
-    warning_count = sum(1 for r in results if r.get('status') == 'warning')
-    danger_count = sum(1 for r in results if r.get('status') == 'danger')
-    pending_count = sum(1 for r in results if r.get('status') in ['pending', 'collecting'])
-
-    layer_status = {}
-    passed_layers = 0
-    warning_layers = 0
-    failed_layers = 0
-
-    # Layer 1 상태 결정
-    if total_completion_rate >= 100:
-        layer_status['layer1'] = 'success'
-        passed_layers += 1
-    elif pending_count == len(results):
-        layer_status['layer1'] = 'pending'
-        warning_layers += 1
-    else:
-        layer_status['layer1'] = 'danger'
-        failed_layers += 1
-
-    # Layer 2-5: 기본 pending 상태 (아직 구현 안됨)
-    for i in range(2, 6):
-        layer_status[f'layer{i}'] = 'pending'
-        warning_layers += 1
-
-    return {
-        'layer_status': layer_status,
-        'passed_layers': passed_layers,
-        'warning_layers': warning_layers,
-        'failed_layers': failed_layers,
-    }
-
-
 def check_health():
     """DX/DS 데이터베이스 연결 상태 확인
 

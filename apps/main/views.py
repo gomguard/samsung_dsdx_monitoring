@@ -74,6 +74,17 @@ def ds_dashboard(request):
                 'color': '#d97706',
                 'url': '/ds/layer3/',
             },
+        ],
+        'extra_layers': [
+            {
+                'number': 4,
+                'name': '보고서 관리',
+                'name_en': 'Report Management',
+                'description': '저장된 이상치 보고서 관리 및 마감',
+                'icon': 'clipboard',
+                'color': '#7e6b9b',
+                'url': '/ds/layer4/',
+            },
         ]
     }
     return render(request, 'main/ds_dashboard.html', context)
