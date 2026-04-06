@@ -710,7 +710,11 @@ async function saveFileInfo() {
         const result = await response.json();
         if (result.success) {
             showToast(result.message || '파일 정보 저장 완료');
-            loadReportList();
+            if (currentReportView === 'file') {
+                loadFileTab();
+            } else {
+                loadReportList();
+            }
         } else {
             showToast(result.error || '저장 실패', 'error');
             saveFileInfoBtn.disabled = false;
