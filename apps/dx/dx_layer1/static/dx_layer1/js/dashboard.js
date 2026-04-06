@@ -407,7 +407,8 @@ L1.initLayer1Page({
     modals: [
         { name: 'demandMissing', style: 'extra-wide' },
         { name: 'compMissing', style: 'extra-wide' },
-        { name: 'eventMissing', style: 'extra-wide' }
+        { name: 'eventMissing', style: 'extra-wide' },
+        { name: 'columns', style: 'wide' }
     ],
     filterBarOptions: {
         right: [{ type: 'button', label: '백업 실행', style: 'save', onClick: function() { runBackup(); }, id: 'btn-backup' }]
