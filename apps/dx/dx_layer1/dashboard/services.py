@@ -7,14 +7,14 @@ from apps.common.db import dx_connection
 from apps.common.response import log_error
 from apps.common.dx_schedules import load_collection_schedules, is_target_date as check_target_date
 
-from apps.dx.dx_layer1.retail import services as retail_svc
-from apps.dx.dx_layer1.sentiment import services as sentiment_svc
-from apps.dx.dx_layer1.youtube import services as youtube_svc
-from apps.dx.dx_layer1.market_trend import services as market_trend_svc
-from apps.dx.dx_layer1.market_demand import services as market_demand_svc
-from apps.dx.dx_layer1.market_competitor import services as market_competitor_svc
-from apps.dx.dx_layer1.market_competitor_event import services as market_competitor_event_svc
-from apps.dx.dx_layer1.market_promotion import services as market_promotion_svc
+from apps.dx.dx_layer1.retail import retail_services as retail_svc
+from apps.dx.dx_layer1.sentiment import sentiment_services as sentiment_svc
+from apps.dx.dx_layer1.youtube import youtube_services as youtube_svc
+from apps.dx.dx_layer1.market_trend import market_trend_services as market_trend_svc
+from apps.dx.dx_layer1.market_demand import market_demand_services as market_demand_svc
+from apps.dx.dx_layer1.market_competitor import market_competitor_services as market_competitor_svc
+from apps.dx.dx_layer1.market_competitor_event import market_competitor_event_services as market_competitor_event_svc
+from apps.dx.dx_layer1.market_promotion import market_promotion_services as market_promotion_svc
 
 
 EXPECTED_PER_RETAILER = 300

@@ -96,3 +96,4 @@ _backup/
 
 # 문서 파일
 *.md
+!CLAUDE.md

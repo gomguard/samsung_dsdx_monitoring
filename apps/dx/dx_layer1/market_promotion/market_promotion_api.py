@@ -1,8 +1,7 @@
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import dx_connection
 from apps.common.response import log_error
-from . import services
+from . import market_promotion_services as svc
 
 
 def market_promotion_raw_data(request):
@@ -16,8 +15,7 @@ def market_promotion_raw_data(request):
         target_date = (datetime.now() - timedelta(days=1)).date()
 
     try:
-        with dx_connection() as (conn, cursor):
-            result = services.get_promotion_raw_data(cursor, retailer, target_date)
-            return JsonResponse(result)
+        result = svc.get_promotion_raw_data(retailer, target_date)
+        return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})

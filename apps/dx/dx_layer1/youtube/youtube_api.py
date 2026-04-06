@@ -1,20 +1,19 @@
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import dx_connection
 from apps.common.response import log_error
-from . import services
+from . import youtube_services as svc
 
 
-def market_trend_raw_data(request):
+def youtube_raw_data(request):
     """
-    Market Trend 원본 데이터 조회 API
+    YouTube 원본 데이터 조회 API
     - category: TV 또는 HHP
-    - content_type: search_volume, social_trend, news_trend 등
     - date: 조회 날짜 (YYYY-MM-DD)
+    - data_type: logs, videos, comments (기본: logs)
     """
     category = request.GET.get('category', 'TV')
-    content_type = request.GET.get('content_type', '')
     date_str = request.GET.get('date')
+    data_type = request.GET.get('data_type', 'logs')
 
     if not date_str:
         target_date = (datetime.now() - timedelta(days=1)).date()
@@ -22,8 +21,7 @@ def market_trend_raw_data(request):
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
 
     try:
-        with dx_connection() as (conn, cursor):
-            result = services.get_market_trend_raw_data(cursor, category, content_type, target_date)
-            return JsonResponse(result)
+        result = svc.get_youtube_raw_data(category, data_type, target_date)
+        return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})

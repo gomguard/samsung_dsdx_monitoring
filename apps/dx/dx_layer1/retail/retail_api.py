@@ -1,8 +1,7 @@
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import dx_connection
 from apps.common.response import log_error
-from . import services
+from . import retail_services as svc
 
 
 def retail_detail(request):
@@ -16,9 +15,8 @@ def retail_detail(request):
         target_date = (datetime.now() - timedelta(days=1)).date()
 
     try:
-        with dx_connection() as (conn, cursor):
-            result = services.get_retail_detail(cursor, target_date, product_line)
-            return JsonResponse(result)
+        result = svc.get_retail_detail(target_date, product_line)
+        return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})
 
@@ -34,9 +32,8 @@ def retail_summary(request):
         target_date = (datetime.now() - timedelta(days=1)).date()
 
     try:
-        with dx_connection() as (conn, cursor):
-            result = services.get_retail_summary(cursor, target_date, product_line)
-            return JsonResponse(result)
+        result = svc.get_retail_summary(target_date, product_line)
+        return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})
 
@@ -60,9 +57,8 @@ def retailer_raw_data(request):
         target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
 
     try:
-        with dx_connection() as (conn, cursor):
-            result = services.get_retailer_raw_data(cursor, category, retailer, period, target_date)
-            return JsonResponse(result)
+        result = svc.get_retailer_raw_data(category, retailer, period, target_date)
+        return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})
 
@@ -73,7 +69,7 @@ def retailer_columns_info(request):
     - DB(monitoring_retail_columns)에서 컬럼 정보 로드
     """
     try:
-        result = services.get_retailer_columns_info()
+        result = svc.get_retailer_columns_info()
         return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})

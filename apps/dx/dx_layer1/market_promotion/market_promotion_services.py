@@ -1,7 +1,9 @@
 from datetime import timedelta
 
+from apps.common.db import dx_connection
 from apps.common.dx_schedules import get_schedule_kst_info, get_kst_time_info
 from apps.dx.dx_layer1.common.context import SECTION_TITLES
+from . import market_promotion_repositories as repo
 
 
 PROMO_RETAILERS = ['Amazon', 'Best Buy', 'Walmart', "Sam's Club", 'Home Depot', "Lowe's", 'Costco']
@@ -14,19 +16,15 @@ def get_layer1_stats(cursor, target_date, now):
     """
     failed_items = []
 
-    # 조회 날짜가 월요일인지 확인 (0=월요일)
     is_monday = target_date.weekday() == 0
 
-    # 다음 월요일 계산
     days_until_monday = (7 - target_date.weekday()) % 7
     if days_until_monday == 0:
-        days_until_monday = 7  # 오늘이 월요일이면 다음 월요일
+        days_until_monday = 7
     next_monday = target_date + timedelta(days=days_until_monday)
 
-    # DB에서 Market Promotion 스케줄 정보 가져오기 (KST 변환 포함)
     market_promo_info = get_schedule_kst_info('market_promotion', target_date, now)
 
-    # market_promo_info가 None인 경우 기본값 사용
     if not market_promo_info:
         kst_start = get_kst_time_info(18, target_date)
         market_promo_info = {
@@ -44,49 +42,32 @@ def get_layer1_stats(cursor, target_date, now):
     promo_is_collecting = market_promo_info['is_collecting']
     promo_collection_done = market_promo_info['collection_done']
 
-    # 9주 이내 이벤트 수 조회
     promo_nine_weeks = target_date + timedelta(weeks=9)
-    cursor.execute("""
-        SELECT COUNT(DISTINCT id)
-        FROM openai_event_mst
-        WHERE is_active = true
-          AND event_date IS NOT NULL
-          AND event_date > %s
-          AND event_date <= %s
-    """, (target_date.strftime('%Y-%m-%d'), promo_nine_weeks.strftime('%Y-%m-%d')))
-    promo_event_count = cursor.fetchone()[0] or 0
+    promo_event_count = repo.get_event_count_within_weeks(
+        cursor, 
+        target_date.strftime('%Y-%m-%d'), 
+        promo_nine_weeks.strftime('%Y-%m-%d')
+    )
 
-    # 해당 날짜에 수집된 프로모션 데이터 조회
-    cursor.execute("""
-        SELECT
-            p.retailer,
-            COUNT(*) as cnt
-        FROM openai_retailer_promotions p
-        WHERE p.crawled_at = %s
-        GROUP BY p.retailer
-        ORDER BY p.retailer
-    """, (target_date.strftime('%Y-%m-%d'),))
-    promo_retailer_counts = {row[0]: row[1] for row in cursor.fetchall()}
+    promo_retailer_counts = repo.get_collected_promotions_by_retailer(
+        cursor,
+        target_date.strftime('%Y-%m-%d')
+    )
 
-    # 총 수집건수
     promo_total_collected = sum(promo_retailer_counts.values())
-
-    # 예상 수집건수: 대상 이벤트 수 × 7개 리테일러
     promo_expected = promo_event_count * len(PROMO_RETAILERS)
 
-    # 리테일러별 상세 데이터
     promo_retailers = []
     promo_ok_count = 0
     for retailer in PROMO_RETAILERS:
         collected = promo_retailer_counts.get(retailer, 0)
-        expected = promo_event_count  # 각 리테일러별 이벤트 수만큼 기대
+        expected = promo_event_count
 
         if expected > 0:
             rate = (collected / expected) * 100
         else:
             rate = 0 if collected == 0 else 100
 
-        # 상태 판정
         if not is_monday:
             status = 'PENDING'
         elif promo_is_pending:
@@ -94,17 +75,14 @@ def get_layer1_stats(cursor, target_date, now):
         elif expected == 0:
             status = 'PENDING'
         elif rate >= 100:
-            # 100% 완료
             status = 'OK'
             promo_ok_count += 1
         elif promo_collection_done:
-            # 수집 시간 경과 (30분 지남) + 100% 미만 → 결과 표시 (WARNING/CRITICAL)
             if rate >= 90:
                 status = 'WARNING'
             else:
                 status = 'CRITICAL'
         else:
-            # 수집 중 (100% 미만이고 30분 미경과)
             status = 'COLLECTING'
             promo_is_collecting = True
 
@@ -116,7 +94,6 @@ def get_layer1_stats(cursor, target_date, now):
             'status': status
         })
 
-    # 전체 상태
     if promo_expected > 0:
         promo_overall_rate = (promo_total_collected / promo_expected) * 100
     else:
@@ -132,18 +109,15 @@ def get_layer1_stats(cursor, target_date, now):
         promo_overall_status = 'PENDING'
         promo_description = '대상 이벤트 없음'
     elif promo_overall_rate >= 100:
-        # 100% 완료
         promo_overall_status = 'OK'
         promo_description = f'{promo_ok_count}/{len(PROMO_RETAILERS)} 리테일러 정상'
     elif promo_collection_done:
-        # 수집 시간 경과 (30분 지남) + 100% 미만 → 결과 표시
         if promo_overall_rate >= 90:
             promo_overall_status = 'WARNING'
         else:
             promo_overall_status = 'CRITICAL'
         promo_description = f'{promo_ok_count}/{len(PROMO_RETAILERS)} 리테일러 정상'
     else:
-        # 수집 중 (100% 미만이고 30분 미경과)
         promo_overall_status = 'COLLECTING'
         promo_description = f'수집중 ({round(promo_overall_rate, 1)}%)'
 
@@ -168,12 +142,11 @@ def get_layer1_stats(cursor, target_date, now):
     return {'check': check, 'failed_items': failed_items}
 
 
-def get_promotion_raw_data(cursor, retailer, target_date):
+def get_promotion_raw_data(retailer, target_date):
     """
     Market Promotion Raw Data 조회.
     Returns: {'date': str, 'analysis_date': str, 'retailer': str, 'columns': [], 'data': [], 'total_count': int}
     """
-    # 분석대상일(월요일) 계산
     days_since_monday = target_date.weekday()
     analysis_monday = target_date - timedelta(days=days_since_monday)
 
@@ -186,44 +159,15 @@ def get_promotion_raw_data(cursor, retailer, target_date):
         'total_count': 0
     }
 
-    columns = [
-        'id', 'event_name', 'event_date', 'event_week',
-        'retailer', 'promo_start_date', 'promo_end_date',
-        'source_url', 'crawled_at'
-    ]
+    with dx_connection() as (conn, cursor):
+        columns, rows = repo.get_promotion_raw_data_list(
+            cursor, 
+            retailer, 
+            analysis_monday.strftime('%Y-%m-%d')
+        )
 
-    query = """
-        SELECT
-            p.id,
-            e.event_name,
-            e.event_date,
-            e.event_week,
-            p.retailer,
-            p.promo_start_date,
-            p.promo_end_date,
-            p.source_url,
-            p.crawled_at
-        FROM openai_retailer_promotions p
-        LEFT JOIN openai_event_mst e ON p.event_id = e.id
-        WHERE p.crawled_at = %s
-    """
-
-    params = [analysis_monday.strftime('%Y-%m-%d')]
-
-    if retailer:
-        query += " AND p.retailer = %s"
-        params.append(retailer)
-
-    query += " ORDER BY e.event_date, p.id"
-
-    cursor.execute(query, params)
-
-    rows = cursor.fetchall()
-
-    total_count = len(rows)
-
-    results['columns'] = columns
-    results['total_count'] = total_count
-    results['data'] = rows
+        results['columns'] = columns
+        results['total_count'] = len(rows)
+        results['data'] = rows
 
     return results

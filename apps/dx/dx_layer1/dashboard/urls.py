@@ -1,8 +1,8 @@
 from django.urls import path
-from . import views
-from . import api
+from apps.dx.dx_layer1 import views as layer1_views
+from . import dashboard_api as api
 
 urlpatterns = [
-    path('', views.dashboard, name='dashboard'),
+    path('', layer1_views.dashboard, name='dashboard'),
     path('api/stats/', api.layer_stats, name='api_stats'),
 ]

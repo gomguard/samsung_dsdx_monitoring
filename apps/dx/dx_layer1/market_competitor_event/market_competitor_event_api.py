@@ -1,8 +1,7 @@
 from django.http import JsonResponse
 from datetime import datetime, timedelta
-from apps.common.db import dx_connection
 from apps.common.response import log_error
-from . import services
+from . import market_competitor_event_services as svc
 
 
 def market_competitor_event_raw_data(request):
@@ -16,9 +15,8 @@ def market_competitor_event_raw_data(request):
         target_date = (datetime.now() - timedelta(days=1)).date()
 
     try:
-        with dx_connection() as (conn, cursor):
-            result = services.get_competitor_event_raw_data(cursor, category, target_date)
-            return JsonResponse(result)
+        result = svc.get_competitor_event_raw_data(category, target_date)
+        return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})
 
@@ -34,8 +32,7 @@ def market_competitor_event_missing_keywords(request):
         target_date = (datetime.now() - timedelta(days=1)).date()
 
     try:
-        with dx_connection() as (conn, cursor):
-            result = services.get_missing_keywords(cursor, category, target_date)
-            return JsonResponse(result)
+        result = svc.get_missing_keywords(category, target_date)
+        return JsonResponse(result)
     except Exception as e:
         return JsonResponse({'error': log_error(e)})

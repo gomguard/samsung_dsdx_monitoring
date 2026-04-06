@@ -1,27 +1,23 @@
-"""
-Layer 1 Retail 서비스 — 비즈니스 로직 (HTTP 레이어 분리)
-- dashboard/api.py, retail/api.py에서 추출한 순수 로직
-"""
-
 import re
 from datetime import datetime, timedelta
+
+from apps.common.db import dx_connection
 from apps.common.retail_columns import get_retailer_columns, get_all_retailer_columns
 from apps.common.response import log_error
 from apps.dx.dx_layer1.common.context import SECTION_TITLES
 from apps.common.dx_schedules import get_retail_time_slots, get_kst_time_info, get_schedule_kst_info
+from . import retail_repositories as repo
 
 
-# 리테일러 설정 — 스케줄 DB에서 동적 로드 (RETAILERS, EXPECTED_PER_RETAILER 제거)
-OK_THRESHOLD = 200           # 정상 기준 (200개 이상이면 OK, 미만이면 CRITICAL)
+OK_THRESHOLD = 200
 
-# SQL Injection 방지용 화이트리스트
 ALLOWED_TABLES = {'tv_retail_com', 'hhp_retail_com'}
 ALLOWED_DATE_FIELDS = {'crawl_datetime::timestamp', 'crawl_strdatetime::timestamp'}
 ALLOWED_RANK_FIELDS = {'promotion_position', 'trend_rank'}
 
 
 def _get_daily_retailers(all_slots):
-    """1일 1회 수집 리테일러 판별 — 슬롯이 1개만 있는 리테일러"""
+    """1일 1회 수집 리테일러 판별"""
     retailer_slot_count = {}
     for slot in all_slots:
         for r in slot.get('retailers', []):
@@ -30,83 +26,14 @@ def _get_daily_retailers(all_slots):
     return {name for name, count in retailer_slot_count.items() if count == 1}
 
 
-def query_retail_counts(cursor, table_name, date_field, extra_rank_field, slot_start, slot_end, daily_retailers=None):
-    """
-    리테일러별 수집 건수 공통 쿼리 — 대시보드/섹션 페이지 동일 사용
-    daily_retailers: 1일 1회 수집 리테일러 set (DATE 기준 조회)
-    Returns: list of tuples (account_name, cnt, main_count, bsr_count, extra_count)
-    """
-    if daily_retailers:
-        # 1일 1회 리테일러: DATE 기준, 나머지: 슬롯 범위 기준
-        date_only = slot_start[:10]  # 'YYYY-MM-DD'
-        daily_list = list(daily_retailers)
-        daily_placeholders = ','.join(['%s'] * len(daily_list))
-        cursor.execute(f"""
-            SELECT account_name,
-                   COUNT(*) as cnt,
-                   COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
-                   COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-                   COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count
-            FROM {table_name}
-            WHERE (
-                (LOWER(account_name) IN ({daily_placeholders}) AND DATE({date_field}) = %s)
-                OR
-                (LOWER(account_name) NOT IN ({daily_placeholders}) AND {date_field} >= %s AND {date_field} < %s)
-            )
-            GROUP BY account_name
-        """, daily_list + [date_only] + daily_list + [slot_start, slot_end])
-    else:
-        cursor.execute(f"""
-            SELECT account_name,
-                   COUNT(*) as cnt,
-                   COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
-                   COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-                   COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count
-            FROM {table_name}
-            WHERE {date_field} >= %s
-            AND {date_field} < %s
-            GROUP BY account_name
-        """, (slot_start, slot_end))
-    return cursor.fetchall()
-
-
-def query_retail_counts_by_retailer(cursor, table_name, date_field, extra_rank_field, slot_start, slot_end, retailer):
-    """
-    특정 리테일러 수집 건수 공통 쿼리 — 섹션 페이지 상세용
-    Returns: tuple (main_count, bsr_count, extra_count, total)
-    """
-    cursor.execute(f"""
-        SELECT
-            COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
-            COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-            COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count,
-            COUNT(*) as total
-        FROM {table_name}
-        WHERE {date_field} >= %s
-        AND {date_field} < %s
-        AND LOWER(account_name) = LOWER(%s)
-    """, (slot_start, slot_end, retailer))
-    return cursor.fetchone()
-
-
 def check_retailer_data(rows, category='TV', slot_retailers=None):
-    """
-    리테일러별 데이터 검증
-    Returns: (retailer_details, total_count, all_ok)
-
-    rows 형식:
-    - TV: (account_name, cnt, main_count, bsr_count, promotion_count)
-    - HHP: (account_name, cnt, main_count, bsr_count, trend_count)
-
-    slot_retailers: 스케줄 DB에서 가져온 리테일러 목록 [{'name': 'Amazon', 'expected_count': 300}, ...]
-    """
     if slot_retailers:
         retailer_names = [r['name'].lower() for r in slot_retailers]
     else:
-        retailer_names = ['amazon', 'bestbuy', 'walmart']  # fallback
+        retailer_names = ['amazon', 'bestbuy', 'walmart']
+
     retailer_counts = {r: {'count': 0, 'main': 0, 'bsr': 0, 'extra': 0} for r in retailer_names}
 
-    # 수집된 데이터 카운트
     for row in rows:
         retailer_name = row[0].lower() if row[0] else ''
         count = row[1]
@@ -115,10 +42,9 @@ def check_retailer_data(rows, category='TV', slot_retailers=None):
                 'count': count,
                 'main': row[2] if len(row) > 2 else 0,
                 'bsr': row[3] if len(row) > 3 else 0,
-                'extra': row[4] if len(row) > 4 else 0  # TV: promotion_rank (Bestbuy만), HHP: trend_rank
+                'extra': row[4] if len(row) > 4 else 0
             }
 
-    # 리테일러별 expected_count 매핑
     expected_map = {}
     if slot_retailers:
         for r in slot_retailers:
@@ -134,7 +60,6 @@ def check_retailer_data(rows, category='TV', slot_retailers=None):
         total_count += count
         retailer_expected = expected_map.get(retailer, 300)
 
-        # 상태 판정: 200 이상 = OK, 200 미만 = CRITICAL
         if count >= OK_THRESHOLD:
             status = 'OK'
         else:
@@ -142,9 +67,7 @@ def check_retailer_data(rows, category='TV', slot_retailers=None):
 
         statuses.append(status)
 
-        # 수집 항목 정보 구성 (카테고리 및 리테일러에 따라 다름)
         if category == 'TV':
-            # TV: Amazon, Walmart는 main_rank, bsr_rank만 / Bestbuy는 promotion_position
             if retailer == 'bestbuy':
                 items = [
                     {'name': 'Main Rank', 'count': data['main']},
@@ -157,7 +80,6 @@ def check_retailer_data(rows, category='TV', slot_retailers=None):
                     {'name': 'BSR Rank', 'count': data['bsr']}
                 ]
         else:
-            # HHP: Amazon, Walmart는 main_rank, bsr_rank만 / Bestbuy는 trend_rank
             if retailer == 'bestbuy':
                 items = [
                     {'name': 'Main Rank', 'count': data['main']},
@@ -179,7 +101,6 @@ def check_retailer_data(rows, category='TV', slot_retailers=None):
             'items': items
         })
 
-    # 전체 상태 결정
     if 'CRITICAL' in statuses:
         overall_status = 'CRITICAL'
     else:
@@ -189,32 +110,12 @@ def check_retailer_data(rows, category='TV', slot_retailers=None):
 
 
 def get_layer1_stats(cursor, target_date, now):
-    """
-    Layer 1 대시보드 - Retail 섹션 통계
-    dashboard/api.py layer_stats()의 retail 섹션 로직 추출
-
-    Args:
-        cursor: DB 커서 (DX PostgreSQL)
-        target_date: 조회 대상 날짜 (date 객체)
-        now: 현재 시각 (datetime 객체)
-
-    Returns:
-        dict: {'check': {...}, 'failed_items': [...]}
-    """
     next_day = target_date + timedelta(days=1)
     failed_items = []
 
-    # ============================================================
-    # 시간대 정의 - DB에서 로드
-    # ============================================================
-
-    # DB에서 시간대 슬롯 정보 가져오기
     time_slots = get_retail_time_slots('TV', target_date)
     tv_daily_retailers = _get_daily_retailers(time_slots)
 
-    # ============================================================
-    # TV Retail 검증 (통합)
-    # ============================================================
     tv_time_slots = []
     tv_total_count = 0
     tv_slot_statuses = []
@@ -222,15 +123,12 @@ def get_layer1_stats(cursor, target_date, now):
     for slot in time_slots:
         slot_retailers = slot.get('retailers', [])
         slot_expected = sum(r.get('expected_count', 0) for r in slot_retailers) if slot_retailers else 0
-        # TV는 main_rank, bsr_rank, promotion_position (Bestbuy만) 수집
-        rows = query_retail_counts(cursor, 'tv_retail_com', 'crawl_datetime::timestamp', 'promotion_position', slot['start'], slot['end'], tv_daily_retailers)
+        rows = repo.query_retail_counts(cursor, 'tv_retail_com', 'crawl_datetime::timestamp', 'promotion_position', slot['start'], slot['end'], tv_daily_retailers)
 
         if slot['is_pending']:
-            # time_status가 COLLECTING이면 수집중, 아니면 대기중
             slot_display_status = slot['time_status'] if slot['time_status'] else 'PENDING'
-            # 수집중일 때도 현재까지 수집된 데이터 표시
             retailer_details, total, _ = check_retailer_data(rows, 'TV', slot_retailers)
-            tv_total_count += total  # PENDING/COLLECTING 상태에서도 수집량 합계에 포함
+            tv_total_count += total
             tv_time_slots.append({
                 'name': slot['name'],
                 'us_time': slot['us_time'],
@@ -239,7 +137,7 @@ def get_layer1_stats(cursor, target_date, now):
                 'total': total,
                 'expected': slot_expected,
                 'status': slot_display_status,
-                'retailers': retailer_details  # 수집중에도 리테일러 데이터 표시
+                'retailers': retailer_details
             })
         else:
             retailer_details, total, slot_status = check_retailer_data(rows, 'TV', slot_retailers)
@@ -257,7 +155,6 @@ def get_layer1_stats(cursor, target_date, now):
                 'retailers': retailer_details
             })
 
-            # 실패 항목 추가
             for r in retailer_details:
                 if r['status'] != 'OK':
                     error_type = '수집 없음' if r['count'] == 0 else ('주의' if r['status'] == 'WARNING' else '수집량 부족')
@@ -269,8 +166,6 @@ def get_layer1_stats(cursor, target_date, now):
                         'timestamp': f"TV {slot['name']}"
                     })
 
-    # TV 전체 상태 결정
-    # COLLECTING 상태가 있으면 전체도 COLLECTING
     tv_has_collecting = any(s['status'] == 'COLLECTING' for s in tv_time_slots)
     tv_all_pending = all(s['status'] == 'PENDING' for s in tv_time_slots)
 
@@ -287,11 +182,9 @@ def get_layer1_stats(cursor, target_date, now):
     else:
         tv_overall_status = 'OK'
 
-    # 활성 슬롯 수 계산 (PENDING, COLLECTING 제외)
     tv_active_slots = len([s for s in tv_time_slots if s['status'] not in ['PENDING', 'COLLECTING']])
     tv_ok_slots = len([s for s in tv_time_slots if s['status'] == 'OK'])
 
-    # TV Retail 데이터 (나중에 통합용으로 저장)
     tv_retail_data = {
         'name': 'TV',
         'total': tv_total_count,
@@ -300,9 +193,6 @@ def get_layer1_stats(cursor, target_date, now):
         'time_slots': tv_time_slots
     }
 
-    # ============================================================
-    # HHP Retail 검증 (통합)
-    # ============================================================
     hhp_time_slots_data = get_retail_time_slots('HHP', target_date)
     hhp_daily_retailers = _get_daily_retailers(hhp_time_slots_data)
     hhp_time_slots = []
@@ -312,15 +202,12 @@ def get_layer1_stats(cursor, target_date, now):
     for slot in hhp_time_slots_data:
         slot_retailers = slot.get('retailers', [])
         slot_expected = sum(r.get('expected_count', 0) for r in slot_retailers) if slot_retailers else 0
-        # HHP도 main_rank, bsr_rank, trend_rank 수집
-        rows = query_retail_counts(cursor, 'hhp_retail_com', 'crawl_strdatetime::timestamp', 'trend_rank', slot['start'], slot['end'], hhp_daily_retailers)
+        rows = repo.query_retail_counts(cursor, 'hhp_retail_com', 'crawl_strdatetime::timestamp', 'trend_rank', slot['start'], slot['end'], hhp_daily_retailers)
 
         if slot['is_pending']:
-            # time_status가 COLLECTING이면 수집중, 아니면 대기중
             slot_display_status = slot['time_status'] if slot['time_status'] else 'PENDING'
-            # 수집중일 때도 현재까지 수집된 데이터 표시
             retailer_details, total, _ = check_retailer_data(rows, 'HHP', slot_retailers)
-            hhp_total_count += total  # PENDING/COLLECTING 상태에서도 수집량 합계에 포함
+            hhp_total_count += total
             hhp_time_slots.append({
                 'name': slot['name'],
                 'us_time': slot['us_time'],
@@ -329,7 +216,7 @@ def get_layer1_stats(cursor, target_date, now):
                 'total': total,
                 'expected': slot_expected,
                 'status': slot_display_status,
-                'retailers': retailer_details  # 수집중에도 리테일러 데이터 표시
+                'retailers': retailer_details
             })
         else:
             retailer_details, total, slot_status = check_retailer_data(rows, 'HHP', slot_retailers)
@@ -358,8 +245,6 @@ def get_layer1_stats(cursor, target_date, now):
                         'timestamp': f"HHP {slot['name']}"
                     })
 
-    # HHP 전체 상태 결정
-    # COLLECTING 상태가 있으면 전체도 COLLECTING
     hhp_has_collecting = any(s['status'] == 'COLLECTING' for s in hhp_time_slots)
     hhp_all_pending = all(s['status'] == 'PENDING' for s in hhp_time_slots)
 
@@ -376,11 +261,9 @@ def get_layer1_stats(cursor, target_date, now):
     else:
         hhp_overall_status = 'OK'
 
-    # 활성 슬롯 수 계산 (PENDING, COLLECTING 제외)
     hhp_active_slots = len([s for s in hhp_time_slots if s['status'] not in ['PENDING', 'COLLECTING']])
     hhp_ok_slots = len([s for s in hhp_time_slots if s['status'] == 'OK'])
 
-    # HHP Retail 데이터
     hhp_retail_data = {
         'name': 'HHP',
         'total': hhp_total_count,
@@ -389,11 +272,9 @@ def get_layer1_stats(cursor, target_date, now):
         'time_slots': hhp_time_slots
     }
 
-    # Retail 통합 (TV + HHP)
     total_retail_count = tv_total_count + hhp_total_count
     total_retail_expected = tv_retail_data['expected'] + hhp_retail_data['expected']
 
-    # 통합 상태 결정 (둘 중 더 나쁜 상태)
     status_priority = {'OK': 0, 'WARNING': 1, 'COLLECTING': 2, 'CRITICAL': 3, 'PENDING': 4}
     tv_priority = status_priority.get(tv_overall_status, 0)
     hhp_priority = status_priority.get(hhp_overall_status, 0)
@@ -403,14 +284,11 @@ def get_layer1_stats(cursor, target_date, now):
     else:
         total_retail_status = hhp_overall_status
 
-    # 정상 카테고리 수 계산
     retail_ok_count = sum(1 for s in [tv_overall_status, hhp_overall_status] if s == 'OK')
 
-    # 수집 시간 정보 (오전/오후) - US→KST 자동 변환 (날짜 포함)
-    am_kst = get_kst_time_info(0, target_date)  # US 00:00
-    pm_kst = get_kst_time_info(12, target_date)  # US 12:00
+    am_kst = get_kst_time_info(0, target_date)
+    pm_kst = get_kst_time_info(12, target_date)
 
-    # KST 날짜 계산
     am_kst_date = next_day if am_kst['next_day'] else target_date
     pm_kst_date = next_day if pm_kst['next_day'] else target_date
 
@@ -425,7 +303,7 @@ def get_layer1_stats(cursor, target_date, now):
             'kst': f'{pm_kst_date} {pm_kst["hour"]:02d}:00',
             'is_dst': pm_kst['is_dst']
         },
-        'is_dst': am_kst['is_dst']  # 전체 서머타임 여부
+        'is_dst': am_kst['is_dst']
     }
 
     check = {
@@ -443,46 +321,12 @@ def get_layer1_stats(cursor, target_date, now):
     return {'check': check, 'failed_items': failed_items}
 
 
-def get_retail_detail(cursor, target_date, product_line):
-    """
-    리테일 상세 현황 조회
-
-    Args:
-        cursor: DB 커서 (DX PostgreSQL)
-        target_date: 조회 대상 날짜 (date 객체)
-        product_line: 'tv' 또는 'hhp'
-
-    Returns:
-        dict: 리테일 상세 데이터
-    """
-    if product_line == 'tv':
-        cursor.execute("""
-            SELECT
-                account_name as retailer,
-                COUNT(*) as total,
-                COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
-                COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-                COUNT(CASE WHEN final_sku_price IS NOT NULL THEN 1 END) as price_count
-            FROM tv_retail_com
-            WHERE DATE(crawl_datetime::timestamp) = %s
-            GROUP BY account_name
-            ORDER BY account_name
-        """, (target_date,))
-    else:
-        cursor.execute("""
-            SELECT
-                account_name as retailer,
-                COUNT(*) as total,
-                COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
-                COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-                COUNT(CASE WHEN final_sku_price IS NOT NULL THEN 1 END) as price_count
-            FROM hhp_retail_com
-            WHERE DATE(crawl_strdatetime::timestamp) = %s
-            GROUP BY account_name
-            ORDER BY account_name
-        """, (target_date,))
-
-    rows = cursor.fetchall()
+def get_retail_detail(target_date, product_line):
+    with dx_connection() as (conn, cursor):
+        if product_line == 'tv':
+            rows = repo.get_tv_retail_detail_list(cursor, target_date.strftime('%Y-%m-%d'))
+        else:
+            rows = repo.get_hhp_retail_detail_list(cursor, target_date.strftime('%Y-%m-%d'))
 
     results = []
     for row in rows:
@@ -504,27 +348,14 @@ def get_retail_detail(cursor, target_date, product_line):
     }
 
 
-def get_retail_summary(cursor, target_date, product_line):
-    """
-    Retail 상세 현황 - 리테일러x시간대x페이지타입별 테이블 + NULL 컬럼 현황
-
-    Args:
-        cursor: DB 커서 (DX PostgreSQL)
-        target_date: 조회 대상 날짜 (date 객체)
-        product_line: 'tv' 또는 'hhp'
-
-    Returns:
-        dict: 요약 데이터
-    """
+def get_retail_summary(target_date, product_line):
     next_day = target_date + timedelta(days=1)
 
-    # 시간대 정의
     time_slots = [
         {'name': '오전', 'start': f'{target_date} 00:00:00', 'end': f'{target_date} 12:00:00'},
         {'name': '오후', 'start': f'{target_date} 12:00:00', 'end': f'{next_day} 00:00:00'}
     ]
 
-    # 테이블명 및 날짜 필드 결정
     if product_line == 'tv':
         table_name = 'tv_retail_com'
         date_field = 'crawl_datetime::timestamp'
@@ -536,7 +367,6 @@ def get_retail_summary(cursor, target_date, product_line):
         extra_rank_field = 'trend_rank'
         extra_rank_name = 'Trend'
 
-    # 화이트리스트 검증
     if table_name not in ALLOWED_TABLES:
         raise ValueError(f"허용되지 않은 테이블: {table_name}")
     if date_field not in ALLOWED_DATE_FIELDS:
@@ -544,150 +374,118 @@ def get_retail_summary(cursor, target_date, product_line):
     if extra_rank_field not in ALLOWED_RANK_FIELDS:
         raise ValueError(f"허용되지 않은 랭크 필드: {extra_rank_field}")
 
-    # 리테일러 목록 — 스케줄 DB에서 동적 로드
     all_slots = get_retail_time_slots(product_line, target_date)
     retailer_set = set()
     for s in all_slots:
         for r in s.get('retailers', []):
             retailer_set.add(r['name'])
     retailers = sorted(retailer_set) if retailer_set else ['Amazon', 'Bestbuy', 'Walmart']
-
-    # 1일 1회 리테일러 판별 (오전에 하루치 전체 조회, 오후 건너뜀)
     daily_retailers = _get_daily_retailers(all_slots)
 
-    # 결과 데이터 구조
     summary_data = []
     null_columns_data = []
-    total_check_count = 0  # 전체 검사 컬럼 수
-    total_null_count = 0   # NULL 발생 컬럼 수
+    total_check_count = 0
+    total_null_count = 0
+    column_checks_data = []
 
-    # 리테일러별 컬럼 목록 - DB에서 로드
-    # NULL 검사는 활성화된 컬럼만 대상으로 함
+    with dx_connection() as (conn, cursor):
+        for retailer in retailers:
+            retailer_rows = []
+            retailer_null_cols = []
+            retailer_total = 0
+            check_columns = get_retailer_columns(product_line, retailer)
 
-    column_checks_data = []  # 리테일러별 컬럼별 카운트 (체크 저장용)
+            for col in check_columns:
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col):
+                    raise ValueError(f"허용되지 않은 컬럼명: {col}")
 
-    for retailer in retailers:
-        retailer_rows = []
-        retailer_null_cols = []
-        retailer_total = 0
-        # NULL 검사 대상 컬럼 (DB에서 활성 컬럼)
-        check_columns = get_retailer_columns(product_line, retailer)
-        # 컬럼명 화이트리스트 검증 — 영문/숫자/언더스코어만 허용
-        for col in check_columns:
-            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col):
-                raise ValueError(f"허용되지 않은 컬럼명: {col}")
-        retailer_check_slots = []
+            retailer_check_slots = []
+            is_daily = retailer.lower() in daily_retailers
 
-        is_daily = retailer.lower() in daily_retailers
+            for slot in time_slots:
+                if is_daily and slot['name'] == '오후':
+                    retailer_rows.append({
+                        'time_slot': slot['name'],
+                        'main': 0, 'bsr': 0, 'extra': 0,
+                        'extra_name': extra_rank_name, 'total': 0
+                    })
+                    continue
 
-        for slot in time_slots:
-            # 1일 1회 리테일러: 오후 슬롯 건너뛰기 (오전에 하루치 전체 표시)
-            if is_daily and slot['name'] == '오후':
-                retailer_rows.append({
-                    'time_slot': slot['name'],
-                    'main': 0, 'bsr': 0, 'extra': 0,
-                    'extra_name': extra_rank_name, 'total': 0
-                })
-                continue
-
-            # 1일 1회 리테일러: DATE 기준 조회, 나머지: 슬롯 범위 기준
-            if is_daily:
-                date_only = slot['start'][:10]
-                cursor.execute(f"""
-                    SELECT
-                        COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
-                        COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-                        COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count,
-                        COUNT(*) as total
-                    FROM {table_name}
-                    WHERE DATE({date_field}) = %s
-                    AND LOWER(account_name) = LOWER(%s)
-                """, (date_only, retailer))
-                row = cursor.fetchone()
-            else:
-                row = query_retail_counts_by_retailer(cursor, table_name, date_field, extra_rank_field, slot['start'], slot['end'], retailer)
-
-            main_count = row[0] or 0
-            bsr_count = row[1] or 0
-            extra_count = row[2] or 0
-            total = row[3] or 0
-
-            retailer_rows.append({
-                'time_slot': slot['name'],
-                'main': main_count,
-                'bsr': bsr_count,
-                'extra': extra_count,
-                'extra_name': extra_rank_name,
-                'total': total
-            })
-            retailer_total += total
-
-            # NULL 컬럼 체크 - Layer 2와 동일한 방식 (COUNT로 한번에 조회)
-            if total > 0 and check_columns:
-                total_check_count += len(check_columns)
-                count_parts = [f"COUNT({col}) as {col}_cnt" for col in check_columns]
                 if is_daily:
                     date_only = slot['start'][:10]
-                    query = f"""
-                        SELECT {', '.join(count_parts)}
+                    cursor.execute(f"""
+                        SELECT
+                            COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
+                            COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
+                            COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count,
+                            COUNT(*) as total
                         FROM {table_name}
                         WHERE DATE({date_field}) = %s
                         AND LOWER(account_name) = LOWER(%s)
-                    """
-                    cursor.execute(query, (date_only, retailer))
+                    """, (date_only, retailer))
+                    row = cursor.fetchone()
                 else:
-                    query = f"""
-                        SELECT {', '.join(count_parts)}
-                        FROM {table_name}
-                        WHERE {date_field} >= %s
-                        AND {date_field} < %s
-                        AND LOWER(account_name) = LOWER(%s)
-                    """
-                    cursor.execute(query, (slot['start'], slot['end'], retailer))
-                count_row = cursor.fetchone()
-                if count_row:
-                    # 컬럼별 카운트 저장
-                    col_counts = {}
-                    null_cols = []
-                    for col, cnt in zip(check_columns, count_row):
-                        col_counts[col] = cnt
-                        if cnt == 0:
-                            null_cols.append(col)
+                    row = repo.query_retail_counts_by_retailer(cursor, table_name, date_field, extra_rank_field, slot['start'], slot['end'], retailer)
 
-                    total_null_count += len(null_cols)
+                main_count = row[0] or 0
+                bsr_count = row[1] or 0
+                extra_count = row[2] or 0
+                total = row[3] or 0
 
-                    retailer_check_slots.append({
-                        'time_slot': slot['name'],
-                        'total': total,
-                        'counts': col_counts
-                    })
+                retailer_rows.append({
+                    'time_slot': slot['name'],
+                    'main': main_count,
+                    'bsr': bsr_count,
+                    'extra': extra_count,
+                    'extra_name': extra_rank_name,
+                    'total': total
+                })
+                retailer_total += total
 
-                    if null_cols:
-                        retailer_null_cols.append({
+                if total > 0 and check_columns:
+                    total_check_count += len(check_columns)
+                    count_row = repo.get_retail_summary_null_counts(cursor, table_name, date_field, check_columns, slot['start'], slot['end'], retailer, is_daily)
+                    
+                    if count_row:
+                        col_counts = {}
+                        null_cols = []
+                        for col, cnt in zip(check_columns, count_row):
+                            col_counts[col] = cnt
+                            if cnt == 0:
+                                null_cols.append(col)
+
+                        total_null_count += len(null_cols)
+                        retailer_check_slots.append({
                             'time_slot': slot['name'],
-                            'null_columns': null_cols
+                            'total': total,
+                            'counts': col_counts
                         })
 
-        summary_data.append({
-            'retailer': retailer,
-            'rows': retailer_rows,
-            'total': retailer_total
-        })
+                        if null_cols:
+                            retailer_null_cols.append({
+                                'time_slot': slot['name'],
+                                'null_columns': null_cols
+                            })
 
-        if retailer_null_cols:
-            null_columns_data.append({
+            summary_data.append({
                 'retailer': retailer,
-                'time_slots': retailer_null_cols
+                'rows': retailer_rows,
+                'total': retailer_total
             })
 
-        if retailer_check_slots:
-            column_checks_data.append({
-                'retailer': retailer,
-                'check_columns': check_columns,
-                'time_slots': retailer_check_slots
-            })
+            if retailer_null_cols:
+                null_columns_data.append({
+                    'retailer': retailer,
+                    'time_slots': retailer_null_cols
+                })
 
-    # 전체 합계 계산
+            if retailer_check_slots:
+                column_checks_data.append({
+                    'retailer': retailer,
+                    'check_columns': check_columns,
+                    'time_slots': retailer_check_slots
+                })
+
     grand_total = sum(r['total'] for r in summary_data)
     am_total = sum(r['rows'][0]['total'] for r in summary_data if r['rows'])
     pm_total = sum(r['rows'][1]['total'] for r in summary_data if len(r['rows']) > 1)
@@ -711,23 +509,9 @@ def get_retail_summary(cursor, target_date, product_line):
     }
 
 
-def get_retailer_raw_data(cursor, category, retailer, period, target_date):
-    """
-    리테일러별 원본 데이터 조회
-
-    Args:
-        cursor: DB 커서 (DX PostgreSQL)
-        category: 'TV' 또는 'HHP'
-        retailer: 'Amazon', 'Bestbuy', 'Walmart'
-        period: '오전' 또는 '오후'
-        target_date: 조회 대상 날짜 (date 객체)
-
-    Returns:
-        dict: 원본 데이터
-    """
+def get_retailer_raw_data(category, retailer, period, target_date):
     next_day = target_date + timedelta(days=1)
 
-    # 시간대 설정
     if period == '오전':
         start_time = f'{target_date} 00:00:00'
         end_time = f'{target_date} 12:00:00'
@@ -745,11 +529,9 @@ def get_retailer_raw_data(cursor, category, retailer, period, target_date):
     }
 
     try:
-        # DB에서 해당 리테일러의 컬럼 목록 가져오기
         product_line = 'tv' if category == 'TV' else 'hhp'
         db_columns = get_retailer_columns(product_line, retailer)
 
-        # id는 항상 맨 앞에 포함
         columns = ['id'] + [col for col in db_columns if col != 'id']
 
         if category == 'TV':
@@ -759,11 +541,9 @@ def get_retailer_raw_data(cursor, category, retailer, period, target_date):
             date_column = 'crawl_strdatetime'
             table_name = 'hhp_retail_com'
 
-        # 화이트리스트 검증
         if table_name not in ALLOWED_TABLES:
             raise ValueError(f"허용되지 않은 테이블: {table_name}")
 
-        # 컬럼 검증 — DB에서 등록된 컬럼만 허용
         retailer_columns = get_all_retailer_columns(product_line)
         all_valid_columns = set()
         for cols in retailer_columns.values():
@@ -773,18 +553,8 @@ def get_retailer_raw_data(cursor, category, retailer, period, target_date):
         if invalid_cols:
             raise ValueError(f"허용되지 않은 컬럼: {invalid_cols}")
 
-        query = f"""
-            SELECT {', '.join(columns)}
-            FROM {table_name}
-            WHERE LOWER(account_name) = LOWER(%s)
-            AND {date_column} >= %s
-            AND {date_column} < %s
-            ORDER BY id DESC
-            LIMIT 500
-        """
-
-        cursor.execute(query, (retailer, start_time, end_time))
-        rows = cursor.fetchall()
+        with dx_connection() as (conn, cursor):
+            rows = repo.get_retailer_raw_data_list(cursor, table_name, columns, retailer, date_column, start_time, end_time)
 
         results['columns'] = columns
         results['total_count'] = len(rows)
@@ -797,17 +567,9 @@ def get_retailer_raw_data(cursor, category, retailer, period, target_date):
 
 
 def get_retailer_columns_info():
-    """
-    TV/HHP 리테일러별 수집 컬럼 정보 조회
-
-    Returns:
-        dict: TV/HHP 컬럼 정보
-    """
-    # DB에서 컬럼 정보 로드
     tv_columns = get_all_retailer_columns('tv')
     hhp_columns = get_all_retailer_columns('hhp')
 
-    # 모든 컬럼 목록 (합집합) - 알파벳 순 정렬
     all_tv_columns = sorted(set(col for cols in tv_columns.values() for col in cols))
     all_hhp_columns = sorted(set(col for cols in hhp_columns.values() for col in cols))
 
