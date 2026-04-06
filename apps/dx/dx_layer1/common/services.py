@@ -6,15 +6,10 @@
 from datetime import datetime, timedelta
 from apps.common.db import dx_table
 
-# TODO: 운영 배포 시 dx_table()로 원복 필요
-# _CHECK_LOG = dx_table('monitoring_check_log')
-# _CHECK_LOG_DETAIL = dx_table('monitoring_check_log_detail')
-# _CHECK_LOG_KEYWORDS = dx_table('monitoring_check_log_keywords')
-# _CHECK_LOG_ISSUES = dx_table('monitoring_check_log_issues')
-_CHECK_LOG = 'monitoring_check_log'
-_CHECK_LOG_DETAIL = 'monitoring_check_log_detail'
-_CHECK_LOG_KEYWORDS = 'monitoring_check_log_keywords'
-_CHECK_LOG_ISSUES = 'monitoring_check_log_issues'
+_CHECK_LOG = dx_table('monitoring_check_log')
+_CHECK_LOG_DETAIL = dx_table('monitoring_check_log_detail')
+_CHECK_LOG_KEYWORDS = dx_table('monitoring_check_log_keywords')
+_CHECK_LOG_ISSUES = dx_table('monitoring_check_log_issues')
 
 
 ALL_SECTIONS = [
