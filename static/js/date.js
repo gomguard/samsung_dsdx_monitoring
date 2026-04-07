@@ -67,7 +67,8 @@ function validateQueryDate(dateStr, inputId) {
 function setPrevDay(inputId, callback) {
     var id = inputId || 'targetDate';
     var input = document.getElementById(id);
-    var date = new Date(input.value);
+    var parts = input.value.split('-');
+    var date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     date.setDate(date.getDate() - 1);
     input.value = formatLocalDate(date);
     if (callback) callback();
@@ -76,7 +77,8 @@ function setPrevDay(inputId, callback) {
 function setNextDay(inputId, callback) {
     var id = inputId || 'targetDate';
     var input = document.getElementById(id);
-    var current = new Date(input.value);
+    var parts = input.value.split('-');
+    var current = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     current.setDate(current.getDate() + 1);
     var nextStr = formatLocalDate(current);
     var todayStr = formatLocalDate(new Date());
@@ -137,16 +139,23 @@ class AppDatePicker {
         this.render();
     }
     
-    _getTodayStr() {
-        return new Date().toISOString().slice(0, 10);
+    _toLocalStr(d) {
+        var yyyy = d.getFullYear();
+        var mm = String(d.getMonth() + 1).padStart(2, '0');
+        var dd = String(d.getDate()).padStart(2, '0');
+        return yyyy + '-' + mm + '-' + dd;
     }
-    
+
+    _getTodayStr() {
+        return this._toLocalStr(new Date());
+    }
+
     _calcPresetDateStr(presetType) {
         if (!presetType) return '';
         const d = new Date();
         if (presetType === 'week') d.setDate(d.getDate() - 6);
         else if (presetType === 'month') d.setMonth(d.getMonth() - 1);
-        return d.toISOString().slice(0, 10);
+        return this._toLocalStr(d);
     }
     
     render() {
