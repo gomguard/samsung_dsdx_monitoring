@@ -402,7 +402,7 @@ function submitShareMemo() {
         document.getElementById('shareMemoInput').focus();
         return;
     }
-    const submitBtn = document.querySelector('.share-memo-submit');
+    const submitBtn = document.getElementById('shareMemoSubmitBtn');
     submitBtn.disabled = true;
     submitBtn.textContent = '생성 중...';
 
@@ -474,8 +474,8 @@ function loadShareList() {
                 html += '<td><span class="share-status-dot ' + s.status + '" title="' + (statusTitle[s.status] || s.status) + '"></span></td>';
                 html += '<td class="actions">';
                 if (s.status === 'active') {
-                    html += '<button class="btn-share-icon" title="링크 복사" onclick="copyExistingShareLink(\'' + escapeHtml(s.token) + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
-                    html += '<button class="btn-share-icon" title="차단" onclick="revokeShareToken(\'' + escapeHtml(s.id) + '\')"><svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></button>';
+                    html += AppButton.iconHtml('copy', "copyExistingShareLink('" + escapeHtml(s.token) + "')", { style: 'ghost', title: '링크 복사' });
+                    html += AppButton.iconHtml('ban', "revokeShareToken('" + escapeHtml(s.id) + "')", { style: 'ghost', title: '차단', color: 'red' });
                 }
                 html += '</td>';
                 html += '</tr>';

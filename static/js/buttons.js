@@ -111,7 +111,8 @@ var AppButton = (function() {
         check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>',
         minus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
         spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: icon-spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke-dasharray="30" stroke-dashoffset="10"/></svg>',
-        external: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'
+        external: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
+        ban: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>'
     };
 
     // 텍스트 버튼 HTML
@@ -188,6 +189,7 @@ var AppButton = (function() {
 
         if (opts.style === 'ghost') {
             var cls = 'app-icon-btn-ghost';
+            if (opts.color) cls += ' app-icon-btn-ghost-' + opts.color;
             if (opts.cls) cls += ' ' + opts.cls;
             if (opts.href) {
                 return '<a href="' + opts.href + '" class="' + cls + '"' + title + id + dataAttrs + '>' + iconHtml + '</a>';

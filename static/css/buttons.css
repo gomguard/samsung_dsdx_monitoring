@@ -132,3 +132,5 @@
 .app-icon-btn-ghost svg { width: 13px; height: 13px; }
 .app-icon-btn-ghost:hover { color: #2563eb; background: #eff6ff; }
 .app-icon-btn-ghost.copied { color: #059669; background: #d1fae5; }
+.app-icon-btn-ghost-red { color: #ef4444; }
+.app-icon-btn-ghost-red:hover { color: #dc2626; background: #fef2f2; }
