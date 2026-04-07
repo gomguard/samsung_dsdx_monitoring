@@ -42,3 +42,28 @@ def get_recipients(config_key):
             except Exception:
                 pass
         return []
+
+
+def get_recipients_with_name(config_key):
+    """특정 식별코드의 활성 수신자 이름+이메일 목록 반환"""
+    table = dx_table('monitoring_email_recipients')
+    conn = None
+    try:
+        conn = get_dx_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            SELECT recipient_name, email FROM {table}
+            WHERE config_key = %s AND is_active = true AND is_del = 0
+            ORDER BY id
+        """, [config_key])
+        rows = [{'name': row[0] or '', 'email': row[1]} for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return rows
+    except Exception:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+        return []

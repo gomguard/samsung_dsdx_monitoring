@@ -176,7 +176,7 @@ def send_email_report(subject, html_content, crawl_date, recipients, sent_id):
         '<!DOCTYPE html>'
         '<html><head><meta charset="utf-8"></head>'
         '<body style="margin:0;padding:20px;font-family:Malgun Gothic,sans-serif;font-size:13px;color:#222;">'
-        '<div style="max-width:800px;">'
+        '<div style="max-width:1100px;">'
         + html_content
         + '</div></body></html>'
     )

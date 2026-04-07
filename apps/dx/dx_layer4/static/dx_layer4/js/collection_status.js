@@ -394,11 +394,27 @@
         var sendBtn = document.getElementById('email-send-btn');
         if (sendBtn) {
             sendBtn.addEventListener('click', function() {
-                var confirmMsg = emailSentCount > 0
-                    ? '이미 ' + emailSentCount + '회 발송된 날짜입니다. 재발송하시겠습니까?'
-                    : '이메일을 발송하시겠습니까?';
-                var confirmOk = emailSentCount > 0 ? '재발송' : '발송';
-                showConfirm(confirmMsg, emailSentCount > 0 ? 'warning' : 'info', { okText: confirmOk, cancelText: '취소' }).then(function(ok) {
+                sendBtn.disabled = true;
+                fetch('/dx/layer4/api/collection-status/email-recipients/')
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        sendBtn.disabled = false;
+                        var list = (res.recipients || []);
+                        var recipientText = list.length > 0
+                            ? '\n\n수신자:\n' + list.map(function(r) { return r.name + ' : ' + r.email; }).join('\n')
+                            : '\n\n(등록된 수신자가 없습니다)';
+                        var confirmMsg = emailSentCount > 0
+                            ? '이미 ' + emailSentCount + '회 발송된 날짜입니다. 재발송하시겠습니까?' + recipientText
+                            : '이메일을 발송하시겠습니까?' + recipientText;
+                        var confirmOk = emailSentCount > 0 ? '재발송' : '발송';
+                        return showConfirm(confirmMsg, emailSentCount > 0 ? 'warning' : 'info', { okText: confirmOk, cancelText: '취소' });
+                    })
+                    .catch(function() {
+                        sendBtn.disabled = false;
+                        showToast('수신자 목록을 불러올 수 없습니다.', 'error');
+                        return Promise.reject();
+                    })
+                    .then(function(ok) {
                 if (!ok) return;
 
                 var preview = document.getElementById('email-preview-content');

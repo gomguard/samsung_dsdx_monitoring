@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/collection-status/null-detail/', cs_api.collection_null_detail, name='api_collection_null_detail'),
     path('api/collection-status/send-email/', cs_api.send_email_report, name='api_send_email'),
     path('api/collection-status/email-check/', cs_api.email_sent_check, name='api_email_check'),
+    path('api/collection-status/email-recipients/', cs_api.email_recipients, name='api_email_recipients'),
 
     # API — 대시보드
     path('api/dashboard-stats/', dashboard_api.dashboard_stats, name='api_dashboard_stats'),

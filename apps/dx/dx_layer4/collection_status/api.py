@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from apps.common.response import safe_error
 from apps.common.params import parse_date
-from apps.common.email_config import get_recipients
+from apps.common.email_config import get_recipients, get_recipients_with_name
 from .services import get_collection_status, get_null_detail, send_email_report as _send_email_report, check_email_sent
 
 
@@ -70,6 +70,15 @@ def send_email_report(request):
         return JsonResponse(_send_email_report(subject, html_content, crawl_date, recipients, sent_id))
     except Exception as e:
         return JsonResponse({'error': f'발송 실패: {str(e)}'}, status=500)
+
+
+def email_recipients(request):
+    """이메일 수신자 목록 조회 API"""
+    try:
+        rows = get_recipients_with_name('collection_status_receiver')
+        return JsonResponse({'success': True, 'recipients': rows})
+    except Exception as e:
+        return safe_error(e)
 
 
 def email_sent_check(request):
