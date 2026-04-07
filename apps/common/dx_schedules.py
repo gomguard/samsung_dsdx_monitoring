@@ -332,8 +332,18 @@ def is_target_date(schedule, target_date):
         return target_date.weekday() in [day_map.get(d, -1) for d in days]
 
     elif st == 'monthly':
+        # 'first_mon', 'first_tue' 등: 매월 첫 번째 특정 요일
+        if sv and sv.startswith('first_'):
+            day_map = {'mon': 0, 'tue': 1, 'wed': 2, 'thu': 3, 'fri': 4, 'sat': 5, 'sun': 6}
+            weekday = day_map.get(sv.split('_', 1)[1], -1)
+            if weekday < 0:
+                return False
+            first_day = target_date.replace(day=1)
+            days_until = (weekday - first_day.weekday()) % 7
+            first_target = first_day.day + days_until
+            return target_date.day == first_target
         try:
-            return target_date.day == int(sv)
+            return target_date.day == int(sv) if sv else target_date.day == 1
         except (ValueError, TypeError):
             return False
 
