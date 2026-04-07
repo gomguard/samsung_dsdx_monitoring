@@ -394,6 +394,14 @@
         var sendBtn = document.getElementById('email-send-btn');
         if (sendBtn) {
             sendBtn.addEventListener('click', function() {
+                var selectedDate = getSelectedDate();
+                var today = new Date();
+                var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+                if (selectedDate === todayStr) {
+                    showToast('당일 데이터는 이메일 발송할 수 없습니다.', 'warning');
+                    return;
+                }
+
                 sendBtn.disabled = true;
                 fetch('/dx/layer4/api/collection-status/email-recipients/')
                     .then(function(r) { return r.json(); })
@@ -403,9 +411,10 @@
                         var recipientText = list.length > 0
                             ? '\n\n수신자:\n' + list.map(function(r) { return r.name + ' : ' + r.email; }).join('\n')
                             : '\n\n(등록된 수신자가 없습니다)';
+                        var dateDisplay = selectedDate.replace(/-/g, '.');
                         var confirmMsg = emailSentCount > 0
-                            ? '이미 ' + emailSentCount + '회 발송된 날짜입니다. 재발송하시겠습니까?' + recipientText
-                            : '이메일을 발송하시겠습니까?' + recipientText;
+                            ? dateDisplay + ' 데이터를 이미 ' + emailSentCount + '회 발송했습니다.\n재발송하시겠습니까?' + recipientText
+                            : dateDisplay + ' 데이터를 발송하시겠습니까?' + recipientText;
                         var confirmOk = emailSentCount > 0 ? '재발송' : '발송';
                         return showConfirm(confirmMsg, emailSentCount > 0 ? 'warning' : 'info', { okText: confirmOk, cancelText: '취소' });
                     })
