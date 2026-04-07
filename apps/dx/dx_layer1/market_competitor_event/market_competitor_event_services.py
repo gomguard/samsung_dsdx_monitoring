@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 from apps.common.db import dx_connection
+from apps.common.dx_schedules import get_schedule_kst_info
 from apps.dx.dx_layer1.common.context import SECTION_TITLES
 from apps.dx.dx_layer1.common.quarter_utils import get_quarter_info, get_competitor_batch
 from . import market_competitor_event_repositories as repo
@@ -154,6 +155,8 @@ def get_layer1_stats(cursor, target_date, now, comp_batch_id=None):
     else:
         event_description = f'{event_ok_count}/{len(event_statuses)} 카테고리 정상'
 
+    schedule_info = get_schedule_kst_info('market_competitor_event', target_date, now)
+
     check = {
         'name': SECTION_TITLES['market_competitor_event'],
         'description': event_description,
@@ -165,6 +168,9 @@ def get_layer1_stats(cursor, target_date, now, comp_batch_id=None):
         'categories': event_categories,
         'batch_id': event_batch_id,
         'last_run': event_last_run.isoformat() if event_last_run else None,
+        'us_time': f'{target_date} {schedule_info["us_start_hour"]:02d}:00' if schedule_info else '',
+        'kr_time': schedule_info['kst_start']['full_display'] if schedule_info else '',
+        'is_dst': schedule_info.get('is_dst', False) if schedule_info else False,
         'month': {
             'name': month_name,
             'start': month_start,

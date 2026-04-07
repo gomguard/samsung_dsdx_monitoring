@@ -3,7 +3,7 @@
 - check_status, check_save, check_delete, check_memo_update, check_log_list
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from apps.common.db import dx_table
 
 _CHECK_LOG = dx_table('monitoring_check_log')
@@ -20,29 +20,19 @@ ALL_SECTIONS = [
 
 
 def get_target_sections(date_str):
-    """해당 날짜의 검증 대상 섹션 수 계산"""
+    """해당 날짜의 검증 대상 섹션 수 계산 (스케줄 DB 기반)"""
     from datetime import date as date_cls
+    from apps.common.dx_schedules import load_collection_schedules, is_target_date as check_target_date
+
     target_date = date_cls.fromisoformat(date_str)
+    schedules = load_collection_schedules()
 
-    # 기본 대상: retail, sentiment, youtube, market_trend, market_demand (5개)
-    count = 5
+    target_types = set()
+    for s in schedules:
+        if check_target_date(s, target_date):
+            target_types.add(s['check_type'])
 
-    # market_competitor: 분기 첫날
-    if target_date.day == 1 and target_date.month in [1, 4, 7, 10]:
-        count += 1
-
-    # market_competitor_event: 매월 첫 월요일
-    first_day = target_date.replace(day=1)
-    days_until_monday = (7 - first_day.weekday()) % 7
-    first_monday = first_day if first_day.weekday() == 0 else first_day + timedelta(days=days_until_monday)
-    if target_date == first_monday:
-        count += 1
-
-    # market_promotion: 월요일
-    if target_date.weekday() == 0:
-        count += 1
-
-    return count
+    return len(target_types)
 
 
 def get_check_status(cursor, date_str, layer, include_detail=False):
