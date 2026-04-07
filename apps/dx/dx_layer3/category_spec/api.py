@@ -32,7 +32,7 @@ def category_spec_detail(request):
     try:
         target_category, rules = services.resolve_target_category(display_name, product_line)
 
-        with dx_connection() as cursor:
+        with dx_connection() as (conn, cursor):
             # mode=summary: 규칙별 요약 반환
             if mode == 'summary':
                 rules_summary = services.get_rules_summary(cursor, target_date, target_category, rules)
