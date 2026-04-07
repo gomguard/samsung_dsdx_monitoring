@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from apps.common.response import safe_error
 from apps.common.params import parse_date
-from apps.common.email_config import get_recipients, get_recipients_with_name
+from apps.common.email_config import get_recipients_with_name
 from .services import get_collection_status, get_null_detail, send_email_report as _send_email_report, check_email_sent
 
 
@@ -59,7 +59,7 @@ def send_email_report(request):
         html_content = body.get('html', '')
         crawl_date = body.get('date', '')
 
-        recipients = get_recipients('collection_status_receiver')
+        recipients = get_recipients_with_name('collection_status_receiver')
         if not recipients:
             return JsonResponse({'error': '수신자가 등록되어 있지 않습니다. 관리자 페이지에서 수신자를 추가해주세요.'}, status=400)
 
