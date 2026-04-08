@@ -14,6 +14,7 @@ urlpatterns = [
     path('market-competitor/', include('apps.dx.dx_layer1.market_competitor.urls')),
     path('market-competitor-event/', include('apps.dx.dx_layer1.market_competitor_event.urls')),
     path('market-promotion/', include('apps.dx.dx_layer1.market_promotion.urls')),
+    path('macro/', include('apps.dx.dx_layer1.macro.urls')),
     path('check-log/', lambda request: redirect('/dx/layer4/check-log/', permanent=True)),
 
     # 검수 확인/완료 API

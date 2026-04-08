@@ -157,11 +157,28 @@ function onSubitemClick(groupKey, itemName) {
         'Market Competitor Event': '/dx/layer1/market-competitor-event/',
         'Market Promotion': '/dx/layer1/market-promotion/',
     };
+    var macroMap = {
+        '자본 스톡(실질, PPP)': 'macro_capital_stock',
+        '민간부문 순 이자수입': 'macro_net_interest',
+        '잠재적 산출량': 'macro_potential_gdp',
+        '명목 GDP(PPP) 1인당': 'macro_gdp_ppp_nominal',
+        '실질 GDP(PPP) 1인당': 'macro_gdp_ppp_real',
+        '가처분소득(실질, PPP)': 'macro_disposable_income_real',
+        '소비자 물가 지수': 'macro_cpi',
+        '가처분소득(명목, LCU)': 'macro_disposable_income_nominal',
+        '가계부문 금융부채': 'macro_household_debt',
+        '소매 가격 지수': 'macro_rpi',
+    };
+    var date = document.getElementById('target-date') ?
+               document.getElementById('target-date').value : '';
     var url = urls[itemName];
     if (url) {
-        var date = document.getElementById('target-date') ?
-                   document.getElementById('target-date').value : '';
         window.location.href = url + (date ? '?date=' + date : '');
+        return;
+    }
+    var macroType = macroMap[itemName];
+    if (macroType) {
+        window.location.href = '/dx/layer1/macro/?check_type=' + macroType + (date ? '&date=' + date : '');
     }
 }
 

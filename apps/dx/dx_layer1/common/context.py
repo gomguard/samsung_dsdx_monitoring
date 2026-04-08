@@ -22,6 +22,16 @@ SECTION_TITLES = {
     'market_competitor': 'Market Competitor',
     'market_competitor_event': 'Market Competitor Event',
     'market_promotion': 'Market Promotion',
+    'macro_capital_stock': '자본 스톡(실질, PPP)',
+    'macro_net_interest': '민간부문 순 이자수입',
+    'macro_potential_gdp': '잠재적 산출량',
+    'macro_gdp_ppp_nominal': '명목 GDP(PPP) 1인당',
+    'macro_gdp_ppp_real': '실질 GDP(PPP) 1인당',
+    'macro_disposable_income_real': '가처분소득(실질, PPP)',
+    'macro_cpi': '소비자 물가 지수',
+    'macro_disposable_income_nominal': '가처분소득(명목, LCU)',
+    'macro_household_debt': '가계부문 금융부채',
+    'macro_rpi': '소매 가격 지수',
 }
 
 

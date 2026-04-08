@@ -15,6 +15,11 @@ from apps.dx.dx_layer1.market_demand import market_demand_services as market_dem
 from apps.dx.dx_layer1.market_competitor import market_competitor_services as market_competitor_svc
 from apps.dx.dx_layer1.market_competitor_event import market_competitor_event_services as market_competitor_event_svc
 from apps.dx.dx_layer1.market_promotion import market_promotion_services as market_promotion_svc
+from apps.dx.dx_layer1.macro.macro_services import (
+    macro_capital_stock_svc, macro_net_interest_svc, macro_potential_gdp_svc,
+    macro_gdp_ppp_nominal_svc, macro_gdp_ppp_real_svc, macro_disposable_income_real_svc,
+    macro_cpi_svc, macro_disposable_income_nominal_svc, macro_household_debt_svc, macro_rpi_svc,
+)
 
 
 EXPECTED_PER_RETAILER = 300
@@ -29,6 +34,16 @@ _SERVICE_MAP = {
     'market_competitor': market_competitor_svc,
     'market_competitor_event': market_competitor_event_svc,
     'market_promotion': market_promotion_svc,
+    'macro_capital_stock': macro_capital_stock_svc,
+    'macro_net_interest': macro_net_interest_svc,
+    'macro_potential_gdp': macro_potential_gdp_svc,
+    'macro_gdp_ppp_nominal': macro_gdp_ppp_nominal_svc,
+    'macro_gdp_ppp_real': macro_gdp_ppp_real_svc,
+    'macro_disposable_income_real': macro_disposable_income_real_svc,
+    'macro_cpi': macro_cpi_svc,
+    'macro_disposable_income_nominal': macro_disposable_income_nominal_svc,
+    'macro_household_debt': macro_household_debt_svc,
+    'macro_rpi': macro_rpi_svc,
 }
 
 

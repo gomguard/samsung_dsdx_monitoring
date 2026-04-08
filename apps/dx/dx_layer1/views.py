@@ -33,6 +33,12 @@ def youtube(request):
     """YouTube 검증"""
     return render(request, 'dx_layer1_youtube.html', build_context('youtube', request))
 
+def macro(request):
+    """Macro 검증"""
+    check_type = request.GET.get('check_type', '')
+    return render(request, 'dx_layer1_macro.html', build_context(check_type or 'macro', request))
+
+
 def dashboard(request):
     """Layer 1 대시보드"""
     return render(request, 'dx_layer1_dashboard.html', build_context('dashboard', request))
