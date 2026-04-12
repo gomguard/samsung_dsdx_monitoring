@@ -47,7 +47,7 @@ def get_time_series_detail(cursor, target_date, detail_code, days=1):
 
     combined_sql = f"""
         WITH _anomaly_items AS ({stored_query})
-        SELECT d.id, d.item, d.account_name, d.final_sku_price, d.product_url, {date_select}, a.median_val
+        SELECT d.id, d.item, d.account_name, d.final_sku_price, d.product_url, {date_select}, row_to_json(a)
         FROM {source_table} d
         JOIN _anomaly_items a ON d.item = a.item
         WHERE {date_filter}
@@ -57,7 +57,8 @@ def get_time_series_detail(cursor, target_date, detail_code, days=1):
 
     rows = []
     for row in cursor.fetchall():
-        median = row[6]
+        anomaly_data = row[6] or {}
+        median = anomaly_data.get('median_val')
         rows.append({
             'id': row[0],
             'item': row[1],
