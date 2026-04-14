@@ -155,13 +155,12 @@ function updateCloseButton(data) {
         closeBtn.style.borderColor = '#7e6b9b';
         cancelCloseBtn.style.display = 'none';
 
-        // 파일용량 저장 버튼: 파일용량이 모두 저장되었으면 완료 표시
+        // 파일용량 저장 버튼: 마감 전까지는 계속 수정(저장)될 수 있으므로 disabled 처리 해제
         const fileSavedCount = data.daily_reports.filter(r => r.file_size > 0).length;
+        saveFileInfoBtn.disabled = false;
         if (allSaved && fileSavedCount >= totalRetailers) {
-            saveFileInfoBtn.disabled = true;
-            saveFileInfoBtnText.textContent = `저장 완료 (${fileSavedCount}/${totalRetailers})`;
+            saveFileInfoBtnText.textContent = `파일용량 저장 (${fileSavedCount}/${totalRetailers})`;
         } else {
-            saveFileInfoBtn.disabled = false;
             saveFileInfoBtnText.textContent = '파일용량 저장';
         }
 

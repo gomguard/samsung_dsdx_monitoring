@@ -688,16 +688,12 @@ async function saveCheckedAnomalies(retailer) {
 async function saveFileInfo() {
     const date = document.getElementById('targetDate').value;
     const confirmed = await showConfirm('파일용량을 저장하시겠습니까?', 'info');
-    if (!confirmed) {
-        return;
-    }
+    if (!confirmed) return;
+
+    const saveFileInfoBtn = document.getElementById('saveFileInfoBtn');
+    if (saveFileInfoBtn) saveFileInfoBtn.disabled = true;
 
     try {
-        const saveFileInfoBtn = document.getElementById('saveFileInfoBtn');
-        const saveFileInfoBtnText = document.getElementById('saveFileInfoBtnText');
-        saveFileInfoBtn.disabled = true;
-        saveFileInfoBtnText.textContent = '저장 중...';
-
         const response = await fetch('/ds/layer4/api/save-file-info/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -708,8 +704,11 @@ async function saveFileInfo() {
         });
 
         const result = await response.json();
+        if (saveFileInfoBtn) saveFileInfoBtn.disabled = false;
+
         if (result.success) {
             showToast(result.message || '파일 정보 저장 완료');
+            
             if (currentReportView === 'file') {
                 loadFileTab();
             } else {
@@ -717,12 +716,12 @@ async function saveFileInfo() {
             }
         } else {
             showToast(result.error || '저장 실패', 'error');
-            saveFileInfoBtn.disabled = false;
-            saveFileInfoBtnText.textContent = '파일용량 저장';
+            if (saveFileInfoBtn) saveFileInfoBtn.disabled = false;
         }
     } catch (error) {
         console.error('Save file info error:', error);
         showToast('저장 중 오류 발생', 'error');
+        if (saveFileInfoBtn) saveFileInfoBtn.disabled = false;
     }
 }
 
