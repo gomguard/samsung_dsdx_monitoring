@@ -42,11 +42,11 @@ def get_layer1_stats(cursor, target_date, now):
     promo_is_collecting = market_promo_info['is_collecting']
     promo_collection_done = market_promo_info['collection_done']
 
-    promo_nine_weeks = target_date + timedelta(weeks=9)
+    promo_ten_weeks = target_date + timedelta(weeks=10)
     promo_event_count = repo.get_event_count_within_weeks(
         cursor, 
         target_date.strftime('%Y-%m-%d'), 
-        promo_nine_weeks.strftime('%Y-%m-%d')
+        promo_ten_weeks.strftime('%Y-%m-%d')
     )
 
     promo_retailer_counts = repo.get_collected_promotions_by_retailer(
