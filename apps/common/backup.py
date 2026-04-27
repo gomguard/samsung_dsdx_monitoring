@@ -35,8 +35,10 @@ def backup_tv_retail(username='', target_date=None):
         date_sql, date_params = _date_condition('crawl_datetime', target_date)
 
         cursor.execute(f"""
-            SELECT COUNT(*), MIN(id), MAX(id) FROM tv_retail_com
-            WHERE id NOT IN (SELECT id FROM tv_retail_com_backup_all)
+            SELECT COUNT(*), MIN(a.id), MAX(a.id)
+            FROM tv_retail_com a
+            LEFT JOIN tv_retail_com_backup_all b ON a.id = b.id
+            WHERE b.id IS NULL
             {date_sql}
         """, date_params)
         count, min_id, max_id = cursor.fetchone()
@@ -44,8 +46,10 @@ def backup_tv_retail(username='', target_date=None):
         if count > 0:
             cursor.execute(f"""
                 INSERT INTO tv_retail_com_backup_all
-                SELECT * FROM tv_retail_com
-                WHERE id NOT IN (SELECT id FROM tv_retail_com_backup_all)
+                SELECT a.*
+                FROM tv_retail_com a
+                LEFT JOIN tv_retail_com_backup_all b ON a.id = b.id
+                WHERE b.id IS NULL
                 {date_sql}
             """, date_params)
             _insert_backup_log(cursor, 'tv', 'tv_retail_com', target_date, count, min_id, max_id, username)
@@ -69,8 +73,10 @@ def backup_hhp_retail(username='', target_date=None):
         date_sql, date_params = _date_condition('crawl_strdatetime', target_date)
 
         cursor.execute(f"""
-            SELECT COUNT(*), MIN(id), MAX(id) FROM hhp_retail_com
-            WHERE id NOT IN (SELECT id FROM hhp_retail_com_backup)
+            SELECT COUNT(*), MIN(a.id), MAX(a.id)
+            FROM hhp_retail_com a
+            LEFT JOIN hhp_retail_com_backup b ON a.id = b.id
+            WHERE b.id IS NULL
             {date_sql}
         """, date_params)
         count, min_id, max_id = cursor.fetchone()
@@ -78,8 +84,10 @@ def backup_hhp_retail(username='', target_date=None):
         if count > 0:
             cursor.execute(f"""
                 INSERT INTO hhp_retail_com_backup
-                SELECT * FROM hhp_retail_com
-                WHERE id NOT IN (SELECT id FROM hhp_retail_com_backup)
+                SELECT a.*
+                FROM hhp_retail_com a
+                LEFT JOIN hhp_retail_com_backup b ON a.id = b.id
+                WHERE b.id IS NULL
                 {date_sql}
             """, date_params)
             _insert_backup_log(cursor, 'hhp', 'hhp_retail_com', target_date, count, min_id, max_id, username)
@@ -100,18 +108,22 @@ def get_backup_count(target_date=None):
     conn = get_dx_connection()
     cursor = conn.cursor()
     try:
-        tv_date_sql, tv_params = _date_condition('crawl_datetime', target_date)
+        tv_date_sql, tv_params = _date_condition('a.crawl_datetime', target_date)
         cursor.execute(f"""
-            SELECT COUNT(*) FROM tv_retail_com
-            WHERE id NOT IN (SELECT id FROM tv_retail_com_backup_all)
+            SELECT COUNT(*)
+            FROM tv_retail_com a
+            LEFT JOIN tv_retail_com_backup_all b ON a.id = b.id
+            WHERE b.id IS NULL
             {tv_date_sql}
         """, tv_params)
         tv_count = cursor.fetchone()[0]
 
-        hhp_date_sql, hhp_params = _date_condition('crawl_strdatetime', target_date)
+        hhp_date_sql, hhp_params = _date_condition('a.crawl_strdatetime', target_date)
         cursor.execute(f"""
-            SELECT COUNT(*) FROM hhp_retail_com
-            WHERE id NOT IN (SELECT id FROM hhp_retail_com_backup)
+            SELECT COUNT(*)
+            FROM hhp_retail_com a
+            LEFT JOIN hhp_retail_com_backup b ON a.id = b.id
+            WHERE b.id IS NULL
             {hhp_date_sql}
         """, hhp_params)
         hhp_count = cursor.fetchone()[0]
