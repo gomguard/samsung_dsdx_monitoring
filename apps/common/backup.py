@@ -32,7 +32,7 @@ def backup_tv_retail(username='', target_date=None):
     conn = get_dx_connection()
     cursor = conn.cursor()
     try:
-        date_sql, date_params = _date_condition('crawl_datetime', target_date)
+        date_sql, date_params = _date_condition('a.crawl_datetime', target_date)
 
         cursor.execute(f"""
             SELECT COUNT(*), MIN(a.id), MAX(a.id)
@@ -70,7 +70,7 @@ def backup_hhp_retail(username='', target_date=None):
     conn = get_dx_connection()
     cursor = conn.cursor()
     try:
-        date_sql, date_params = _date_condition('crawl_strdatetime', target_date)
+        date_sql, date_params = _date_condition('a.crawl_strdatetime', target_date)
 
         cursor.execute(f"""
             SELECT COUNT(*), MIN(a.id), MAX(a.id)
