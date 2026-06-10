@@ -12,6 +12,12 @@ _CHECK_LOG_KEYWORDS = dx_table('monitoring_check_log_keywords')
 _CHECK_LOG_ISSUES = dx_table('monitoring_check_log_issues')
 
 
+def _detail_text(value, max_len=100):
+    if value is None:
+        return ''
+    return str(value)[:max_len]
+
+
 ALL_SECTIONS = [
     'retail', 'sentiment', 'youtube', 'market_trend',
     'market_competitor', 'market_competitor_event',
@@ -218,10 +224,12 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 2)
                 """, (
                     check_log_id, date_str, layer, section,
-                    d.get('category', ''), d.get('time_slot', ''),
-                    d.get('retailer', ''), d.get('item_name', ''),
+                    _detail_text(d.get('category', '')),
+                    _detail_text(d.get('time_slot', '')),
+                    _detail_text(d.get('retailer', '')),
+                    _detail_text(d.get('item_name', '')),
                     d.get('expected_count', 0), d.get('actual_count', 0),
-                    d.get('rate', 0), d.get('status', 'OK')
+                    d.get('rate', 0), _detail_text(d.get('status', 'OK'))
                 ))
 
         else:
@@ -257,10 +265,12 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
                     """, (
                         check_log_id, date_str, layer, section,
-                        d.get('category', ''), d.get('time_slot', ''),
-                        d.get('retailer', ''), d.get('item_name', ''),
+                        _detail_text(d.get('category', '')),
+                        _detail_text(d.get('time_slot', '')),
+                        _detail_text(d.get('retailer', '')),
+                        _detail_text(d.get('item_name', '')),
                         d.get('expected_count', 0), d.get('actual_count', 0),
-                        d.get('rate', 0), d.get('status', 'OK')
+                        d.get('rate', 0), _detail_text(d.get('status', 'OK'))
                     ))
 
             # 수요증감율 부족 키워드 저장

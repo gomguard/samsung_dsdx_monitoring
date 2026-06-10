@@ -46,7 +46,7 @@ def _get_sidebar_items():
         r['section_name'] for r in load_category_rules() if r.get('section_name')
     ))
 
-    sidebar['field_missing'] = ['TV', 'HHP']
+    sidebar['field_missing'] = ['TV']
 
     return sidebar
 

@@ -235,7 +235,13 @@ def get_layer1_stats(cursor, target_date, now):
 
 def get_retail_detail(target_date, product_line):
     if product_line != 'tv':
-        raise ValueError('HHP Retail is excluded from monitoring.')
+        return {
+            'date': str(target_date),
+            'product_line': product_line.upper(),
+            'results': [],
+            'total_retailers': 0,
+            'total_products': 0
+        }
 
     with dx_connection() as (conn, cursor):
         rows = repo.get_tv_retail_detail_list(cursor, target_date.strftime('%Y-%m-%d'))
@@ -262,7 +268,23 @@ def get_retail_detail(target_date, product_line):
 
 def get_retail_summary(target_date, product_line):
     if product_line != 'tv':
-        raise ValueError('HHP Retail is excluded from monitoring.')
+        return {
+            'date': str(target_date),
+            'product_line': product_line.upper(),
+            'extra_rank_name': '',
+            'summary': [],
+            'null_columns': [],
+            'totals': {
+                'grand_total': 0,
+                'am_total': 0,
+                'pm_total': 0
+            },
+            'check_stats': {
+                'total_checks': 0,
+                'null_count': 0
+            },
+            'column_checks': []
+        }
 
     next_day = target_date + timedelta(days=1)
 

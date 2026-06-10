@@ -16,6 +16,9 @@ let currentFieldMissingPL = 'tv';
 
 // 탭 전환
 function switchFieldMissingTab(pl) {
+    if (pl !== 'tv') {
+        pl = 'tv';
+    }
     currentFieldMissingPL = pl;
 
     // 탭 버튼 스타일 변경
