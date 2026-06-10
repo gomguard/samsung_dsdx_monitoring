@@ -18,6 +18,12 @@ def _detail_text(value, max_len=100):
     return str(value)[:max_len]
 
 
+def _detail_long_text(value):
+    if value is None:
+        return ''
+    return str(value)
+
+
 ALL_SECTIONS = [
     'retail', 'sentiment', 'youtube', 'market_trend',
     'market_competitor', 'market_competitor_event',
@@ -227,7 +233,7 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
                     _detail_text(d.get('category', '')),
                     _detail_text(d.get('time_slot', '')),
                     _detail_text(d.get('retailer', '')),
-                    _detail_text(d.get('item_name', '')),
+                    _detail_long_text(d.get('item_name', '')),
                     d.get('expected_count', 0), d.get('actual_count', 0),
                     d.get('rate', 0), _detail_text(d.get('status', 'OK'))
                 ))
@@ -268,7 +274,7 @@ def save_check(cursor, conn, date_str, layer, step, sections, username):
                         _detail_text(d.get('category', '')),
                         _detail_text(d.get('time_slot', '')),
                         _detail_text(d.get('retailer', '')),
-                        _detail_text(d.get('item_name', '')),
+                        _detail_long_text(d.get('item_name', '')),
                         d.get('expected_count', 0), d.get('actual_count', 0),
                         d.get('rate', 0), _detail_text(d.get('status', 'OK'))
                     ))
