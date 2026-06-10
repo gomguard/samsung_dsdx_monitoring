@@ -32,7 +32,6 @@
 
     var TABLE_NAME_MAP = {
         'retail_tv': 'RAW_EXT_TV_RETAIL_COM_VIEW',
-        'retail_hhp': 'RAW_EXT_HHP_RETAIL_COM_VIEW',
         'youtube': 'RAW_EXT_YOUTUBE_VIDEOS_VIEW',
         'market_trend': 'RAW_EXT_MARKET_TREND_VIEW',
         'market_demand': 'RAW_EXT_OPENAI_FORECAST_RESULTS_VIEW',
@@ -189,19 +188,38 @@
         var container = document.getElementById('cs-email-container');
         container.innerHTML = '<div class="l4-empty-state"><p>조회 중...</p></div>';
 
-        // 일일 수집 현황 + TV NULL + HHP NULL + 발송 여부 동시 조회
+        // 일일 수집 현황 + TV Retail NULL + 발송 여부 동시 조회
         Promise.all([
-            fetch('/dx/layer1/api/stats/?date=' + encodeURIComponent(date)).then(function(r) { return r.json(); }),
-            fetch('/dx/layer4/api/collection-status/?date=' + encodeURIComponent(date) + '&category=tv').then(function(r) { return r.json(); }),
-            fetch('/dx/layer4/api/collection-status/?date=' + encodeURIComponent(date) + '&category=hhp').then(function(r) { return r.json(); }),
-            fetch('/dx/layer4/api/collection-status/email-check/?date=' + encodeURIComponent(date)).then(function(r) { return r.json(); })
+            fetchJsonOrFallback('/dx/layer1/api/stats/?date=' + encodeURIComponent(date), { checks: [] }),
+            fetchJsonOrFallback('/dx/layer4/api/collection-status/?date=' + encodeURIComponent(date) + '&category=tv', { success: true, retailers: [] }),
+            fetchJsonOrFallback('/dx/layer4/api/collection-status/email-check/?date=' + encodeURIComponent(date), { count: 0 })
         ]).then(function(results) {
-            renderEmailReport(results[0], results[1], results[2], date);
-            updateSendButton(results[3].count || 0, results[3]);
+            renderEmailReport(results[0], results[1], date);
+            updateSendButton(results[2].count || 0, results[2]);
         }).catch(function(e) {
             console.error(e);
             container.innerHTML = '<div class="l4-empty-state"><p>오류가 발생했습니다.</p></div>';
         });
+    }
+
+    function fetchJsonOrFallback(url, fallback) {
+        return fetch(url)
+            .then(function(r) {
+                return r.json().catch(function() {
+                    return fallback;
+                });
+            })
+            .then(function(data) {
+                if (!data || data.error) {
+                    console.warn('이메일 보고 데이터 조회 실패:', url, data && data.error);
+                    return fallback;
+                }
+                return data;
+            })
+            .catch(function(e) {
+                console.warn('이메일 보고 데이터 조회 실패:', url, e);
+                return fallback;
+            });
     }
 
     function buildDailyRows(data) {
@@ -213,7 +231,8 @@
 
             if (checkType === 'retail' && check.categories) {
                 check.categories.forEach(function(cat) {
-                    var key = cat.name === 'TV' ? 'retail_tv' : 'retail_hhp';
+                    if (cat.name === 'HHP') return;
+                    var key = 'retail_tv';
                     rows.push({ no: no++, category: 'Retail', name: '거래선 ' + cat.name + ' 제품 정보 / 감성점수', table_name: TABLE_NAME_MAP[key] || '', expected: 1500, actual: cat.total || 0 });
                 });
             } else if (checkType === 'sentiment' || checkType === 'market_competitor') {
@@ -241,20 +260,22 @@
         if (!retailers || retailers.length === 0) return '';
 
         var colSet = {};
-        retailers.forEach(function(r) { r.columns.forEach(function(c) { colSet[c.column] = true; }); });
+        retailers.forEach(function(r) {
+            (r.columns || []).forEach(function(c) { colSet[c.column] = true; });
+        });
         var allColumns = Object.keys(colSet).sort();
 
         var retailerMaps = {};
         retailers.forEach(function(r) {
             var map = {};
-            r.columns.forEach(function(c) { map[c.column] = c; });
+            (r.columns || []).forEach(function(c) { map[c.column] = c; });
             retailerMaps[r.retailer] = map;
         });
 
         // 비고 매핑 수집
         var remarkMap = {};
         retailers.forEach(function(r) {
-            r.columns.forEach(function(c) {
+            (r.columns || []).forEach(function(c) {
                 if (c.remark) remarkMap[c.column] = c.remark;
             });
         });
@@ -303,7 +324,7 @@
         return html;
     }
 
-    function renderEmailReport(dailyData, tvData, hhpData, date) {
+    function renderEmailReport(dailyData, tvData, date) {
         var container = document.getElementById('cs-email-container');
 
         var dailyRows = buildDailyRows(dailyData);
@@ -361,7 +382,6 @@
         // 2. R.com 수집 항목 Missing Value 현황
         html += '<b style="font-size:14px;">2. R.com 수집 항목 Missing Value 현황</b><br>';
         if (tvData.success) html += buildNullTable(tvData.retailers, 'TV');
-        if (hhpData.success) html += buildNullTable(hhpData.retailers, 'HHP');
 
         html += '<br>감사합니다.';
 
@@ -435,6 +455,7 @@
 
                 if (!subject || !htmlContent) { showToast('이메일 내용이 없습니다.', 'error'); return; }
 
+                var previousText = sendBtn.textContent;
                 sendBtn.disabled = true;
                 sendBtn.textContent = '발송 중...';
 
@@ -463,6 +484,9 @@
                 })
                 .finally(function() {
                     sendBtn.disabled = false;
+                    if (sendBtn.textContent === '발송 중...') {
+                        sendBtn.textContent = previousText || (emailSentCount > 0 ? '재발송' : '발송');
+                    }
                 });
                 });
             });

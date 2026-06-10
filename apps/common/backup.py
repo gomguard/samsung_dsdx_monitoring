@@ -66,6 +66,8 @@ def backup_tv_retail(username='', target_date=None):
 
 
 def backup_hhp_retail(username='', target_date=None):
+    return {'success': True, 'count': 0, 'category': 'HHP', 'excluded': True}
+
     """HHP retail 데이터 백업 (신규 데이터만 INSERT)"""
     conn = get_dx_connection()
     cursor = conn.cursor()
@@ -118,21 +120,11 @@ def get_backup_count(target_date=None):
         """, tv_params)
         tv_count = cursor.fetchone()[0]
 
-        hhp_date_sql, hhp_params = _date_condition('a.crawl_strdatetime', target_date)
-        cursor.execute(f"""
-            SELECT COUNT(*)
-            FROM hhp_retail_com a
-            LEFT JOIN hhp_retail_com_backup b ON a.id = b.id
-            WHERE b.id IS NULL
-            {hhp_date_sql}
-        """, hhp_params)
-        hhp_count = cursor.fetchone()[0]
-
         return {
             'success': True,
             'tv_count': tv_count,
-            'hhp_count': hhp_count,
-            'total_count': tv_count + hhp_count
+            'hhp_count': 0,
+            'total_count': tv_count
         }
     except Exception as e:
         log_error(e, 'backup')
@@ -181,7 +173,7 @@ def get_backup_status(target_date):
 def backup_all_retail(username='', target_date=None):
     """TV + HHP 전체 백업"""
     tv_result = backup_tv_retail(username, target_date)
-    hhp_result = backup_hhp_retail(username, target_date)
+    hhp_result = {'success': True, 'count': 0, 'category': 'HHP', 'excluded': True}
 
     return {
         'success': tv_result['success'] and hhp_result['success'],

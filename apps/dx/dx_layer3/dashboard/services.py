@@ -10,12 +10,21 @@ from apps.common.response import log_error
 _DANGEROUS_SQL = {'DROP', 'DELETE', 'TRUNCATE', 'UPDATE', 'INSERT', 'ALTER', 'GRANT', 'REVOKE'}
 
 _ALLOWED_TABLES = {
-    'tv_retail_com', 'hhp_retail_com',
-    'tv_item_mst', 'hhp_item_mst',
+    'tv_retail_com',
+    'tv_item_mst',
     'tv_sentiment_com', 'hhp_sentiment_com',
     'comp_product',
     'openai_forecast_results',
 }
+
+EXCLUDED_RETAIL_TABLES = {'hhp_retail_com', 'hhp_item_mst'}
+EXCLUDED_RETAIL_SECTIONS = {'hhp_retail'}
+
+
+def is_excluded_retail_rule(rule):
+    table_name = (rule.get('table_name') or '').lower()
+    section_code = (rule.get('section_code') or '').lower()
+    return table_name in EXCLUDED_RETAIL_TABLES or section_code in EXCLUDED_RETAIL_SECTIONS
 
 _EXCLUDE_PATTERN = re.compile(
     r"""^\s*\w+\s+(?:
@@ -88,7 +97,10 @@ def load_timeseries_rules():
             'error_message', 'query', 'sort_order'
         ]
         for row in cursor.fetchall():
-            rules.append(dict(zip(columns, row)))
+            rule = dict(zip(columns, row))
+            if is_excluded_retail_rule(rule):
+                continue
+            rules.append(rule)
         cursor.close()
         conn.close()
     except Exception as e:
@@ -119,7 +131,10 @@ def load_crossfield_rules():
             'error_message', 'select_fields', 'query', 'sort_order'
         ]
         for row in cursor.fetchall():
-            rules.append(dict(zip(columns, row)))
+            rule = dict(zip(columns, row))
+            if is_excluded_retail_rule(rule):
+                continue
+            rules.append(rule)
         cursor.close()
         conn.close()
     except Exception as e:
@@ -150,7 +165,10 @@ def load_category_rules():
             'error_message', 'display_columns', 'query', 'sort_order'
         ]
         for row in cursor.fetchall():
-            rules.append(dict(zip(columns, row)))
+            rule = dict(zip(columns, row))
+            if is_excluded_retail_rule(rule):
+                continue
+            rules.append(rule)
         cursor.close()
         conn.close()
     except Exception as e:

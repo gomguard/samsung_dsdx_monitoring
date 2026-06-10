@@ -134,7 +134,7 @@ def layer_stats(request):
 
                     hhp_total = table_totals.get('hhp_retail_com', 0)
 
-                    if run_crossfield and hhp_total == 0 and product_line in ['hhp', 'all']:
+                    if False and run_crossfield and hhp_total == 0 and product_line in ['hhp', 'all']:
                         try:
                             hhp_cursor.execute("""
                                 SELECT COUNT(*) FROM hhp_retail_com
@@ -215,7 +215,7 @@ def layer_stats(request):
                     except:
                         pass
 
-                if hhp_total == 0 and product_line in ['hhp', 'all'] and not hhp_needed:
+                if False and hhp_total == 0 and product_line in ['hhp', 'all'] and not hhp_needed:
                     with dx_connection() as (hhp_conn, hhp_cursor):
                         try:
                             hhp_cursor.execute("""
@@ -251,7 +251,7 @@ def layer_stats(request):
                     'status': get_status(tv_cross_errors, tv_cross_total)
                 })
 
-            if run_crossfield and product_line in ['hhp', 'all']:
+            if False and run_crossfield and product_line in ['hhp', 'all']:
                 hhp_cross_total = hhp_total
                 try:
                     hhp_crossfield_result = validate_crossfield(target_date, 'hhp_retail')
@@ -322,7 +322,7 @@ def layer_stats(request):
                     'status': get_status(tv_sentiment_cross_anomaly, tv_sentiment_cross_total)
                 })
 
-            if run_crossfield and product_line in ['hhp', 'all']:
+            if False and run_crossfield and product_line in ['hhp', 'all']:
                 hhp_sentiment_cross_total = 0
                 hhp_sentiment_cross_anomaly = 0
                 try:

@@ -10,7 +10,6 @@ from apps.common.retail_columns import get_retailer_columns, load_retail_columns
 # 원본 테이블별 수집 시간 컬럼 매핑
 _CRAWL_TIME_COLUMN = {
     'tv_retail_com': 'crawl_datetime',
-    'hhp_retail_com': 'crawl_strdatetime',
     'youtube_videos': 'created_at',
     'youtube_collection_logs': 'started_at',
     'youtube_comments': 'created_at',
@@ -25,7 +24,6 @@ _ALLOWED_TABLES = set(_CRAWL_TIME_COLUMN.keys())
 # 이력 조회: 허용 테이블 → (product_line, date_column)
 _HISTORY_TABLES = {
     'tv_retail_com': ('tv', 'crawl_datetime'),
-    'hhp_retail_com': ('hhp', 'crawl_strdatetime'),
 }
 
 
@@ -59,7 +57,7 @@ def get_corrections(target_date, correction_type='all', status='all',
                     search_field='', search_value='', page=1, page_size=50):
     """검수기록 목록 조회"""
     with dx_connection() as (conn, cursor):
-        base_clauses = ["c.crawl_date = %s", "c.status IS NOT NULL"]
+        base_clauses = ["c.crawl_date = %s", "c.status IS NOT NULL", "c.table_name <> 'hhp_retail_com'"]
         base_params = [str(target_date)]
 
         if correction_type != 'all':
@@ -200,9 +198,12 @@ def get_bulk_history(target_date, correction_type='all', category='all', days=3)
     if category == 'tv':
         allowed_tables = ('tv_retail_com',)
     elif category == 'hhp':
-        allowed_tables = ('hhp_retail_com',)
+        return {
+            'success': True, 'rows': [], 'columns': [],
+            'default_visible': [], 'fixed': [], 'corrected_map': {}
+        }
     else:
-        allowed_tables = ('tv_retail_com', 'hhp_retail_com')
+        allowed_tables = ('tv_retail_com',)
 
     table_placeholders = ','.join(['%s'] * len(allowed_tables))
 

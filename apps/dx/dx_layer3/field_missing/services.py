@@ -14,6 +14,16 @@ def field_missing_detection(cursor, target_date, product_line, retailer, retail_
     - 직전에는 값이 있었는데 오늘 NULL/빈값인 필드 탐지
     Returns: dict
     """
+    if product_line != 'tv':
+        return {
+            'date': str(target_date),
+            'product_line': product_line.upper(),
+            'retailer': retailer,
+            'prev_dates': [str(target_date - timedelta(days=1)), str(target_date - timedelta(days=2))],
+            'summary': {'total_missing_cases': 0, 'fields_with_issues': 0, 'status': 'OK'},
+            'missing_fields': []
+        }
+
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
@@ -167,6 +177,23 @@ def field_missing_detail_all(cursor, target_date, product_line, retailer, displa
     offset/limit 파라미터로 데이터 분할 조회
     Returns: dict
     """
+    if product_line != 'tv':
+        return {
+            'status': 'success',
+            'date': str(target_date),
+            'prev_dates': [str(target_date - timedelta(days=2)), str(target_date - timedelta(days=1))],
+            'product_line': product_line.upper(),
+            'retailer': retailer,
+            'columns': [],
+            'display_fields': [],
+            'offset': offset,
+            'limit': limit,
+            'fetched_rows': 0,
+            'has_more': False,
+            'data': [],
+            'total_count': 0
+        }
+
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
@@ -254,6 +281,21 @@ def field_missing_detail_problem(cursor, target_date, product_line, retailer, co
     무한 스크롤: offset, limit 파라미터 지원
     Returns: dict (empty result dict if no columns to check)
     """
+    if product_line != 'tv':
+        return {
+            'status': 'success',
+            'date': str(target_date),
+            'prev_dates': [str(target_date - timedelta(days=1)), str(target_date - timedelta(days=2))],
+            'product_line': product_line.upper(),
+            'retailer': retailer,
+            'fields': [],
+            'total_count': 0,
+            'offset': offset,
+            'limit': limit,
+            'has_more': False,
+            'data': []
+        }
+
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
@@ -364,6 +406,18 @@ def field_missing_detail_by_field(cursor, target_date, product_line, retailer, f
     - 직전 2일에 값이 있었는데 오늘 없는 item들의 N일치 전체 데이터
     Returns: dict (empty result dict if no missing items)
     """
+    if product_line != 'tv':
+        return {
+            'status': 'success',
+            'date': str(target_date),
+            'product_line': product_line.upper(),
+            'retailer': retailer,
+            'field': field,
+            'total_count': 0,
+            'data': [],
+            'normal_reviews': {}
+        }
+
     from apps.common.retail_columns import get_missing_exclude_conditions as get_exclude_conds
 
     # 조회 범위: target_date 포함 days일치

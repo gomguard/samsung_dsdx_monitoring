@@ -16,12 +16,12 @@ from apps.dx.dx_layer2.common.context import get_status
 
 # table 파라미터 화이트리스트
 VALID_TABLES_FORMAT = {
-    'tv_retail', 'hhp_retail',
+    'tv_retail',
     'youtube_logs', 'youtube_videos', 'youtube_comments', 'youtube',
     'market',
 }
 VALID_TABLES_RULES = {
-    'tv_retail_com', 'hhp_retail_com',
+    'tv_retail_com',
     'youtube_collection_logs', 'youtube_videos', 'youtube_comments',
     'market_trend', 'market_comp_product', 'market_comp_event',
     'openai_forecast_results',
@@ -51,6 +51,17 @@ def get_format_detail(cursor, target_date, table, retailer, days):
     select_cols = []
     column_names = []
     next_date = target_date + timedelta(days=1)
+    if table == 'hhp_retail':
+        return {
+            'date': str(target_date),
+            'table': table,
+            'retailer': retailer,
+            'column_names': [],
+            'editable_cols': [],
+            'actual_table': '',
+            'normal_reviews': {},
+            'results': []
+        }
 
     # TV Retail 형식 오류 상세 조회 - SQL 조건으로 오류 행 직접 필터링
     if table == 'tv_retail':
@@ -894,8 +905,7 @@ def get_format_stats(cursor, target_date):
     total_format_issues += tv_format_issue_total
 
     # hhp_item_mst
-    cursor.execute("SELECT DISTINCT item FROM hhp_item_mst")
-    hhp_valid_items = set(row[0] for row in cursor.fetchall())
+    hhp_valid_items = set()
 
     # HHP Retail - 청크 단위 전수검사
     hhp_format_errors = []
@@ -916,7 +926,7 @@ def get_format_stats(cursor, target_date):
     ]
 
     hhp_offset = 0
-    while True:
+    while False:
         cursor.execute("""
             SELECT
                 account_name, id, item, page_type, product_url,
@@ -999,6 +1009,8 @@ def get_format_stats(cursor, target_date):
         'sample_errors': hhp_format_errors
     })
     total_format_issues += hhp_format_issue_total
+    format_validation['tables'] = [t for t in format_validation['tables'] if t.get('table') != 'hhp_retail']
+    total_format_issues -= hhp_format_issue_total
 
     # YouTube 형식 검증
     yt_tables = [

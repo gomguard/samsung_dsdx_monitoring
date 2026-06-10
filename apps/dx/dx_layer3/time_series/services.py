@@ -25,6 +25,8 @@ def get_time_series_detail(cursor, target_date, detail_code, days=1):
         return {'error': '규칙을 찾을 수 없습니다.', 'status_code': 404}
 
     source_table, date_column, stored_query = rule
+    if source_table in {'hhp_retail_com', 'hhp_item_mst'}:
+        return {'items': [], 'total': 0, 'anomaly_count': 0}
     _validate_table_name(source_table)
 
     if not stored_query:
@@ -80,6 +82,14 @@ def get_time_series_detail(cursor, target_date, detail_code, days=1):
 
 def get_duplicate_detail(cursor, target_date, product_line):
     """중복 변형 탐지 상세 — 같은 수집 시점(AM/PM) 내 중복만 표시"""
+    if product_line == 'hhp':
+        return {
+            'date': str(target_date),
+            'product_line': product_line.upper(),
+            'total_duplicates': 0,
+            'duplicates': []
+        }
+
     if product_line == 'tv':
         cursor.execute("""
             SELECT item, account_name, page_type,
@@ -152,6 +162,17 @@ def get_duplicate_detail(cursor, target_date, product_line):
 
 
 def get_review_change_detail(cursor, target_date, product_line):
+    if product_line == 'hhp':
+        return {
+            'date': str(target_date),
+            'compare_date': str(target_date - timedelta(days=1)),
+            'product_line': product_line.upper(),
+            'check_type': 'review',
+            'threshold': '+50%',
+            'total_changes': 0,
+            'changes': []
+        }
+
     """리뷰 수 급변 상세 — 오전/오후 구분 비교"""
     prev_date = target_date - timedelta(days=1)
 
@@ -236,6 +257,14 @@ def get_review_change_detail(cursor, target_date, product_line):
 
 
 def get_price_anomalies(cursor, target_date, product_line):
+    if product_line == 'hhp':
+        return {
+            'date': str(target_date),
+            'product_line': product_line.upper(),
+            'total_anomalies': 0,
+            'anomalies': []
+        }
+
     """가격 이상치 상세 조회"""
     if product_line == 'tv':
         cursor.execute("""
@@ -272,6 +301,16 @@ def get_price_anomalies(cursor, target_date, product_line):
 
 
 def get_price_changes(cursor, target_date, product_line, threshold=0.3):
+    if product_line == 'hhp':
+        return {
+            'date': str(target_date),
+            'prev_date': str(target_date - timedelta(days=1)),
+            'product_line': product_line.upper(),
+            'threshold': f'{threshold * 100}%',
+            'total_changes': 0,
+            'changes': []
+        }
+
     """급격한 가격 변동 조회"""
     prev_date = target_date - timedelta(days=1)
 

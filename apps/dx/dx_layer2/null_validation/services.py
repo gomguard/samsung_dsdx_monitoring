@@ -15,6 +15,8 @@ from apps.dx.dx_layer2.common.context import get_status
 _CACHE_TTL = 60
 _null_check_config_cache = None
 _null_check_config_cache_time = None
+EXCLUDED_RETAIL_TABLES = {'hhp_retail_com'}
+EXCLUDED_RETAIL_CATEGORIES = {'hhp_retail'}
 
 
 def load_null_check_config():
@@ -69,6 +71,9 @@ def load_null_check_config():
 
         for row in rows:
             category = row.get('category', '')
+            table_name = row.get('table_name', '')
+            if category in EXCLUDED_RETAIL_CATEGORIES or table_name in EXCLUDED_RETAIL_TABLES:
+                continue
             check_name = row['check_name']
             check_column = row['check_column']
             display_columns = row.get('display_columns', '') or ''
@@ -305,6 +310,9 @@ def get_null_stats(cursor, target_date):
 def get_null_detail(cursor, target_date, category, retailer, days, column):
     """NULL 필드 상세 조회 — 특정 컬럼의 NULL 행만 조회. dict 반환."""
 
+    if category in EXCLUDED_RETAIL_CATEGORIES:
+        return {'results': [], 'display_config': {}, 'query_config': {}, 'date': str(target_date)}
+
     next_date = target_date + timedelta(days=1)
 
     # 카테고리 정보 가져오기
@@ -468,7 +476,7 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
 
 # null_review 테이블 화이트리스트
 VALID_TABLES_UPDATE = {
-    'tv_retail_com', 'hhp_retail_com',
+    'tv_retail_com',
     'youtube_collection_logs', 'youtube_videos', 'youtube_comments',
     'market_trend', 'market_comp_product', 'market_comp_event', 'openai_forecast_results',
 }

@@ -11,8 +11,8 @@ from . import retail_repositories as repo
 
 OK_THRESHOLD = 200
 
-ALLOWED_TABLES = {'tv_retail_com', 'hhp_retail_com'}
-ALLOWED_DATE_FIELDS = {'crawl_datetime::timestamp', 'crawl_strdatetime::timestamp'}
+ALLOWED_TABLES = {'tv_retail_com'}
+ALLOWED_DATE_FIELDS = {'crawl_datetime::timestamp'}
 ALLOWED_RANK_FIELDS = {'promotion_position', 'trend_rank'}
 
 
@@ -193,98 +193,10 @@ def get_layer1_stats(cursor, target_date, now):
         'time_slots': tv_time_slots
     }
 
-    hhp_time_slots_data = get_retail_time_slots('HHP', target_date)
-    hhp_daily_retailers = _get_daily_retailers(hhp_time_slots_data)
-    hhp_time_slots = []
-    hhp_total_count = 0
-    hhp_slot_statuses = []
-
-    for slot in hhp_time_slots_data:
-        slot_retailers = slot.get('retailers', [])
-        slot_expected = sum(r.get('expected_count', 0) for r in slot_retailers) if slot_retailers else 0
-        rows = repo.query_retail_counts(cursor, 'hhp_retail_com', 'crawl_strdatetime::timestamp', 'trend_rank', slot['start'], slot['end'], hhp_daily_retailers)
-
-        if slot['is_pending']:
-            slot_display_status = slot['time_status'] if slot['time_status'] else 'PENDING'
-            retailer_details, total, _ = check_retailer_data(rows, 'HHP', slot_retailers)
-            hhp_total_count += total
-            hhp_time_slots.append({
-                'name': slot['name'],
-                'us_time': slot['us_time'],
-                'kr_time': slot['kr_time'],
-                'is_dst': slot.get('is_dst', False),
-                'total': total,
-                'expected': slot_expected,
-                'status': slot_display_status,
-                'retailers': retailer_details
-            })
-        else:
-            retailer_details, total, slot_status = check_retailer_data(rows, 'HHP', slot_retailers)
-            hhp_total_count += total
-            hhp_slot_statuses.append(slot_status)
-
-            hhp_time_slots.append({
-                'name': slot['name'],
-                'us_time': slot['us_time'],
-                'kr_time': slot['kr_time'],
-                'is_dst': slot.get('is_dst', False),
-                'total': total,
-                'expected': slot_expected,
-                'status': slot_status,
-                'retailers': retailer_details
-            })
-
-            for r in retailer_details:
-                if r['status'] != 'OK':
-                    error_type = '수집 없음' if r['count'] == 0 else ('주의' if r['status'] == 'WARNING' else '수집량 부족')
-                    failed_items.append({
-                        'source': f"HHP Retail - {r['retailer']}",
-                        'error_type': error_type,
-                        'expected': f">= {OK_THRESHOLD}",
-                        'actual': r['count'],
-                        'timestamp': f"HHP {slot['name']}"
-                    })
-
-    hhp_has_collecting = any(s['status'] == 'COLLECTING' for s in hhp_time_slots)
-    hhp_all_pending = all(s['status'] == 'PENDING' for s in hhp_time_slots)
-
-    if 'CRITICAL' in hhp_slot_statuses:
-        hhp_overall_status = 'CRITICAL'
-    elif 'WARNING' in hhp_slot_statuses:
-        hhp_overall_status = 'WARNING'
-    elif not hhp_slot_statuses and hhp_has_collecting:
-        hhp_overall_status = 'COLLECTING'
-    elif not hhp_slot_statuses and hhp_all_pending:
-        hhp_overall_status = 'PENDING'
-    elif not hhp_slot_statuses:
-        hhp_overall_status = 'PENDING'
-    else:
-        hhp_overall_status = 'OK'
-
-    hhp_active_slots = len([s for s in hhp_time_slots if s['status'] not in ['PENDING', 'COLLECTING']])
-    hhp_ok_slots = len([s for s in hhp_time_slots if s['status'] == 'OK'])
-
-    hhp_retail_data = {
-        'name': 'HHP',
-        'total': hhp_total_count,
-        'expected': sum(s['expected'] for s in hhp_time_slots if s['status'] not in ['PENDING', 'COLLECTING']),
-        'status': hhp_overall_status,
-        'time_slots': hhp_time_slots
-    }
-
-    total_retail_count = tv_total_count + hhp_total_count
-    total_retail_expected = tv_retail_data['expected'] + hhp_retail_data['expected']
-
-    status_priority = {'OK': 0, 'WARNING': 1, 'COLLECTING': 2, 'CRITICAL': 3, 'PENDING': 4}
-    tv_priority = status_priority.get(tv_overall_status, 0)
-    hhp_priority = status_priority.get(hhp_overall_status, 0)
-
-    if tv_priority >= hhp_priority:
-        total_retail_status = tv_overall_status
-    else:
-        total_retail_status = hhp_overall_status
-
-    retail_ok_count = sum(1 for s in [tv_overall_status, hhp_overall_status] if s == 'OK')
+    total_retail_count = tv_total_count
+    total_retail_expected = tv_retail_data['expected']
+    total_retail_status = tv_overall_status
+    retail_ok_count = 1 if tv_overall_status == 'OK' else 0
 
     am_kst = get_kst_time_info(0, target_date)
     pm_kst = get_kst_time_info(12, target_date)
@@ -308,25 +220,25 @@ def get_layer1_stats(cursor, target_date, now):
 
     check = {
         'name': SECTION_TITLES['retail'],
-        'description': f'{retail_ok_count}/2 카테고리 정상',
+        'description': f'{retail_ok_count}/1 카테고리 정상',
         'actual': total_retail_count,
         'expected': total_retail_expected,
         'expected_min': total_retail_expected,
         'status': total_retail_status,
         'check_type': 'retail',
         'time_info': retail_time_info,
-        'categories': [tv_retail_data, hhp_retail_data]
+        'categories': [tv_retail_data]
     }
 
     return {'check': check, 'failed_items': failed_items}
 
 
 def get_retail_detail(target_date, product_line):
+    if product_line != 'tv':
+        raise ValueError('HHP Retail is excluded from monitoring.')
+
     with dx_connection() as (conn, cursor):
-        if product_line == 'tv':
-            rows = repo.get_tv_retail_detail_list(cursor, target_date.strftime('%Y-%m-%d'))
-        else:
-            rows = repo.get_hhp_retail_detail_list(cursor, target_date.strftime('%Y-%m-%d'))
+        rows = repo.get_tv_retail_detail_list(cursor, target_date.strftime('%Y-%m-%d'))
 
     results = []
     for row in rows:
@@ -349,6 +261,9 @@ def get_retail_detail(target_date, product_line):
 
 
 def get_retail_summary(target_date, product_line):
+    if product_line != 'tv':
+        raise ValueError('HHP Retail is excluded from monitoring.')
+
     next_day = target_date + timedelta(days=1)
 
     time_slots = [
@@ -356,16 +271,10 @@ def get_retail_summary(target_date, product_line):
         {'name': '오후', 'start': f'{target_date} 12:00:00', 'end': f'{next_day} 00:00:00'}
     ]
 
-    if product_line == 'tv':
-        table_name = 'tv_retail_com'
-        date_field = 'crawl_datetime::timestamp'
-        extra_rank_field = 'promotion_position'
-        extra_rank_name = 'Promotion'
-    else:
-        table_name = 'hhp_retail_com'
-        date_field = 'crawl_strdatetime::timestamp'
-        extra_rank_field = 'trend_rank'
-        extra_rank_name = 'Trend'
+    table_name = 'tv_retail_com'
+    date_field = 'crawl_datetime::timestamp'
+    extra_rank_field = 'promotion_position'
+    extra_rank_name = 'Promotion'
 
     if table_name not in ALLOWED_TABLES:
         raise ValueError(f"허용되지 않은 테이블: {table_name}")
@@ -510,6 +419,17 @@ def get_retail_summary(target_date, product_line):
 
 
 def get_retailer_raw_data(category, retailer, period, target_date):
+    if category != 'TV':
+        return {
+            'category': category,
+            'retailer': retailer,
+            'period': period,
+            'date': str(target_date),
+            'columns': [],
+            'data': [],
+            'error': 'HHP Retail is excluded from monitoring.'
+        }
+
     next_day = target_date + timedelta(days=1)
 
     if period == '오전':
@@ -529,17 +449,13 @@ def get_retailer_raw_data(category, retailer, period, target_date):
     }
 
     try:
-        product_line = 'tv' if category == 'TV' else 'hhp'
+        product_line = 'tv'
         db_columns = get_retailer_columns(product_line, retailer)
 
         columns = ['id'] + [col for col in db_columns if col != 'id']
 
-        if category == 'TV':
-            date_column = 'crawl_datetime'
-            table_name = 'tv_retail_com'
-        else:
-            date_column = 'crawl_strdatetime'
-            table_name = 'hhp_retail_com'
+        date_column = 'crawl_datetime'
+        table_name = 'tv_retail_com'
 
         if table_name not in ALLOWED_TABLES:
             raise ValueError(f"허용되지 않은 테이블: {table_name}")
@@ -568,18 +484,12 @@ def get_retailer_raw_data(category, retailer, period, target_date):
 
 def get_retailer_columns_info():
     tv_columns = get_all_retailer_columns('tv')
-    hhp_columns = get_all_retailer_columns('hhp')
 
     all_tv_columns = sorted(set(col for cols in tv_columns.values() for col in cols))
-    all_hhp_columns = sorted(set(col for cols in hhp_columns.values() for col in cols))
 
     return {
         'tv': {
             'columns': tv_columns,
             'all_columns': all_tv_columns
-        },
-        'hhp': {
-            'columns': hhp_columns,
-            'all_columns': all_hhp_columns
         }
     }

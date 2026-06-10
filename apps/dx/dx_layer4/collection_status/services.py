@@ -16,12 +16,10 @@ _EMAIL_LOG_TABLE = dx_table('monitoring_email_logs')
 
 _TABLE_MAP = {
     'tv': 'tv_retail_com',
-    'hhp': 'hhp_retail_com',
 }
 
 _DATE_COL_MAP = {
     'tv': 'crawl_datetime',
-    'hhp': 'crawl_strdatetime',
 }
 
 

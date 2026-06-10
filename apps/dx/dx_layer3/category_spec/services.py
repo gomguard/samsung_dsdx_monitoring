@@ -29,7 +29,7 @@ def resolve_target_category(display_name, product_line):
         if product_line == 'tv':
             target_category = 'tv_retail'
         elif product_line == 'hhp':
-            target_category = 'hhp_retail'
+            target_category = ''
         elif product_line == 'forecast':
             target_category = 'market_forecast'
 

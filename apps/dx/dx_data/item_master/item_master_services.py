@@ -15,7 +15,7 @@ from .item_master_repositories import (
     get_history_unique_retailers_db,
 )
 
-ALLOWED_TABLES = {'tv': 'tv_item_mst', 'hhp': 'hhp_item_mst'}
+ALLOWED_TABLES = {'tv': 'tv_item_mst'}
 ALLOWED_FIELDS = {'is_product', 'is_checked'}
 ALLOWED_SEARCH_FIELDS = {'item', 'sku', 'product_url'}
 

@@ -7,7 +7,7 @@ from apps.common.retail_columns import get_editable_columns
 
 
 VALID_TABLES_UPDATE = {
-    'tv_retail_com', 'hhp_retail_com',
+    'tv_retail_com',
     'youtube_collection_logs', 'youtube_videos', 'youtube_comments',
     'market_trend', 'market_comp_product', 'market_comp_event', 'openai_forecast_results',
 }

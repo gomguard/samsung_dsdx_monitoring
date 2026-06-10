@@ -225,6 +225,14 @@ def get_cross_field_summary(target_date, product_line, section):
 
 
 def get_sentiment_cross_detail(cursor, target_date, product_line):
+    if product_line != 'tv':
+        return {
+            'date': str(target_date),
+            'product_line': product_line.upper(),
+            'total_anomalies': 0,
+            'anomalies': [],
+        }
+
     """Sentiment ↔ 리뷰 일관성 상세 조회"""
     anomalies = []
 

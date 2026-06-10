@@ -103,8 +103,8 @@ def backup_retail_data(request):
             return JsonResponse({
                 'success': True,
                 'tv_count': result['tv_count'],
-                'hhp_count': result['hhp_count'],
-                'total_count': result['total_count']
+                'hhp_count': 0,
+                'total_count': result['tv_count']
             })
         else:
             return JsonResponse({'success': False, 'error': result.get('error', 'Unknown error')})
@@ -116,20 +116,17 @@ def backup_retail_data(request):
 
         if result['success']:
             tv_count = result['tv']['count']
-            hhp_count = result['hhp']['count']
-            message = f"백업 완료 - TV: {tv_count}건, HHP: {hhp_count}건"
+            message = f"백업 완료 - TV: {tv_count}건"
             return JsonResponse({
                 'success': True,
                 'message': message,
                 'tv_count': tv_count,
-                'hhp_count': hhp_count
+                'hhp_count': 0
             })
         else:
             errors = []
             if not result['tv']['success']:
                 errors.append(f"TV: {result['tv'].get('error', 'Unknown error')}")
-            if not result['hhp']['success']:
-                errors.append(f"HHP: {result['hhp'].get('error', 'Unknown error')}")
             return JsonResponse({
                 'success': False,
                 'error': ', '.join(errors)

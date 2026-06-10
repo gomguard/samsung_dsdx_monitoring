@@ -9,8 +9,7 @@
 
     // 리테일러 고정 정렬 순서
     var RETAILER_ORDER = [
-        'TV Amazon', 'TV Bestbuy', 'TV Walmart',
-        'HHP Amazon', 'HHP Bestbuy', 'HHP Walmart'
+        'TV Amazon', 'TV Bestbuy', 'TV Walmart'
     ];
 
     function sortRetailerKeys(keys) {
@@ -129,7 +128,7 @@
         section.appendChild(createDiv('report-section-title',
             '■ ' + sectionNo + '. ' + typeName + ' (' + total + '건)'));
 
-        var TABLE_CATEGORY = { 'tv_retail_com': 'TV', 'hhp_retail_com': 'HHP' };
+        var TABLE_CATEGORY = { 'tv_retail_com': 'TV' };
 
         var retailerData = {};
         Object.keys(tableGroups).forEach(function(tn) {
@@ -245,7 +244,7 @@
         section.appendChild(createDiv('report-section-title',
             '■ ' + sectionNo + '. ' + typeName + ' (' + total + '건)'));
 
-        var TABLE_CATEGORY = { 'tv_retail_com': 'TV', 'hhp_retail_com': 'HHP' };
+        var TABLE_CATEGORY = { 'tv_retail_com': 'TV' };
 
         var retailerData = {};
         Object.keys(tableGroups).forEach(function(tn) {
@@ -297,7 +296,7 @@
         section.appendChild(createDiv('report-section-title',
             '■ ' + sectionNo + '. ' + typeName + ' (' + total + '건)'));
 
-        var TABLE_CATEGORY = { 'tv_retail_com': 'TV', 'hhp_retail_com': 'HHP' };
+        var TABLE_CATEGORY = { 'tv_retail_com': 'TV' };
 
         var ruleGroups = {};
         Object.keys(tableGroups).forEach(function(tn) {
@@ -426,7 +425,7 @@
         var issueCount = collectionIssues.length;
         var TYPES_ORDER = ['null_check', 'duplicate_check', 'format_check', 'cross_field', 'field_missing'];
         var TABLE_SECTION = {
-            'tv_retail_com': 'Retail', 'hhp_retail_com': 'Retail',
+            'tv_retail_com': 'Retail',
             'youtube_collection_logs': 'YouTube', 'youtube_videos': 'YouTube', 'youtube_comments': 'YouTube',
             'market_trend': 'Market Trend', 'market_comp_product': 'Market', 'market_comp_event': 'Market',
             'openai_forecast_results': '수요증감율'

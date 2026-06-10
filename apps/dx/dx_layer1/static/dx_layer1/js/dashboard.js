@@ -32,14 +32,11 @@ async function loadStats() {
 
         currentStatsData = data;
 
-        // Retail Summary 데이터 로딩 (TV + HHP: rank별 건수 + NULL 컬럼)
+        // Retail Summary 데이터 로딩 (TV: rank별 건수 + NULL 컬럼)
         try {
-            var [tvSum, hhpSum] = await Promise.all([
-                fetch('/dx/layer1/retail/api/summary/?type=tv&date=' + selectedDate).then(r => r.json()),
-                fetch('/dx/layer1/retail/api/summary/?type=hhp&date=' + selectedDate).then(r => r.json())
-            ]);
-            currentRetailSummary = { tv: tvSum, hhp: hhpSum };
-            currentNullData = { tv: tvSum.null_columns || [], hhp: hhpSum.null_columns || [] };
+            var tvSum = await fetch('/dx/layer1/retail/api/summary/?type=tv&date=' + selectedDate).then(r => r.json());
+            currentRetailSummary = { tv: tvSum };
+            currentNullData = { tv: tvSum.null_columns || [] };
         } catch (e) {
             currentRetailSummary = null;
             currentNullData = null;
@@ -245,7 +242,7 @@ function runBackup() {
             }
 
             // 2. 건수 표시 및 확인 팝업
-            var msg = targetDate + ' 수집 데이터 백업\nTV: ' + res.tv_count + '건, HHP: ' + res.hhp_count + '건\n백업을 진행하시겠습니까?';
+            var msg = targetDate + ' 수집 데이터 백업\nTV: ' + res.tv_count + '건\n백업을 진행하시겠습니까?';
             showConfirm(msg).then(function(confirmed) {
                 if (!confirmed) return;
 

@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function getTableColumns() {
-    const extraColLabel = currentTable === 'tv' ? '화면크기' : '저장용량';
+    const extraColLabel = '화면크기';
     return [
         { key: 'no', label: 'No.', width: 60, align: 'center' },
         { key: 'item', label: 'Item' },
@@ -97,6 +97,7 @@ function getTableColumns() {
 }
 
 function switchTab(table) {
+    if (table !== 'tv') return;
     if (pendingChanges.size > 0) {
         if (!confirm('저장하지 않은 변경사항이 있습니다. 탭을 전환하시겠습니까?')) return;
         pendingChanges.clear();

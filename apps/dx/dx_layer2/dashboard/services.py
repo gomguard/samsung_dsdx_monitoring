@@ -10,14 +10,14 @@ from apps.common.response import log_error
 from apps.dx.dx_layer2.common.context import get_status
 from apps.dx.dx_layer2.null_validation.services import get_null_stats
 from apps.dx.dx_layer2.format_validation.services import (
-    get_format_stats, get_tv_format_errors, get_hhp_format_errors,
-    validate_tv_field, validate_hhp_field,
+    get_format_stats, get_tv_format_errors,
+    validate_tv_field,
 )
 from apps.dx.dx_layer2.anomaly_validation.services import get_anomaly_stats
 
 
 # ── 화이트리스트 상수 ──────────────────────────────────────────
-VALID_TABLES_RETAILER = {'TV Retail', 'HHP Retail'}
+VALID_TABLES_RETAILER = {'TV Retail'}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -88,7 +88,7 @@ def get_retailer_detail(cursor, validation_type, table_name, retailer, target_da
         date_field = 'crawl_datetime'
         null_fields = ['item', 'screen_size', 'final_sku_price', 'retailer_sku_name',
                       'count_of_reviews', 'star_rating', 'count_of_star_ratings']
-    elif table_name == 'HHP Retail':
+    elif False:
         db_table = 'hhp_retail_com'
         date_field = 'crawl_strdatetime'
         null_fields = ['item', 'final_sku_price', 'retailer_sku_name',

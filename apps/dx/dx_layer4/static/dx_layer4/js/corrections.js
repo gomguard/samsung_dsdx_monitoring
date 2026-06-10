@@ -240,7 +240,6 @@
                     type: 'custom',
                     html: '<div style="display:flex;align-items:center;gap:4px;">'
                         + '<button id="bulk-cat-tv" style="' + (bulkHistoryCategory === 'tv' ? catBtnActiveStyle : catBtnStyle) + '">TV</button>'
-                        + '<button id="bulk-cat-hhp" style="' + (bulkHistoryCategory === 'hhp' ? catBtnActiveStyle : catBtnStyle) + '">HHP</button>'
                         + '</div>'
                 },
                 {
@@ -460,7 +459,7 @@
         }
 
         var CATEGORY_NAME = {
-            'tv_retail_com': 'TV', 'hhp_retail_com': 'HHP',
+            'tv_retail_com': 'TV',
             'youtube_collection_logs': 'YouTube', 'youtube_videos': 'YouTube', 'youtube_comments': 'YouTube',
             'market_trend': 'Market Trend', 'market_comp_product': 'Market', 'market_comp_event': 'Market',
             'openai_forecast_results': '수요증감율'
@@ -519,7 +518,7 @@
 
     function showCorrectionDetail(item, no) {
         var CATEGORY_NAME = {
-            'tv_retail_com': 'TV', 'hhp_retail_com': 'HHP',
+            'tv_retail_com': 'TV',
             'youtube_collection_logs': 'YouTube', 'youtube_videos': 'YouTube', 'youtube_comments': 'YouTube',
             'market_trend': 'Market Trend', 'market_comp_product': 'Market', 'market_comp_event': 'Market',
             'openai_forecast_results': '수요증감율'
@@ -563,8 +562,8 @@
         }
         html += '</table>';
 
-        // TV/HHP만 이력 조회 버튼 표시
-        var historyTables = ['tv_retail_com', 'hhp_retail_com'];
+        // TV Retail history lookup
+        var historyTables = ['tv_retail_com'];
         if (historyTables.indexOf(item.table_name) >= 0 && item.retailer && item.item) {
             html += '<div style="text-align:right;margin-top:12px;">'
                 + '<button class="app-btn app-btn-sm app-btn-outline" id="corr-history-btn">이력 조회</button>'

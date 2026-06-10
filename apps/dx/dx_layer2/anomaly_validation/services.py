@@ -12,7 +12,7 @@ from apps.dx.dx_layer2.common.context import get_status
 
 # table 파라미터 화이트리스트
 VALID_TABLES_ANOMALY = {
-    'tv_retail', 'hhp_retail', 'youtube_videos', 'youtube_logs',
+    'tv_retail', 'youtube_videos', 'youtube_logs',
     'market_trend', 'market_product', 'market_event',
 }
 
@@ -22,13 +22,6 @@ _DUP_TABLE_CONFIG = {
         'actual': 'tv_retail_com',
         'dup_keys': 'item, account_name',
         'date_col': 'crawl_datetime',
-        'use_period': True,
-        'retailer_col': 'account_name',
-    },
-    'hhp_retail': {
-        'actual': 'hhp_retail_com',
-        'dup_keys': 'item, account_name',
-        'date_col': 'crawl_strdatetime',
         'use_period': True,
         'retailer_col': 'account_name',
     },
@@ -133,6 +126,22 @@ def _build_dup_delete_query(table, retailer=''):
 def get_anomaly_detail(cursor, target_date, table, retailer, days, page, page_size):
     """중복 검증 상세 조회 — plain dict 반환"""
     offset = (page - 1) * page_size
+    if table == 'hhp_retail':
+        return {
+            'date': str(target_date),
+            'table': table,
+            'retailer': retailer,
+            'select_cols': {'group': [], 'record': []},
+            'editable_cols': [],
+            'actual_table': '',
+            'results': {
+                'duplicates': [],
+                'total_groups': 0,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': 0
+            }
+        }
 
     duplicates = []
     total_groups = 0
@@ -794,21 +803,21 @@ def get_anomaly_stats(cursor, target_date):
         hhp_dup_keys = ['item', 'account_name']
     hhp_date_col = 'crawl_strdatetime'
 
-    cursor.execute(f"SELECT COUNT(*) FROM hhp_retail_com WHERE DATE({hhp_date_col}::timestamp) = %s", (target_date,))
-    hhp_total_records = cursor.fetchone()[0] or 0
+    hhp_total_records = 0
 
-    hhp_dup_dict = get_duplicate_count(cursor, 'hhp_retail_com', hhp_date_col, hhp_dup_keys, target_date, use_period=True, group_by_col='account_name')
+    hhp_dup_dict = {}
 
     hhp_dup_normal = {}
     try:
-        cursor.execute("""
+        if False:
+            cursor.execute("""
             SELECT retailer, COUNT(*) FROM monitoring_corrections
             WHERE table_name = 'hhp_retail_com' AND crawl_date = %s
               AND correction_type = 'duplicate_check' AND status = 'normal'
             GROUP BY retailer
-        """, (str(target_date),))
-        for nr in cursor.fetchall():
-            hhp_dup_normal[nr[0]] = nr[1]
+            """, (str(target_date),))
+            for nr in cursor.fetchall():
+                hhp_dup_normal[nr[0]] = nr[1]
     except Exception:
         pass
 
@@ -834,6 +843,8 @@ def get_anomaly_stats(cursor, target_date):
         'retailers': hhp_dup_retailers
     })
     total_anomaly_issues += hhp_dup_total
+    anomaly_validation['tables'] = [t for t in anomaly_validation['tables'] if t.get('table') != 'hhp_retail']
+    total_anomaly_issues -= hhp_dup_total
 
     # YouTube Videos 중복
     ytv_dup_info = get_duplicate_key_columns('youtube_videos')

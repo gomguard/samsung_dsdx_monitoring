@@ -84,25 +84,11 @@ def layer_stats(request):
         # 2. HHP 검토 대기 항목
         # ============================================================
 
-        cursor.execute("""
-            SELECT COUNT(*) FROM hhp_retail_com
-            WHERE DATE(crawl_strdatetime::timestamp) = %s
-            AND (price < 0 OR price > 5000)
-        """, (target_date,))
-        hhp_price_issues = cursor.fetchone()[0] or 0
+        hhp_price_issues = 0
 
-        cursor.execute("""
-            SELECT COUNT(*) FROM hhp_retail_com
-            WHERE DATE(crawl_strdatetime::timestamp) = %s
-            AND sentiment_score IS NULL
-        """, (target_date,))
-        hhp_unanalyzed = cursor.fetchone()[0] or 0
+        hhp_unanalyzed = 0
 
-        cursor.execute("""
-            SELECT COUNT(*) FROM hhp_retail_com
-            WHERE DATE(crawl_strdatetime::timestamp) = %s
-        """, (target_date,))
-        hhp_total = cursor.fetchone()[0] or 0
+        hhp_total = 0
 
         hhp_pending = hhp_price_issues + hhp_unanalyzed
         hhp_auto_passed = hhp_total - hhp_pending
@@ -116,6 +102,7 @@ def layer_stats(request):
             'auto_passed': hhp_auto_passed,
             'pass_rate': round((hhp_auto_passed / hhp_total * 100), 1) if hhp_total > 0 else 0
         })
+        results['review_queue'] = [q for q in results['review_queue'] if q.get('category') != 'HHP Retail']
 
         # ============================================================
         # 3. YouTube 검토 대기 항목
@@ -233,14 +220,7 @@ def pending_items(request):
                     LIMIT %s
                 """, (target_date, limit))
         elif category == 'hhp':
-            cursor.execute("""
-                SELECT product_name, account_name, price, main_rank, crawl_strdatetime
-                FROM hhp_retail_com
-                WHERE DATE(crawl_strdatetime::timestamp) = %s
-                AND (price < 0 OR price > 5000 OR sentiment_score IS NULL)
-                ORDER BY crawl_strdatetime DESC
-                LIMIT %s
-            """, (target_date, limit))
+            rows = []
         else:
             cursor.execute("""
                 SELECT title, channel_name, view_count, comment_count, crawled_at
@@ -250,7 +230,8 @@ def pending_items(request):
                 LIMIT %s
             """, (target_date, limit))
 
-        rows = cursor.fetchall()
+        if category != 'hhp':
+            rows = cursor.fetchall()
         items = []
 
         if category in ['tv', 'hhp']:
@@ -314,16 +295,7 @@ def quality_summary(request):
         tv_result = cursor.fetchone()
 
         # HHP 전체 현황
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total,
-                COUNT(CASE WHEN product_name IS NOT NULL AND product_name != '' THEN 1 END) as valid_name,
-                COUNT(CASE WHEN price IS NOT NULL AND price >= 0 AND price <= 5000 THEN 1 END) as valid_price,
-                COUNT(CASE WHEN sentiment_score IS NOT NULL THEN 1 END) as analyzed
-            FROM hhp_retail_com
-            WHERE DATE(crawl_strdatetime::timestamp) = %s
-        """, (target_date,))
-        hhp_result = cursor.fetchone()
+        hhp_result = (0, 0, 0, 0)
 
         cursor.close()
         conn.close()
@@ -339,8 +311,8 @@ def quality_summary(request):
         hhp_total = hhp_result[0] or 0
         hhp_layer5_pass = min(hhp_result[2] or 0, hhp_result[3] or 0)
 
-        total_raw = tv_total + hhp_total
-        total_trusted = tv_layer5_pass + hhp_layer5_pass
+        total_raw = tv_total
+        total_trusted = tv_layer5_pass
 
         return JsonResponse({
             'date': str(target_date),
@@ -353,11 +325,6 @@ def quality_summary(request):
                     'layer4_pass': tv_layer4_pass,
                     'layer5_pass': tv_layer5_pass,
                     'final_pass_rate': round((tv_layer5_pass / tv_total * 100), 1) if tv_total > 0 else 0
-                },
-                'hhp': {
-                    'total': hhp_total,
-                    'layer5_pass': hhp_layer5_pass,
-                    'final_pass_rate': round((hhp_layer5_pass / hhp_total * 100), 1) if hhp_total > 0 else 0
                 }
             },
             'summary': {

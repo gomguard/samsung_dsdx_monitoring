@@ -68,6 +68,8 @@ def get_tv_retail_detail_list(cursor, target_date):
 
 
 def get_hhp_retail_detail_list(cursor, target_date):
+    return []
+
     cursor.execute("""
         SELECT
             account_name as retailer,

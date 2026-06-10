@@ -289,7 +289,7 @@ function flattenCheckToDetails(sectionType, check) {
                 });
             });
             if (currentNullData) {
-                ['tv', 'hhp'].forEach(function(type) {
+                    ['tv'].forEach(function(type) {
                     (currentNullData[type] || []).forEach(function(ret) {
                         ret.time_slots.forEach(function(slot) {
                             var nullCols = slot.null_columns.join(', ');

@@ -88,6 +88,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function switchTab(table) {
+    if (table !== 'tv') return;
     currentTable = table;
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.table === table);

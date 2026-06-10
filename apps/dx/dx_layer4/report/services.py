@@ -16,6 +16,8 @@ def get_report_data(target_date):
         """, (str(target_date),))
         collection_status = []
         for row in cursor.fetchall():
+            if (row[0] or '').lower() in {'retail_hhp', 'hhp_retail'}:
+                continue
             collection_status.append({
                 'section': row[0],
                 'expected': row[1] or 0,
@@ -49,7 +51,7 @@ def get_report_data(target_date):
         cursor.execute("""
             SELECT correction_type, status, COUNT(*) as cnt
             FROM monitoring_corrections
-            WHERE crawl_date = %s AND status IS NOT NULL
+            WHERE crawl_date = %s AND status IS NOT NULL AND table_name <> 'hhp_retail_com'
             GROUP BY correction_type, status
             ORDER BY correction_type, status
         """, (str(target_date),))
@@ -63,7 +65,7 @@ def get_report_data(target_date):
         cursor.execute("""
             SELECT reason, correction_type, COUNT(*) as cnt
             FROM monitoring_corrections
-            WHERE crawl_date = %s AND status = 'normal'
+            WHERE crawl_date = %s AND status = 'normal' AND table_name <> 'hhp_retail_com'
             GROUP BY reason, correction_type
             ORDER BY cnt DESC
         """, (str(target_date),))
@@ -78,7 +80,7 @@ def get_report_data(target_date):
         cursor.execute("""
             SELECT table_name, correction_type, status, COUNT(*) as cnt
             FROM monitoring_corrections
-            WHERE crawl_date = %s AND status IS NOT NULL
+            WHERE crawl_date = %s AND status IS NOT NULL AND table_name <> 'hhp_retail_com'
             GROUP BY table_name, correction_type, status
             ORDER BY table_name, correction_type
         """, (str(target_date),))
@@ -100,6 +102,7 @@ def get_report_data(target_date):
             FROM monitoring_corrections c
             LEFT JOIN monitoring_validation_rules r ON c.rule_id = r.id
             WHERE c.crawl_date = %s AND c.status IN ('corrected', 'normal')
+              AND c.table_name <> 'hhp_retail_com'
             ORDER BY c.correction_type, c.table_name, c.created_at
         """, (str(target_date),))
         details = []
@@ -124,26 +127,20 @@ def get_report_data(target_date):
 
         cursor.execute("""
             SELECT h.table_name, h.item_id,
-                   CASE WHEN h.table_name = 'tv_item_mst' THEN m_tv.account_name
-                        WHEN h.table_name = 'hhp_item_mst' THEN m_hhp.account_name
-                        ELSE NULL END as account_name,
-                   CASE WHEN h.table_name = 'tv_item_mst' THEN m_tv.item
-                        WHEN h.table_name = 'hhp_item_mst' THEN m_hhp.item
-                        ELSE NULL END as item
+                   m_tv.account_name as account_name,
+                   m_tv.item as item
             FROM item_mst_history h
             LEFT JOIN tv_item_mst m_tv ON h.table_name = 'tv_item_mst' AND h.item_id = m_tv.id
-            LEFT JOIN hhp_item_mst m_hhp ON h.table_name = 'hhp_item_mst' AND h.item_id = m_hhp.id
             WHERE h.field_name = 'is_product'
+              AND h.table_name = 'tv_item_mst'
               AND h.old_value = 'True' AND h.new_value = 'False'
               AND DATE(h.changed_at) = DATE(%s) + INTERVAL '1 day'
             ORDER BY h.table_name, h.changed_at
         """, (str(target_date),))
         excluded_items = []
         for row in cursor.fetchall():
-            table_name_h = row[0]
-            category = 'TV' if table_name_h == 'tv_item_mst' else 'HHP'
             excluded_items.append({
-                'category': category,
+                'category': 'TV',
                 'account_name': row[2] or '',
                 'item': row[3] or '',
             })

@@ -191,7 +191,7 @@ function renderRetailCheck(check, checkIdx) {
             '</div>' +
         '</div>';
     } else {
-        var defaultCats = ['TV', 'HHP'];
+        var defaultCats = ['TV'];
         var defaultRets = ['Amazon', 'Bestbuy', 'Walmart'];
         categoriesHtml = '<div class="time-slots-container" id="time-slots-' + checkIdx + '">' +
             timeHeader +
@@ -301,7 +301,6 @@ function openColumnsModal() {
     AppModal.setBody('columns',
         '<div class="columns-modal-tabs">' +
             '<button class="columns-tab active" onclick="switchColumnsTab(\'tv\')">TV</button>' +
-            '<button class="columns-tab" onclick="switchColumnsTab(\'hhp\')">HHP</button>' +
         '</div>' +
         '<div class="columns-table-wrapper"><table class="columns-table" id="columnsTable"><thead id="columnsTableHead"></thead><tbody id="columnsTableBody"></tbody></table></div>'
     );
@@ -402,14 +401,11 @@ async function loadSectionData() {
         var data = await response.json();
         currentStatsData = data;
 
-        // Retail Summary 데이터 로딩 (TV + HHP)
+        // Retail Summary 데이터 로딩 (TV)
         try {
-            var [tvSum, hhpSum] = await Promise.all([
-                fetch('/dx/layer1/retail/api/summary/?type=tv&date=' + selectedDate).then(r => r.json()),
-                fetch('/dx/layer1/retail/api/summary/?type=hhp&date=' + selectedDate).then(r => r.json())
-            ]);
-            currentRetailSummary = { tv: tvSum, hhp: hhpSum };
-            currentNullData = { tv: tvSum.null_columns || [], hhp: hhpSum.null_columns || [] };
+            var tvSum = await fetch('/dx/layer1/retail/api/summary/?type=tv&date=' + selectedDate).then(r => r.json());
+            currentRetailSummary = { tv: tvSum };
+            currentNullData = { tv: tvSum.null_columns || [] };
         } catch (e) {
             currentRetailSummary = null;
             currentNullData = null;
