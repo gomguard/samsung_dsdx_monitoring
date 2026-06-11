@@ -197,7 +197,6 @@ function getStatusBadge(status) {
     var statusMap = {
         'OK': { class: 'ok', text: '정상' },
         'WARNING': { class: 'warning', text: '주의' },
-        'DB_CHECK': { class: 'warning', text: 'DB 직접 확인 후 결과 공유' },
         'CRITICAL': { class: 'critical', text: '심각' },
         'PENDING': { class: 'pending', text: '대기중' },
         'COLLECTING': { class: 'collecting', text: '수집중' },
@@ -208,12 +207,11 @@ function getStatusBadge(status) {
 }
 
 function getStatusClass(status) {
-    if (status === 'DB_CHECK') return 'warning';
     return status ? status.toLowerCase() : 'pending';
 }
 
 function getRetailerStatusClass(status) {
-    var classMap = { 'OK': 'ok', 'WARNING': 'warning', 'DB_CHECK': 'warning', 'CRITICAL': 'critical', 'PENDING': 'pending', 'COLLECTING': 'collecting' };
+    var classMap = { 'OK': 'ok', 'WARNING': 'warning', 'CRITICAL': 'critical', 'PENDING': 'pending', 'COLLECTING': 'collecting' };
     return classMap[status] || 'ok';
 }
 
@@ -291,7 +289,7 @@ function flattenCheckToDetails(sectionType, check) {
                 });
             });
             if (currentNullData) {
-                ['tv', 'ref', 'ldy'].forEach(function(type) {
+                    ['tv'].forEach(function(type) {
                     (currentNullData[type] || []).forEach(function(ret) {
                         ret.time_slots.forEach(function(slot) {
                             var nullCols = slot.null_columns.join(', ');

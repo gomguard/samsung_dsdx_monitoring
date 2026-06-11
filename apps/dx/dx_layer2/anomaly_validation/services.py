@@ -7,13 +7,12 @@ from apps.common.retail_columns import (
     get_editable_columns, get_duplicate_key_columns,
     get_retailer_list, get_retail_duplicate_keys,
 )
-from apps.common.sea_retail import SEA_RETAIL_TABLES
 from apps.dx.dx_layer2.common.context import get_status
 
 
 # table 파라미터 화이트리스트
 VALID_TABLES_ANOMALY = {
-    'tv_retail', 'ref_retail', 'ldy_retail', 'youtube_videos', 'youtube_logs',
+    'tv_retail', 'youtube_videos', 'youtube_logs',
     'market_trend', 'market_product', 'market_event',
 }
 
@@ -23,20 +22,6 @@ _DUP_TABLE_CONFIG = {
         'actual': 'tv_retail_com',
         'dup_keys': 'item, account_name',
         'date_col': 'crawl_datetime',
-        'use_period': True,
-        'retailer_col': 'account_name',
-    },
-    'ref_retail': {
-        'actual': 'ref_retail_com',
-        'dup_keys': 'item, account_name',
-        'date_col': 'crawl_strdatetime',
-        'use_period': True,
-        'retailer_col': 'account_name',
-    },
-    'ldy_retail': {
-        'actual': 'ldy_retail_com',
-        'dup_keys': 'item, account_name',
-        'date_col': 'crawl_strdatetime',
         'use_period': True,
         'retailer_col': 'account_name',
     },
@@ -138,137 +123,6 @@ def _build_dup_delete_query(table, retailer=''):
     return sql, retailer_where
 
 
-def _sea_duplicate_keys(product_line):
-    keys = get_retail_duplicate_keys(product_line)
-    return keys or ['item', 'account_name']
-
-
-def _get_sea_duplicate_detail(cursor, target_date, table, retailer, page, page_size):
-    product_line = table.replace('_retail', '')
-    config = SEA_RETAIL_TABLES[product_line]
-    actual_table = config['table']
-    date_col = config['date_column']
-    offset = (page - 1) * page_size
-    select_cols = {
-        'group': ['item', 'retailer', 'period', 'dup_count', 'reason'],
-        'record': ['id', 'product_url', 'crawl_datetime', 'page_type', 'main_rank', 'bsr_rank'],
-    }
-
-    cursor.execute(f"""
-        SELECT COUNT(*) FROM (
-            SELECT item, account_name,
-                   CASE WHEN EXTRACT(HOUR FROM {date_col}::timestamp) < 12 THEN '오전' ELSE '오후' END as period
-            FROM {actual_table}
-            WHERE DATE({date_col}::timestamp) = %s
-              AND (%s = '' OR account_name = %s)
-            GROUP BY item, account_name, period
-            HAVING COUNT(*) > 1
-        ) sub
-    """, (target_date, retailer, retailer))
-    total_groups = cursor.fetchone()[0]
-
-    cursor.execute(f"""
-        WITH duplicate_groups AS (
-            SELECT item, account_name,
-                   CASE WHEN EXTRACT(HOUR FROM {date_col}::timestamp) < 12 THEN '오전' ELSE '오후' END as period,
-                   COUNT(*) as dup_count
-            FROM {actual_table}
-            WHERE DATE({date_col}::timestamp) = %s
-              AND (%s = '' OR account_name = %s)
-            GROUP BY item, account_name, period
-            HAVING COUNT(*) > 1
-            ORDER BY COUNT(*) DESC, item, period
-            LIMIT %s OFFSET %s
-        )
-        SELECT d.item, d.account_name, d.period, d.dup_count,
-               t.id, t.product_url, t.{date_col}, t.page_type, t.main_rank, t.bsr_rank
-        FROM duplicate_groups d
-        JOIN {actual_table} t ON t.item IS NOT DISTINCT FROM d.item
-            AND t.account_name = d.account_name
-            AND DATE(t.{date_col}::timestamp) = %s
-            AND CASE WHEN EXTRACT(HOUR FROM t.{date_col}::timestamp) < 12 THEN '오전' ELSE '오후' END = d.period
-        ORDER BY d.dup_count DESC, d.item, d.period, t.{date_col}
-    """, (target_date, retailer, retailer, page_size, offset, target_date))
-
-    dup_groups = {}
-    for row in cursor.fetchall():
-        key = (row[0], row[1], row[2])
-        if key not in dup_groups:
-            dup_groups[key] = {
-                'item': row[0],
-                'retailer': row[1],
-                'period': row[2],
-                'dup_count': row[3],
-                'reason': f"동일 item이 {row[2]}에 {row[3]}건 수집됨",
-                'records': [],
-            }
-        dup_groups[key]['records'].append({
-            'id': row[4],
-            'product_url': row[5],
-            'crawl_datetime': str(row[6]) if row[6] else None,
-            'page_type': row[7],
-            'main_rank': row[8],
-            'bsr_rank': row[9],
-        })
-
-    return list(dup_groups.values()), total_groups, select_cols
-
-
-def _get_sea_duplicate_stats_table(cursor, target_date, product_line):
-    config = SEA_RETAIL_TABLES[product_line]
-    table_name = config['table']
-    date_col = config['date_column']
-    dup_keys = _sea_duplicate_keys(product_line)
-
-    cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE DATE({date_col}::timestamp) = %s", (target_date,))
-    total_records = cursor.fetchone()[0] or 0
-
-    dup_dict = get_duplicate_count(
-        cursor,
-        table_name,
-        date_col,
-        dup_keys,
-        target_date,
-        use_period=True,
-        group_by_col='account_name',
-    )
-
-    dup_normal = {}
-    try:
-        cursor.execute("""
-            SELECT retailer, COUNT(*) FROM monitoring_corrections
-            WHERE table_name = %s AND crawl_date = %s
-              AND correction_type = 'duplicate_check' AND status = 'normal'
-            GROUP BY retailer
-        """, (table_name, str(target_date)))
-        for row in cursor.fetchall():
-            dup_normal[row[0]] = row[1]
-    except Exception:
-        pass
-
-    retailers = []
-    total_issues = 0
-    for retailer_name in config['retailers']:
-        dup_count = max(0, dup_dict.get(retailer_name, 0) - dup_normal.get(retailer_name, 0))
-        retailers.append({
-            'retailer': retailer_name,
-            'duplicate_groups': dup_count,
-            'status': get_status(dup_count),
-        })
-        total_issues += dup_count
-
-    return {
-        'table': f'{product_line}_retail',
-        'table_name': f'{product_line.upper()} Retail',
-        'total_records': total_records,
-        'total_issues': total_issues,
-        'duplicate_groups': total_issues,
-        'duplicate_keys': dup_keys,
-        'status': get_status(total_issues),
-        'retailers': retailers,
-    }, total_issues
-
-
 def get_anomaly_detail(cursor, target_date, table, retailer, days, page, page_size):
     """중복 검증 상세 조회 — plain dict 반환"""
     offset = (page - 1) * page_size
@@ -293,12 +147,7 @@ def get_anomaly_detail(cursor, target_date, table, retailer, days, page, page_si
     total_groups = 0
     select_cols = {'group': [], 'record': []}
 
-    if table in ('ref_retail', 'ldy_retail'):
-        duplicates, total_groups, select_cols = _get_sea_duplicate_detail(
-            cursor, target_date, table, retailer, page, page_size
-        )
-
-    elif table == 'tv_retail':
+    if table == 'tv_retail':
         select_cols = {'group': ['item', 'retailer', 'period', 'dup_count', 'reason'], 'record': ['id', 'product_url', 'crawl_datetime', 'page_type', 'main_rank', 'bsr_rank']}
         # 전체 그룹 수
         cursor.execute("""
@@ -717,11 +566,9 @@ def get_anomaly_detail(cursor, target_date, table, retailer, days, page, page_si
     # 수정 가능 컬럼
     editable_cols = []
     actual_table = ''
-    if table in ('tv_retail', 'ref_retail', 'ldy_retail', 'hhp_retail') and retailer:
-        product_line = table.replace('_retail', '')
-        actual_table = SEA_RETAIL_TABLES.get(product_line, {}).get('table') or (
-            'hhp_retail_com' if table == 'hhp_retail' else 'tv_retail_com'
-        )
+    if table in ('tv_retail', 'hhp_retail') and retailer:
+        product_line = 'tv' if table == 'tv_retail' else 'hhp'
+        actual_table = 'tv_retail_com' if table == 'tv_retail' else 'hhp_retail_com'
         editable_cols = get_editable_columns(product_line, retailer)
 
     total_pages = (total_groups + page_size - 1) // page_size if total_groups > 0 else 0
@@ -930,7 +777,7 @@ def get_anomaly_stats(cursor, target_date):
     cursor.execute("""
         SELECT COUNT(*) FROM tv_retail_com
         WHERE DATE(crawl_datetime::timestamp) = %s
-        AND final_sku_price ~ '^\\$[\\d,]+\\.?\\d*$'
+        AND final_sku_price ~ '^\$[\d,]+\.?\d*$'
         AND (
             CAST(REPLACE(REPLACE(final_sku_price, '$', ''), ',', '') AS DECIMAL) < 0
             OR CAST(REPLACE(REPLACE(final_sku_price, '$', ''), ',', '') AS DECIMAL) > 50000
@@ -949,11 +796,6 @@ def get_anomaly_stats(cursor, target_date):
         'retailers': tv_dup_retailers
     })
     total_anomaly_issues += tv_dup_total
-
-    for product_line in ('ref', 'ldy'):
-        sea_dup_table, sea_dup_total = _get_sea_duplicate_stats_table(cursor, target_date, product_line)
-        anomaly_validation['tables'].append(sea_dup_table)
-        total_anomaly_issues += sea_dup_total
 
     # HHP Retail 중복 검증
     hhp_dup_keys = get_retail_duplicate_keys('hhp')

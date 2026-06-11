@@ -48,7 +48,7 @@ function showFormatFieldDetail(fieldName, pushStack = true) {
     const records = data.records || data.results || [];
     const tableParam = modalState.tableParam;
     const date = data.date || getSelectedDate();
-    const isRetail = tableParam === 'tv_retail' || tableParam === 'ref_retail' || tableParam === 'ldy_retail' || tableParam === 'hhp_retail';
+    const isRetail = tableParam === 'tv_retail' || tableParam === 'hhp_retail';
     const currentDays = modalState.days || 1;
 
     var filteredRecords;
@@ -158,15 +158,9 @@ function showFormatFieldDetail(fieldName, pushStack = true) {
                 </div>
             </div>`;
         } else if (!isInlineMode() && items.length > 0) {
-            const tableNameMap = {
-                tv_retail: 'tv_retail_com',
-                ref_retail: 'ref_retail_com',
-                ldy_retail: 'ldy_retail_com',
-                hhp_retail: 'hhp_retail_com'
-            };
-            const tblName = tableNameMap[tableParam] || 'tv_retail_com';
+            const tblName = tableParam === 'tv_retail' ? 'tv_retail_com' : 'hhp_retail_com';
             const retailerName = modalState.retailer || '';
-            const dateCol = tableParam === 'tv_retail' ? 'crawl_datetime' : 'crawl_strdatetime';
+            const dateCol = tableParam === 'hhp_retail' ? 'crawl_strdatetime' : 'crawl_datetime';
             const inClause = items.map(item => `'${item}'`).join(', ');
             const query3Days = `SELECT id, ${dateCol}, account_name, item, ${fieldName}\nFROM ${tblName}\nWHERE account_name = '${retailerName}'\n  AND item IN (${inClause})\n  AND DATE(${dateCol}::timestamp) >= DATE('${date}') - INTERVAL '2 days'\n  AND DATE(${dateCol}::timestamp) <= DATE('${date}')\nORDER BY item, ${dateCol} ASC;`;
             itemQueryHtml += `<div class="item-query-section">

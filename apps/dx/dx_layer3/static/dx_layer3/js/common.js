@@ -176,10 +176,10 @@ async function checkBackupStatus() {
         if (!data.success || data.pending_count === 0) return;
 
         if (!data.has_backup) {
-            const goBackup = await showConfirm(`${date} 미백업 ${data.pending_count}건 (TV: ${data.tv_count || 0}, REF: ${data.ref_count || 0}, LDY: ${data.ldy_count || 0})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
+            const goBackup = await showConfirm(`${date} 미백업 ${data.pending_count}건 (TV: ${data.tv_count}, HHP: ${data.hhp_count})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
             if (goBackup) window.location.href = '/dx/layer1/';
         } else {
-            const goBackup = await showConfirm(`추가 수집 데이터 ${data.pending_count}건 미백업 (TV: ${data.tv_count || 0}, REF: ${data.ref_count || 0}, LDY: ${data.ldy_count || 0})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
+            const goBackup = await showConfirm(`추가 수집 데이터 ${data.pending_count}건 미백업 (TV: ${data.tv_count}, HHP: ${data.hhp_count})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
             if (goBackup) window.location.href = '/dx/layer1/';
         }
     } catch (e) { /* 백업 상태 조회 실패 시 무시 */ }
@@ -192,29 +192,6 @@ const SECTION_CATEGORY_MAP = {
     'cross_field': '크로스 필드 검증',
     'category_spec': '카테고리별 특성'
 };
-
-function isCrossFieldCategory(category) {
-    return category === SECTION_CATEGORY_MAP.cross_field || category === 'Cross Field';
-}
-
-function isCategorySpecCategory(category) {
-    return category === SECTION_CATEGORY_MAP.category_spec || category === 'Category Spec';
-}
-
-function sectionCategoryMatches(section, category, filterCategory) {
-    if (!filterCategory) return true;
-    if (section === 'cross_field') return isCrossFieldCategory(category);
-    if (section === 'category_spec') return isCategorySpecCategory(category);
-    return category === filterCategory;
-}
-
-function inferRetailTypeFromName(checkName) {
-    if (checkName.includes('REF')) return 'ref';
-    if (checkName.includes('LDY')) return 'ldy';
-    if (checkName.includes('TV')) return 'tv';
-    if (checkName.includes('HHP')) return 'hhp';
-    return 'tv';
-}
 
 // 데이터 로드
 async function loadData() {
@@ -325,7 +302,7 @@ function renderData(data) {
     (data.checks || []).forEach(check => {
         const cat = check.category || '기타';
         // 섹션 페이지에서는 해당 카테고리만 표시
-        if (!sectionCategoryMatches(section, cat, filterCategory)) return;
+        if (filterCategory && cat !== filterCategory) return;
         if (!categories[cat]) {
             categories[cat] = [];
         }
@@ -336,9 +313,7 @@ function renderData(data) {
     const categoryConfig = {
         '시계열 이상치': { icon: '📈', class: 'time-series' },
         '크로스 필드 검증': { icon: '🔗', class: 'cross-field' },
-        '카테고리별 특성': { icon: '📊', class: 'category-spec' },
-        'Cross Field': { icon: '🔗', class: 'cross-field' },
-        'Category Spec': { icon: '📊', class: 'category-spec' }
+        '카테고리별 특성': { icon: '📊', class: 'category-spec' }
     };
 
     // 검증 규칙이 있는 체크 항목들 (크로스 필드 검증 항목)
@@ -391,7 +366,7 @@ function renderData(data) {
         checks.forEach((check, checkIdx) => {
             const status = (check.status || 'OK').toLowerCase();
             // 카테고리별 특성은 모두 검증 규칙 버튼 표시, 크로스 필드는 특정 항목만
-            const hasRules = isCategorySpecCategory(categoryName) || crossfieldChecksWithRules.includes(check.name) || check.name.includes('logical consistency');
+            const hasRules = categoryName === '카테고리별 특성' || crossfieldChecksWithRules.includes(check.name);
             const rulesBtn = hasRules ? `<button class="btn-rules" onclick="event.stopPropagation(); showRulesModal('${escJs(check.name)}')">검증 규칙</button>` : '';
 
             html += `
@@ -495,17 +470,17 @@ async function showDetail(category, checkName, detailCode) {
             else if (checkName.includes('TV') && checkName.includes('중앙값')) code = 'tv_price_median';
             if (code) apiUrl = `/layer3/api/time-series-detail/?date=${date}&detail_code=${code}`;
         }
-    } else if (isCrossFieldCategory(category)) {
+    } else if (category === '크로스 필드 검증') {
         if (checkName.includes('Sentiment')) {
             // Sentiment↔리뷰 일관성 검증
-            const type = inferRetailTypeFromName(checkName);
+            const type = checkName.includes('TV') ? 'tv' : 'hhp';
             apiUrl = `/layer3/api/sentiment-cross-detail/?date=${date}&type=${type}`;
         } else if (checkName.includes('Comp Product')) {
             // Comp Product 자사/경쟁사 구분
             apiUrl = `/layer3/api/comp-product-cross-detail/?date=${date}`;
         } else {
             // TV/HHP 논리적 일관성
-            const type = inferRetailTypeFromName(checkName);
+            const type = checkName.includes('TV') ? 'tv' : 'hhp';
             apiUrl = `/layer3/api/cross-field-detail/?date=${date}&type=${type}`;
         }
 
@@ -526,7 +501,7 @@ async function showDetail(category, checkName, detailCode) {
             }
             return;
         }
-    } else if (isCategorySpecCategory(category)) {
+    } else if (category === '카테고리별 특성') {
         // display_name을 그대로 전달하여 동적 처리
         apiUrl = `/layer3/api/category-spec-detail/?date=${date}&display_name=${encodeURIComponent(checkName)}&mode=summary`;
 
@@ -1008,7 +983,7 @@ async function showRulesModal(checkName) {
 
     // 크로스필드 규칙 체크 (Sentiment, 논리적 일관성)
     const crossfieldChecks = ['TV 논리적 일관성', 'HHP 논리적 일관성', 'TV Sentiment↔리뷰 일관성', 'HHP Sentiment↔리뷰 일관성'];
-    const isCrossfield = crossfieldChecks.includes(checkName) || checkName.includes('logical consistency');
+    const isCrossfield = crossfieldChecks.includes(checkName);
 
     // checkName에서 category 추출
     let category = 'all';
@@ -1020,10 +995,6 @@ async function showRulesModal(checkName) {
             category = 'tv_sentiment';
         } else if (checkName.includes('HHP') && checkName.includes('Sentiment')) {
             category = 'hhp_sentiment';
-        } else if (checkName.includes('REF')) {
-            category = 'ref_retail';
-        } else if (checkName.includes('LDY')) {
-            category = 'ldy_retail';
         } else if (checkName.includes('TV')) {
             category = 'tv_retail';
         } else if (checkName.includes('HHP')) {

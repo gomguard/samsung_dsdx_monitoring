@@ -1,15 +1,4 @@
 // 크로스필드 검증 유형 목록으로 돌아가기
-function getCrossfieldRetailConfig(productLine) {
-    const key = String(productLine || 'tv').toLowerCase();
-    const configs = {
-        tv: { tableName: 'tv_retail_com', dateCol: 'crawl_datetime' },
-        ref: { tableName: 'ref_retail_com', dateCol: 'crawl_strdatetime' },
-        ldy: { tableName: 'ldy_retail_com', dateCol: 'crawl_strdatetime' },
-        hhp: { tableName: 'hhp_retail_com', dateCol: 'crawl_strdatetime' }
-    };
-    return configs[key] || configs.tv;
-}
-
 function backToCrossfieldSummary() {
     if (isCrossFieldInline()) {
         ViewStack.pop();
@@ -34,9 +23,8 @@ function showRetailerDetail(retailer) {
 
     const productLine = window.crossfieldProductLine || 'HHP';
     const date = window.crossfieldDate || new Date().toISOString().slice(0, 10);
-    const retailConfig = getCrossfieldRetailConfig(productLine);
-    const tableName = retailConfig.tableName;
-    const dateCol = retailConfig.dateCol;
+    const tableName = productLine.toUpperCase() === 'HHP' ? 'hhp_retail_com' : 'tv_retail_com';
+    const dateCol = productLine.toUpperCase() === 'HHP' ? 'crawl_strdatetime' : 'crawl_datetime';
     const productLineDisplay = productLine.toUpperCase();
     const ruleNameDisplay = window.crossfieldRuleName || '';
     const titleText = `${ruleNameDisplay} (${rSummary.count || 0}건)`;
@@ -570,7 +558,7 @@ async function reloadCfDays() {
                     r['product_url'] = renderProductUrl(row[urlKey]);
                 }
                 r._rowId = row.id;
-                var dateCol = getCrossfieldRetailConfig(window.crossfieldProductLine || 'tv').dateCol;
+                var dateCol = (window.crossfieldProductLine || 'tv').toUpperCase() === 'HHP' ? 'crawl_strdatetime' : 'crawl_datetime';
                 r._rowDate = (row[dateCol] || '').substring(0, 10);
                 return r;
             });

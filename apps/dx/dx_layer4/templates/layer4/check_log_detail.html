@@ -305,17 +305,6 @@ var SECTION_NAMES = {
 var _currentSection = null;  // loadDetail에서 저장
 var _currentStep = 2;  // 현재 보고 있는 step (1차/2차)
 var _stepInitialized = false;
-
-function statusLabel(status) {
-    if (status === 'DB_CHECK') return 'DB 직접 확인 후 결과 공유';
-    return status || '-';
-}
-
-function statusBadgeClass(status) {
-    if (status === 'OK') return 'badge-ok';
-    if (status === 'WARNING' || status === 'DB_CHECK') return 'badge-warning';
-    return 'badge-critical';
-}
 var _step1NoIssueKeys = null;  // 1차에서 이슈 미등록한 행 키 Set
 
 function _buildStep1NoIssueKeys() {
@@ -449,8 +438,8 @@ function renderSummary(sec) {
     rateEl.style.color = sec.rate >= 100 ? 'var(--color-ok)' : (sec.rate >= 90 ? '#d97706' : 'var(--color-critical)');
 
     var statusEl = document.getElementById('statusValue');
-    statusEl.textContent = statusLabel(sec.status);
-    statusEl.style.color = sec.status === 'OK' ? 'var(--color-ok)' : ((sec.status === 'WARNING' || sec.status === 'DB_CHECK') ? '#d97706' : 'var(--color-critical)');
+    statusEl.textContent = sec.status || '-';
+    statusEl.style.color = sec.status === 'OK' ? 'var(--color-ok)' : (sec.status === 'WARNING' ? '#d97706' : 'var(--color-critical)');
 
     var infoHtml = '';
     if (sec.created_id) {
@@ -541,8 +530,8 @@ function renderDetailTable(details) {
                 var rs = rowspans[idx][col.key] > 1 ? ' rowspan="' + rowspans[idx][col.key] + '"' : '';
                 html += '<td' + rs + ' style="' + cs + 'vertical-align:middle;">' + clEscapeHtml(val || '-') + '</td>';
             } else if (col.key === 'status') {
-                var cls = statusBadgeClass(val);
-                html += '<td style="' + cs + '"><span class="badge ' + cls + '">' + clEscapeHtml(statusLabel(val)) + '</span></td>';
+                var cls = val === 'OK' ? 'badge-ok' : (val === 'WARNING' ? 'badge-warning' : 'badge-critical');
+                html += '<td style="' + cs + '"><span class="badge ' + cls + '">' + clEscapeHtml(val || '-') + '</span></td>';
             } else if (col.key === 'rate') {
                 html += '<td style="' + cs + '">' + (val || 0) + '%</td>';
             } else if (col.numeric) {

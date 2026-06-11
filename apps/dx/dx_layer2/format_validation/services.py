@@ -2,8 +2,7 @@
 형식 검증 서비스 — 순수 비즈니스 로직 (DB 커넥션/HTTP 무관)
 """
 
-import re
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from apps.common.retail_columns import (
     validate_field,
@@ -12,60 +11,21 @@ from apps.common.retail_columns import (
     get_editable_columns,
 )
 from apps.common.db import dx_table
-from apps.common.sea_retail import SEA_RETAIL_TABLES
 from apps.dx.dx_layer2.common.context import get_status
 
 
 # table 파라미터 화이트리스트
 VALID_TABLES_FORMAT = {
     'tv_retail',
-    'ref_retail', 'ldy_retail',
     'youtube_logs', 'youtube_videos', 'youtube_comments', 'youtube',
     'market',
 }
 VALID_TABLES_RULES = {
     'tv_retail_com',
-    'ref_retail_com', 'ldy_retail_com',
     'youtube_collection_logs', 'youtube_videos', 'youtube_comments',
     'market_trend', 'market_comp_product', 'market_comp_event',
     'openai_forecast_results',
 }
-
-SEA_FORMAT_FIELDS = [
-    'account_name',
-    'product',
-    'page_type',
-    'product_url',
-    'star_rating',
-    'count_of_reviews',
-    'count_of_star_ratings',
-    'final_sku_price',
-    'original_sku_price',
-    'savings',
-    'main_rank',
-    'bsr_rank',
-    'calendar_week',
-    'crawl_strdatetime',
-    'number_of_units_purchased_past_week',
-]
-
-SEA_DETAIL_FIELDS = [
-    'item',
-    'account_name',
-    'product',
-    'page_type',
-    'product_url',
-    'main_rank',
-    'bsr_rank',
-    'count_of_reviews',
-    'star_rating',
-    'count_of_star_ratings',
-    'final_sku_price',
-    'original_sku_price',
-    'savings',
-    'calendar_week',
-    'number_of_units_purchased_past_week',
-]
 
 
 # ── thin wrappers ──────────────────────────────────────────
@@ -78,251 +38,6 @@ def validate_tv_field(field_name, value, account_name='Amazon'):
 def validate_hhp_field(field_name, value, account_name='Amazon'):
     """HHP Retail 필드별 형식 검증. 오류 시 메시지 반환, 정상이면 None"""
     return validate_field('hhp_retail_com', field_name, value, account_name, product_line='HHP')
-
-
-def _format_error(field_name, reason):
-    return f'{field_name}: {reason}'
-
-
-def _is_blank(value):
-    return value is None or str(value).strip() == ''
-
-
-def _is_integer_like(value):
-    return re.fullmatch(r'\d{1,3}(,\d{3})*|\d+', str(value).strip()) is not None
-
-
-def _is_price_like(value):
-    val = str(value).strip()
-    return re.fullmatch(r'\$?\s*\d{1,3}(,\d{3})*(\.\d+)?|\$?\s*\d+(\.\d+)?', val) is not None
-
-
-def _is_savings_like(value):
-    val = str(value).strip()
-    return bool(re.search(r'\d', val)) and re.fullmatch(r'[A-Za-z0-9\s$%,.\-+]+', val) is not None
-
-
-def _is_datetime_like(value):
-    val = str(value).strip().replace('T', ' ')
-    try:
-        datetime.fromisoformat(val)
-        return True
-    except ValueError:
-        return False
-
-
-def validate_sea_retail_field(product_line, field_name, value, account_name=None):
-    """REF/LDY Retail format validation using DB rules first, then baseline rules."""
-    config = SEA_RETAIL_TABLES.get(product_line)
-    if not config or _is_blank(value):
-        return None
-
-    table_name = config['table']
-    product_key = product_line.upper()
-    db_error = validate_field(table_name, field_name, value, account_name or 'ALL', product_line=product_key)
-    if db_error:
-        return db_error
-
-    val = str(value).strip()
-
-    if field_name == 'account_name':
-        if val not in config['retailers']:
-            return _format_error(field_name, f"allowed: {', '.join(config['retailers'])}")
-    elif field_name == 'product':
-        if val.upper() != product_key:
-            return _format_error(field_name, f'allowed: {product_key}')
-    elif field_name == 'page_type':
-        if val not in ('main', 'bsr'):
-            return _format_error(field_name, 'allowed: main, bsr')
-    elif field_name == 'product_url':
-        if not re.match(r'^https?://', val):
-            return _format_error(field_name, 'URL must start with http:// or https://')
-    elif field_name == 'star_rating':
-        if account_name == 'Bestbuy' and val == 'Not yet reviewed':
-            return None
-        rating_match = re.search(r'\d+(\.\d+)?', val)
-        try:
-            rating = float(rating_match.group(0)) if rating_match else float(val)
-            if rating < 0 or rating > 5:
-                return _format_error(field_name, '0~5 range')
-        except (ValueError, AttributeError):
-            return _format_error(field_name, 'numeric')
-    elif field_name in ('count_of_reviews', 'count_of_star_ratings', 'main_rank', 'bsr_rank'):
-        if not _is_integer_like(val):
-            return _format_error(field_name, 'integer')
-    elif field_name in ('final_sku_price', 'original_sku_price'):
-        if not _is_price_like(val):
-            return _format_error(field_name, 'price format')
-    elif field_name == 'savings':
-        if not _is_savings_like(val):
-            return _format_error(field_name, 'savings format')
-    elif field_name == 'calendar_week':
-        if not re.search(r'\d', val) or len(val) > 20:
-            return _format_error(field_name, 'calendar week format')
-    elif field_name == 'crawl_strdatetime':
-        if not _is_datetime_like(val):
-            return _format_error(field_name, 'datetime format')
-    elif field_name == 'number_of_units_purchased_past_week':
-        if account_name == 'Lowes' and not re.search(r'\bbought last week$', val, re.IGNORECASE):
-            return _format_error(field_name, 'must end with bought last week')
-
-    return None
-
-
-def _split_error(error):
-    if ':' in error:
-        rule, reason = error.split(':', 1)
-        return rule, reason.strip()
-    return error, error
-
-
-def _build_sea_retail_record(product_line, row, fields):
-    record_id = row[0]
-    crawl_dt = row[1]
-    values = list(row[2:])
-    record = {
-        'id': record_id,
-        'crawl_datetime': str(crawl_dt) if crawl_dt else None,
-        'crawl_strdatetime': str(crawl_dt) if crawl_dt else None,
-    }
-    for field, value in zip(fields, values):
-        record[field] = str(value) if value is not None else None
-
-    account_name = record.get('account_name')
-    error_fields = []
-    error_details = {}
-    validation_values = dict(record)
-    validation_values['crawl_strdatetime'] = record.get('crawl_strdatetime')
-
-    for field in SEA_FORMAT_FIELDS:
-        error = validate_sea_retail_field(product_line, field, validation_values.get(field), account_name)
-        if error:
-            rule, reason = _split_error(error)
-            error_fields.append(field)
-            error_details[field] = {'rule': rule, 'reason': reason}
-
-    record['error_fields'] = error_fields
-    record['error_details'] = error_details
-    return record
-
-
-def _get_sea_retail_format_detail(cursor, target_date, table, retailer, days):
-    product_line = table.replace('_retail', '')
-    config = SEA_RETAIL_TABLES[product_line]
-    db_table = config['table']
-    date_col = config['date_column']
-    fields = SEA_DETAIL_FIELDS
-    column_names = ['id', 'crawl_datetime', 'crawl_strdatetime'] + fields
-
-    next_date = target_date + timedelta(days=1)
-    params = [str(target_date), str(next_date)]
-    retailer_filter = ''
-    if retailer:
-        retailer_filter = ' AND account_name = %s'
-        params.append(retailer)
-
-    cursor.execute(f"""
-        SELECT id, {date_col}, {', '.join(fields)}
-        FROM {db_table}
-        WHERE {date_col}::timestamp >= %s AND {date_col}::timestamp < %s
-        {retailer_filter}
-        ORDER BY account_name, {date_col}
-    """, params)
-
-    results = []
-    for row in cursor.fetchall():
-        record = _build_sea_retail_record(product_line, row, fields)
-        if record['error_fields']:
-            results.append(record)
-
-    if days > 1 and results:
-        error_items = sorted({r['item'] for r in results if r.get('item')})
-        if error_items:
-            start_date = target_date - timedelta(days=days - 1)
-            placeholders = ', '.join(['%s'] * len(error_items))
-            params = [str(start_date), str(next_date)]
-            retailer_filter = ''
-            if retailer:
-                retailer_filter = ' AND account_name = %s'
-                params.append(retailer)
-            params.extend(error_items)
-            cursor.execute(f"""
-                SELECT id, {date_col}, {', '.join(fields)}
-                FROM {db_table}
-                WHERE {date_col}::timestamp >= %s AND {date_col}::timestamp < %s
-                {retailer_filter}
-                  AND item IN ({placeholders})
-                ORDER BY item, {date_col}
-            """, params)
-            results = [_build_sea_retail_record(product_line, row, fields) for row in cursor.fetchall()]
-
-    return results, column_names
-
-
-def _get_sea_retail_format_stats_table(cursor, target_date, product_line):
-    config = SEA_RETAIL_TABLES[product_line]
-    db_table = config['table']
-    date_col = config['date_column']
-    table_key = f'{product_line}_retail'
-    table_name = f'{product_line.upper()} Retail'
-
-    errors_sample = []
-    issue_by_retailer = {retailer: 0 for retailer in config['retailers']}
-    total_by_retailer = {retailer: 0 for retailer in config['retailers']}
-    rows_count = 0
-
-    cursor.execute(f"""
-        SELECT id, {date_col}, {', '.join(SEA_DETAIL_FIELDS)}
-        FROM {db_table}
-        WHERE DATE({date_col}::timestamp) = %s
-        ORDER BY account_name, id
-    """, (target_date,))
-
-    for row in cursor.fetchall():
-        rows_count += 1
-        record = _build_sea_retail_record(product_line, row, SEA_DETAIL_FIELDS)
-        account_name = record.get('account_name') or 'Unknown'
-        total_by_retailer[account_name] = total_by_retailer.get(account_name, 0) + 1
-        errors = []
-        for field in record.get('error_fields', []):
-            detail = record.get('error_details', {}).get(field, {})
-            errors.append({
-                'field': field,
-                'value': str(record.get(field) or '')[:30],
-                'error': detail.get('reason') or detail.get('rule') or field,
-            })
-
-        if errors:
-            if len(errors_sample) < 30:
-                errors_sample.append({
-                    'id': record.get('id'),
-                    'account_name': account_name,
-                    'item': record.get('item'),
-                    'errors': errors[:5],
-                })
-            issue_by_retailer[account_name] = issue_by_retailer.get(account_name, 0) + len(errors)
-
-    retailers = []
-    issue_total = 0
-    for retailer in config['retailers']:
-        count = issue_by_retailer.get(retailer, 0)
-        retailers.append({
-            'retailer': retailer,
-            'total': total_by_retailer.get(retailer, 0),
-            'issue_count': count,
-            'status': get_status(count),
-        })
-        issue_total += count
-
-    return {
-        'table': table_key,
-        'table_name': table_name,
-        'total_checked': rows_count,
-        'total_issues': issue_total,
-        'status': get_status(issue_total),
-        'retailers': retailers,
-        'sample_errors': errors_sample,
-    }, issue_total
 
 
 # ── 형식 오류 상세 조회 ───────────────────────────────────
@@ -349,10 +64,7 @@ def get_format_detail(cursor, target_date, table, retailer, days):
         }
 
     # TV Retail 형식 오류 상세 조회 - SQL 조건으로 오류 행 직접 필터링
-    if table in ('ref_retail', 'ldy_retail'):
-        results, column_names = _get_sea_retail_format_detail(cursor, target_date, table, retailer, days)
-
-    elif table == 'tv_retail':
+    if table == 'tv_retail':
         select_cols = ['id', 'item', 'crawl_datetime', 'product_url']
         all_fields = [
             'item', 'page_type', 'product_url', 'main_rank', 'bsr_rank',
@@ -789,11 +501,9 @@ def get_format_detail(cursor, target_date, table, retailer, days):
     # 수정 가능 컬럼 + actual_table 설정
     editable_cols = []
     actual_table = ''
-    if table in ('tv_retail', 'ref_retail', 'ldy_retail', 'hhp_retail') and retailer:
-        product_line = table.replace('_retail', '')
-        actual_table = SEA_RETAIL_TABLES.get(product_line, {}).get('table') or (
-            'hhp_retail_com' if table == 'hhp_retail' else 'tv_retail_com'
-        )
+    if table in ('tv_retail', 'hhp_retail') and retailer:
+        product_line = 'tv' if table == 'tv_retail' else 'hhp'
+        actual_table = 'tv_retail_com' if table == 'tv_retail' else 'hhp_retail_com'
         editable_cols = get_editable_columns(product_line, retailer)
     elif table in ('youtube_logs',) or (table == 'youtube' and retailer == 'Logs'):
         actual_table = 'youtube_collection_logs'
@@ -878,35 +588,6 @@ def _get_description_for_type(rule_type, rule_value, allowed):
     return '형식 검증'
 
 
-def _sea_baseline_format_rules(table_name, retailer):
-    product_line = None
-    for key, config in SEA_RETAIL_TABLES.items():
-        if config['table'] == table_name:
-            product_line = key
-            break
-    if product_line not in ('ref', 'ldy'):
-        return []
-
-    config = SEA_RETAIL_TABLES[product_line]
-    return [
-        {'field': 'account_name', 'description': 'retailer enum', 'pattern': ' | '.join(config['retailers'])},
-        {'field': 'product', 'description': 'product enum', 'pattern': product_line.upper()},
-        {'field': 'page_type', 'description': 'page type enum', 'pattern': 'main | bsr'},
-        {'field': 'product_url', 'description': 'URL format', 'pattern': 'http://... | https://...'},
-        {'field': 'star_rating', 'description': 'numeric range', 'pattern': '0 ~ 5'},
-        {'field': 'count_of_reviews', 'description': 'integer', 'pattern': '0 or greater'},
-        {'field': 'count_of_star_ratings', 'description': 'integer', 'pattern': '0 or greater'},
-        {'field': 'final_sku_price', 'description': 'price format', 'pattern': '$1,234.56'},
-        {'field': 'original_sku_price', 'description': 'price format', 'pattern': '$1,234.56'},
-        {'field': 'savings', 'description': 'savings amount/rate text', 'pattern': 'contains numeric amount or rate'},
-        {'field': 'main_rank', 'description': 'integer', 'pattern': '0 or greater'},
-        {'field': 'bsr_rank', 'description': 'integer', 'pattern': '0 or greater'},
-        {'field': 'calendar_week', 'description': 'calendar week format', 'pattern': 'contains week number'},
-        {'field': 'crawl_strdatetime', 'description': 'datetime format', 'pattern': 'YYYY-MM-DD HH:MM:SS'},
-        {'field': 'number_of_units_purchased_past_week', 'description': 'Lowes purchase badge text', 'pattern': '* bought last week'},
-    ]
-
-
 def get_format_rules(cursor, table_name, retailer):
     """
     형식검증 규칙 조회.
@@ -989,11 +670,6 @@ def get_format_rules(cursor, table_name, retailer):
             })
 
     # 필드명 알파벳순 정렬
-    existing_fields = {rule['field'] for rule in result}
-    for rule in _sea_baseline_format_rules(table_name, retailer):
-        if rule['field'] not in existing_fields:
-            result.append(rule)
-
     result.sort(key=lambda x: x['field'])
 
     return {'rules': result}
@@ -1227,11 +903,6 @@ def get_format_stats(cursor, target_date):
         'sample_errors': tv_format_errors
     })
     total_format_issues += tv_format_issue_total
-
-    for product_line in ('ref', 'ldy'):
-        sea_table_stats, sea_issue_total = _get_sea_retail_format_stats_table(cursor, target_date, product_line)
-        format_validation['tables'].append(sea_table_stats)
-        total_format_issues += sea_issue_total
 
     # hhp_item_mst
     hhp_valid_items = set()

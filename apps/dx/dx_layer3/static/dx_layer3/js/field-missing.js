@@ -12,43 +12,11 @@ function toggleFieldMissing() {
 }
 
 // 현재 선택된 제품군 (TV/HHP)
-const FIELD_MISSING_PRODUCTS = {
-    tv: { label: 'TV', retailers: ['Amazon', 'Bestbuy', 'Walmart'] },
-    ref: { label: 'REF', retailers: ['Bestbuy', 'Lowes'] },
-    ldy: { label: 'LDY', retailers: ['Bestbuy', 'Lowes'] }
-};
-
-function getFieldMissingProductConfig(pl) {
-    return FIELD_MISSING_PRODUCTS[pl] || FIELD_MISSING_PRODUCTS.tv;
-}
-
-function getFieldMissingRetailers(pl) {
-    return getFieldMissingProductConfig(pl).retailers;
-}
-
-function renderFieldMissingRetailerCards(pl) {
-    const container = document.getElementById('field-missing-retailers');
-    if (!container) return;
-    const product = getFieldMissingProductConfig(pl);
-    container.innerHTML = product.retailers.map(retailer => `
-        <div class="field-missing-retailer-card" data-retailer="${retailer}">
-            <div class="retailer-card-header">
-                <span class="retailer-name" id="retailer-name-${retailer}">${product.label}_${retailer}</span>
-                <span class="retailer-badge" id="badge-${pl}-${retailer}">-</span>
-            </div>
-            <div class="retailer-card-actions">
-                <button class="btn-view-summary" onclick="viewMissingSummary('${retailer}')">누락분 보기</button>
-                <button class="btn-view-3days" onclick="view3DaysData('${retailer}')">3일치 보기</button>
-            </div>
-        </div>
-    `).join('');
-}
-
 let currentFieldMissingPL = 'tv';
 
 // 탭 전환
 function switchFieldMissingTab(pl) {
-    if (!FIELD_MISSING_PRODUCTS[pl]) {
+    if (pl !== 'tv') {
         pl = 'tv';
     }
     currentFieldMissingPL = pl;
@@ -62,8 +30,7 @@ function switchFieldMissingTab(pl) {
     });
 
     // 배지 ID 업데이트 및 리테일러 이름 업데이트
-    renderFieldMissingRetailerCards(pl);
-    const retailers = getFieldMissingRetailers(pl);
+    const retailers = ['Amazon', 'Bestbuy', 'Walmart'];
     const plLabel = pl.toUpperCase();
     retailers.forEach(retailer => {
         const badgeEl = document.querySelector(`[data-retailer="${retailer}"] .retailer-badge`);
@@ -84,7 +51,7 @@ let retailerMissingCache = {};
 // 모든 리테일러 데이터 로드
 async function loadAllRetailersMissing() {
     const date = getSelectedDate();
-    const retailers = getFieldMissingRetailers(currentFieldMissingPL);
+    const retailers = ['Amazon', 'Bestbuy', 'Walmart'];
     let totalMissing = 0;
     let totalFields = 0;
 
@@ -1022,7 +989,6 @@ function setupInfiniteScroll() {
 
 // 페이지 로드 시 필드 누락 데이터 로드
 document.addEventListener('DOMContentLoaded', function() {
-    renderFieldMissingRetailerCards(currentFieldMissingPL);
     setTimeout(loadAllRetailersMissing, 500);
 });
 

@@ -4,13 +4,10 @@ Layer3 셀 수정 / 정상 처리 서비스 — 순수 비즈니스 로직
 
 from datetime import datetime
 from apps.common.retail_columns import get_editable_columns
-from apps.dx.dx_layer3.dashboard.services import get_product_line_for_table
 
 
 VALID_TABLES_UPDATE = {
     'tv_retail_com',
-    'ref_retail_com',
-    'ldy_retail_com',
     'youtube_collection_logs', 'youtube_videos', 'youtube_comments',
     'market_trend', 'market_comp_product', 'market_comp_event', 'openai_forecast_results',
 }
@@ -19,7 +16,7 @@ VALID_TABLES_UPDATE = {
 def update_cell_value(cursor, conn, table_name, row_id, column_name, new_value,
                       crawl_date, correction_type, username, memo, rule_id=None):
     """셀 값 수정"""
-    product_line = get_product_line_for_table(table_name)
+    product_line = 'tv' if table_name == 'tv_retail_com' else 'hhp'
 
     cursor.execute(
         f"SELECT {column_name}, account_name, item FROM {table_name} WHERE id = %s",

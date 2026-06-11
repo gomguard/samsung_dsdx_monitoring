@@ -1,5 +1,5 @@
 """
-Layer 3 dashboard API - overall validation statistics.
+Layer 3 대시보드 API — 전체 통계 오케스트레이터
 """
 
 from datetime import datetime, timedelta
@@ -13,13 +13,11 @@ from .services import (
     validate_crossfield,
     get_crossfield_normal_counts,
     get_status,
-    get_retail_table_name,
-    get_retail_date_column,
 )
 
 
 def layer_stats(request):
-    """Layer 3 stats API."""
+    """Layer 3 통계 API - 이상치 탐지 및 크로스 필드 검증"""
     date_str = request.GET.get('date')
     product_line = request.GET.get('type', 'all')
     section = request.GET.get('section', '')
@@ -37,7 +35,7 @@ def layer_stats(request):
         'timestamp': datetime.now().isoformat(),
         'date': str(target_date),
         'layer': 3,
-        'name': 'Outlier & Anomaly Detection',
+        'name': '이상치/특수 케이스 검수',
         'product_line': product_line.upper(),
         'checks': [],
         'summary': {
@@ -123,7 +121,7 @@ def layer_stats(request):
                             threshold_str = '-'
 
                         results['checks'].append({
-                            'category': 'Time Series',
+                            'category': '시계열 이상치',
                             'name': rule['detail_name'],
                             'detail_code': rule['detail_code'],
                             'description': rule['error_message'],
@@ -190,7 +188,7 @@ def layer_stats(request):
                         threshold_str = '-'
 
                     results['checks'].append({
-                        'category': 'Time Series',
+                        'category': '시계열 이상치',
                         'name': rule['detail_name'],
                         'detail_code': rule['detail_code'],
                         'description': rule['error_message'],
@@ -244,60 +242,14 @@ def layer_stats(request):
                 total_anomalies += tv_cross_errors
 
                 results['checks'].append({
-                    'category': 'Cross Field',
-                    'name': 'TV logical consistency',
-                    'description': 'star rating/count, page type/rank, price, review detail consistency',
+                    'category': '크로스 필드 검증',
+                    'name': 'TV 논리적 일관성',
+                    'description': 'star_rating↔count, page_type↔rank, 가격, count_of_reviews↔detail_review_content 검증',
                     'checked': tv_cross_total,
                     'passed': tv_cross_total - tv_cross_errors,
                     'failed': tv_cross_errors,
                     'status': get_status(tv_cross_errors, tv_cross_total)
                 })
-
-            if run_crossfield:
-                for retail_product in ['ref', 'ldy']:
-                    if product_line not in [retail_product, 'all']:
-                        continue
-
-                    table_name = get_retail_table_name(retail_product)
-                    date_column = get_retail_date_column(retail_product)
-                    if not table_name or not date_column:
-                        continue
-
-                    retail_total = table_totals.get(table_name, 0)
-                    if retail_total == 0:
-                        try:
-                            cursor.execute(f"""
-                                SELECT COUNT(*) FROM {table_name}
-                                WHERE DATE({date_column}::timestamp) = %s
-                            """, (target_date,))
-                            retail_total = cursor.fetchone()[0] or 0
-                            table_totals[table_name] = retail_total
-                        except Exception as e:
-                            log_error(e)
-
-                    try:
-                        crossfield_result = validate_crossfield(target_date, f'{retail_product}_retail')
-                        if not crossfield_result.get('rule_results'):
-                            continue
-                        cross_errors = crossfield_result['total_errors']
-                        normal_counts = get_crossfield_normal_counts(target_date, table_name)
-                        cross_errors = max(0, cross_errors - sum(normal_counts.values()))
-                    except Exception as e:
-                        log_error(e)
-                        cross_errors = 0
-
-                    total_checked += retail_total
-                    total_anomalies += cross_errors
-
-                    results['checks'].append({
-                        'category': 'Cross Field',
-                        'name': f'{retail_product.upper()} logical consistency',
-                        'description': 'REF/LDY Retail cross-field rule validation',
-                        'checked': retail_total,
-                        'passed': retail_total - cross_errors,
-                        'failed': cross_errors,
-                        'status': get_status(cross_errors, retail_total)
-                    })
 
             if False and run_crossfield and product_line in ['hhp', 'all']:
                 hhp_cross_total = hhp_total
@@ -314,9 +266,9 @@ def layer_stats(request):
                 total_anomalies += hhp_cross_errors
 
                 results['checks'].append({
-                    'category': 'Cross Field',
-                    'name': 'HHP logical consistency',
-                    'description': 'star rating/count, page type/rank, price, review detail consistency',
+                    'category': '크로스 필드 검증',
+                    'name': 'HHP 논리적 일관성',
+                    'description': 'star_rating↔count, page_type↔rank, 가격, count_of_reviews↔detail_review_content 검증',
                     'checked': hhp_cross_total,
                     'passed': hhp_cross_total - hhp_cross_errors,
                     'failed': hhp_cross_errors,
@@ -361,9 +313,9 @@ def layer_stats(request):
                 total_anomalies += tv_sentiment_cross_anomaly
 
                 results['checks'].append({
-                    'category': 'Cross Field',
-                    'name': 'TV Sentiment-review consistency',
-                    'description': 'sentiment score exists but the original review count is NULL/empty/0/no review',
+                    'category': '크로스 필드 검증',
+                    'name': 'TV Sentiment↔리뷰 일관성',
+                    'description': 'sentiment 점수가 있는데 원본 리뷰 수가 NULL/빈값/0/리뷰없음',
                     'checked': tv_sentiment_cross_total,
                     'passed': tv_sentiment_cross_total - tv_sentiment_cross_anomaly,
                     'failed': tv_sentiment_cross_anomaly,
@@ -408,9 +360,9 @@ def layer_stats(request):
                 total_anomalies += hhp_sentiment_cross_anomaly
 
                 results['checks'].append({
-                    'category': 'Cross Field',
-                    'name': 'HHP Sentiment-review consistency',
-                    'description': 'sentiment score exists but the original review count is NULL/empty/0/no review',
+                    'category': '크로스 필드 검증',
+                    'name': 'HHP Sentiment↔리뷰 일관성',
+                    'description': 'sentiment 점수가 있는데 원본 리뷰 수가 NULL/빈값/0/리뷰없음',
                     'checked': hhp_sentiment_cross_total,
                     'passed': hhp_sentiment_cross_total - hhp_sentiment_cross_anomaly,
                     'failed': hhp_sentiment_cross_anomaly,
@@ -422,8 +374,6 @@ def layer_stats(request):
                     category_spec_results = validate_all_category_specs(target_date)
                     for cat_result in category_spec_results:
                         sec_code = cat_result.get('section_code', '').lower()
-                        if product_line in ['tv', 'ref', 'ldy'] and sec_code != f'{product_line}_retail':
-                            continue
                         if product_line == 'tv' and 'hhp' in sec_code:
                             continue
                         if product_line == 'hhp' and 'tv' in sec_code and 'hhp' not in sec_code:
@@ -438,7 +388,7 @@ def layer_stats(request):
                         total_anomalies += cat_anomaly
 
                         results['checks'].append({
-                            'category': 'Category Spec',
+                            'category': '카테고리별 특성',
                             'name': cat_result.get('section_name', sec_code),
                             'description': cat_result.get('description', ''),
                             'checked': cat_total,
@@ -493,9 +443,9 @@ def layer_stats(request):
                     total_anomalies += comp_product_cross_anomaly
 
                     results['checks'].append({
-                        'category': 'Cross Field',
-                        'name': 'Comp Product own/competitor classification',
-                        'description': 'logical error where samsung_series_name contains comp_brand',
+                        'category': '크로스 필드 검증',
+                        'name': 'Comp Product 자사/경쟁사 구분',
+                        'description': 'samsung_series_name에 comp_brand가 포함된 논리 오류',
                         'checked': comp_product_total,
                         'passed': comp_product_total - comp_product_cross_anomaly,
                         'failed': comp_product_cross_anomaly,

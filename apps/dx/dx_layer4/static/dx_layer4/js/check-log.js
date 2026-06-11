@@ -40,17 +40,6 @@
         return d.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
     }
 
-    function statusBadgeClass(status) {
-        if (status === 'CRITICAL') return 'badge-critical';
-        if (status === 'WARNING' || status === 'DB_CHECK') return 'badge-warning';
-        return 'badge-ok';
-    }
-
-    function statusLabel(status) {
-        if (status === 'DB_CHECK') return 'DB 직접 확인 후 결과 공유';
-        return status;
-    }
-
     function renderCheckLog(dateStr, logs, activeCount, totalSections) {
         var activeLogs = logs.filter(function(l) { return l.is_del === 0; });
         var deletedLogs = logs.filter(function(l) { return l.is_del === 1; });
@@ -90,7 +79,7 @@
                 var rows = '';
                 activeLogs.forEach(function(log) {
                     var name = L4.CHECK_SECTION_NAMES[log.section] || log.section;
-                    var statusClass = statusBadgeClass(log.status);
+                    var statusClass = log.status === 'CRITICAL' ? 'badge-critical' : (log.status === 'WARNING' ? 'badge-warning' : 'badge-ok');
                     var stepBadge = '';
                     if (log.confirm_step === 2) stepBadge = ' <span class="badge badge-ok" style="font-size:11px;">완료</span>';
                     else if (log.confirm_step === 1) stepBadge = ' <span class="badge badge-warning" style="font-size:11px;">1차</span>';
@@ -100,7 +89,7 @@
                     var detailUrl = '/dx/layer4/check-log/detail/?date=' + dateStr + '&section=' + log.section;
                     rows += '<tr>'
                         + '<td><a href="' + detailUrl + '" style="color:var(--text-primary);text-decoration:none;font-weight:500;">' + L4.escapeHtml(name) + ' &rsaquo;</a>' + stepBadge + '</td>'
-                        + '<td><span class="badge ' + statusClass + '">' + L4.escapeHtml(statusLabel(log.status)) + '</span></td>'
+                        + '<td><span class="badge ' + statusClass + '">' + L4.escapeHtml(log.status) + '</span></td>'
                         + '<td>' + L4.escapeHtml(log.created_id) + '</td>'
                         + '<td><span class="time-text">' + fmtTime(log.created_at) + '</span></td>'
                         + '<td>' + memoHtml + '</td>'
@@ -119,10 +108,10 @@
                 var drows = '';
                 deletedLogs.forEach(function(dl) {
                     var dname = L4.CHECK_SECTION_NAMES[dl.section] || dl.section;
-                    var dstatusClass = statusBadgeClass(dl.status);
+                    var dstatusClass = dl.status === 'CRITICAL' ? 'badge-critical' : (dl.status === 'WARNING' ? 'badge-warning' : 'badge-ok');
                     drows += '<tr>'
                         + '<td>' + L4.escapeHtml(dname) + '</td>'
-                        + '<td><span class="badge ' + dstatusClass + '">' + L4.escapeHtml(statusLabel(dl.status)) + '</span></td>'
+                        + '<td><span class="badge ' + dstatusClass + '">' + L4.escapeHtml(dl.status) + '</span></td>'
                         + '<td>' + L4.escapeHtml(dl.created_id) + '</td>'
                         + '<td><span class="time-text">' + fmtTime(dl.created_at) + '</span></td>'
                         + '<td>' + L4.escapeHtml(dl.updated_id || dl.created_id) + '</td>'

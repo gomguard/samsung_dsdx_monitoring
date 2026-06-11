@@ -1,7 +1,6 @@
 from django.urls import path, include
 from django.shortcuts import redirect
 from apps.dx.dx_layer1.common import api as check_api
-from apps.dx.dx_layer1.retail import retail_api
 
 app_name = 'layer1'
 
@@ -22,5 +21,4 @@ urlpatterns = [
     path('api/check/status/', check_api.check_status, name='api_check_status'),
     path('api/check/save/', check_api.check_save, name='api_check_save'),
     path('api/check/delete/', check_api.check_delete, name='api_check_delete'),
-    path('api/backup-status/', retail_api.backup_status, name='api_backup_status_legacy'),
 ]

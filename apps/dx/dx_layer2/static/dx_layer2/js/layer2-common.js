@@ -1258,10 +1258,10 @@ async function checkBackupStatus() {
         if (!data.success || data.pending_count === 0) return;
 
         if (!data.has_backup) {
-            const goBackup = await showConfirm(`${date} 미백업 ${data.pending_count}건 (TV: ${data.tv_count || 0}, REF: ${data.ref_count || 0}, LDY: ${data.ldy_count || 0})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
+            const goBackup = await showConfirm(`${date} 미백업 ${data.pending_count}건 (TV: ${data.tv_count}, HHP: ${data.hhp_count})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
             if (goBackup) window.location.href = '/dx/layer1/';
         } else {
-            const goBackup = await showConfirm(`추가 수집 데이터 ${data.pending_count}건 미백업 (TV: ${data.tv_count || 0}, REF: ${data.ref_count || 0}, LDY: ${data.ldy_count || 0})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
+            const goBackup = await showConfirm(`추가 수집 데이터 ${data.pending_count}건 미백업 (TV: ${data.tv_count}, HHP: ${data.hhp_count})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
             if (goBackup) window.location.href = '/dx/layer1/';
         }
     } catch (e) { /* 백업 상태 조회 실패 시 무시 */ }
@@ -1302,8 +1302,6 @@ async function openRuleModal(tableName, retailer) {
 
     const tableNameMap = {
         'TV Retail': 'tv_retail_com',
-        'REF Retail': 'ref_retail_com',
-        'LDY Retail': 'ldy_retail_com',
         'HHP Retail': 'hhp_retail_com',
         'YouTube': 'youtube_videos',
         'Market': 'market_trend'

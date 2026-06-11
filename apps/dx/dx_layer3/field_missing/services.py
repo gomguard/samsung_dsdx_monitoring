@@ -4,75 +4,7 @@ Layer 3 필드 누락 서비스 레이어
 
 from datetime import timedelta
 from apps.common.retail_columns import get_missing_exclude_conditions
-from apps.common.sea_retail import SEA_RETAIL_TABLES
 from apps.dx.dx_layer3.dashboard.services import validate_exclude_condition
-
-
-def _retail_table_config(product_line):
-    config = SEA_RETAIL_TABLES.get((product_line or '').lower())
-    if not config:
-        return None
-    date_column = config['date_column']
-    return {
-        'table_name': config['table'],
-        'date_column': date_column,
-        'date_cast': f'{date_column}::timestamp',
-        'retailers': config['retailers'],
-    }
-
-
-def _empty_detection(target_date, product_line, retailer):
-    return {
-        'date': str(target_date),
-        'product_line': product_line.upper(),
-        'retailer': retailer,
-        'prev_dates': [str(target_date - timedelta(days=1)), str(target_date - timedelta(days=2))],
-        'summary': {'total_missing_cases': 0, 'fields_with_issues': 0, 'status': 'OK'},
-        'missing_fields': []
-    }
-
-
-def get_field_missing_excluded_columns(product_line):
-    """Columns that are conditionally present and should not count as Layer 3 missing issues."""
-    product_line = (product_line or '').lower()
-    if product_line == 'tv':
-        return {
-            'original_sku_price',
-            'savings',
-        }
-
-    if product_line not in ('ref', 'ldy'):
-        return set()
-
-    return {
-        'original_sku_price',
-        'savings',
-        'pick_up_availability',
-        'delivery_availability',
-        'shipping_availability',
-        'fastest_delivery',
-        'discount_type',
-        'sku_status',
-        'offer',
-        'available_quantity_for_purchase_delivery',
-        'available_quantity_for_purchase_pickup',
-        'available_quantity_for_purchase_fastdelivery',
-        'sku_popularity',
-        'retailer_sku_name_similar',
-        'main_rank',
-        'bsr_rank',
-    }
-
-
-def _field_present_sql(safe_col, product_line, retailer, column_name):
-    base = f"{safe_col} IS NOT NULL AND CAST({safe_col} AS TEXT) != ''"
-    if (
-        (product_line or '').lower() in ('ref', 'ldy')
-        and retailer == 'Lowes'
-        and column_name == 'number_of_units_purchased_past_week'
-    ):
-        return f"{base} AND CAST({safe_col} AS TEXT) ~* '\\mbought last week$'"
-    return base
 
 
 def field_missing_detection(cursor, target_date, product_line, retailer, retail_columns):
@@ -82,9 +14,15 @@ def field_missing_detection(cursor, target_date, product_line, retailer, retail_
     - 직전에는 값이 있었는데 오늘 NULL/빈값인 필드 탐지
     Returns: dict
     """
-    table_config = _retail_table_config(product_line)
-    if not table_config:
-        return _empty_detection(target_date, product_line, retailer)
+    if product_line != 'tv':
+        return {
+            'date': str(target_date),
+            'product_line': product_line.upper(),
+            'retailer': retailer,
+            'prev_dates': [str(target_date - timedelta(days=1)), str(target_date - timedelta(days=2))],
+            'summary': {'total_missing_cases': 0, 'fields_with_issues': 0, 'status': 'OK'},
+            'missing_fields': []
+        }
 
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
@@ -99,11 +37,15 @@ def field_missing_detection(cursor, target_date, product_line, retailer, retail_
     }
 
     # 테이블명과 날짜 컬럼 결정
-    table_name = table_config['table_name']
-    date_column = table_config['date_cast']
+    if product_line == 'tv':
+        table_name = 'tv_retail_com'
+        date_column = 'crawl_datetime::timestamp'
+    else:
+        table_name = 'hhp_retail_com'
+        date_column = 'crawl_strdatetime'
 
     # 리테일러 목록
-    retailers_to_check = table_config['retailers'] if retailer == 'all' else [retailer]
+    retailers_to_check = ['Amazon', 'Bestbuy', 'Walmart'] if retailer == 'all' else [retailer]
 
     total_missing = 0
 
@@ -114,8 +56,7 @@ def field_missing_detection(cursor, target_date, product_line, retailer, retail_
         columns_to_check = retail_columns[ret]
         # 기본 필드 제외 (항상 있어야 하는 필드)
         exclude_cols = ['id', 'item', 'account_name', 'page_type', 'crawl_datetime', 'crawl_strdatetime', 'calendar_week']
-        field_missing_excludes = get_field_missing_excluded_columns(product_line)
-        columns_to_check = [c for c in columns_to_check if c not in exclude_cols and c not in field_missing_excludes]
+        columns_to_check = [c for c in columns_to_check if c not in exclude_cols]
 
         if not columns_to_check:
             continue
@@ -126,8 +67,7 @@ def field_missing_detection(cursor, target_date, product_line, retailer, retail_
         case_today = []
         for col in columns_to_check:
             safe_col = f'"{col}"'
-            present_sql = _field_present_sql(safe_col, product_line, ret, col)
-            case_prev.append(f"MAX(CASE WHEN DATE({date_column}) IN ('{prev_date_1}', '{prev_date_2}') AND {present_sql} THEN 1 ELSE 0 END) as prev_{col.replace(' ', '_')}")
+            case_prev.append(f"MAX(CASE WHEN DATE({date_column}) IN ('{prev_date_1}', '{prev_date_2}') AND {safe_col} IS NOT NULL AND CAST({safe_col} AS TEXT) != '' THEN 1 ELSE 0 END) as prev_{col.replace(' ', '_')}")
 
             # exclude 조건 적용
             exclude_conds = get_missing_exclude_conditions(ret, table_name, col)
@@ -237,8 +177,7 @@ def field_missing_detail_all(cursor, target_date, product_line, retailer, displa
     offset/limit 파라미터로 데이터 분할 조회
     Returns: dict
     """
-    table_config = _retail_table_config(product_line)
-    if not table_config:
+    if product_line != 'tv':
         return {
             'status': 'success',
             'date': str(target_date),
@@ -258,9 +197,14 @@ def field_missing_detail_all(cursor, target_date, product_line, retailer, displa
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
-    table_name = table_config['table_name']
-    date_column = table_config['date_column']
-    date_cast = table_config['date_cast']
+    if product_line == 'tv':
+        table_name = 'tv_retail_com'
+        date_column = 'crawl_datetime'
+        date_cast = 'crawl_datetime::timestamp'
+    else:
+        table_name = 'hhp_retail_com'
+        date_column = 'crawl_strdatetime'
+        date_cast = 'crawl_strdatetime'
 
     # SELECT 절 구성: id, crawl_datetime, item + 표시 필드들 + product_url(마지막)
     select_cols = ['id', date_column, 'item']
@@ -314,7 +258,6 @@ def field_missing_detail_all(cursor, target_date, product_line, retailer, displa
         'prev_dates': [str(prev_date_2), str(prev_date_1)],
         'product_line': product_line.upper(),
         'retailer': retailer,
-        'table_name': table_name,
         'columns': column_names,
         'display_fields': display_fields,
         'offset': offset,
@@ -338,8 +281,7 @@ def field_missing_detail_problem(cursor, target_date, product_line, retailer, co
     무한 스크롤: offset, limit 파라미터 지원
     Returns: dict (empty result dict if no columns to check)
     """
-    table_config = _retail_table_config(product_line)
-    if not table_config:
+    if product_line != 'tv':
         return {
             'status': 'success',
             'date': str(target_date),
@@ -357,9 +299,14 @@ def field_missing_detail_problem(cursor, target_date, product_line, retailer, co
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
-    table_name = table_config['table_name']
-    date_column = table_config['date_column']
-    date_cast = table_config['date_cast']
+    if product_line == 'tv':
+        table_name = 'tv_retail_com'
+        date_column = 'crawl_datetime'
+        date_cast = 'crawl_datetime::timestamp'
+    else:
+        table_name = 'hhp_retail_com'
+        date_column = 'crawl_strdatetime'
+        date_cast = 'crawl_strdatetime'
 
     # 모든 컬럼에 대한 누락 데이터를 UNION ALL로 한번에 조회
     union_queries = []
@@ -459,8 +406,7 @@ def field_missing_detail_by_field(cursor, target_date, product_line, retailer, f
     - 직전 2일에 값이 있었는데 오늘 없는 item들의 N일치 전체 데이터
     Returns: dict (empty result dict if no missing items)
     """
-    table_config = _retail_table_config(product_line)
-    if not table_config:
+    if product_line != 'tv':
         return {
             'status': 'success',
             'date': str(target_date),
@@ -482,9 +428,14 @@ def field_missing_detail_by_field(cursor, target_date, product_line, retailer, f
     prev_date_1 = target_date - timedelta(days=1)
     prev_date_2 = target_date - timedelta(days=2)
 
-    table_name = table_config['table_name']
-    date_column = table_config['date_column']
-    date_cast = table_config['date_cast']
+    if product_line == 'tv':
+        table_name = 'tv_retail_com'
+        date_column = 'crawl_datetime'
+        date_cast = 'crawl_datetime::timestamp'
+    else:
+        table_name = 'hhp_retail_com'
+        date_column = 'crawl_strdatetime'
+        date_cast = 'crawl_strdatetime'
 
     safe_field = f'"{field}"'
 

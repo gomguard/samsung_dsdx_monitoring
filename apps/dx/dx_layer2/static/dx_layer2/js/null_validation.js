@@ -25,8 +25,6 @@ function openDetailModal(type, tableName, retailer, count, page = 1, fieldsDetai
                        tableName === 'YouTube Comments' ? 'youtube_comments' :
                        tableName === 'YouTube Videos' ? 'youtube_videos' :
                        tableName === 'TV Retail' ? 'tv_retail' :
-                       tableName === 'REF Retail' ? 'ref_retail' :
-                       tableName === 'LDY Retail' ? 'ldy_retail' :
                        tableName === 'HHP Retail' ? 'hhp_retail' :
                        tableName === 'Market' ? 'market' :
                        tableName.toLowerCase().replace(' ', '_');
@@ -182,7 +180,7 @@ function renderNullFieldDetailView(fieldName, data, pushStack = true) {
     const dateColumn = data.date_column || 'crawl_datetime';
     const tableParam = modalState.tableParam;
     const date = data.date || getSelectedDate();
-    const isRetail = tableParam === 'tv_retail' || tableParam === 'ref_retail' || tableParam === 'ldy_retail' || tableParam === 'hhp_retail';
+    const isRetail = tableParam === 'tv_retail' || tableParam === 'hhp_retail';
     const currentDays = modalState.days || 1;
 
     const fieldConfig = displayConfig[fieldName] || {};
@@ -253,13 +251,7 @@ function renderNullFieldDetailView(fieldName, data, pushStack = true) {
                 </div>`;
             }
         } else {
-            const tableNameMap = {
-                tv_retail: 'tv_retail_com',
-                ref_retail: 'ref_retail_com',
-                ldy_retail: 'ldy_retail_com',
-                hhp_retail: 'hhp_retail_com'
-            };
-            const tblName = tableNameMap[tableParam] || 'tv_retail_com';
+            const tblName = tableParam === 'tv_retail' ? 'tv_retail_com' : 'hhp_retail_com';
             const retailerName = modalState.retailer || '';
             const queryCols = queryColumns.length > 0 ? queryColumns.join(', ') : '*';
 

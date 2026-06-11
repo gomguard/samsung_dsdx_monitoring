@@ -5,7 +5,6 @@ Layer 3 대시보드 서비스 — 공통 규칙 로드, 검증, 상태 판정
 import re
 from apps.common.db import get_dx_connection, dx_table
 from apps.common.response import log_error
-from apps.common.sea_retail import SEA_RETAIL_TABLES
 
 
 _DANGEROUS_SQL = {'DROP', 'DELETE', 'TRUNCATE', 'UPDATE', 'INSERT', 'ALTER', 'GRANT', 'REVOKE'}
@@ -13,8 +12,6 @@ _DANGEROUS_SQL = {'DROP', 'DELETE', 'TRUNCATE', 'UPDATE', 'INSERT', 'ALTER', 'GR
 _ALLOWED_TABLES = {
     'tv_retail_com',
     'tv_item_mst',
-    'ref_retail_com',
-    'ldy_retail_com',
     'tv_sentiment_com', 'hhp_sentiment_com',
     'comp_product',
     'openai_forecast_results',
@@ -49,33 +46,6 @@ def validate_table_name(table_name):
     if table_name not in _ALLOWED_TABLES:
         raise ValueError(f"허용되지 않은 테이블: {table_name}")
     return table_name
-
-
-def get_retail_table_name(product_line):
-    config = SEA_RETAIL_TABLES.get((product_line or '').lower())
-    return config['table'] if config else ''
-
-
-def get_retail_date_column(product_line):
-    config = SEA_RETAIL_TABLES.get((product_line or '').lower())
-    return config['date_column'] if config else ''
-
-
-def get_product_line_for_table(table_name):
-    table_name = (table_name or '').lower()
-    for product_line, config in SEA_RETAIL_TABLES.items():
-        if config.get('table') == table_name:
-            return product_line
-    if table_name == 'hhp_retail_com':
-        return 'hhp'
-    return ''
-
-
-def get_item_master_table(product_line, table_name=''):
-    product_line = (product_line or get_product_line_for_table(table_name)).lower()
-    if product_line == 'tv':
-        return 'tv_item_mst'
-    return ''
 
 
 def validate_select_query(query):
@@ -211,10 +181,8 @@ def get_non_product_set(cursor, table_name, product_line, pairs):
     """item_mst에서 is_product=false 또는 is_checked=true인 (item, account_name) 집합 반환"""
     if not pairs or 'retail_com' not in table_name:
         return set()
-    mst = get_item_master_table(product_line, table_name)
-    if not mst:
-        return set()
-    mst = validate_table_name(mst)
+    pl = (product_line or '').lower()
+    mst = validate_table_name('hhp_item_mst' if 'hhp' in pl or 'hhp' in table_name else 'tv_item_mst')
     ph = ' OR '.join(['(item = %s AND account_name = %s)'] * len(pairs))
     params = [v for p in pairs for v in p]
     cursor.execute(f"SELECT item, account_name FROM {mst} WHERE (is_product = false OR is_checked = true) AND ({ph})", params)

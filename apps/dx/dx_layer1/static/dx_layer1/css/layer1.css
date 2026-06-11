@@ -272,7 +272,6 @@
     .retail-rank-wrap .ct td.rt-name a:hover { color: var(--page-color); text-decoration: underline; }
     .retail-rank-wrap .ct td.rt-extra { font-size: 12px; color: var(--text-secondary); }
     .retail-rank-wrap .ct td.rt-total { font-weight: 700; }
-    .retail-rank-wrap .rt-rank-alert { color: var(--color-critical); font-weight: 700; }
     .retail-rank-wrap .ct td.rt-status { overflow: visible; }
     .retail-rank-wrap .ct tr.rt-sum { background: #f0fdf4; }
     .retail-rank-wrap .ct tr.rt-sum td { color: var(--color-ok); font-weight: 700; }
