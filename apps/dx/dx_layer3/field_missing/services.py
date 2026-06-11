@@ -7,6 +7,13 @@ from apps.common.retail_columns import get_missing_exclude_conditions
 from apps.dx.dx_layer3.dashboard.services import validate_exclude_condition
 
 
+def get_field_missing_excluded_columns(product_line):
+    """Columns that are conditionally present and should not count as field-missing issues."""
+    if (product_line or '').lower() == 'tv':
+        return {'original_sku_price', 'savings'}
+    return set()
+
+
 def field_missing_detection(cursor, target_date, product_line, retailer, retail_columns):
     """
     필드 누락 탐지 비즈니스 로직
@@ -56,7 +63,8 @@ def field_missing_detection(cursor, target_date, product_line, retailer, retail_
         columns_to_check = retail_columns[ret]
         # 기본 필드 제외 (항상 있어야 하는 필드)
         exclude_cols = ['id', 'item', 'account_name', 'page_type', 'crawl_datetime', 'crawl_strdatetime', 'calendar_week']
-        columns_to_check = [c for c in columns_to_check if c not in exclude_cols]
+        field_missing_excludes = get_field_missing_excluded_columns(product_line)
+        columns_to_check = [c for c in columns_to_check if c not in exclude_cols and c not in field_missing_excludes]
 
         if not columns_to_check:
             continue

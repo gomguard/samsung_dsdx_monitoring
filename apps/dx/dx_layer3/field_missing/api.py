@@ -8,6 +8,7 @@ from apps.common.db import dx_connection
 from apps.common.retail_columns import get_editable_columns
 from apps.common.response import safe_error, log_error
 from . import services
+from .services import get_field_missing_excluded_columns
 
 
 def field_missing_detection(request):
@@ -108,7 +109,8 @@ def field_missing_detail_problem(request):
 
     # 기본 필드 제외
     exclude_cols = ['id', 'item', 'account_name', 'page_type', 'crawl_datetime', 'crawl_strdatetime', 'calendar_week', 'product_url']
-    columns_to_check = [c for c in retail_columns if c not in exclude_cols]
+    field_missing_excludes = get_field_missing_excluded_columns(product_line)
+    columns_to_check = [c for c in retail_columns if c not in exclude_cols and c not in field_missing_excludes]
 
     # column 파라미터가 있으면 해당 컬럼만
     if column:
@@ -132,6 +134,18 @@ def field_missing_detail_by_field(request):
     product_line = request.GET.get('product_line', 'tv')
     retailer = request.GET.get('retailer', 'Amazon')
     field = request.GET.get('field', '')  # 필수: 조회할 필드
+    if field in get_field_missing_excluded_columns(product_line):
+        return JsonResponse({
+            'status': 'success',
+            'message': 'field excluded from missing validation',
+            'date': date_str or '',
+            'product_line': product_line.upper(),
+            'retailer': retailer,
+            'field': field,
+            'total_rows': 0,
+            'data': [],
+            'normal_reviews': {},
+        })
     days = int(request.GET.get('days', 3))
     if days < 1:
         days = 1
