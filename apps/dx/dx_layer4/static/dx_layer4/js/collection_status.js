@@ -32,6 +32,8 @@
 
     var TABLE_NAME_MAP = {
         'retail_tv': 'RAW_EXT_TV_RETAIL_COM_VIEW',
+        'retail_ref': 'RAW_EXT_REF_RETAIL_COM_VIEW',
+        'retail_ldy': 'RAW_EXT_LDY_RETAIL_COM_VIEW',
         'youtube': 'RAW_EXT_YOUTUBE_VIDEOS_VIEW',
         'market_trend': 'RAW_EXT_MARKET_TREND_VIEW',
         'market_demand': 'RAW_EXT_OPENAI_FORECAST_RESULTS_VIEW',
@@ -192,10 +194,12 @@
         Promise.all([
             fetchJsonOrFallback('/dx/layer1/api/stats/?date=' + encodeURIComponent(date), { checks: [] }),
             fetchJsonOrFallback('/dx/layer4/api/collection-status/?date=' + encodeURIComponent(date) + '&category=tv', { success: true, retailers: [] }),
+            fetchJsonOrFallback('/dx/layer4/api/collection-status/?date=' + encodeURIComponent(date) + '&category=ref', { success: true, retailers: [] }),
+            fetchJsonOrFallback('/dx/layer4/api/collection-status/?date=' + encodeURIComponent(date) + '&category=ldy', { success: true, retailers: [] }),
             fetchJsonOrFallback('/dx/layer4/api/collection-status/email-check/?date=' + encodeURIComponent(date), { count: 0 })
         ]).then(function(results) {
-            renderEmailReport(results[0], results[1], date);
-            updateSendButton(results[2].count || 0, results[2]);
+            renderEmailReport(results[0], { tv: results[1], ref: results[2], ldy: results[3] }, date);
+            updateSendButton(results[4].count || 0, results[4]);
         }).catch(function(e) {
             console.error(e);
             container.innerHTML = '<div class="l4-empty-state"><p>오류가 발생했습니다.</p></div>';
@@ -232,8 +236,8 @@
             if (checkType === 'retail' && check.categories) {
                 check.categories.forEach(function(cat) {
                     if (cat.name === 'HHP') return;
-                    var key = 'retail_tv';
-                    rows.push({ no: no++, category: 'Retail', name: '거래선 ' + cat.name + ' 제품 정보 / 감성점수', table_name: TABLE_NAME_MAP[key] || '', expected: 1500, actual: cat.total || 0 });
+                    var key = 'retail_' + String(cat.name || '').toLowerCase();
+                    rows.push({ no: no++, category: 'Retail', name: '거래선 ' + cat.name + ' 제품 정보 / 감성점수', table_name: TABLE_NAME_MAP[key] || '', expected: cat.expected || '-', actual: cat.total || 0 });
                 });
             } else if (checkType === 'sentiment' || checkType === 'market_competitor') {
                 return;
@@ -324,7 +328,7 @@
         return html;
     }
 
-    function renderEmailReport(dailyData, tvData, date) {
+    function renderEmailReport(dailyData, retailData, date) {
         var container = document.getElementById('cs-email-container');
 
         var dailyRows = buildDailyRows(dailyData);
@@ -381,7 +385,9 @@
 
         // 2. R.com 수집 항목 Missing Value 현황
         html += '<b style="font-size:14px;">2. R.com 수집 항목 Missing Value 현황</b><br>';
-        if (tvData.success) html += buildNullTable(tvData.retailers, 'TV');
+        if (retailData.tv && retailData.tv.success) html += buildNullTable(retailData.tv.retailers, 'TV');
+        if (retailData.ref && retailData.ref.success) html += buildNullTable(retailData.ref.retailers, 'REF');
+        if (retailData.ldy && retailData.ldy.success) html += buildNullTable(retailData.ldy.retailers, 'LDY');
 
         html += '<br>감사합니다.';
 

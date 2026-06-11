@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from apps.common.db import execute_dx_query, dx_table
 from apps.common.response import log_error
 from apps.common.retail_columns import load_retail_columns, get_editable_columns
+from apps.common.sea_retail import SEA_RETAIL_TABLES, SEA_RETAIL_NULL_COLUMNS
 from apps.dx.dx_layer2.common.context import get_status
 
 
@@ -17,6 +18,55 @@ _null_check_config_cache = None
 _null_check_config_cache_time = None
 EXCLUDED_RETAIL_TABLES = {'hhp_retail_com'}
 EXCLUDED_RETAIL_CATEGORIES = {'hhp_retail'}
+
+
+def _build_sea_null_display_columns(product_line, check_column):
+    cfg = SEA_RETAIL_TABLES[product_line]
+    base_columns = [
+        'id',
+        'item',
+        'account_name',
+        'page_type',
+        'retailer_sku_name',
+        'product_url',
+        'main_rank',
+        'bsr_rank',
+    ]
+    columns = []
+    for col in base_columns + [check_column, cfg['date_column']]:
+        if col not in columns:
+            columns.append(col)
+    return columns
+
+
+def _inject_sea_retail_null_config(result):
+    display_order = max([cat.get('display_order', 0) for cat in result.values()] or [0])
+    for product_line in ('ref', 'ldy'):
+        cfg = SEA_RETAIL_TABLES[product_line]
+        category = f'{product_line}_retail'
+        display_order += 1
+        result[category] = {
+            'display_name': f'{product_line.upper()} Retail',
+            'display_order': display_order,
+            'has_retailer': True,
+            'checks': {}
+        }
+        for retailer, columns in SEA_RETAIL_NULL_COLUMNS[product_line].items():
+            check_name = f'{retailer.lower()}_{product_line}'
+            result[category]['checks'][check_name] = {
+                'display_name': retailer,
+                'table_name': cfg['table'],
+                'date_column': cfg['date_column'],
+                'columns': {}
+            }
+            for column in columns:
+                display_columns = _build_sea_null_display_columns(product_line, column)
+                result[category]['checks'][check_name]['columns'][column] = {
+                    'check_type': 'both',
+                    'display_columns': display_columns,
+                    'query_columns': display_columns,
+                    'query_days': 0
+                }
 
 
 def load_null_check_config():
@@ -102,11 +152,12 @@ def load_null_check_config():
                 'query_days': int(row.get('query_days', 0) or 0)
             }
 
-        _null_check_config_cache = result
-        _null_check_config_cache_time = now
     except Exception as e:
         log_error(e, 'db')
 
+    _inject_sea_retail_null_config(result)
+    _null_check_config_cache = result
+    _null_check_config_cache_time = now
     return result
 
 
@@ -456,7 +507,7 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
     all_retail_cols = []
     editable_cols = []
     if has_retailer and retailer:
-        product_line = 'tv' if category == 'tv_retail' else 'hhp'
+        product_line = category.replace('_retail', '') if category.endswith('_retail') else 'tv'
         retail_cols_data = load_retail_columns()
         all_retail_cols = retail_cols_data.get(product_line, {}).get(retailer, [])
         editable_cols = get_editable_columns(product_line, retailer)
@@ -477,6 +528,7 @@ def get_null_detail(cursor, target_date, category, retailer, days, column):
 # null_review 테이블 화이트리스트
 VALID_TABLES_UPDATE = {
     'tv_retail_com',
+    'ref_retail_com', 'ldy_retail_com',
     'youtube_collection_logs', 'youtube_videos', 'youtube_comments',
     'market_trend', 'market_comp_product', 'market_comp_event', 'openai_forecast_results',
 }

@@ -8,6 +8,7 @@ from apps.dx.dx_layer3.dashboard.services import (
     validate_table_name,
     validate_select_query,
     get_non_product_set,
+    get_item_master_table,
 )
 
 
@@ -30,6 +31,8 @@ def resolve_target_category(display_name, product_line):
             target_category = 'tv_retail'
         elif product_line == 'hhp':
             target_category = ''
+        elif product_line in ('ref', 'ldy'):
+            target_category = f'{product_line}_retail'
         elif product_line == 'forecast':
             target_category = 'market_forecast'
 
@@ -193,9 +196,10 @@ def get_rule_detail(cursor, target_date, rule_id, product_line, rules):
     # item_mst에서 mst_id, is_product 병합 (retail_com 테이블인 경우)
     if 'retail_com' in table_name and anomalies:
         product_line_val = (target_rule.get('product_line') or '').lower()
-        mst_table = validate_table_name('hhp_item_mst' if 'hhp' in product_line_val or 'hhp' in table_name else 'tv_item_mst')
+        mst_table = get_item_master_table(product_line_val, table_name)
         pairs = list({(r.get('item', ''), r.get('account_name', '')) for r in anomalies})
-        if pairs:
+        if mst_table and pairs:
+            mst_table = validate_table_name(mst_table)
             placeholders = ' OR '.join(['(item = %s AND account_name = %s)'] * len(pairs))
             params = [v for p in pairs for v in p]
             cursor.execute(f"SELECT id, item, account_name, is_product, is_checked FROM {mst_table} WHERE {placeholders}", params)

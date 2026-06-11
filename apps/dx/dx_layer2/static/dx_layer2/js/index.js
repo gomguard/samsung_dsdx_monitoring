@@ -24,16 +24,16 @@
         const date = getSelectedDate();
         if (!date) return;
         try {
-            const res = await fetch(`/dx/layer1/api/backup-status/?date=${date}`);
+            const res = await fetch(`/dx/layer1/retail/api/backup-status/?date=${date}`);
             if (!res.ok) return;
             const data = await res.json();
             if (!data.success || data.pending_count === 0) return;
 
             if (!data.has_backup) {
-                const goBackup = await showConfirm(`${date} 미백업 ${data.pending_count}건 (TV: ${data.tv_count}, HHP: ${data.hhp_count})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
+                const goBackup = await showConfirm(`${date} 미백업 ${data.pending_count}건 (TV: ${data.tv_count || 0}, REF: ${data.ref_count || 0}, LDY: ${data.ldy_count || 0})\n백업 후 검수를 진행해주세요.`, 'warning', { okText: 'Layer 1 이동', cancelText: '계속 조회' });
                 if (goBackup) window.location.href = '/dx/layer1/';
             } else {
-                showToast(`추가 수집 데이터 ${data.pending_count}건 미백업 (TV: ${data.tv_count}, HHP: ${data.hhp_count})`, 'warning', 5000);
+                showToast(`추가 수집 데이터 ${data.pending_count}건 미백업 (TV: ${data.tv_count || 0}, REF: ${data.ref_count || 0}, LDY: ${data.ldy_count || 0})`, 'warning', 5000);
             }
         } catch (e) { /* 백업 상태 조회 실패 시 무시 */ }
     }
@@ -451,6 +451,8 @@
                            tableName === 'YouTube Comments' ? 'youtube_comments' :
                            tableName === 'YouTube Videos' ? 'youtube_videos' :
                            tableName === 'TV Retail' ? 'tv_retail' :
+                           tableName === 'REF Retail' ? 'ref_retail' :
+                           tableName === 'LDY Retail' ? 'ldy_retail' :
                            tableName === 'HHP Retail' ? 'hhp_retail' :
                            tableName === 'Market' ? 'market' :
                            tableName.toLowerCase().replace(' ', '_');
@@ -568,7 +570,7 @@
 
         modalState.selectedField = fieldName;
 
-        const isRetail = tableParam === 'tv_retail' || tableParam === 'hhp_retail';
+        const isRetail = tableParam === 'tv_retail' || tableParam === 'ref_retail' || tableParam === 'ldy_retail' || tableParam === 'hhp_retail';
 
         // display_config에서 해당 필드의 표시 칼럼 설정 가져오기
         const fieldConfig = displayConfig[fieldName] || {};
@@ -632,7 +634,13 @@
 
             if (isRetail) {
                 // 테이블명 결정
-                const tableName = tableParam === 'tv_retail' ? 'tv_retail_com' : 'hhp_retail_com';
+                const tableNameMap = {
+                    tv_retail: 'tv_retail_com',
+                    ref_retail: 'ref_retail_com',
+                    ldy_retail: 'ldy_retail_com',
+                    hhp_retail: 'hhp_retail_com'
+                };
+                const tableName = tableNameMap[tableParam] || 'tv_retail_com';
                 const retailerName = modalState.retailer || '';
 
                 // 쿼리 칼럼 결정 (query_config에서 가져오거나 기본값 사용)
@@ -1020,7 +1028,7 @@ WHERE id IN (${idInClause});`;
                     html += `<td>${escapeHtml(record.id) || '-'}</td>`;
                     html += `<td class="null-value">${escapeHtml(record.null_fields?.join(', ')) || '-'}</td>`;
                     // TV/HHP Retail만 오전/오후 표시, 나머지는 날짜만
-                    const isRetail = tableParam === 'tv_retail' || tableParam === 'hhp_retail';
+                    const isRetail = tableParam === 'tv_retail' || tableParam === 'ref_retail' || tableParam === 'ldy_retail' || tableParam === 'hhp_retail';
                     // CSV에서 가져온 컬럼들 값 표시
                     columnNames.forEach(col => {
                         let val = record[col];
@@ -1321,6 +1329,8 @@ WHERE id IN (${idInClause});`;
         // 테이블명 매핑
         const tableNameMap = {
             'TV Retail': 'tv_retail_com',
+            'REF Retail': 'ref_retail_com',
+            'LDY Retail': 'ldy_retail_com',
             'HHP Retail': 'hhp_retail_com',
             'YouTube': 'youtube_videos',
             'Market': 'market_trend'
@@ -1340,7 +1350,7 @@ WHERE id IN (${idInClause});`;
         }
 
         try {
-            const response = await fetch(`/layer2/api/format-rules/?table=${encodeURIComponent(dbTableName)}&retailer=${encodeURIComponent(retailer)}`);
+            const response = await fetch(`/dx/layer2/api/format-rules/?table=${encodeURIComponent(dbTableName)}&retailer=${encodeURIComponent(retailer)}`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
             const rules = data.rules || [];

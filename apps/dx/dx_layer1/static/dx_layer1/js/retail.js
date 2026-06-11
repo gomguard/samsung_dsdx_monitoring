@@ -49,13 +49,43 @@ function getSlotNullColumns(categoryName, slotName) {
 }
 
 // Retail 슬롯 — 테이블 렌더링 (오전/오후 각각)
+function shouldHighlightRetailRank(categoryName, retailer, metric, value) {
+    if ((retailer || '').toLowerCase() === 'amazon') return false;
+
+    var category = (categoryName || '').toLowerCase();
+    var numericValue = Number(value || 0);
+
+    if (metric === 'main') {
+        var mainThreshold = category === 'ldy' ? 250 : 300;
+        return numericValue < mainThreshold;
+    }
+
+    if (metric === 'bsr') {
+        return numericValue < 100;
+    }
+
+    return false;
+}
+
+function renderRetailRankValue(categoryName, retailer, metric, value) {
+    var numericValue = Number(value || 0);
+    var text = numericValue.toLocaleString();
+
+    if (!shouldHighlightRetailRank(categoryName, retailer, metric, numericValue)) {
+        return text;
+    }
+
+    return '<span class="rt-rank-alert">' + text + '</span>';
+}
+
 function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
     var period = slot.name;
     var key = categoryName.toLowerCase();
 
     // retail-summary API에서 rank별 건수 가져오기
     var summaryData = currentRetailSummary && currentRetailSummary[key];
-    var extraName = (summaryData && summaryData.extra_rank_name) || 'Extra';
+    var extraName = (summaryData && summaryData.extra_rank_name !== undefined) ? summaryData.extra_rank_name : 'Extra';
+    var showExtra = extraName !== '';
     var slotIdx2 = period === '오전' ? 0 : 1;
 
     // 리테일러별 status 매핑 (slot.retailers에서 가져옴)
@@ -85,9 +115,9 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
             var rStatus = statusMap[ret.retailer] || 'PENDING';
             rowsHtml += '<tr>' +
                 '<td class="rt-name"><a href="/dx/layer1/retail/?category=' + encodeURIComponent(categoryName) + '&retailer=' + encodeURIComponent(ret.retailer) + '&period=' + encodeURIComponent(period) + '&date=' + getSelectedDate() + '">' + esc(ret.retailer) + '</a></td>' +
-                '<td>' + row.main.toLocaleString() + '</td>' +
-                '<td>' + row.bsr.toLocaleString() + '</td>' +
-                '<td class="rt-extra">' + row.extra.toLocaleString() + '</td>' +
+                '<td>' + renderRetailRankValue(categoryName, ret.retailer, 'main', row.main) + '</td>' +
+                '<td>' + renderRetailRankValue(categoryName, ret.retailer, 'bsr', row.bsr) + '</td>' +
+                (showExtra ? '<td class="rt-extra">' + row.extra.toLocaleString() + '</td>' : '') +
                 '<td class="rt-total">' + row.total.toLocaleString() + '</td>' +
                 '<td class="rt-status ct-nc">' + getStatusBadge(rStatus) + '</td>' +
             '</tr>';
@@ -99,7 +129,7 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
         '<td>합계</td>' +
         '<td>' + totals.main.toLocaleString() + '</td>' +
         '<td>' + totals.bsr.toLocaleString() + '</td>' +
-        '<td>' + totals.extra.toLocaleString() + '</td>' +
+        (showExtra ? '<td>' + totals.extra.toLocaleString() + '</td>' : '') +
         '<td>' + totals.total.toLocaleString() + '</td>' +
         '<td></td>' +
     '</tr>';
@@ -135,7 +165,7 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
             '<table class="ct ct-grid">' +
                 '<colgroup>' +
                     '<col style="width:22%">' +
-                    '<col style="width:14%">' +
+                    (showExtra ? '<col style="width:14%">' : '') +
                     '<col style="width:14%">' +
                     '<col style="width:14%">' +
                     '<col style="width:14%">' +
@@ -145,7 +175,7 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
                     '<th style="text-align:left">리테일러</th>' +
                     '<th>MAIN</th>' +
                     '<th>BSR</th>' +
-                    '<th>' + esc(extraName) + '</th>' +
+                    (showExtra ? '<th>' + esc(extraName) + '</th>' : '') +
                     '<th>총 건수</th>' +
                     '<th></th>' +
                 '</tr></thead>' +
@@ -250,8 +280,8 @@ function renderRetailCheck(check, checkIdx) {
                 '<div class="check-description">' + check.description + '</div>' +
             '</div>' +
             '<div class="check-criteria">' +
-                '<span class="criteria-item ok">정상: 200↑</span>' +
-                '<span class="criteria-item critical">심각: 200↓</span>' +
+                '<span class="criteria-item ok">정상: 기준 충족</span>' +
+                '<span class="criteria-item warning">기준 미달: DB 직접 확인 후 결과 공유</span>' +
                 '<button class="btn-columns-info" onclick="event.stopPropagation(); openColumnsModal()">수집 항목 정보</button>' +
             '</div>' +
             '<div class="check-stats">' +
@@ -301,6 +331,8 @@ function openColumnsModal() {
     AppModal.setBody('columns',
         '<div class="columns-modal-tabs">' +
             '<button class="columns-tab active" onclick="switchColumnsTab(\'tv\')">TV</button>' +
+            '<button class="columns-tab" onclick="switchColumnsTab(\'ref\')">REF</button>' +
+            '<button class="columns-tab" onclick="switchColumnsTab(\'ldy\')">LDY</button>' +
         '</div>' +
         '<div class="columns-table-wrapper"><table class="columns-table" id="columnsTable"><thead id="columnsTableHead"></thead><tbody id="columnsTableBody"></tbody></table></div>'
     );
@@ -401,11 +433,18 @@ async function loadSectionData() {
         var data = await response.json();
         currentStatsData = data;
 
-        // Retail Summary 데이터 로딩 (TV)
+        // Retail Summary 데이터 로딩 (TV/REF/LDY)
         try {
-            var tvSum = await fetch('/dx/layer1/retail/api/summary/?type=tv&date=' + selectedDate).then(r => r.json());
-            currentRetailSummary = { tv: tvSum };
-            currentNullData = { tv: tvSum.null_columns || [] };
+            var retailTypes = ['tv', 'ref', 'ldy'];
+            var summaries = await Promise.all(retailTypes.map(function(type) {
+                return fetch('/dx/layer1/retail/api/summary/?type=' + type + '&date=' + selectedDate).then(r => r.json());
+            }));
+            currentRetailSummary = {};
+            currentNullData = {};
+            retailTypes.forEach(function(type, idx) {
+                currentRetailSummary[type] = summaries[idx];
+                currentNullData[type] = summaries[idx].null_columns || [];
+            });
         } catch (e) {
             currentRetailSummary = null;
             currentNullData = null;

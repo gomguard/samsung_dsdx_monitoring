@@ -12,14 +12,14 @@ def index(request):
         'data_sources': [
             {
                 'id': 'dx',
-                'name': 'DX Retail',
-                'name_en': 'TV/HHP Retail Monitoring',
-                'description': '미국 TV/휴대폰 리테일 데이터 모니터링',
-                'sub_description': 'Amazon, Bestbuy, Walmart 리테일 데이터',
+                'name': 'DX_SEA',
+                'name_en': 'SEA Retail Monitoring',
+                'description': 'SEA TV/HHP/REF/LDY 리테일 데이터 모니터링',
+                'sub_description': 'Amazon, Bestbuy, Walmart, Lowe’s 리테일 데이터',
                 'icon': 'tv',
                 'color': '#0d9488',
                 'url': '/dx/',
-                'tables': ['TV Retail', 'HHP Retail', 'YouTube', 'Sentiment', 'Market Share'],
+                'tables': ['TV Retail', 'REF Retail', 'LDY Retail', 'YouTube', 'Sentiment', 'Market Share'],
             },
             {
                 'id': 'ds',

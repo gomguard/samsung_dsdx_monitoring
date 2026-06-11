@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 from apps.common.db import dx_connection
 from apps.common.retail_columns import get_retailer_columns, get_all_retailer_columns
+from apps.common.sea_retail import SEA_RETAIL_TABLES
 from apps.common.response import log_error
 from apps.dx.dx_layer1.common.context import SECTION_TITLES
 from apps.common.dx_schedules import get_retail_time_slots, get_kst_time_info, get_schedule_kst_info
@@ -10,10 +11,27 @@ from . import retail_repositories as repo
 
 
 OK_THRESHOLD = 200
+DB_CHECK_STATUS = 'DB_CHECK'
 
-ALLOWED_TABLES = {'tv_retail_com'}
-ALLOWED_DATE_FIELDS = {'crawl_datetime::timestamp'}
+ALLOWED_TABLES = {'tv_retail_com', 'ref_retail_com', 'ldy_retail_com'}
+ALLOWED_DATE_FIELDS = {'crawl_datetime::timestamp', 'crawl_datetime', 'crawl_strdatetime'}
 ALLOWED_RANK_FIELDS = {'promotion_position', 'trend_rank'}
+
+
+def _get_tv_retail_status(retailer, count):
+    if retailer == 'amazon':
+        return 'OK' if count > 200 else DB_CHECK_STATUS
+    if retailer in ('bestbuy', 'walmart'):
+        return 'OK' if count >= 300 else DB_CHECK_STATUS
+    return 'OK' if count >= OK_THRESHOLD else DB_CHECK_STATUS
+
+
+def _get_tv_retail_threshold(retailer):
+    if retailer == 'amazon':
+        return 200
+    if retailer in ('bestbuy', 'walmart'):
+        return 300
+    return OK_THRESHOLD
 
 
 def _get_daily_retailers(all_slots):
@@ -59,11 +77,9 @@ def check_retailer_data(rows, category='TV', slot_retailers=None):
         count = data['count']
         total_count += count
         retailer_expected = expected_map.get(retailer, 300)
+        ok_threshold = _get_tv_retail_threshold(retailer)
 
-        if count >= OK_THRESHOLD:
-            status = 'OK'
-        else:
-            status = 'CRITICAL'
+        status = _get_tv_retail_status(retailer, count)
 
         statuses.append(status)
 
@@ -96,17 +112,89 @@ def check_retailer_data(rows, category='TV', slot_retailers=None):
             'retailer': retailer.capitalize(),
             'count': count,
             'expected': retailer_expected,
-            'ok_threshold': OK_THRESHOLD,
+            'ok_threshold': ok_threshold,
             'status': status,
             'items': items
         })
 
     if 'CRITICAL' in statuses:
         overall_status = 'CRITICAL'
+    elif DB_CHECK_STATUS in statuses:
+        overall_status = DB_CHECK_STATUS
     else:
         overall_status = 'OK'
 
     return retailer_details, total_count, overall_status
+
+
+def _build_daily_category_data(cursor, product_line, target_date):
+    cfg = SEA_RETAIL_TABLES[product_line]
+    rows = repo.query_daily_category_counts(
+        cursor,
+        cfg['table'],
+        cfg['date_column'],
+        target_date,
+        cfg['retailers'],
+    )
+    row_map = {row[0].lower(): row for row in rows if row and row[0]}
+
+    retailers = []
+    total_count = 0
+    total_expected = 0
+    statuses = []
+    failed_items = []
+
+    for retailer in cfg['retailers']:
+        row = row_map.get(retailer.lower())
+        count = row[1] if row else 0
+        main_count = row[2] if row else 0
+        bsr_count = row[3] if row else 0
+        expected = cfg['expected'][retailer]
+        status = 'OK' if count >= expected else DB_CHECK_STATUS
+
+        total_count += count
+        total_expected += expected
+        statuses.append(status)
+
+        retailers.append({
+            'retailer': retailer,
+            'count': count,
+            'expected': expected,
+            'ok_threshold': expected,
+            'status': status,
+            'items': [
+                {'name': 'Main Rank', 'count': main_count},
+                {'name': 'BSR Rank', 'count': bsr_count},
+            ]
+        })
+
+        if status != 'OK':
+            failed_items.append({
+                'source': f"{product_line.upper()} Retail - {retailer}",
+                'error_type': 'DB 직접 확인 후 결과 공유',
+                'expected': f">= {expected}",
+                'actual': count,
+                'timestamp': f"{product_line.upper()} 오전"
+            })
+
+    overall_status = DB_CHECK_STATUS if any(status != 'OK' for status in statuses) else 'OK'
+
+    return {
+        'name': product_line.upper(),
+        'total': total_count,
+        'expected': total_expected,
+        'status': overall_status,
+        'time_slots': [{
+            'name': '오전',
+            'us_time': '00:00',
+            'kr_time': '',
+            'is_dst': False,
+            'total': total_count,
+            'expected': total_expected,
+            'status': overall_status,
+            'retailers': retailers,
+        }]
+    }, failed_items
 
 
 def get_layer1_stats(cursor, target_date, now):
@@ -157,11 +245,11 @@ def get_layer1_stats(cursor, target_date, now):
 
             for r in retailer_details:
                 if r['status'] != 'OK':
-                    error_type = '수집 없음' if r['count'] == 0 else ('주의' if r['status'] == 'WARNING' else '수집량 부족')
+                    error_type = '수집 없음' if r['count'] == 0 else ('DB 직접 확인 후 결과 공유' if r['status'] == DB_CHECK_STATUS else '수집량 부족')
                     failed_items.append({
                         'source': f"TV Retail - {r['retailer']}",
                         'error_type': error_type,
-                        'expected': f">= {OK_THRESHOLD}",
+                        'expected': f"> {r['ok_threshold']}" if r['retailer'].lower() == 'amazon' else f">= {r['ok_threshold']}",
                         'actual': r['count'],
                         'timestamp': f"TV {slot['name']}"
                     })
@@ -171,6 +259,8 @@ def get_layer1_stats(cursor, target_date, now):
 
     if 'CRITICAL' in tv_slot_statuses:
         tv_overall_status = 'CRITICAL'
+    elif DB_CHECK_STATUS in tv_slot_statuses:
+        tv_overall_status = DB_CHECK_STATUS
     elif 'WARNING' in tv_slot_statuses:
         tv_overall_status = 'WARNING'
     elif not tv_slot_statuses and tv_has_collecting:
@@ -193,10 +283,28 @@ def get_layer1_stats(cursor, target_date, now):
         'time_slots': tv_time_slots
     }
 
-    total_retail_count = tv_total_count
-    total_retail_expected = tv_retail_data['expected']
-    total_retail_status = tv_overall_status
-    retail_ok_count = 1 if tv_overall_status == 'OK' else 0
+    retail_categories = [tv_retail_data]
+    for product_line in ('ref', 'ldy'):
+        category_data, category_failed_items = _build_daily_category_data(cursor, product_line, target_date)
+        retail_categories.append(category_data)
+        failed_items.extend(category_failed_items)
+
+    total_retail_count = sum(c['total'] for c in retail_categories)
+    total_retail_expected = sum(c['expected'] for c in retail_categories)
+    category_statuses = [c['status'] for c in retail_categories]
+    if 'CRITICAL' in category_statuses:
+        total_retail_status = 'CRITICAL'
+    elif DB_CHECK_STATUS in category_statuses:
+        total_retail_status = DB_CHECK_STATUS
+    elif 'WARNING' in category_statuses:
+        total_retail_status = 'WARNING'
+    elif 'COLLECTING' in category_statuses:
+        total_retail_status = 'COLLECTING'
+    elif all(s == 'PENDING' for s in category_statuses):
+        total_retail_status = 'PENDING'
+    else:
+        total_retail_status = 'OK'
+    retail_ok_count = len([c for c in retail_categories if c['status'] == 'OK'])
 
     am_kst = get_kst_time_info(0, target_date)
     pm_kst = get_kst_time_info(12, target_date)
@@ -220,41 +328,52 @@ def get_layer1_stats(cursor, target_date, now):
 
     check = {
         'name': SECTION_TITLES['retail'],
-        'description': f'{retail_ok_count}/1 카테고리 정상',
+        'description': f'{retail_ok_count}/{len(retail_categories)} 카테고리 정상',
         'actual': total_retail_count,
         'expected': total_retail_expected,
         'expected_min': total_retail_expected,
         'status': total_retail_status,
         'check_type': 'retail',
         'time_info': retail_time_info,
-        'categories': [tv_retail_data]
+        'categories': retail_categories
     }
 
     return {'check': check, 'failed_items': failed_items}
 
 
 def get_retail_detail(target_date, product_line):
-    if product_line != 'tv':
-        return {
-            'date': str(target_date),
-            'product_line': product_line.upper(),
-            'results': [],
-            'total_retailers': 0,
-            'total_products': 0
-        }
-
-    with dx_connection() as (conn, cursor):
-        rows = repo.get_tv_retail_detail_list(cursor, target_date.strftime('%Y-%m-%d'))
+    if product_line == 'tv':
+        with dx_connection() as (conn, cursor):
+            rows = repo.get_tv_retail_detail_list(cursor, target_date.strftime('%Y-%m-%d'))
+    else:
+        cfg = SEA_RETAIL_TABLES.get(product_line)
+        if not cfg:
+            return {
+                'date': str(target_date),
+                'product_line': product_line.upper(),
+                'results': [],
+                'total_retailers': 0,
+                'total_products': 0
+            }
+        with dx_connection() as (conn, cursor):
+            rows = repo.query_daily_category_counts(
+                cursor,
+                cfg['table'],
+                cfg['date_column'],
+                target_date,
+                cfg['retailers'],
+            )
 
     results = []
     for row in rows:
+        price_count = row[4] if len(row) > 4 else row[1]
         results.append({
             'retailer': row[0],
             'total': row[1],
             'main_count': row[2],
             'bsr_count': row[3],
-            'price_count': row[4],
-            'completeness': round((row[4] / row[1] * 100), 1) if row[1] > 0 else 0
+            'price_count': price_count,
+            'completeness': round((price_count / row[1] * 100), 1) if row[1] > 0 else 0
         })
 
     return {
@@ -266,8 +385,121 @@ def get_retail_detail(target_date, product_line):
     }
 
 
+def _get_daily_retail_summary(target_date, product_line):
+    cfg = SEA_RETAIL_TABLES[product_line]
+    table_name = cfg['table']
+    date_field = cfg['date_column']
+    slot_name = '오전'
+
+    if table_name not in ALLOWED_TABLES:
+        raise ValueError(f"허용되지 않은 테이블: {table_name}")
+    if date_field not in ALLOWED_DATE_FIELDS:
+        raise ValueError(f"허용되지 않은 날짜 필드: {date_field}")
+
+    summary_data = []
+    null_columns_data = []
+    total_check_count = 0
+    total_null_count = 0
+    column_checks_data = []
+
+    with dx_connection() as (conn, cursor):
+        for retailer in cfg['retailers']:
+            check_columns = get_retailer_columns(product_line, retailer)
+            for col in check_columns:
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', col):
+                    raise ValueError(f"허용되지 않은 컬럼명: {col}")
+
+            row = repo.query_daily_category_summary_by_retailer(
+                cursor,
+                table_name,
+                date_field,
+                target_date,
+                retailer,
+            )
+            main_count = row[0] or 0
+            bsr_count = row[1] or 0
+            extra_count = row[2] or 0
+            total = row[3] or 0
+
+            summary_data.append({
+                'retailer': retailer,
+                'rows': [{
+                    'time_slot': slot_name,
+                    'main': main_count,
+                    'bsr': bsr_count,
+                    'extra': extra_count,
+                    'extra_name': '',
+                    'total': total
+                }],
+                'total': total
+            })
+
+            if total > 0 and check_columns:
+                total_check_count += len(check_columns)
+                count_row = repo.get_retail_summary_null_counts(
+                    cursor,
+                    table_name,
+                    date_field,
+                    check_columns,
+                    str(target_date),
+                    str(target_date),
+                    retailer,
+                    True,
+                )
+
+                if count_row:
+                    col_counts = {}
+                    null_cols = []
+                    for col, cnt in zip(check_columns, count_row):
+                        col_counts[col] = cnt
+                        if cnt == 0:
+                            null_cols.append(col)
+
+                    total_null_count += len(null_cols)
+                    column_checks_data.append({
+                        'retailer': retailer,
+                        'check_columns': check_columns,
+                        'time_slots': [{
+                            'time_slot': slot_name,
+                            'total': total,
+                            'counts': col_counts
+                        }]
+                    })
+
+                    if null_cols:
+                        null_columns_data.append({
+                            'retailer': retailer,
+                            'time_slots': [{
+                                'time_slot': slot_name,
+                                'null_columns': null_cols
+                            }]
+                        })
+
+    grand_total = sum(r['total'] for r in summary_data)
+
+    return {
+        'date': str(target_date),
+        'product_line': product_line.upper(),
+        'extra_rank_name': '',
+        'summary': summary_data,
+        'null_columns': null_columns_data,
+        'totals': {
+            'grand_total': grand_total,
+            'am_total': grand_total,
+            'pm_total': 0
+        },
+        'check_stats': {
+            'total_checks': total_check_count,
+            'null_count': total_null_count
+        },
+        'column_checks': column_checks_data
+    }
+
+
 def get_retail_summary(target_date, product_line):
     if product_line != 'tv':
+        if product_line in SEA_RETAIL_TABLES:
+            return _get_daily_retail_summary(target_date, product_line)
         return {
             'date': str(target_date),
             'product_line': product_line.upper(),
@@ -441,7 +673,8 @@ def get_retail_summary(target_date, product_line):
 
 
 def get_retailer_raw_data(category, retailer, period, target_date):
-    if category != 'TV':
+    category_key = category.lower()
+    if category_key not in SEA_RETAIL_TABLES or category_key == 'hhp':
         return {
             'category': category,
             'retailer': retailer,
@@ -454,7 +687,10 @@ def get_retailer_raw_data(category, retailer, period, target_date):
 
     next_day = target_date + timedelta(days=1)
 
-    if period == '오전':
+    if category_key in ('ref', 'ldy'):
+        start_time = f'{target_date} 00:00:00'
+        end_time = f'{next_day} 00:00:00'
+    elif period == '오전':
         start_time = f'{target_date} 00:00:00'
         end_time = f'{target_date} 12:00:00'
     else:
@@ -471,13 +707,14 @@ def get_retailer_raw_data(category, retailer, period, target_date):
     }
 
     try:
-        product_line = 'tv'
+        product_line = category_key
+        cfg = SEA_RETAIL_TABLES[product_line]
         db_columns = get_retailer_columns(product_line, retailer)
 
         columns = ['id'] + [col for col in db_columns if col != 'id']
 
-        date_column = 'crawl_datetime'
-        table_name = 'tv_retail_com'
+        date_column = cfg['date_column']
+        table_name = cfg['table']
 
         if table_name not in ALLOWED_TABLES:
             raise ValueError(f"허용되지 않은 테이블: {table_name}")
@@ -505,13 +742,12 @@ def get_retailer_raw_data(category, retailer, period, target_date):
 
 
 def get_retailer_columns_info():
-    tv_columns = get_all_retailer_columns('tv')
-
-    all_tv_columns = sorted(set(col for cols in tv_columns.values() for col in cols))
-
-    return {
-        'tv': {
-            'columns': tv_columns,
-            'all_columns': all_tv_columns
+    result = {}
+    for product_line in ('tv', 'ref', 'ldy'):
+        columns = get_all_retailer_columns(product_line)
+        all_columns = sorted(set(col for cols in columns.values() for col in cols))
+        result[product_line] = {
+            'columns': columns,
+            'all_columns': all_columns
         }
-    }
+    return result

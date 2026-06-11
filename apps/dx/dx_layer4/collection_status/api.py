@@ -18,7 +18,7 @@ def collection_status_data(request):
         return JsonResponse({'error': '날짜 형식이 올바르지 않습니다.'}, status=400)
 
     category = request.GET.get('category', 'tv')
-    if category != 'tv':
+    if category not in ('tv', 'ref', 'ldy'):
         return JsonResponse({'error': '잘못된 카테고리입니다.'}, status=400)
 
     try:
@@ -37,7 +37,7 @@ def collection_null_detail(request):
     retailer = request.GET.get('retailer', '')
     column = request.GET.get('column', '')
 
-    if category != 'tv':
+    if category not in ('tv', 'ref', 'ldy'):
         return JsonResponse({'error': '잘못된 카테고리입니다.'}, status=400)
     if not retailer or not column:
         return JsonResponse({'error': '리테일러와 컬럼을 지정해주세요.'}, status=400)

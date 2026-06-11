@@ -28,6 +28,8 @@
         <!-- TV / HHP 탭 -->
         <div class="field-missing-tabs">
             <button class="field-missing-tab active" data-pl="tv" onclick="switchFieldMissingTab('tv')">TV</button>
+            <button class="field-missing-tab" data-pl="ref" onclick="switchFieldMissingTab('ref')">REF</button>
+            <button class="field-missing-tab" data-pl="ldy" onclick="switchFieldMissingTab('ldy')">LDY</button>
         </div>
         <!-- 리테일러 카드들 -->
         <div class="field-missing-retailers" id="field-missing-retailers">
@@ -67,6 +69,6 @@
 {% endblock %}
 
 {% block layer3_js %}
-<script src="{% static 'dx_layer3/js/common.js' %}?v=1"></script>
-<script src="{% static 'dx_layer3/js/field-missing.js' %}?v=2"></script>
+<script src="{% static 'dx_layer3/js/common.js' %}?v=3"></script>
+<script src="{% static 'dx_layer3/js/field-missing.js' %}?v=3"></script>
 {% endblock %}

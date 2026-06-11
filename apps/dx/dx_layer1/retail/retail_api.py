@@ -87,7 +87,7 @@ def backup_status(request):
 
 
 def backup_retail_data(request):
-    """TV/HHP retail 데이터 백업 API
+    """TV/REF/LDY retail 데이터 백업 API
     GET: 백업 대상 건수 조회
     POST: 백업 실행
     """
@@ -102,9 +102,11 @@ def backup_retail_data(request):
         if result['success']:
             return JsonResponse({
                 'success': True,
-                'tv_count': result['tv_count'],
+                'tv_count': result.get('tv_count', 0),
+                'ref_count': result.get('ref_count', 0),
+                'ldy_count': result.get('ldy_count', 0),
                 'hhp_count': 0,
-                'total_count': result['tv_count']
+                'total_count': result.get('total_count', 0)
             })
         else:
             return JsonResponse({'success': False, 'error': result.get('error', 'Unknown error')})
@@ -116,17 +118,25 @@ def backup_retail_data(request):
 
         if result['success']:
             tv_count = result['tv']['count']
-            message = f"백업 완료 - TV: {tv_count}건"
+            ref_count = result['ref']['count']
+            ldy_count = result['ldy']['count']
+            message = f"백업 완료 - TV: {tv_count}건, REF: {ref_count}건, LDY: {ldy_count}건"
             return JsonResponse({
                 'success': True,
                 'message': message,
                 'tv_count': tv_count,
+                'ref_count': ref_count,
+                'ldy_count': ldy_count,
                 'hhp_count': 0
             })
         else:
             errors = []
             if not result['tv']['success']:
                 errors.append(f"TV: {result['tv'].get('error', 'Unknown error')}")
+            if not result['ref']['success']:
+                errors.append(f"REF: {result['ref'].get('error', 'Unknown error')}")
+            if not result['ldy']['success']:
+                errors.append(f"LDY: {result['ldy'].get('error', 'Unknown error')}")
             return JsonResponse({
                 'success': False,
                 'error': ', '.join(errors)

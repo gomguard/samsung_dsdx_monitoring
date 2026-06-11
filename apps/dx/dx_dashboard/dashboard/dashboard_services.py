@@ -9,8 +9,8 @@ def get_dashboard_context():
     return {
         'data_source': {
             'id': 'dx',
-            'name': 'DX',
-            'description': '미국 TV/HHP Retail, YouTube, Trend, LLM 분석 데이터 품질 모니터링',
+            'name': 'DX_SEA',
+            'description': 'SEA TV/HHP/REF/LDY Retail, YouTube, Trend, LLM 분석 데이터 품질 모니터링',
             'color': '#0d9488',
         },
         'layers': [

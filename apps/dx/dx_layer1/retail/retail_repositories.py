@@ -67,6 +67,37 @@ def get_tv_retail_detail_list(cursor, target_date):
     return cursor.fetchall()
 
 
+def query_daily_category_counts(cursor, table_name, date_field, target_date, retailers):
+    placeholders = ','.join(['%s'] * len(retailers))
+    cursor.execute(f"""
+        SELECT account_name,
+               COUNT(*) as cnt,
+               COUNT(CASE WHEN LOWER(page_type) = 'main' THEN 1 END) as main_count,
+               COUNT(CASE WHEN LOWER(page_type) = 'bsr' THEN 1 END) as bsr_count,
+               0 as extra_count
+        FROM {table_name}
+        WHERE DATE({date_field}::timestamp) = %s
+        AND account_name IN ({placeholders})
+        GROUP BY account_name
+        ORDER BY account_name
+    """, [target_date] + list(retailers))
+    return cursor.fetchall()
+
+
+def query_daily_category_summary_by_retailer(cursor, table_name, date_field, target_date, retailer):
+    cursor.execute(f"""
+        SELECT
+            COUNT(CASE WHEN LOWER(page_type) = 'main' THEN 1 END) as main_count,
+            COUNT(CASE WHEN LOWER(page_type) = 'bsr' THEN 1 END) as bsr_count,
+            0 as extra_count,
+            COUNT(*) as total
+        FROM {table_name}
+        WHERE DATE({date_field}::timestamp) = %s
+        AND account_name = %s
+    """, (target_date, retailer))
+    return cursor.fetchone()
+
+
 def get_hhp_retail_detail_list(cursor, target_date):
     return []
 
@@ -92,7 +123,7 @@ def get_retail_summary_null_counts(cursor, table_name, date_field, check_columns
         query = f"""
             SELECT {', '.join(count_parts)}
             FROM {table_name}
-            WHERE DATE({date_field}) = %s
+            WHERE DATE({date_field}::timestamp) = %s
             AND LOWER(account_name) = LOWER(%s)
         """
         cursor.execute(query, (date_only, retailer))
@@ -113,8 +144,8 @@ def get_retailer_raw_data_list(cursor, table_name, columns, retailer, date_colum
         SELECT {', '.join(columns)}
         FROM {table_name}
         WHERE LOWER(account_name) = LOWER(%s)
-        AND {date_column} >= %s
-        AND {date_column} < %s
+        AND {date_column}::timestamp >= %s
+        AND {date_column}::timestamp < %s
         ORDER BY id DESC
         LIMIT 500
     """

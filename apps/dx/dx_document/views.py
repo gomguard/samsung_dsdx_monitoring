@@ -31,8 +31,8 @@ def index(request):
     context = {
         'data_source': {
             'id': 'dx',
-            'name': 'DX Retail',
-            'name_en': 'TV/HHP Retail Monitoring',
+            'name': 'DX_SEA',
+            'name_en': 'SEA Retail Monitoring',
             'color': '#0d9488',
         },
         'categories': categories,
@@ -67,8 +67,8 @@ def edit(request, document_id=None):
     context = {
         'data_source': {
             'id': 'dx',
-            'name': 'DX Retail',
-            'name_en': 'TV/HHP Retail Monitoring',
+            'name': 'DX_SEA',
+            'name_en': 'SEA Retail Monitoring',
             'color': '#0d9488',
         },
         'document_id': document_id,

@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from apps.common.db import execute_dx_query, dx_table
 from apps.common.response import log_error
+from apps.common.sea_retail import SEA_RETAIL_NULL_COLUMNS
 
 # CSV 파일 경로 (config/csv 폴더) - 형식검증, 시계열 규칙용
 CSV_DIR = Path(__file__).parent.parent.parent / 'config' / 'csv'
@@ -44,7 +45,9 @@ def load_retail_columns():
 
     result = {
         'tv': {'Amazon': [], 'Bestbuy': [], 'Walmart': []},
-        'hhp': {'Amazon': [], 'Bestbuy': [], 'Walmart': []}
+        'hhp': {'Amazon': [], 'Bestbuy': [], 'Walmart': []},
+        'ref': {'Bestbuy': [], 'Lowes': []},
+        'ldy': {'Bestbuy': [], 'Lowes': []},
     }
 
     try:
@@ -57,7 +60,7 @@ def load_retail_columns():
         rows = execute_dx_query(query)
 
         # retailer 값을 표시명으로 매핑
-        retailer_map = {'amazon': 'Amazon', 'bestbuy': 'Bestbuy', 'walmart': 'Walmart'}
+        retailer_map = {'amazon': 'Amazon', 'bestbuy': 'Bestbuy', 'walmart': 'Walmart', 'lowes': 'Lowes'}
 
         for row in rows:
             product_line = row['product_line'].lower()
@@ -68,10 +71,20 @@ def load_retail_columns():
             if retailer_name and product_line in result:
                 result[product_line][retailer_name].append(column_name)
 
+        for product_line, retailers in SEA_RETAIL_NULL_COLUMNS.items():
+            for retailer, columns in retailers.items():
+                if product_line in result:
+                    result[product_line][retailer] = list(columns)
+
         _retail_columns_cache = result
         _retail_columns_cache_time = now
     except Exception as e:
         log_error(e, 'db')
+
+    for product_line, retailers in SEA_RETAIL_NULL_COLUMNS.items():
+        for retailer, columns in retailers.items():
+            if product_line in result:
+                result[product_line][retailer] = list(columns)
 
     return result
 
@@ -82,7 +95,7 @@ def get_retailer_columns(product_line, retailer):
 
     Args:
         product_line: 'tv' 또는 'hhp'
-        retailer: 'Amazon', 'Bestbuy', 'Walmart'
+        retailer: 'Amazon', 'Bestbuy', 'Walmart', 'Lowes'
 
     Returns:
         list: 컬럼명 리스트
@@ -156,7 +169,7 @@ def get_retailer_list():
         list: ['Amazon', 'Bestbuy', 'Walmart']
     """
     # 현재 지원하는 리테일러 목록 (DB 컬럼명과 매핑)
-    return ['Amazon', 'Bestbuy', 'Walmart']
+    return ['Amazon', 'Bestbuy', 'Walmart', 'Lowes']
 
 
 def get_retail_duplicate_keys(product_line):

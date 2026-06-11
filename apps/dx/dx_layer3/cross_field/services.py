@@ -10,6 +10,7 @@ from apps.dx.dx_layer3.dashboard.services import (
     get_crossfield_normal_counts,
     get_all_no_review_texts,
     load_crossfield_rules,
+    get_retail_table_name,
 )
 
 
@@ -107,7 +108,7 @@ def get_cross_field_rule_detail(cursor, target_date, product_line, section, rule
 
             # editable 컬럼 수집 (리테일러별 합집합)
             editable_columns = []
-            if table_name in ('tv_retail_com', 'hhp_retail_com'):
+            if table_name in ('tv_retail_com', 'ref_retail_com', 'ldy_retail_com'):
                 seen_retailers = set()
                 all_editable = set()
                 for a in anomalies:
@@ -190,7 +191,7 @@ def get_cross_field_summary(target_date, product_line, section):
     """규칙별 요약 반환 (검증 유형별 건수) - DB 연결 불필요"""
     crossfield_result = validate_crossfield(target_date, section)
 
-    table_name_for_normal = 'tv_retail_com' if product_line == 'tv' else 'hhp_retail_com'
+    table_name_for_normal = get_retail_table_name(product_line)
     normal_counts = get_crossfield_normal_counts(target_date, table_name_for_normal)
 
     rule_summary = []
