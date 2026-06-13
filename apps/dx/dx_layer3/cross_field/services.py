@@ -25,6 +25,7 @@ def get_cross_field_rule_detail(cursor, target_date, product_line, section, rule
 
             # 에러 아이템 추출 (account_name + item 쌍)
             error_pairs = set()
+            direct_error_details = []
             error_detail_map = {}  # (acct, item) → error_detail (검증 태그용)
             for detail in rule_result['error_details']:
                 acct = detail.get('account_name', '')
@@ -32,8 +33,10 @@ def get_cross_field_rule_detail(cursor, target_date, product_line, section, rule
                 if acct and item:
                     error_pairs.add((acct, item))
                     error_detail_map[(acct, item)] = detail
+                elif detail.get('id') is not None:
+                    direct_error_details.append(detail)
 
-            if not error_pairs or not table_name or not date_col:
+            if (not error_pairs and not direct_error_details) or not table_name or not date_col:
                 anomalies = []
             else:
                 # 리테일러별 아이템 그룹핑
@@ -97,6 +100,20 @@ def get_cross_field_rule_detail(cursor, target_date, product_line, section, rule
                             anomaly['validation_tag'] = validation_info.get('reason', '')
                             anomaly['expected_pattern'] = validation_info.get('expected_pattern', '')
                         anomalies.append(anomaly)
+
+                seen_ids = {str(a.get('id')) for a in anomalies if a.get('id') is not None}
+                for detail in direct_error_details:
+                    detail_id = detail.get('id')
+                    if detail_id is not None and str(detail_id) in seen_ids:
+                        continue
+                    anomaly = {}
+                    for key, val in detail.items():
+                        anomaly[key] = str(val) if val is not None else None
+                    if validation_type == 'cross_detail_mismatch':
+                        validation_info = validate_review_detail_match(detail, product_line, return_detail=True)
+                        anomaly['validation_tag'] = validation_info.get('reason', '')
+                        anomaly['expected_pattern'] = validation_info.get('expected_pattern', '')
+                    anomalies.append(anomaly)
 
             # account_name, item, crawl_datetime 순으로 정렬
             anomalies.sort(key=lambda x: (
