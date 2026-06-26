@@ -23,7 +23,7 @@
     var NAME_MAP = {
         'retail': '거래선 제품 정보 / 감성점수',
         'sentiment': '감성분석',
-        'youtube': 'YouTube 영상 데이터 (TV/HHP)',
+        'youtube': 'YouTube 영상 데이터 (HHP)',
         'market_trend': '키워드 검색 트렌드 (TV/HHP)',
         'market_demand': '수요 증감율 예측 (TV/HHP)',
         'market_competitor_event': '경쟁 신제품 출시 정보 (TV/HHP)',

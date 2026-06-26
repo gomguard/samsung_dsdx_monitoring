@@ -37,6 +37,8 @@ def get_layer1_stats(cursor, target_date, now):
 
         for row in youtube_today:
             category = row[0]
+            if category == 'TV':
+                continue
             log_count = row[1] or 0
             success_count = row[2]
             video_count = row[3] or 0

@@ -129,7 +129,7 @@ function renderYouTubeCheck(check, checkIdx) {
         '</div>';
     } else {
         // 카테고리가 없을 때도 동일한 형식으로 기본 구조 표시
-        const defaultCategories = ['TV', 'HHP'];
+        const defaultCategories = ['HHP'];
         const defaultColumnsHtml = defaultCategories.map(function(catName) {
             return '<div class="sentiment-column">' +
                 '<div class="sentiment-column-header">' +
