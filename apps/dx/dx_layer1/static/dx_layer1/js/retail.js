@@ -48,6 +48,28 @@ function getSlotNullColumns(categoryName, slotName) {
     }
     return result;
 }
+function getRetailItemCount(retailer, names) {
+    var items = retailer.items || [];
+    for (var i = 0; i < items.length; i++) {
+        for (var j = 0; j < names.length; j++) {
+            if (items[i].name === names[j]) {
+                return items[i].count || 0;
+            }
+        }
+    }
+    return 0;
+}
+
+function renderRetailRankRow(categoryName, period, retailerName, row, status) {
+    return '<tr>' +
+        '<td class="rt-name"><a href="/dx/layer1/retail/?category=' + encodeURIComponent(categoryName) + '&retailer=' + encodeURIComponent(retailerName) + '&period=' + encodeURIComponent(period) + '&date=' + getSelectedDate() + '">' + esc(retailerName) + '</a></td>' +
+        '<td>' + row.main.toLocaleString() + '</td>' +
+        '<td>' + row.bsr.toLocaleString() + '</td>' +
+        '<td class="rt-extra">' + row.extra.toLocaleString() + '</td>' +
+        '<td class="rt-total">' + row.total.toLocaleString() + '</td>' +
+        '<td class="rt-status ct-nc">' + getStatusBadge(status) + '</td>' +
+    '</tr>';
+}
 
 // Retail 일일 슬롯 테이블 렌더링
 function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
@@ -72,6 +94,7 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
     // 테이블 행 생성
     var rowsHtml = '';
     var totals = { main: 0, bsr: 0, extra: 0, total: 0 };
+    var renderedRows = 0;
 
     if (summaryData && summaryData.summary) {
         summaryData.summary.forEach(function(ret) {
@@ -84,14 +107,26 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
             totals.extra += row.extra;
             totals.total += row.total;
             var rStatus = statusMap[ret.retailer] || 'PENDING';
-            rowsHtml += '<tr>' +
-                '<td class="rt-name"><a href="/dx/layer1/retail/?category=' + encodeURIComponent(categoryName) + '&retailer=' + encodeURIComponent(ret.retailer) + '&period=' + encodeURIComponent(period) + '&date=' + getSelectedDate() + '">' + esc(ret.retailer) + '</a></td>' +
-                '<td>' + row.main.toLocaleString() + '</td>' +
-                '<td>' + row.bsr.toLocaleString() + '</td>' +
-                '<td class="rt-extra">' + row.extra.toLocaleString() + '</td>' +
-                '<td class="rt-total">' + row.total.toLocaleString() + '</td>' +
-                '<td class="rt-status ct-nc">' + getStatusBadge(rStatus) + '</td>' +
-            '</tr>';
+            rowsHtml += renderRetailRankRow(categoryName, period, ret.retailer, row, rStatus);
+            renderedRows += 1;
+        });
+    }
+
+    if (renderedRows === 0 && slot.retailers && slot.retailers.length > 0) {
+        slot.retailers.forEach(function(ret) {
+            if (!ret || !ret.retailer) return;
+            var row = {
+                main: getRetailItemCount(ret, ['Main Rank']),
+                bsr: getRetailItemCount(ret, ['BSR Rank']),
+                extra: getRetailItemCount(ret, ['Promotion Position', 'Trend Rank']),
+                total: ret.count || 0
+            };
+            totals.main += row.main;
+            totals.bsr += row.bsr;
+            totals.extra += row.extra;
+            totals.total += row.total;
+            rowsHtml += renderRetailRankRow(categoryName, period, ret.retailer, row, ret.status || 'PENDING');
+            renderedRows += 1;
         });
     }
 
