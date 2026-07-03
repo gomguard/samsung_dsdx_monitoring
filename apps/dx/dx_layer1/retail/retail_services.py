@@ -199,13 +199,21 @@ def get_layer1_stats(cursor, target_date, now):
     retail_ok_count = 1 if tv_overall_status == 'OK' else 0
 
     am_kst = get_kst_time_info(0, target_date)
+    pm_kst = get_kst_time_info(12, target_date)
     am_kst_date = next_day if am_kst['next_day'] else target_date
+    pm_kst_date = next_day if pm_kst['next_day'] else target_date
 
     retail_time_info = {
         'am': {
             'us': f'{target_date} 00:00',
             'kst': f'{am_kst_date} {am_kst["hour"]:02d}:00',
             'is_dst': am_kst['is_dst']
+        },
+        # Backward-compatible display metadata only. PM rows remain excluded.
+        'pm': {
+            'us': f'{target_date} 12:00',
+            'kst': f'{pm_kst_date} {pm_kst["hour"]:02d}:00',
+            'is_dst': pm_kst['is_dst']
         },
         'is_dst': am_kst['is_dst']
     }
