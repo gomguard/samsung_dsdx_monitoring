@@ -69,7 +69,7 @@ def get_rules_summary(cursor, target_date, target_category, rules):
             # 전체 건수 쿼리 (date_column 기반)
             if has_date_filter:
                 if table_name == 'tv_retail_com':
-                    total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE({date_col}) = %s AND EXTRACT(HOUR FROM {date_col}) < 12"
+                    total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE({date_col}) = %s"
                 else:
                     total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE({date_col}) = %s"
                 cursor.execute(total_query, (target_date,))

@@ -51,9 +51,6 @@ def get_time_series_detail(cursor, target_date, detail_code, days=1):
         date_filter = f"DATE(d.{date_column}::timestamp) >= %s AND DATE(d.{date_column}::timestamp) <= %s"
         date_params = [str(since_date), str(target_date)]
 
-    if source_table == 'tv_retail_com':
-        date_filter = f"({date_filter}) AND EXTRACT(HOUR FROM d.{date_column}::timestamp) < 12"
-
     combined_sql = f"""
         WITH _anomaly_items AS ({stored_query})
         SELECT d.id, d.item, d.account_name, d.final_sku_price, d.product_url, {date_select}, row_to_json(a)
@@ -100,15 +97,13 @@ def get_duplicate_detail(cursor, target_date, product_line):
     if product_line == 'tv':
         cursor.execute("""
             SELECT item, account_name, page_type,
-                   CASE WHEN EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12 THEN 'AM' ELSE 'PM' END as period,
+                   'DAILY' as period,
                    COUNT(*) as cnt,
                    MIN(crawl_datetime) as first_crawl,
                    MAX(crawl_datetime) as last_crawl
             FROM tv_retail_com
             WHERE DATE(crawl_datetime::timestamp) = %s
-            AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12
-            GROUP BY item, account_name, page_type,
-                     CASE WHEN EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12 THEN 'AM' ELSE 'PM' END
+            GROUP BY item, account_name, page_type
             HAVING COUNT(*) > 1
             ORDER BY COUNT(*) DESC
         """, (target_date,))
@@ -146,7 +141,7 @@ def get_duplicate_detail(cursor, target_date, product_line):
 
     if product_line in ['tv', 'hhp']:
         for row in rows:
-            period_text = '오전' if row[3] == 'AM' else '오후'
+            period_text = '일일' if row[3] == 'DAILY' else ('오전' if row[3] == 'AM' else '오후')
             duplicates.append({
                 'item': row[0], 'account_name': row[1], 'page_type': row[2],
                 'period': period_text, 'count': row[4],
@@ -195,33 +190,33 @@ def get_review_change_detail(cursor, target_date, product_line):
     hour_func = f"EXTRACT(HOUR FROM {date_col}::timestamp)"
 
     cursor.execute(f"""
-        WITH today_am AS (
+        WITH today_daily AS (
             SELECT item, account_name, retailer_sku_name as product_name,
                    CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count,
-                   product_url, 'AM' as period
+                   product_url, '일일' as period
             FROM {table}
-            WHERE {date_func} = %s AND {hour_func} < 12
+            WHERE {date_func} = %s
             AND count_of_star_ratings IS NOT NULL AND count_of_star_ratings ~ '^[0-9,]+$'
         ),
-        yesterday_am AS (
+        yesterday_daily AS (
             SELECT item, account_name,
                    CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count
             FROM {table}
-            WHERE {date_func} = %s AND {hour_func} < 12
+            WHERE {date_func} = %s
             AND count_of_star_ratings IS NOT NULL AND count_of_star_ratings ~ '^[0-9,]+$'
         ),
-        am_changes AS (
+        daily_changes AS (
             SELECT t.item, t.account_name, t.product_name,
                    y.review_count as prev_count, t.review_count as curr_count,
                    ROUND(((t.review_count - y.review_count)::float / y.review_count * 100)::numeric, 2) as change_pct,
                    t.product_url, t.period,
                    (t.review_count - y.review_count)::float / y.review_count as abs_change
-            FROM today_am t JOIN yesterday_am y ON t.item = y.item AND t.account_name = y.account_name
+            FROM today_daily t JOIN yesterday_daily y ON t.item = y.item AND t.account_name = y.account_name
             WHERE y.review_count > 0 AND (t.review_count - y.review_count)::float / y.review_count > 0.5
             AND (t.review_count - y.review_count) >= 30
         )
         SELECT item, account_name, product_name, prev_count, curr_count, change_pct, product_url, period
-        FROM am_changes
+        FROM daily_changes
         ORDER BY abs_change DESC
     """, (target_date, prev_date))
 
@@ -261,7 +256,6 @@ def get_price_anomalies(cursor, target_date, product_line):
             SELECT product_name, account_name, final_sku_price, main_rank, crawl_datetime
             FROM tv_retail_com
             WHERE DATE(crawl_datetime::timestamp) = %s
-            AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12
             AND (final_sku_price < 0 OR final_sku_price > 50000)
             ORDER BY final_sku_price DESC
         """, (target_date,))
@@ -309,11 +303,11 @@ def get_price_changes(cursor, target_date, product_line, threshold=0.3):
         cursor.execute("""
             WITH today AS (
                 SELECT item, product_name, account_name, final_sku_price as price, product_url
-                FROM tv_retail_com WHERE DATE(crawl_datetime::timestamp) = %s AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12 AND final_sku_price IS NOT NULL
+                FROM tv_retail_com WHERE DATE(crawl_datetime::timestamp) = %s AND final_sku_price IS NOT NULL
             ),
             yesterday AS (
                 SELECT item, product_name, account_name, final_sku_price as price
-                FROM tv_retail_com WHERE DATE(crawl_datetime::timestamp) = %s AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12 AND final_sku_price IS NOT NULL
+                FROM tv_retail_com WHERE DATE(crawl_datetime::timestamp) = %s AND final_sku_price IS NOT NULL
             )
             SELECT t.item, t.account_name, t.product_name,
                    y.price as prev_price, t.price as curr_price,

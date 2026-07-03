@@ -57,7 +57,6 @@ def get_collection_status(target_date, category):
                 f"SELECT COUNT(*) AS total_count, {', '.join(null_parts)} "
                 f"FROM {table_name} "
                 f"WHERE account_name = %s AND ({date_col})::date = %s::date "
-                f"AND EXTRACT(HOUR FROM {date_col}::timestamp) < 12"
             )
             cursor.execute(sql, [retailer, str(target_date)])
             row = cursor.fetchone()
@@ -133,7 +132,6 @@ def get_null_detail(target_date, category, retailer, column):
             f"SELECT id, {date_expr}, account_name, item, {column}, product_url "
             f"FROM {table_name} "
             f"WHERE account_name = %s AND ({date_col})::date = %s::date "
-            f"AND EXTRACT(HOUR FROM {date_col}::timestamp) < 12 "
             f"AND ({column} IS NULL OR CAST({column} AS TEXT) = '') "
             f"ORDER BY item, {date_col} ASC"
         )

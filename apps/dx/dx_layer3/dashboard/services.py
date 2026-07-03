@@ -61,26 +61,7 @@ def validate_select_query(query):
     return True
 
 def apply_tv_retail_am_filter(query, table_name, date_col='crawl_datetime'):
-    """Restrict TV Retail rule SQL to the morning collection window."""
-    if table_name != 'tv_retail_com' or not query:
-        return query
-    if 'EXTRACT(HOUR FROM' in query.upper():
-        return query
-
-    base_col = (date_col or 'crawl_datetime').strip()
-    hour_expr = base_col if '::' in base_col else f'{base_col}::timestamp'
-    date_exprs = [f'DATE({base_col})']
-    if '::' not in base_col:
-        date_exprs.append(f'DATE({base_col}::timestamp)')
-
-    for date_expr in sorted(set(date_exprs), key=len, reverse=True):
-        pattern = rf"((?:WHERE|AND)\s+{re.escape(date_expr)}\s*(?:=|<=|>=)\s*%s(?:::\w+)?(?:\s*-\s*INTERVAL\s+'[^']+')?)"
-        query = re.sub(
-            pattern,
-            rf"\1\n    AND EXTRACT(HOUR FROM {hour_expr}) < 12",
-            query,
-            flags=re.IGNORECASE,
-        )
+    """Compatibility wrapper: TV Retail validation now uses the full target date."""
     return query
 
 def validate_exclude_condition(condition):

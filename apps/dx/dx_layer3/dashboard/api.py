@@ -88,7 +88,7 @@ def layer_stats(request):
 
                         if table_name not in table_totals:
                             try:
-                                time_filter = "AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12" if table_name == 'tv_retail_com' else ""
+                                time_filter = ""
                                 curr_cursor.execute(f"""
                                     SELECT COUNT(*) FROM {table_name}
                                     WHERE DATE({date_column}::timestamp) = %s
@@ -158,7 +158,7 @@ def layer_stats(request):
 
                     if table_name not in table_totals:
                         try:
-                            time_filter = "AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12" if table_name == 'tv_retail_com' else ""
+                            time_filter = ""
                             cursor.execute(f"""
                                 SELECT COUNT(*) FROM {table_name}
                                 WHERE DATE({date_column}::timestamp) = %s
@@ -216,7 +216,6 @@ def layer_stats(request):
                         cursor.execute("""
                             SELECT COUNT(*) FROM tv_retail_com
                             WHERE DATE(crawl_datetime::timestamp) = %s
-                            AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12
                         """, (target_date,))
                         tv_total = cursor.fetchone()[0] or 0
                         table_totals['tv_retail_com'] = tv_total
@@ -293,7 +292,6 @@ def layer_stats(request):
                             FROM tv_retail_sentiment s
                             JOIN tv_retail_com r ON s.retail_com_id = r.id
                             WHERE DATE(r.crawl_datetime::timestamp) = %s
-                            AND EXTRACT(HOUR FROM r.crawl_datetime::timestamp) < 12
                             AND s.sentiment_score IS NOT NULL
                             AND LOWER(s.sentiment_score::text) NOT IN ('none', 'null', '')
                         """, (target_date,))
@@ -304,7 +302,6 @@ def layer_stats(request):
                             FROM tv_retail_sentiment s
                             JOIN tv_retail_com r ON s.retail_com_id = r.id
                             WHERE DATE(r.crawl_datetime::timestamp) = %s
-                            AND EXTRACT(HOUR FROM r.crawl_datetime::timestamp) < 12
                             AND s.sentiment_score IS NOT NULL
                             AND LOWER(s.sentiment_score::text) NOT IN ('none', 'null', '')
                             AND (

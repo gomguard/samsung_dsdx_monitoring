@@ -267,7 +267,6 @@ def get_sentiment_cross_detail(cursor, target_date, product_line):
             FROM tv_retail_sentiment s
             JOIN tv_retail_com r ON s.retail_com_id = r.id
             WHERE DATE(r.crawl_datetime::timestamp) = %s
-            AND EXTRACT(HOUR FROM r.crawl_datetime::timestamp) < 12
             AND s.sentiment_score IS NOT NULL
             AND LOWER(s.sentiment_score::text) NOT IN ('none', 'null', '')
             AND (
