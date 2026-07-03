@@ -56,24 +56,25 @@ def get_collection_status(target_date, category):
             sql = (
                 f"SELECT COUNT(*) AS total_count, {', '.join(null_parts)} "
                 f"FROM {table_name} "
-                f"WHERE account_name = %s AND ({date_col})::date = %s::date"
+                f"WHERE account_name = %s AND ({date_col})::date = %s::date "
+                f"AND EXTRACT(HOUR FROM {date_col}::timestamp) < 12"
             )
             cursor.execute(sql, [retailer, str(target_date)])
             row = cursor.fetchone()
 
-            total_count = row[0] if row else 0
-            savings_count = row[len(columns) + 1] if row else 0
-            original_price_missing = row[len(columns) + 2] if row else 0
+            total_count = (row[0] or 0) if row else 0
+            savings_count = (row[len(columns) + 1] or 0) if row else 0
+            original_price_missing = (row[len(columns) + 2] or 0) if row else 0
 
             CUSTOM_TOTALS = {
-                'bsr_rank': 100 if retailer == 'Bestbuy' else 200,
+                'bsr_rank': 100,
             }
             if category == 'tv':
                 CUSTOM_TOTALS['promotion_type'] = 18
                 CUSTOM_TOTALS['promotion_position'] = 18
 
             REMARKS = {
-                'bsr_rank': 'BSR 페이지 수집 항목 (오전/오후 100건씩)',
+                'bsr_rank': 'BSR 페이지 수집 항목 (오전 100건)',
                 'trend_rank': '트렌드 수집 항목 (최대 10개)',
                 'original_sku_price': '할인가 존재 시에만 원본가 존재 (Amazon 제외)',
             }
@@ -83,7 +84,7 @@ def get_collection_status(target_date, category):
 
             column_nulls = []
             for i, col in enumerate(columns):
-                raw_null = row[i + 1] if row else 0
+                raw_null = (row[i + 1] or 0) if row else 0
                 not_null = total_count - raw_null
                 if col == 'original_sku_price' and retailer in ('Bestbuy', 'Walmart'):
                     col_total = savings_count
@@ -132,6 +133,7 @@ def get_null_detail(target_date, category, retailer, column):
             f"SELECT id, {date_expr}, account_name, item, {column}, product_url "
             f"FROM {table_name} "
             f"WHERE account_name = %s AND ({date_col})::date = %s::date "
+            f"AND EXTRACT(HOUR FROM {date_col}::timestamp) < 12 "
             f"AND ({column} IS NULL OR CAST({column} AS TEXT) = '') "
             f"ORDER BY item, {date_col} ASC"
         )

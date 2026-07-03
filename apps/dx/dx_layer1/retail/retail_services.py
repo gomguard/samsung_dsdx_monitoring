@@ -114,7 +114,7 @@ def get_layer1_stats(cursor, target_date, now):
     failed_items = []
 
     time_slots = get_retail_time_slots('TV', target_date)
-    tv_daily_retailers = _get_daily_retailers(time_slots)
+    tv_daily_retailers = set()
 
     tv_time_slots = []
     tv_total_count = 0
@@ -199,21 +199,13 @@ def get_layer1_stats(cursor, target_date, now):
     retail_ok_count = 1 if tv_overall_status == 'OK' else 0
 
     am_kst = get_kst_time_info(0, target_date)
-    pm_kst = get_kst_time_info(12, target_date)
-
     am_kst_date = next_day if am_kst['next_day'] else target_date
-    pm_kst_date = next_day if pm_kst['next_day'] else target_date
 
     retail_time_info = {
         'am': {
             'us': f'{target_date} 00:00',
             'kst': f'{am_kst_date} {am_kst["hour"]:02d}:00',
             'is_dst': am_kst['is_dst']
-        },
-        'pm': {
-            'us': f'{target_date} 12:00',
-            'kst': f'{pm_kst_date} {pm_kst["hour"]:02d}:00',
-            'is_dst': pm_kst['is_dst']
         },
         'is_dst': am_kst['is_dst']
     }
@@ -286,11 +278,9 @@ def get_retail_summary(target_date, product_line):
             'column_checks': []
         }
 
-    next_day = target_date + timedelta(days=1)
 
     time_slots = [
-        {'name': '오전', 'start': f'{target_date} 00:00:00', 'end': f'{target_date} 12:00:00'},
-        {'name': '오후', 'start': f'{target_date} 12:00:00', 'end': f'{next_day} 00:00:00'}
+        {'name': '오전', 'start': f'{target_date} 00:00:00', 'end': f'{target_date} 12:00:00'}
     ]
 
     table_name = 'tv_retail_com'
@@ -311,7 +301,7 @@ def get_retail_summary(target_date, product_line):
         for r in s.get('retailers', []):
             retailer_set.add(r['name'])
     retailers = sorted(retailer_set) if retailer_set else ['Amazon', 'Bestbuy', 'Walmart']
-    daily_retailers = _get_daily_retailers(all_slots)
+    daily_retailers = set()
 
     summary_data = []
     null_columns_data = []
@@ -419,7 +409,7 @@ def get_retail_summary(target_date, product_line):
 
     grand_total = sum(r['total'] for r in summary_data)
     am_total = sum(r['rows'][0]['total'] for r in summary_data if r['rows'])
-    pm_total = sum(r['rows'][1]['total'] for r in summary_data if len(r['rows']) > 1)
+    pm_total = 0
 
     return {
         'date': str(target_date),
@@ -450,6 +440,18 @@ def get_retailer_raw_data(category, retailer, period, target_date):
             'columns': [],
             'data': [],
             'error': 'HHP Retail is excluded from monitoring.'
+        }
+
+    if cfg['scheduled'] and period != '오전':
+        return {
+            'category': category,
+            'retailer': retailer,
+            'period': period,
+            'date': str(target_date),
+            'columns': [],
+            'data': [],
+            'total_count': 0,
+            'error': 'TV Retail 오후 수집은 모니터링 대상에서 제외되었습니다.'
         }
 
     next_day = target_date + timedelta(days=1)
@@ -502,7 +504,6 @@ def get_retailer_raw_data(category, retailer, period, target_date):
         results['error'] = log_error(e)
 
     return results
-
 
 def get_retailer_columns_info():
     tv_columns = get_all_retailer_columns('tv')

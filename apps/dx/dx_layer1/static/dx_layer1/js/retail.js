@@ -9,7 +9,8 @@ function renderRetailCategory(cat, checkIdx, catIdx) {
     // Sentiment와 동일하게 2열 레이아웃으로 오전/오후 표시
     let timeSlotsHtml = '';
     if (hasTimeSlots) {
-        timeSlotsHtml = '<div class="sentiment-two-column" id="retail-cat-' + checkIdx + '-' + catIdx + '">' +
+        const slotClass = cat.time_slots.length > 1 ? 'sentiment-two-column' : 'sentiment-two-column retail-single-column';
+        timeSlotsHtml = '<div class="' + slotClass + '" id="retail-cat-' + checkIdx + '-' + catIdx + '">' +
             cat.time_slots.map((slot, slotIdx) => renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, cat.name)).join('') +
         '</div>';
     }
@@ -161,22 +162,19 @@ function renderRetailCheck(check, checkIdx) {
     const statusClass = getStatusClass(check.status);
 
     // 시간 정보 (날짜 포함): US(NY) 00:00 KST 2026-01-05 14:00
-    const timeInfo = check.time_info || { am: { us: '00:00', kst: '14:00' }, pm: { us: '12:00', kst: '02:00' } };
+    const timeInfo = check.time_info || { am: { us: '00:00', kst: '14:00' } };
     const isDst = timeInfo.is_dst || false;
     const kstLabel = isDst ? 'KST(DST)' : 'KST';
 
     // US 시간에서 시간만 추출
-    const amUsTime = timeInfo.am.us ? timeInfo.am.us.split(' ')[1] || timeInfo.am.us : '00:00';
-    const pmUsTime = timeInfo.pm.us ? timeInfo.pm.us.split(' ')[1] || timeInfo.pm.us : '12:00';
-
-    // Retail은 오전/오후를 가로로 표시
+    const amUsTime = timeInfo.am && timeInfo.am.us ? timeInfo.am.us.split(' ')[1] || timeInfo.am.us : '00:00';
+    const timeSpans = ['<span class="utc">[오전] US(NY) ' + amUsTime + ' ' + kstLabel + ' ' + (timeInfo.am ? timeInfo.am.kst : '') + '</span>'];
     const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
         '<div class="time-slot-header" style="cursor: default;">' +
             '<div class="time-slot-info">' +
                 '<span class="time-slot-name">수집 시간</span>' +
                 '<span class="time-slot-time" style="display: flex; flex-direction: row; align-items: center; gap: 24px;">' +
-                    '<span class="utc">[오전] US(NY) ' + amUsTime + ' ' + kstLabel + ' ' + timeInfo.am.kst + '</span>' +
-                    '<span class="utc">[오후] US(NY) ' + pmUsTime + ' ' + kstLabel + ' ' + timeInfo.pm.kst + '</span>' +
+                    timeSpans.join('') +
                 '</span>' +
             '</div>' +
         '</div>' +
@@ -209,7 +207,7 @@ function renderRetailCheck(check, checkIdx) {
                             '</div>' +
                         '</div>' +
                         '<div class="sentiment-two-column">' +
-                            ['오전', '오후'].map(function(period) {
+                            ['오전'].map(function(period) {
                                 return '<div class="sentiment-column pending">' +
                                     '<div class="sentiment-column-header">' +
                                         '<span class="sentiment-column-title">' + period + ' (0건)</span>' +

@@ -75,7 +75,7 @@ def field_missing_detection(cursor, target_date, product_line, retailer, retail_
         case_today = []
         for col in columns_to_check:
             safe_col = f'"{col}"'
-            case_prev.append(f"MAX(CASE WHEN DATE({date_column}) IN ('{prev_date_1}', '{prev_date_2}') AND {safe_col} IS NOT NULL AND CAST({safe_col} AS TEXT) != '' THEN 1 ELSE 0 END) as prev_{col.replace(' ', '_')}")
+            case_prev.append(f"MAX(CASE WHEN DATE({date_column}) IN ('{prev_date_1}', '{prev_date_2}') AND EXTRACT(HOUR FROM {date_column}) < 12 AND {safe_col} IS NOT NULL AND CAST({safe_col} AS TEXT) != '' THEN 1 ELSE 0 END) as prev_{col.replace(' ', '_')}")
 
             # exclude 조건 적용
             exclude_conds = get_missing_exclude_conditions(ret, table_name, col)
@@ -86,13 +86,14 @@ def field_missing_detection(cursor, target_date, product_line, retailer, retail_
                 exclude_parts = " OR ".join([f"({c.replace('%', '%%')})" for c in exclude_conds])
                 exclude_sql = f" AND NOT ({exclude_parts})"
 
-            case_today.append(f"MAX(CASE WHEN DATE({date_column}) = '{target_date}' AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = ''){exclude_sql} THEN 1 ELSE 0 END) as today_{col.replace(' ', '_')}")
+            case_today.append(f"MAX(CASE WHEN DATE({date_column}) = '{target_date}' AND EXTRACT(HOUR FROM {date_column}) < 12 AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = ''){exclude_sql} THEN 1 ELSE 0 END) as today_{col.replace(' ', '_')}")
 
         query = f"""
             SELECT item, {', '.join(case_prev)}, {', '.join(case_today)}
             FROM {table_name}
             WHERE account_name = %s
             AND DATE({date_column}) IN (%s, %s, %s)
+            AND EXTRACT(HOUR FROM {date_column}) < 12
             GROUP BY item
         """
         cursor.execute(query, (ret, prev_date_1, prev_date_2, target_date))
@@ -133,6 +134,7 @@ def field_missing_detection(cursor, target_date, product_line, retailer, retail_
                     SELECT COUNT(*) FROM {table_name}
                     WHERE account_name = %s
                     AND DATE({date_column}) = %s
+                    AND EXTRACT(HOUR FROM {date_column}) < 12
                     AND item IN ({placeholders})
                     AND ({safe_col} IS NULL OR CAST({safe_col} AS TEXT) = ''){exclude_sql}
                 """
@@ -239,6 +241,7 @@ def field_missing_detail_all(cursor, target_date, product_line, retailer, displa
         FROM {table_name}
         WHERE account_name = %s
         AND DATE({date_cast}) IN (%s, %s, %s)
+        AND EXTRACT(HOUR FROM {date_cast}) < 12
         ORDER BY item, {date_column} ASC
         LIMIT %s OFFSET %s
     """, (retailer, prev_date_2, prev_date_1, target_date, limit, offset))
@@ -333,6 +336,7 @@ def field_missing_detail_problem(cursor, target_date, product_line, retailer, co
                 FROM {table_name}
                 WHERE account_name = %s
                 AND DATE({date_cast}) IN (%s, %s)
+                AND EXTRACT(HOUR FROM {date_cast}) < 12
                 AND {safe_col} IS NOT NULL
                 AND CAST({safe_col} AS TEXT) != ''
                 GROUP BY item, account_name
@@ -342,6 +346,7 @@ def field_missing_detail_problem(cursor, target_date, product_line, retailer, co
                 FROM {table_name}
                 WHERE account_name = %s
                 AND DATE({date_cast}) = %s
+                AND EXTRACT(HOUR FROM {date_cast}) < 12
             ) t ON p.item = t.item AND p.account_name = t.account_name
             WHERE t.{safe_col} IS NULL OR CAST(t.{safe_col} AS TEXT) = ''
         """)
@@ -487,10 +492,11 @@ def field_missing_detail_by_field(cursor, target_date, product_line, retailer, f
         FROM {table_name}
         WHERE account_name = %s
         AND DATE({date_cast}) IN (%s, %s, %s)
+        AND EXTRACT(HOUR FROM {date_cast}) < 12
         GROUP BY item
         HAVING
-            MAX(CASE WHEN DATE({date_cast}) IN (%s, %s) AND {safe_field} IS NOT NULL AND CAST({safe_field} AS TEXT) != '' THEN 1 ELSE 0 END) = 1
-            AND MAX(CASE WHEN DATE({date_cast}) = %s AND ({safe_field} IS NULL OR CAST({safe_field} AS TEXT) = ''){exclude_sql} THEN 1 ELSE 0 END) = 1
+            MAX(CASE WHEN DATE({date_cast}) IN (%s, %s) AND EXTRACT(HOUR FROM {date_cast}) < 12 AND {safe_field} IS NOT NULL AND CAST({safe_field} AS TEXT) != '' THEN 1 ELSE 0 END) = 1
+            AND MAX(CASE WHEN DATE({date_cast}) = %s AND EXTRACT(HOUR FROM {date_cast}) < 12 AND ({safe_field} IS NULL OR CAST({safe_field} AS TEXT) = ''){exclude_sql} THEN 1 ELSE 0 END) = 1
     """
 
     cursor.execute(missing_items_query, (
@@ -526,6 +532,7 @@ def field_missing_detail_by_field(cursor, target_date, product_line, retailer, f
         FROM {table_name}
         WHERE account_name = %s
         AND DATE({date_cast}) IN ({date_placeholders})
+        AND EXTRACT(HOUR FROM {date_cast}) < 12
         AND item IN ({placeholders})
         ORDER BY item, {date_column}
     """

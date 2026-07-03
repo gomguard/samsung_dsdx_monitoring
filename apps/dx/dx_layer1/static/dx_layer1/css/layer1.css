@@ -226,6 +226,7 @@
     .sentiment-category-rate.collecting { color: var(--color-collecting); }
 
     .sentiment-two-column { display: none; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; background: var(--bg-primary); }
+    .sentiment-two-column.retail-single-column { grid-template-columns: 1fr; }
     .sentiment-two-column.no-side-padding { padding-left: 0; padding-right: 0; }
     .sentiment-two-column.no-bg .sentiment-column-header { background: white; border-bottom: none; }
     .sentiment-two-column.show { display: grid; }

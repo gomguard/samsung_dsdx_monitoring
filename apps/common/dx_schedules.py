@@ -233,6 +233,8 @@ def get_time_slots(check_type, category, target_date, now=None):
     hour_groups = {}  # us_start_hour → { schedule, retailers: [] }
     for schedule in schedules:
         us_start = schedule['us_start_hour'] if schedule['us_start_hour'] is not None else 0
+        if check_type == 'retail' and (category or '').upper() == 'TV' and us_start >= 12:
+            continue
         if us_start not in hour_groups:
             hour_groups[us_start] = {'schedule': schedule, 'retailers': []}
         if schedule.get('retailer'):

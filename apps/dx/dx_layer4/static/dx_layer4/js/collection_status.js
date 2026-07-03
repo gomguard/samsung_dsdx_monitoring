@@ -233,7 +233,7 @@
                 check.categories.forEach(function(cat) {
                     if (cat.name === 'HHP') return;
                     var key = 'retail_tv';
-                    rows.push({ no: no++, category: 'Retail', name: '거래선 ' + cat.name + ' 제품 정보 / 감성점수', table_name: TABLE_NAME_MAP[key] || '', expected: 1500, actual: cat.total || 0 });
+                    rows.push({ no: no++, category: 'Retail', name: '거래선 ' + cat.name + ' 제품 정보 / 감성점수', table_name: TABLE_NAME_MAP[key] || '', expected: cat.expected || 900, actual: cat.total || 0 });
                 });
             } else if (checkType === 'sentiment' || checkType === 'market_competitor') {
                 return;

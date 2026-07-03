@@ -4,6 +4,7 @@ Layer 3 카테고리별 특성 서비스 레이어
 
 from apps.common.response import log_error
 from apps.dx.dx_layer3.dashboard.services import (
+    apply_tv_retail_am_filter,
     load_category_rules,
     validate_table_name,
     validate_select_query,
@@ -67,7 +68,10 @@ def get_rules_summary(cursor, target_date, target_category, rules):
         try:
             # 전체 건수 쿼리 (date_column 기반)
             if has_date_filter:
-                total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE({date_col}) = %s"
+                if table_name == 'tv_retail_com':
+                    total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE({date_col}) = %s AND EXTRACT(HOUR FROM {date_col}) < 12"
+                else:
+                    total_query = f"SELECT COUNT(*) FROM {table_name} WHERE DATE({date_col}) = %s"
                 cursor.execute(total_query, (target_date,))
             else:
                 total_query = f"SELECT COUNT(*) FROM {table_name}"
@@ -77,6 +81,7 @@ def get_rules_summary(cursor, target_date, target_category, rules):
 
             # 이상치 쿼리 실행
             query = query_template.replace('{table}', table_name).replace('{date_col}', date_col)
+            query = apply_tv_retail_am_filter(query, table_name, date_col)
             if not query.strip().upper().startswith('SELECT'):
                 raise ValueError(f'허용되지 않은 쿼리 유형: {detail_code}')
             # psycopg2 파라미터 바인딩용 이스케이프: LIKE의 %를 %%로
@@ -159,6 +164,7 @@ def get_rule_detail(cursor, target_date, rule_id, product_line, rules):
         return target_rule, None, None, table_name, None, None, None
 
     query = query_template.replace('{table}', table_name).replace('{date_col}', date_col)
+    query = apply_tv_retail_am_filter(query, table_name, date_col)
     if not validate_select_query(query):
         return target_rule, 'invalid_query', None, table_name, None, None, None
     # psycopg2 파라미터 바인딩용 이스케이프: LIKE의 %를 %%로

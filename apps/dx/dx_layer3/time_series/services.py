@@ -5,7 +5,10 @@
 from datetime import timedelta
 from apps.common.db import dx_table
 from apps.common.response import log_error
-from apps.dx.dx_layer3.dashboard.services import validate_table_name as _validate_table_name
+from apps.dx.dx_layer3.dashboard.services import (
+    apply_tv_retail_am_filter,
+    validate_table_name as _validate_table_name,
+)
 
 _RULES_TABLE = dx_table('monitoring_timeseries_rules')
 
@@ -25,6 +28,7 @@ def get_time_series_detail(cursor, target_date, detail_code, days=1):
         return {'error': '규칙을 찾을 수 없습니다.', 'status_code': 404}
 
     source_table, date_column, stored_query = rule
+    stored_query = apply_tv_retail_am_filter(stored_query, source_table, date_column)
     if source_table in {'hhp_retail_com', 'hhp_item_mst'}:
         return {'items': [], 'total': 0, 'anomaly_count': 0}
     _validate_table_name(source_table)
@@ -46,6 +50,9 @@ def get_time_series_detail(cursor, target_date, detail_code, days=1):
     else:
         date_filter = f"DATE(d.{date_column}::timestamp) >= %s AND DATE(d.{date_column}::timestamp) <= %s"
         date_params = [str(since_date), str(target_date)]
+
+    if source_table == 'tv_retail_com':
+        date_filter = f"({date_filter}) AND EXTRACT(HOUR FROM d.{date_column}::timestamp) < 12"
 
     combined_sql = f"""
         WITH _anomaly_items AS ({stored_query})
@@ -99,6 +106,7 @@ def get_duplicate_detail(cursor, target_date, product_line):
                    MAX(crawl_datetime) as last_crawl
             FROM tv_retail_com
             WHERE DATE(crawl_datetime::timestamp) = %s
+            AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12
             GROUP BY item, account_name, page_type,
                      CASE WHEN EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12 THEN 'AM' ELSE 'PM' END
             HAVING COUNT(*) > 1
@@ -195,19 +203,11 @@ def get_review_change_detail(cursor, target_date, product_line):
             WHERE {date_func} = %s AND {hour_func} < 12
             AND count_of_star_ratings IS NOT NULL AND count_of_star_ratings ~ '^[0-9,]+$'
         ),
-        today_pm AS (
-            SELECT item, account_name, retailer_sku_name as product_name,
-                   CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count,
-                   product_url, 'PM' as period
-            FROM {table}
-            WHERE {date_func} = %s AND {hour_func} >= 12
-            AND count_of_star_ratings IS NOT NULL AND count_of_star_ratings ~ '^[0-9,]+$'
-        ),
-        yesterday_pm AS (
+        yesterday_am AS (
             SELECT item, account_name,
                    CAST(REPLACE(count_of_star_ratings, ',', '') AS INTEGER) as review_count
             FROM {table}
-            WHERE {date_func} = %s AND {hour_func} >= 12
+            WHERE {date_func} = %s AND {hour_func} < 12
             AND count_of_star_ratings IS NOT NULL AND count_of_star_ratings ~ '^[0-9,]+$'
         ),
         am_changes AS (
@@ -216,24 +216,14 @@ def get_review_change_detail(cursor, target_date, product_line):
                    ROUND(((t.review_count - y.review_count)::float / y.review_count * 100)::numeric, 2) as change_pct,
                    t.product_url, t.period,
                    (t.review_count - y.review_count)::float / y.review_count as abs_change
-            FROM today_am t JOIN yesterday_pm y ON t.item = y.item AND t.account_name = y.account_name
+            FROM today_am t JOIN yesterday_am y ON t.item = y.item AND t.account_name = y.account_name
             WHERE y.review_count > 0 AND (t.review_count - y.review_count)::float / y.review_count > 0.5
             AND (t.review_count - y.review_count) >= 30
-        ),
-        pm_changes AS (
-            SELECT t.item, t.account_name, t.product_name,
-                   a.review_count as prev_count, t.review_count as curr_count,
-                   ROUND(((t.review_count - a.review_count)::float / a.review_count * 100)::numeric, 2) as change_pct,
-                   t.product_url, t.period,
-                   (t.review_count - a.review_count)::float / a.review_count as abs_change
-            FROM today_pm t JOIN today_am a ON t.item = a.item AND t.account_name = a.account_name
-            WHERE a.review_count > 0 AND (t.review_count - a.review_count)::float / a.review_count > 0.5
-            AND (t.review_count - a.review_count) >= 30
         )
         SELECT item, account_name, product_name, prev_count, curr_count, change_pct, product_url, period
-        FROM (SELECT * FROM am_changes UNION ALL SELECT * FROM pm_changes) combined
+        FROM am_changes
         ORDER BY abs_change DESC
-    """, (target_date, target_date, prev_date))
+    """, (target_date, prev_date))
 
     changes = []
     for row in cursor.fetchall():
@@ -271,6 +261,7 @@ def get_price_anomalies(cursor, target_date, product_line):
             SELECT product_name, account_name, final_sku_price, main_rank, crawl_datetime
             FROM tv_retail_com
             WHERE DATE(crawl_datetime::timestamp) = %s
+            AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12
             AND (final_sku_price < 0 OR final_sku_price > 50000)
             ORDER BY final_sku_price DESC
         """, (target_date,))
@@ -318,11 +309,11 @@ def get_price_changes(cursor, target_date, product_line, threshold=0.3):
         cursor.execute("""
             WITH today AS (
                 SELECT item, product_name, account_name, final_sku_price as price, product_url
-                FROM tv_retail_com WHERE DATE(crawl_datetime::timestamp) = %s AND final_sku_price IS NOT NULL
+                FROM tv_retail_com WHERE DATE(crawl_datetime::timestamp) = %s AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12 AND final_sku_price IS NOT NULL
             ),
             yesterday AS (
                 SELECT item, product_name, account_name, final_sku_price as price
-                FROM tv_retail_com WHERE DATE(crawl_datetime::timestamp) = %s AND final_sku_price IS NOT NULL
+                FROM tv_retail_com WHERE DATE(crawl_datetime::timestamp) = %s AND EXTRACT(HOUR FROM crawl_datetime::timestamp) < 12 AND final_sku_price IS NOT NULL
             )
             SELECT t.item, t.account_name, t.product_name,
                    y.price as prev_price, t.price as curr_price,
