@@ -196,15 +196,22 @@ function renderRetailCheck(check, checkIdx) {
     const hasCategories = check.categories && check.categories.length > 0;
     const statusClass = getStatusClass(check.status);
 
-    // Retail은 하루 1회 수집 기준이므로 오전/오후를 표시하지 않는다.
-    const timeInfo = check.time_info || {};
-    const dailyDate = (timeInfo.daily && timeInfo.daily.us) || getSelectedDate();
+    // Display server schedule times while the data table stays daily aggregated.
+    const timeInfo = check.time_info || { am: { us: '00:00', kst: '14:00' }, pm: { us: '12:00', kst: '02:00' } };
+    const isDst = timeInfo.is_dst || (timeInfo.am && timeInfo.am.is_dst) || false;
+    const kstLabel = isDst ? 'KST(DST)' : 'KST';
+    const amInfo = timeInfo.am || { us: getSelectedDate() + ' 00:00', kst: getSelectedDate() + ' 13:00' };
+    const pmInfo = timeInfo.pm || { us: getSelectedDate() + ' 12:00', kst: getSelectedDate() + ' 01:00' };
+    const amUsTime = amInfo.us ? amInfo.us.split(' ')[1] || amInfo.us : '00:00';
+    const pmUsTime = pmInfo.us ? pmInfo.us.split(' ')[1] || pmInfo.us : '12:00';
+
     const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
         '<div class="time-slot-header" style="cursor: default;">' +
             '<div class="time-slot-info">' +
                 '<span class="time-slot-name">서버별 시간</span>' +
-                '<span class="time-slot-time">' +
-                    '<span class="utc">US(NY) ' + dailyDate + '</span>' +
+                '<span class="time-slot-time" style="display: flex; flex-direction: row; align-items: center; gap: 24px;">' +
+                    '<span class="utc">[오전] US(NY) ' + amUsTime + ' ' + kstLabel + ' ' + amInfo.kst + '</span>' +
+                    '<span class="utc">[오후] US(NY) ' + pmUsTime + ' ' + kstLabel + ' ' + pmInfo.kst + '</span>' +
                 '</span>' +
             '</div>' +
         '</div>' +
