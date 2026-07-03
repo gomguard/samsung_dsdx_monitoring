@@ -167,7 +167,7 @@ function renderRetailCheck(check, checkIdx) {
     const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
         '<div class="time-slot-header" style="cursor: default;">' +
             '<div class="time-slot-info">' +
-                '<span class="time-slot-name">수집 기준일</span>' +
+                '<span class="time-slot-name">서버별 시간</span>' +
                 '<span class="time-slot-time">' +
                     '<span class="utc">US(NY) ' + dailyDate + '</span>' +
                 '</span>' +

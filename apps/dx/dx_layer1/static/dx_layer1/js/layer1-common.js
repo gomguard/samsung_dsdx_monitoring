@@ -29,6 +29,7 @@ var L1 = (function() {
 
         // krTimeEnd가 있으면 Retail 스타일 (오전/오후 가로 배치)
         if (options.krTimeEnd) {
+            if (!options.label) label = '서버별 시간';
             var usTimeAm = usTime;
             var usTimePm = options.usTimePm || '';
             timeSpans = '<span class="utc">[오전] US(NY) ' + usTimeAm + ' ' + kstLabel + ' ' + krTime + '</span>' +
