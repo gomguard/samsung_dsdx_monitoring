@@ -74,7 +74,7 @@ def get_collection_status(target_date, category):
                 CUSTOM_TOTALS['promotion_position'] = 18
 
             REMARKS = {
-                'bsr_rank': 'BSR 페이지 수집 항목 (오전 100건)',
+                'bsr_rank': 'BSR 페이지 수집 항목 (일 100건)',
                 'trend_rank': '트렌드 수집 항목 (최대 10개)',
                 'original_sku_price': '할인가 존재 시에만 원본가 존재 (Amazon 제외)',
             }

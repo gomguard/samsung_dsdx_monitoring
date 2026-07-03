@@ -43,12 +43,12 @@ def retailer_raw_data(request):
     리테일러별 원본 데이터 조회 API
     - category: TV 또는 HHP
     - retailer: Amazon, Bestbuy, Walmart
-    - period: 오전 또는 오후
+    - period: 일일
     - date: 조회 날짜 (YYYY-MM-DD)
     """
     category = request.GET.get('category', 'TV')
     retailer = request.GET.get('retailer', 'Amazon')
-    period = request.GET.get('period', '오전')
+    period = request.GET.get('period', '일일')
     date_str = request.GET.get('date')
 
     if not date_str:

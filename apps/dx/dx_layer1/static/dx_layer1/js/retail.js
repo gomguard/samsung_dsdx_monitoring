@@ -6,7 +6,7 @@ function renderRetailCategory(cat, checkIdx, catIdx) {
     const catStatusClass = getStatusClass(cat.status);
     const hasTimeSlots = cat.time_slots && cat.time_slots.length > 0;
 
-    // Sentiment와 동일하게 2열 레이아웃으로 오전/오후 표시
+    // Retail은 기준일 전체를 단일 일일 슬롯으로 표시
     let timeSlotsHtml = '';
     if (hasTimeSlots) {
         const slotClass = cat.time_slots.length > 1 ? 'sentiment-two-column' : 'sentiment-two-column retail-single-column';
@@ -30,7 +30,7 @@ function renderRetailCategory(cat, checkIdx, catIdx) {
     '</div>';
 }
 
-// 시간대별 NULL 컬럼 목록 조회 (categoryName: 'TV'/'HHP', slotName: '오전'/'오후')
+// 일일 슬롯별 NULL 컬럼 목록 조회 (categoryName: 'TV', slotName: '일일')
 // 반환: [{retailer, columns}] 또는 빈 배열
 function getSlotNullColumns(categoryName, slotName) {
     if (!currentNullData) return [];
@@ -49,7 +49,7 @@ function getSlotNullColumns(categoryName, slotName) {
     return result;
 }
 
-// Retail 슬롯 — 테이블 렌더링 (오전/오후 각각)
+// Retail 일일 슬롯 테이블 렌더링
 function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
     var period = slot.name;
     var key = categoryName.toLowerCase();
@@ -57,7 +57,7 @@ function renderRetailSlotCard(slot, checkIdx, catIdx, slotIdx, categoryName) {
     // retail-summary API에서 rank별 건수 가져오기
     var summaryData = currentRetailSummary && currentRetailSummary[key];
     var extraName = (summaryData && summaryData.extra_rank_name) || 'Extra';
-    var slotIdx2 = period === '오전' ? 0 : 1;
+    var slotIdx2 = slotIdx;
 
     // 리테일러별 status 매핑 (slot.retailers에서 가져옴)
     var statusMap = {};
@@ -161,20 +161,15 @@ function renderRetailCheck(check, checkIdx) {
     const hasCategories = check.categories && check.categories.length > 0;
     const statusClass = getStatusClass(check.status);
 
-    // 시간 정보 (날짜 포함): US(NY) 00:00 KST 2026-01-05 14:00
-    const timeInfo = check.time_info || { am: { us: '00:00', kst: '14:00' } };
-    const isDst = timeInfo.is_dst || false;
-    const kstLabel = isDst ? 'KST(DST)' : 'KST';
-
-    // US 시간에서 시간만 추출
-    const amUsTime = timeInfo.am && timeInfo.am.us ? timeInfo.am.us.split(' ')[1] || timeInfo.am.us : '00:00';
-    const timeSpans = ['<span class="utc">[오전] US(NY) ' + amUsTime + ' ' + kstLabel + ' ' + (timeInfo.am ? timeInfo.am.kst : '') + '</span>'];
+    // Retail은 하루 1회 수집 기준이므로 오전/오후를 표시하지 않는다.
+    const timeInfo = check.time_info || {};
+    const dailyDate = (timeInfo.daily && timeInfo.daily.us) || getSelectedDate();
     const timeHeader = '<div class="time-slot-item" style="margin-bottom: 16px;">' +
         '<div class="time-slot-header" style="cursor: default;">' +
             '<div class="time-slot-info">' +
-                '<span class="time-slot-name">수집 시간</span>' +
-                '<span class="time-slot-time" style="display: flex; flex-direction: row; align-items: center; gap: 24px;">' +
-                    timeSpans.join('') +
+                '<span class="time-slot-name">수집 기준일</span>' +
+                '<span class="time-slot-time">' +
+                    '<span class="utc">US(NY) ' + dailyDate + '</span>' +
                 '</span>' +
             '</div>' +
         '</div>' +
@@ -207,7 +202,7 @@ function renderRetailCheck(check, checkIdx) {
                             '</div>' +
                         '</div>' +
                         '<div class="sentiment-two-column">' +
-                            ['오전'].map(function(period) {
+                            ['일일'].map(function(period) {
                                 return '<div class="sentiment-column pending">' +
                                     '<div class="sentiment-column-header">' +
                                         '<span class="sentiment-column-title">' + period + ' (0건)</span>' +

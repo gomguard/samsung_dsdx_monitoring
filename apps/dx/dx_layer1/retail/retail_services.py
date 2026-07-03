@@ -113,58 +113,81 @@ def get_layer1_stats(cursor, target_date, now):
     next_day = target_date + timedelta(days=1)
     failed_items = []
 
-    time_slots = get_retail_time_slots('TV', target_date)
-    tv_daily_retailers = set()
+    schedule_slots = get_retail_time_slots('TV', target_date)
+    slot_retailer_map = {}
+    for slot in schedule_slots:
+        for r in slot.get('retailers', []):
+            name = r.get('name')
+            if not name:
+                continue
+            slot_retailer_map[name.lower()] = {
+                'name': name,
+                'expected_count': r.get('expected_count', 0) or 0,
+            }
+
+    slot_retailers = list(slot_retailer_map.values())
+    if not slot_retailers:
+        slot_retailers = [
+            {'name': 'Amazon', 'expected_count': 300},
+            {'name': 'Bestbuy', 'expected_count': 300},
+            {'name': 'Walmart', 'expected_count': 300},
+        ]
+
+    slot_expected = sum(r.get('expected_count', 0) for r in slot_retailers)
+    slot_start = f'{target_date} 00:00:00'
+    slot_end = f'{next_day} 00:00:00'
+    rows = repo.query_retail_counts(cursor, 'tv_retail_com', 'crawl_datetime::timestamp', 'promotion_position', slot_start, slot_end, set())
 
     tv_time_slots = []
     tv_total_count = 0
     tv_slot_statuses = []
 
-    for slot in time_slots:
-        slot_retailers = slot.get('retailers', [])
-        slot_expected = sum(r.get('expected_count', 0) for r in slot_retailers) if slot_retailers else 0
-        rows = repo.query_retail_counts(cursor, 'tv_retail_com', 'crawl_datetime::timestamp', 'promotion_position', slot['start'], slot['end'], tv_daily_retailers)
+    schedule_statuses = [s.get('time_status') for s in schedule_slots if s.get('time_status')]
+    if 'COLLECTING' in schedule_statuses:
+        daily_time_status = 'COLLECTING'
+    elif schedule_statuses and all(s == 'PENDING' for s in schedule_statuses):
+        daily_time_status = 'PENDING'
+    else:
+        daily_time_status = None
 
-        if slot['is_pending']:
-            slot_display_status = slot['time_status'] if slot['time_status'] else 'PENDING'
-            retailer_details, total, _ = check_retailer_data(rows, 'TV', slot_retailers)
-            tv_total_count += total
-            tv_time_slots.append({
-                'name': slot['name'],
-                'us_time': slot['us_time'],
-                'kr_time': slot['kr_time'],
-                'is_dst': slot.get('is_dst', False),
-                'total': total,
-                'expected': slot_expected,
-                'status': slot_display_status,
-                'retailers': retailer_details
-            })
-        else:
-            retailer_details, total, slot_status = check_retailer_data(rows, 'TV', slot_retailers)
-            tv_total_count += total
-            tv_slot_statuses.append(slot_status)
+    if daily_time_status:
+        retailer_details, total, _ = check_retailer_data(rows, 'TV', slot_retailers)
+        tv_total_count += total
+        tv_time_slots.append({
+            'name': '일일',
+            'us_time': f'{target_date}',
+            'kr_time': '',
+            'is_dst': False,
+            'total': total,
+            'expected': slot_expected,
+            'status': daily_time_status,
+            'retailers': retailer_details
+        })
+    else:
+        retailer_details, total, slot_status = check_retailer_data(rows, 'TV', slot_retailers)
+        tv_total_count += total
+        tv_slot_statuses.append(slot_status)
+        tv_time_slots.append({
+            'name': '일일',
+            'us_time': f'{target_date}',
+            'kr_time': '',
+            'is_dst': False,
+            'total': total,
+            'expected': slot_expected,
+            'status': slot_status,
+            'retailers': retailer_details
+        })
 
-            tv_time_slots.append({
-                'name': slot['name'],
-                'us_time': slot['us_time'],
-                'kr_time': slot['kr_time'],
-                'is_dst': slot.get('is_dst', False),
-                'total': total,
-                'expected': slot_expected,
-                'status': slot_status,
-                'retailers': retailer_details
-            })
-
-            for r in retailer_details:
-                if r['status'] != 'OK':
-                    error_type = '수집 없음' if r['count'] == 0 else ('주의' if r['status'] == 'WARNING' else '수집량 부족')
-                    failed_items.append({
-                        'source': f"TV Retail - {r['retailer']}",
-                        'error_type': error_type,
-                        'expected': f">= {OK_THRESHOLD}",
-                        'actual': r['count'],
-                        'timestamp': f"TV {slot['name']}"
-                    })
+        for r in retailer_details:
+            if r['status'] != 'OK':
+                error_type = '수집 없음' if r['count'] == 0 else ('주의' if r['status'] == 'WARNING' else '수집량 부족')
+                failed_items.append({
+                    'source': f"TV Retail - {r['retailer']}",
+                    'error_type': error_type,
+                    'expected': f">= {OK_THRESHOLD}",
+                    'actual': r['count'],
+                    'timestamp': "TV 일일"
+                })
 
     tv_has_collecting = any(s['status'] == 'COLLECTING' for s in tv_time_slots)
     tv_all_pending = all(s['status'] == 'PENDING' for s in tv_time_slots)
@@ -204,12 +227,17 @@ def get_layer1_stats(cursor, target_date, now):
     pm_kst_date = next_day if pm_kst['next_day'] else target_date
 
     retail_time_info = {
+        'daily': {
+            'us': str(target_date),
+            'kst': str(target_date),
+            'is_dst': am_kst['is_dst']
+        },
+        # Backward-compatible display metadata only. Old cached JS may still read am/pm.
         'am': {
             'us': f'{target_date} 00:00',
             'kst': f'{am_kst_date} {am_kst["hour"]:02d}:00',
             'is_dst': am_kst['is_dst']
         },
-        # Backward-compatible display metadata only. PM rows remain excluded.
         'pm': {
             'us': f'{target_date} 12:00',
             'kst': f'{pm_kst_date} {pm_kst["hour"]:02d}:00',
@@ -287,8 +315,9 @@ def get_retail_summary(target_date, product_line):
         }
 
 
+    next_day = target_date + timedelta(days=1)
     time_slots = [
-        {'name': '오전', 'start': f'{target_date} 00:00:00', 'end': f'{target_date} 12:00:00'}
+        {'name': '일일', 'start': f'{target_date} 00:00:00', 'end': f'{next_day} 00:00:00'}
     ]
 
     table_name = 'tv_retail_com'
@@ -450,26 +479,10 @@ def get_retailer_raw_data(category, retailer, period, target_date):
             'error': 'HHP Retail is excluded from monitoring.'
         }
 
-    if cfg['scheduled'] and period != '오전':
-        return {
-            'category': category,
-            'retailer': retailer,
-            'period': period,
-            'date': str(target_date),
-            'columns': [],
-            'data': [],
-            'total_count': 0,
-            'error': 'TV Retail 오후 수집은 모니터링 대상에서 제외되었습니다.'
-        }
-
     next_day = target_date + timedelta(days=1)
-
-    if period == '오전':
-        start_time = f'{target_date} 00:00:00'
-        end_time = f'{target_date} 12:00:00'
-    else:
-        start_time = f'{target_date} 12:00:00'
-        end_time = f'{next_day} 00:00:00'
+    period = '일일'
+    start_time = f'{target_date} 00:00:00'
+    end_time = f'{next_day} 00:00:00'
 
     results = {
         'category': category,
