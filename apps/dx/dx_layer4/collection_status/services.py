@@ -22,6 +22,12 @@ _DATE_COL_MAP = {
     'tv': 'crawl_datetime',
 }
 
+_BATCH_DATE_EXPR = "substring(COALESCE(batch_id, '') from '([0-9]{8})')"
+
+
+def _batch_date_key(date_value):
+    return str(date_value)[:10].replace('-', '')
+
 
 def get_collection_status(target_date, category):
     """리테일러별 수집 건수 + 컬럼별 NULL 수 조회"""
@@ -56,9 +62,9 @@ def get_collection_status(target_date, category):
             sql = (
                 f"SELECT COUNT(*) AS total_count, {', '.join(null_parts)} "
                 f"FROM {table_name} "
-                f"WHERE account_name = %s AND ({date_col})::date = %s::date "
+                f"WHERE account_name = %s AND {_BATCH_DATE_EXPR} = %s "
             )
-            cursor.execute(sql, [retailer, str(target_date)])
+            cursor.execute(sql, [retailer, _batch_date_key(target_date)])
             row = cursor.fetchone()
 
             total_count = (row[0] or 0) if row else 0
@@ -131,11 +137,11 @@ def get_null_detail(target_date, category, retailer, column):
         sql = (
             f"SELECT id, {date_expr}, account_name, item, {column}, product_url "
             f"FROM {table_name} "
-            f"WHERE account_name = %s AND ({date_col})::date = %s::date "
+            f"WHERE account_name = %s AND {_BATCH_DATE_EXPR} = %s "
             f"AND ({column} IS NULL OR CAST({column} AS TEXT) = '') "
             f"ORDER BY item, {date_col} ASC"
         )
-        cursor.execute(sql, [retailer, str(target_date)])
+        cursor.execute(sql, [retailer, _batch_date_key(target_date)])
 
         col_names = ['id', 'crawl_datetime', 'account_name', 'item', column, 'product_url']
         rows = []

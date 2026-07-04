@@ -369,21 +369,7 @@ def get_retail_summary(target_date, product_line):
                     })
                     continue
 
-                if is_daily:
-                    date_only = slot['start'][:10]
-                    cursor.execute(f"""
-                        SELECT
-                            COUNT(CASE WHEN main_rank IS NOT NULL THEN 1 END) as main_count,
-                            COUNT(CASE WHEN bsr_rank IS NOT NULL THEN 1 END) as bsr_count,
-                            COUNT(CASE WHEN {extra_rank_field} IS NOT NULL THEN 1 END) as extra_count,
-                            COUNT(*) as total
-                        FROM {table_name}
-                        WHERE DATE({date_field}) = %s
-                        AND LOWER(account_name) = LOWER(%s)
-                    """, (date_only, retailer))
-                    row = cursor.fetchone()
-                else:
-                    row = repo.query_retail_counts_by_retailer(cursor, table_name, date_field, extra_rank_field, slot['start'], slot['end'], retailer)
+                row = repo.query_retail_counts_by_retailer(cursor, table_name, date_field, extra_rank_field, slot['start'], slot['end'], retailer)
 
                 main_count = row[0] or 0
                 bsr_count = row[1] or 0
